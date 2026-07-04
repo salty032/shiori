@@ -8,7 +8,6 @@ import { getImage } from './db'
 import { ensureCaptureSubDir, thumbPathFor, resolveRealCapturePath } from './paths'
 import { MAX_TEXT_LENGTH } from './ipc-validation'
 import { createImageThumb } from './image-thumb'
-import { getVideoThumbProvider } from './video-thumb-provider'
 import { CH } from '../shared/api'
 import { registerCapturedMedia } from './captured-media'
 
@@ -142,27 +141,15 @@ export function registerImportHandlers(): void {
       let width: number | null = null
       let height: number | null = null
       let thumbFile: string | null = null
-      let duration: number | null = null
-      if (isImage) {
-        try {
-          const size = nativeImage.createFromPath(destFile).getSize()
-          if (size.width > 0 && size.height > 0) { width = size.width; height = size.height }
-        } catch { /* best effort */ }
-        const tf = thumbPathFor(destFile)
-        try { await createImageThumb(destFile, tf); thumbFile = tf } catch (err) {
-          console.warn('[import] createImageThumb failed', err)
-        }
-      } else if (isVideo) {
-        const tf = thumbPathFor(destFile)
-        try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbFile = tf } catch (err) {
-          console.warn('[import] extractThumb failed', err)
-        }
-        try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
-          console.warn('[import] getVideoDuration failed', err)
-        }
+      try {
+        const size = nativeImage.createFromPath(destFile).getSize()
+        if (size.width > 0 && size.height > 0) { width = size.width; height = size.height }
+      } catch { /* best effort */ }
+      const tf = thumbPathFor(destFile)
+      try { await createImageThumb(destFile, tf); thumbFile = tf } catch (err) {
+        console.warn('[import] createImageThumb failed', err)
       }
 
-      const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image'
       const rawName = basename(rawPath, ext)
       const title = rawName.length > 0 ? rawName.slice(0, MAX_TEXT_LENGTH) : null
 
@@ -177,14 +164,14 @@ export function registerImportHandlers(): void {
           height,
           colors: null,
           memo: null,
-          media_type: mediaType,
-          duration,
+          media_type: 'image',
+          duration: null,
           thumb_path: thumbFile,
           source: 'import',
         },
         filePath: destFile,
         thumbPath: thumbFile,
-        autoTag: isImage ? { path: thumbFile ?? destFile } : null
+        autoTag: { path: thumbFile ?? destFile }
       })
       if (!result.ok) {
         errors.push(`insert failed: ${basename(rawPath)}`)

@@ -342,6 +342,8 @@ export function bootstrap(): void {
       sendBrowserNotice('error', message)
     })
 
+    initAutoUpdater(getMainWindow)
+
     isModelDownloaded().then(async (downloaded) => {
       if (!downloaded) return
       try {
