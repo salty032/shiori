@@ -58,7 +58,8 @@
     "publish": {
       "provider": "github",
       "owner": "salty032",
-      "repo": "shiori"
+      "repo": "shiori",
+      "releaseType": "release"
     }
   },
   "dependencies": {
