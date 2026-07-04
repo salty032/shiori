@@ -1,0 +1,75 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a #111;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: #111;
+}
+*::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border: 2px solid #111;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+body { background: #111; color: #eee; font-family: system-ui, sans-serif; }
+input::placeholder { color: #555; }
+button:not(:disabled):hover { filter: brightness(1.13); }
+button:focus-visible { outline: 2px solid rgba(123,123,246,0.65); outline-offset: 2px; border-radius: 3px; }
+
+/* メニュー/サジェスト項目（透明背景でボタンの brightness hover が効かないもの）用の共通ホバー。
+   キーボード選択中のハイライトと同系色にして、マウス操作とキー操作の見た目を揃える。 */
+/* 各項目は React 側で background をインライン style（none/transparent 等）に
+   明示指定しているため、通常優先度の hover では上書きできない。!important で強制する。 */
+.shiori-menu-item:hover { background: #262b39 !important; }
+.shiori-menu-item-danger:hover { background: #302027 !important; }
+
+.shiori-tag-list {
+  scrollbar-width: thin;
+  scrollbar-color: #343844 transparent;
+}
+.shiori-tag-list::-webkit-scrollbar {
+  width: 6px;
+}
+.shiori-tag-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.shiori-tag-list::-webkit-scrollbar-thumb {
+  background: #343844;
+  border: 1px solid #0d0f14;
+  border-radius: 999px;
+}
+
+/* アプリ全体のアニメーション定義はここに一元化する（各コンポーネントで個別注入しない）。
+   マイクロインタラクション専用: transform / opacity のみで、レイアウトを動かさない。 */
+@keyframes shioriViewerIn  { from { opacity: 0; transform: scale(0.97) } to { opacity: 1; transform: scale(1) } }
+@keyframes shioriViewerOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.97) } }
+@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 2px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 3px rgba(84,214,168,0.55) } }
+/* NEW バッジが消える際のフェードアウト */
+@keyframes shioriNewBadgeOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.78) } }
+/* in-app トーストの出現/消滅。中央寄せは親(toastStack)側の transform で行うため、
+   ここでは translateY のみ動かす（translateX を混ぜると自分の幅の半分ズレてしまう）。 */
+@keyframes shioriToastIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes shioriToastOut { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(6px) } }
+/* グリッド⇄タイムライン切替で本体がスライドイン。方向はサイドバーのトグル配置に合わせる
+   （グリッド=左ボタン→左から、タイムライン=右ボタン→右から） */
+@keyframes shioriViewFromLeft  { from { opacity: 0; transform: translateX(-14px) } to { opacity: 1; transform: translateX(0) } }
+@keyframes shioriViewFromRight { from { opacity: 0; transform: translateX(14px) } to { opacity: 1; transform: translateX(0) } }
+/* 検索ボックスのローディングスピナー（検索アイコンの代わりに表示） */
+@keyframes shioriSpin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+
+/* OS で「視差効果を減らす」設定時はアニメーションを実質無効化（酔い対策）。
+   duration を 0 にせず極小にすることで animationend/transitionend 依存コードは壊さない。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

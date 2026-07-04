@@ -1,0 +1,93 @@
+{
+  "name": "Shiori",
+  "version": "1.0.0",
+  "description": "アニメキャプチャ専用画像管理ツール",
+  "author": "salty032",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
+    "verify": "npm run typecheck && npm test",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "npm run typecheck && electron-vite build && electron-builder --win --x64",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 -w onnxruntime-node"
+  },
+  "build": {
+    "appId": "com.shiori.app",
+    "productName": "Shiori",
+    "directories": {
+      "output": "dist"
+    },
+    "compression": "maximum",
+    "files": [
+      "out/**/*",
+      "build/icon.ico",
+      "node_modules/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+    ],
+    "afterPack": "./build/afterPack.js",
+    "extraResources": [
+      {
+        "from": "../extension",
+        "to": "extension"
+      }
+    ],
+    "icon": "build/icon.ico",
+    "win": {
+      "target": {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "salty032",
+      "repo": "shiori"
+    }
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.3",
+    "better-sqlite3": "^12.11.1",
+    "electron-updater": "^6.8.9",
+    "onnxruntime-node": "^1.26.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "screenshot-desktop": "^1.12.7",
+    "ws": "^8.18.0",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.5.10",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^6.0.3",
+    "vite": "7.3.5",
+    "vitest": "^3.2.6"
+  },
+  "overrides": {
+    "vite": {
+      "esbuild": "0.28.1"
+    }
+  }
+}

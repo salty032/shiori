@@ -1,0 +1,370 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { SmartFolder } from '../types'
+import type { Filters } from '../hooks/useFilters'
+import type { ViewMode } from './Toolbar'
+import { s, font } from '../styles'
+import { FolderIcon, GridIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
+import ContextMenu from './ContextMenu'
+import { usePanelResize } from '../hooks/usePanelResize'
+import appIcon from '../../../../build/icon.ico'
+
+const SIDEBAR_TAG_LIMIT = 24
+const SIDEBAR_MIN_WIDTH = 210
+const SIDEBAR_MAX_WIDTH = 340
+const SIDEBAR_DEFAULT_WIDTH = 210
+
+type Props = {
+  count: number
+  filters: Filters
+  smartFolders: SmartFolder[]
+  searchTags: string[]
+  onRemoveSearchTag: (tag: string) => void
+  onAddSearchTag: (tag: string) => void
+  settingsActive: boolean
+  onToggleSettings: () => void
+  thumbnailSize: number
+  onThumbnailSize: (size: number) => void
+  viewMode: ViewMode
+  onViewMode: (mode: ViewMode) => void
+  onDeleteSmartFolder: (folder: SmartFolder) => void
+  onReorderSmartFolders: (folders: SmartFolder[]) => void
+  onDeleteTag: (tag: string) => void
+}
+
+const SMART_FOLDER_LONG_PRESS_MS = 350
+const SMART_FOLDER_DRAG_THRESHOLD_PX = 6
+
+// 左サイドバー：件数・スマートフォルダ・タグ絞り込み・設定。サービス絞り込みは検索の site: で行う。
+// フィルタ操作のロジックは filters フックに集約済みで、ここは表示と委譲のみ。
+// タグの「+N 表示」折りたたみだけはサイドバー固有の表示状態なので内部に持つ。
+export default function Sidebar({
+  count, filters, smartFolders,
+  searchTags, onRemoveSearchTag, onAddSearchTag, settingsActive, onToggleSettings,
+  thumbnailSize, onThumbnailSize, viewMode, onViewMode,
+  onDeleteSmartFolder, onReorderSmartFolders, onDeleteTag,
+}: Props) {
+  const [showAllTags, setShowAllTags] = useState(false)
+  const [dragFolderId, setDragFolderId] = useState<string | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [tagCtxMenu, setTagCtxMenu] = useState<{ x: number; y: number; tag: string } | null>(null)
+  const [dragDeltaY, setDragDeltaY] = useState(0)
+  const smartFolderRowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  // ドラッグ中は掴んだ行がポインタに追従する（transform で動かす）ため、離した位置も
+  // 常に同じ要素の上になり、ブラウザは押下/離した要素が同一という理由で click を発火してしまう。
+  // これをフィルタ選択のトグルとして扱うと並べ替えのたびに一覧の絞り込みが変わって画面が
+  // ガタつくので、ドラッグが発生した後の click は選択解除で統一し、選択トグルは行わない。
+  const smartFolderDraggedRef = useRef(false)
+  const { width: sidebarWidth, handleResizeStart } = usePanelResize({
+    storageKey: 'shiori-sidebar-width',
+    min: SIDEBAR_MIN_WIDTH,
+    max: SIDEBAR_MAX_WIDTH,
+    defaultWidth: SIDEBAR_DEFAULT_WIDTH,
+    direction: 'right',
+  })
+
+  // 長押し（一定時間ホールド）でドラッグ開始と見なす。移動が閾値を超える前にタイマーが
+  // 発火しなければ通常のクリック（開く／削除）として扱われ、既存の onClick に干渉しない。
+  const handleSmartFolderPressStart = (e: React.PointerEvent, fromIndex: number): void => {
+    if (e.button !== 0) return
+    // ポインタキャプチャは実際にドラッグが始まった時点(タイマー発火時)まで取らない。
+    // pointerdown 直後に取ってしまうと、それ以降の click の対象までこの行要素に
+    // つけ替えられてしまい、通常のクリック（開く／削除ボタン）が一切反応しなくなる。
+    const captureEl = e.currentTarget
+    const pointerId = e.pointerId
+    const startX = e.clientX
+    const startY = e.clientY
+    let dragging = false
+    let overIndex = fromIndex
+
+    // 掴んでいる行自身は transform で追従して動いているため、その getBoundingClientRect は
+    // ポインタと一緒に動いてしまい判定に使えない（自分自身と比較する形になり、特に
+    // 下方向への移動が正しく判定できなくなる）。判定は掴んでいない行だけを対象にする。
+    //
+    // 比較の基準はポインタの生座標ではなく、掴んでいる行自身の「現在の中心位置」にする。
+    // ポインタ位置をそのまま使うと、行の上端付近を掴んだ場合と下端付近を掴んだ場合とで
+    // 見た目上どこまで重なったら切り替わるかがずれてしまい、行間の中央で綺麗に切り替わって
+    // 見えない（掴んだ位置次第で早すぎたり遅すぎたりする）。
+    const fromEl = smartFolderRowRefs.current.get(smartFolders[fromIndex].id)
+    const fromRect = fromEl?.getBoundingClientRect()
+    const fromCenter = fromRect ? fromRect.top + fromRect.height / 2 : startY
+
+    const computeOverIndex = (deltaY: number): number => {
+      const draggedCenter = fromCenter + deltaY
+      for (let i = 0; i < smartFolders.length; i++) {
+        if (i === fromIndex) continue
+        const el = smartFolderRowRefs.current.get(smartFolders[i].id)
+        if (!el) continue
+        const r = el.getBoundingClientRect()
+        if (draggedCenter < r.top + r.height / 2) return i
+      }
+      return smartFolders.length
+    }
+
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      timer = null
+      dragging = true
+      smartFolderDraggedRef.current = true
+      // ウィンドウ外に出ても pointerup を取りこぼさないよう、ドラッグ確定時にのみキャプチャする。
+      captureEl.setPointerCapture(pointerId)
+      setDragFolderId(smartFolders[fromIndex].id)
+      setDragOverIndex(fromIndex)
+      setDragDeltaY(0)
+    }, SMART_FOLDER_LONG_PRESS_MS)
+
+    const cleanup = (): void => {
+      if (timer !== null) { clearTimeout(timer); timer = null }
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+      if (captureEl.hasPointerCapture(pointerId)) captureEl.releasePointerCapture(pointerId)
+    }
+
+    const onMove = (ev: PointerEvent): void => {
+      if (!dragging) {
+        if (timer !== null && Math.hypot(ev.clientX - startX, ev.clientY - startY) > SMART_FOLDER_DRAG_THRESHOLD_PX) {
+          clearTimeout(timer)
+          timer = null
+        }
+        return
+      }
+      const deltaY = ev.clientY - startY
+      overIndex = computeOverIndex(deltaY)
+      setDragOverIndex(overIndex)
+      setDragDeltaY(deltaY)
+    }
+
+    const onUp = (): void => {
+      cleanup()
+      if (!dragging) return
+      setDragFolderId(null)
+      setDragOverIndex(null)
+      setDragDeltaY(0)
+      // click は pointerup 直後に同期的に発火するのでここでは消さず、直後の
+      // onClick に消させる。click 自体が起きなかった場合の保険として次のタスクで戻す。
+      setTimeout(() => { smartFolderDraggedRef.current = false }, 0)
+      const to = fromIndex < overIndex ? overIndex - 1 : overIndex
+      if (to === fromIndex) return
+      const next = [...smartFolders]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(to, 0, moved)
+      onReorderSmartFolders(next)
+    }
+
+    // OS/ブラウザ都合でポインタ操作自体が中断された場合は並べ替えを確定せずに状態だけ戻す。
+    const onCancel = (): void => {
+      cleanup()
+      if (!dragging) return
+      setDragFolderId(null)
+      setDragOverIndex(null)
+      setDragDeltaY(0)
+      smartFolderDraggedRef.current = false
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+  }
+
+  // 上限超過時は先頭 N 件＋「現在フィルタ中で N 件外のタグ」を可視に保つ。
+  const visibleTags = useMemo(() => {
+    if (showAllTags || filters.allTags.length <= SIDEBAR_TAG_LIMIT) return filters.allTags
+    const base = filters.allTags.slice(0, SIDEBAR_TAG_LIMIT)
+    for (const tag of [...filters.tagFilters, ...searchTags]) {
+      if (filters.allTags.includes(tag) && !base.includes(tag)) base.push(tag)
+    }
+    return base
+  }, [filters.allTags, filters.tagFilters, searchTags, showAllTags])
+
+  const hiddenTagCount = Math.max(0, filters.allTags.length - visibleTags.length)
+  const canCreateSmartFolder = filters.hasActiveFilter() && !filters.activeSmartFolderId
+  const smartFolderAddTitle = canCreateSmartFolder
+    ? '現在の絞り込みをスマートフォルダとして保存'
+    : filters.activeSmartFolderId
+      ? 'スマートフォルダ表示中は新規保存できません'
+      : 'タグ・サイト・色・検索などで絞り込むと保存できます'
+
+  useEffect(() => {
+    if (canCreateSmartFolder) return
+    filters.setCreatingFolder(false)
+    filters.setNewFolderName('')
+  }, [canCreateSmartFolder, filters])
+
+  return (
+    <aside style={{ ...s.sidebar, width: sidebarWidth }}>
+      <div style={s.sidebarResizeHandle} onPointerDown={handleResizeStart} />
+      <div style={s.sidebarScroll}>
+        <div style={s.sidebarHeaderRow}>
+          <div style={s.sidebarBrand}>
+            <img src={appIcon} width={16} height={16} alt="" style={s.sidebarIcon} />
+            <span style={s.sidebarBrandName}>Shiori</span>
+          </div>
+          <span style={s.count}>{count} 枚</span>
+        </div>
+
+        <div style={s.siteGroup}>
+          <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 }}>
+            <span>スマートフォルダ</span>
+            {!filters.creatingFolder && (
+              <button
+                onClick={() => { if (canCreateSmartFolder) filters.setCreatingFolder(true) }}
+                disabled={!canCreateSmartFolder}
+                style={{ ...s.smartFolderHeaderAddBtn, ...(canCreateSmartFolder ? {} : s.smartFolderHeaderAddBtnDisabled) }}
+                title={smartFolderAddTitle}>
+                <PlusIcon size={13} strokeWidth={2} />
+              </button>
+            )}
+          </div>
+          {filters.creatingFolder && (
+            <div style={s.smartFolderCreateInputRow}>
+              <input
+                autoFocus
+                style={s.smartFolderCreateInput}
+                placeholder="フォルダ名"
+                value={filters.newFolderName}
+                onChange={(e) => filters.setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && filters.newFolderName.trim()) filters.saveSmartFolder(filters.newFolderName)
+                  if (e.key === 'Escape') { filters.setCreatingFolder(false); filters.setNewFolderName('') }
+                }}
+              />
+              <button
+                onClick={() => filters.newFolderName.trim() && filters.saveSmartFolder(filters.newFolderName)}
+                disabled={!filters.newFolderName.trim()}
+                style={{ ...s.smartFolderAddIconBtn, opacity: filters.newFolderName.trim() ? 1 : 0.45 }}
+                title="スマートフォルダを保存">
+                <PlusIcon size={13} strokeWidth={2} />
+              </button>
+            </div>
+          )}
+          {smartFolders.map((folder, index) => (
+            <div key={folder.id}>
+              <div style={{ ...s.smartFolderInsertLine, opacity: dragFolderId && dragOverIndex === index ? 1 : 0 }} />
+              <div
+                ref={(el) => { if (el) smartFolderRowRefs.current.set(folder.id, el); else smartFolderRowRefs.current.delete(folder.id) }}
+                onPointerDown={(e) => handleSmartFolderPressStart(e, index)}
+                style={{
+                  ...s.smartFolderRow,
+                  ...(dragFolderId === folder.id
+                    ? { ...s.smartFolderRowDragging, transform: `translateY(${dragDeltaY}px) scale(1.03)` }
+                    : {}),
+                }}>
+                <button
+                  onClick={() => {
+                    if (smartFolderDraggedRef.current) { smartFolderDraggedRef.current = false; return }
+                    filters.activeSmartFolderId === folder.id ? filters.clearAllFilters() : filters.loadSmartFolder(folder)
+                  }}
+                  style={{
+                    ...s.smartFolderBtn,
+                    ...(filters.activeSmartFolderId === folder.id ? s.smartFolderActive : {}),
+                  }}
+                  title={folder.name}>
+                  <FolderIcon size={12} strokeWidth={1.6} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{folder.name}</span>
+                </button>
+                <button
+                  onClick={() => onDeleteSmartFolder(folder)}
+                  style={s.smartFolderDeleteBtn}
+                  title={`${folder.name}を削除`}>
+                  <XIcon size={11} strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {smartFolders.length > 0 && (
+            <div style={{ ...s.smartFolderInsertLine, opacity: dragFolderId && dragOverIndex === smartFolders.length ? 1 : 0 }} />
+          )}
+          {smartFolders.length === 0 && !filters.creatingFolder && (
+            <div style={s.smartFolderEmpty}>保存済みのフォルダはまだありません</div>
+          )}
+        </div>
+
+        {filters.allTags.length > 0 && (
+          <div style={s.siteGroup}>
+            <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 18 }}>
+              <span>タグ</span>
+              <div style={s.tagLabelActions}>
+                {filters.tagFilters.length >= 2 && (
+                  <button onClick={() => filters.setTagMode((m) => m === 'and' ? 'or' : 'and')}
+                    style={{ ...s.tagModeBtn, color: filters.tagMode === 'and' ? '#66a86f' : '#b5965c' }}>
+                    {filters.tagMode === 'and' ? 'AND' : 'OR'}
+                  </button>
+                )}
+                {filters.tagFilters.length > 0 && (
+                  <button onClick={() => filters.setTagFilters([])} style={{ ...s.sidebarXBtn, ...s.tagClearBtn }} title="タグフィルターをすべて解除"><XIcon size={11} strokeWidth={2} /></button>
+                )}
+              </div>
+            </div>
+            <div style={s.sidebarTagList}>
+              {visibleTags.map((tag) => {
+                const active = filters.tagFilters.includes(tag) || searchTags.includes(tag)
+                return (
+                  <button key={tag}
+                    onClick={() => {
+                      // 解除は由来(スマートフォルダ由来のtagFilters／検索テキスト由来)を問わず両方から外す。
+                      // 追加は検索欄のテキストに tag:xxx として書き込む — 検索欄と表示を一致させ、
+                      // 見えない場所に絞り込み状態が溜まらないようにするため。
+                      if (active) {
+                        filters.setTagFilters((prev) => prev.filter((t) => t !== tag))
+                        if (searchTags.includes(tag)) onRemoveSearchTag(tag)
+                      } else {
+                        onAddSearchTag(tag)
+                      }
+                    }}
+                    onContextMenu={(e) => { e.preventDefault(); setTagCtxMenu({ x: e.clientX, y: e.clientY, tag }) }}
+                    style={{ ...s.sidebarTagChip, ...(active ? s.sidebarTagChipActive : {}) }}
+                    title={`${tag}（右クリックでタグ自体を削除）`}>
+                    <span style={s.sidebarTagChipText}>{tag}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {filters.allTags.length > SIDEBAR_TAG_LIMIT && (
+              <button style={s.sidebarMoreBtn} onClick={() => setShowAllTags((v) => !v)}>
+                {showAllTags ? '折りたたむ' : `+${hiddenTagCount} 表示`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {tagCtxMenu && (
+        <ContextMenu
+          x={tagCtxMenu.x}
+          y={tagCtxMenu.y}
+          items={[{ label: `タグ「${tagCtxMenu.tag}」を全画像から削除`, danger: true, onClick: () => onDeleteTag(tagCtxMenu.tag) }]}
+          onClose={() => setTagCtxMenu(null)}
+        />
+      )}
+
+      <div style={s.sidebarUtilitySection}>
+        <div style={s.sidebarControls}>
+          <div style={s.thumbSizeControl} title="サムネイルサイズ">
+            {/* 選択中ハイライト（背面）。選択先のセグメントへスライドする */}
+            <div style={{ ...s.segSlider, width: 30, transform: `translateX(${Math.max(0, [120, 160, 220].indexOf(thumbnailSize)) * 30}px)` }} />
+            {([['S', 120], ['M', 160], ['L', 220]] as const).map(([label, size]) => (
+              <button key={size}
+                style={{ ...s.thumbSizeBtn, ...(thumbnailSize === size ? s.segActive : {}) }}
+                onClick={() => onThumbnailSize(size)}
+                title={label === 'S' ? '小' : label === 'M' ? '中' : '大'}>{label}</button>
+            ))}
+          </div>
+          <div style={s.controlDivider} />
+          <div style={s.viewToggle}>
+            <div style={{ ...s.segSlider, width: 34, transform: `translateX(${viewMode === 'timeline' ? 34 : 0}px)` }} />
+            {([['grid', <GridIcon key="i" />, 'グリッド'], ['timeline', <ListIcon key="i" />, 'タイムライン']] as const).map(([mode, icon, label]) => (
+              <button key={mode}
+                style={{ ...s.viewToggleBtn, ...(viewMode === mode ? s.segActive : {}) }}
+                onClick={() => onViewMode(mode)} title={label}>{icon}</button>
+            ))}
+          </div>
+        </div>
+        <div style={s.sidebarBottom}>
+          <button style={{ ...s.gearBtn, color: settingsActive ? '#9ea5ff' : '#888' }}
+            onClick={onToggleSettings}>
+            <SettingsIcon size={16} />
+            <span style={{ fontSize: font.base, fontWeight: 800 }}>設定</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  )
+}

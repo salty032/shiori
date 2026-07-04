@@ -1,0 +1,155 @@
+import { vi, describe, expect, it } from 'vitest'
+
+vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
+
+import {
+  sanitizeFilename, imageQuery, imageListRequest,
+  formatDateForFilename, formatTimecodeForFilename,
+  MAX_IMAGE_LIMIT, MAX_TAGS_PER_FILTER, MAX_TAG_LENGTH,
+} from './ipc-validation'
+
+describe('sanitizeFilename', () => {
+  it('禁止文字を _ に置換', () => {
+    expect(sanitizeFilename('a<b>c:d"e/f\\g|h?i*j')).toBe('a_b_c_d_e_f_g_h_i_j')
+  })
+
+  it('連続する空白は1つに詰める', () => {
+    expect(sanitizeFilename('a   b')).toBe('a b')
+  })
+
+  it('末尾のドット・空白を除去', () => {
+    expect(sanitizeFilename('title...  ')).toBe('title')
+  })
+
+  it('空文字 → capture フォールバック', () => {
+    expect(sanitizeFilename('')).toBe('capture')
+  })
+
+  it('空白のみの入力 → capture フォールバック', () => {
+    expect(sanitizeFilename('   ')).toBe('capture')
+  })
+
+  it('120文字に切り詰め', () => {
+    const long = 'a'.repeat(200)
+    const result = sanitizeFilename(long)
+    expect(result).toHaveLength(120)
+  })
+})
+
+describe('imageQuery', () => {
+  it('不正型の各フィールドは既定値に落ちる', () => {
+    const q = imageQuery({ search: 123, after: 'x', site: 456, mediaType: 'movie', tags: 'not-array', tagMode: 'xor', color: 'red', toDate: 'x' })
+    expect(q).toEqual({
+      search: undefined, after: undefined, site: undefined, mediaType: undefined,
+      tags: undefined, tagMode: 'and', color: undefined, toDate: undefined,
+    })
+  })
+
+  it('null → 全フィールド既定値', () => {
+    const q = imageQuery(null)
+    expect(q.tagMode).toBe('and')
+    expect(q.search).toBeUndefined()
+  })
+
+  it('正常値はそのまま通る', () => {
+    const q = imageQuery({ search: 'foo', mediaType: 'video', tagMode: 'or', color: '#ff00ff' })
+    expect(q.search).toBe('foo')
+    expect(q.mediaType).toBe('video')
+    expect(q.tagMode).toBe('or')
+    expect(q.color).toBe('#ff00ff')
+  })
+
+  it('tags: 重複除去', () => {
+    const q = imageQuery({ tags: ['a', 'a', 'b'] })
+    expect(q.tags).toEqual(['a', 'b'])
+  })
+
+  it('tags: 上限 MAX_TAGS_PER_FILTER 件でクランプ', () => {
+    const many = Array.from({ length: MAX_TAGS_PER_FILTER + 20 }, (_, i) => `tag${i}`)
+    const q = imageQuery({ tags: many })
+    expect(q.tags).toHaveLength(MAX_TAGS_PER_FILTER)
+  })
+
+  it('tags: 各タグは MAX_TAG_LENGTH 文字で切り詰め', () => {
+    const q = imageQuery({ tags: ['a'.repeat(MAX_TAG_LENGTH + 10)] })
+    expect(q.tags?.[0]).toHaveLength(MAX_TAG_LENGTH)
+  })
+})
+
+describe('imageListRequest', () => {
+  it('limit: 未指定 → 既定 50', () => {
+    expect(imageListRequest({}).limit).toBe(50)
+  })
+
+  it('limit: 下限 1 未満はクランプ', () => {
+    expect(imageListRequest({ limit: 0 }).limit).toBe(1)
+    expect(imageListRequest({ limit: -5 }).limit).toBe(1)
+  })
+
+  it(`limit: 上限 ${MAX_IMAGE_LIMIT} 超でクランプ`, () => {
+    expect(imageListRequest({ limit: 99999 }).limit).toBe(MAX_IMAGE_LIMIT)
+  })
+
+  it('limit: NaN → 既定 50', () => {
+    expect(imageListRequest({ limit: NaN }).limit).toBe(50)
+  })
+
+  it('sortOrder: 不正値は date_desc にフォールバック', () => {
+    expect(imageListRequest({ sortOrder: 'invalid' }).sortOrder).toBe('date_desc')
+  })
+
+  it('sortOrder: date_asc / random はそのまま通る', () => {
+    expect(imageListRequest({ sortOrder: 'date_asc' }).sortOrder).toBe('date_asc')
+    expect(imageListRequest({ sortOrder: 'random' }).sortOrder).toBe('random')
+  })
+
+  it('imageQuery のフィールドも同時に検証される', () => {
+    const r = imageListRequest({ mediaType: 'invalid', limit: 10 })
+    expect(r.mediaType).toBeUndefined()
+    expect(r.limit).toBe(10)
+  })
+})
+
+describe('formatDateForFilename', () => {
+  it('YYYYMMDD_HHmmss 形式', () => {
+    const d = new Date(2026, 0, 5, 9, 3, 7) // 2026-01-05 09:03:07 (ローカルタイム)
+    expect(formatDateForFilename(d.getTime())).toBe('20260105_090307')
+  })
+
+  it('月日時分秒を2桁ゼロパディング', () => {
+    const d = new Date(2026, 11, 31, 23, 59, 59)
+    expect(formatDateForFilename(d.getTime())).toBe('20261231_235959')
+  })
+})
+
+describe('formatTimecodeForFilename', () => {
+  it('null → 空文字', () => {
+    expect(formatTimecodeForFilename(null)).toBe('')
+  })
+
+  it('NaN/Infinity → 空文字', () => {
+    expect(formatTimecodeForFilename(NaN)).toBe('')
+    expect(formatTimecodeForFilename(Infinity)).toBe('')
+  })
+
+  it('1時間未満: mmss 形式(時間桁なし)', () => {
+    expect(formatTimecodeForFilename(65)).toBe('0105') // 1:05
+  })
+
+  it('0秒 → 0000', () => {
+    expect(formatTimecodeForFilename(0)).toBe('0000')
+  })
+
+  it('1時間以上: hmmss 形式', () => {
+    // 3661秒 = 1時間1分1秒 → h(1) + mm(01) + ss(01)
+    expect(formatTimecodeForFilename(3661)).toBe('10101')
+  })
+
+  it('負値は0扱い', () => {
+    expect(formatTimecodeForFilename(-5)).toBe('0000')
+  })
+
+  it('小数は切り捨て', () => {
+    expect(formatTimecodeForFilename(65.9)).toBe('0105')
+  })
+})

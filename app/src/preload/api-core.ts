@@ -1,0 +1,139 @@
+﻿import { ipcRenderer, webUtils } from 'electron'
+import type { ImageRow, Settings, CaptureData, ExtensionTimecode, AppNotice, ImageQuery, ImageListRequest } from '../shared/types'
+import type { ShioriApi } from '../shared/api'
+import { CH } from '../shared/api'
+
+function listen<T>(channel: string, callback: (data: T) => void): () => void {
+  const listener = (_e: Electron.IpcRendererEvent, data: T): void => callback(data)
+  ipcRenderer.on(channel, listener)
+  return () => { ipcRenderer.off(channel, listener) }
+}
+
+export function buildCoreApi(): ShioriApi {
+  return {
+    listImages: (req: ImageListRequest): Promise<ImageRow[]> =>
+      ipcRenderer.invoke(CH.imagesList, req),
+
+    countImages: (query: ImageQuery): Promise<number> =>
+      ipcRenderer.invoke(CH.imagesCount, query),
+
+    listAllImages: (query: ImageQuery): Promise<ImageRow[]> =>
+      ipcRenderer.invoke(CH.imagesListAll, query),
+
+    listSites: (): Promise<string[]> =>
+      ipcRenderer.invoke(CH.imagesListSites),
+
+    listSiteCounts: (): Promise<Record<string, number>> =>
+      ipcRenderer.invoke(CH.imagesListSiteCounts),
+
+    listAllTags: (): Promise<string[]> =>
+      ipcRenderer.invoke(CH.imagesListAllTags),
+
+    listTagCounts: (): Promise<Record<string, number>> =>
+      ipcRenderer.invoke(CH.imagesListTagCounts),
+
+    listColors: (): Promise<string[]> =>
+      ipcRenderer.invoke(CH.imagesListColors),
+
+    exportImages: (imageIds: number[]): Promise<{ canceled: boolean; count?: number; truncated?: boolean }> =>
+      ipcRenderer.invoke(CH.imagesExport, imageIds),
+
+    imagesExportCancel: (): Promise<void> => ipcRenderer.invoke(CH.imagesExportCancel),
+
+    onExportProgress: (cb: (data: { current: number; total: number }) => void) =>
+      listen<{ current: number; total: number }>(CH.exportProgress, cb),
+
+    getImage: (id: number): Promise<ImageRow | null> =>
+      ipcRenderer.invoke(CH.imagesGet, id),
+
+    onCapture: (callback: (data: CaptureData) => void) =>
+      listen<CaptureData>(CH.captureDone, callback),
+
+    onOpenSettings: (cb: () => void) => listen<void>(CH.openSettings, cb),
+
+    onAppNotice: (cb: (data: AppNotice) => void) => listen<AppNotice>(CH.appNotice, cb),
+
+    onExtensionTimecode: (cb: (data: ExtensionTimecode) => void) =>
+      listen<ExtensionTimecode>(CH.extensionTimecode, cb),
+
+    updateImageTitle: (id: number, title: string): Promise<void> =>
+      ipcRenderer.invoke(CH.imagesUpdateTitle, id, title),
+
+    updateImageMemo: (id: number, memo: string): Promise<void> =>
+      ipcRenderer.invoke(CH.imagesUpdateMemo, id, memo),
+
+    deleteImage: (id: number) =>
+      ipcRenderer.invoke(CH.imagesDelete, id),
+
+    openUrl: (url: string): Promise<void> =>
+      ipcRenderer.invoke(CH.shellOpenUrl, url),
+
+    showInFolder: (imageId: number): Promise<void> =>
+      ipcRenderer.invoke(CH.shellShowInFolder, imageId),
+
+    showExtensionFolder: (): Promise<void> =>
+      ipcRenderer.invoke(CH.shellShowExtensionFolder),
+
+    getSettings: (): Promise<Settings> =>
+      ipcRenderer.invoke(CH.settingsGet),
+
+    setSettings: (patch: Partial<Settings>): Promise<void> =>
+      ipcRenderer.invoke(CH.settingsSet, patch),
+
+    setCaptureHotkey: (hotkey: string): Promise<boolean> =>
+      ipcRenderer.invoke(CH.captureSetHotkey, hotkey),
+
+    getStartup: (): Promise<boolean> =>
+      ipcRenderer.invoke(CH.startupGet),
+
+    setStartup: (enabled: boolean): Promise<void> =>
+      ipcRenderer.invoke(CH.startupSet, enabled),
+
+    getExtensionPath: (): Promise<string> =>
+      ipcRenderer.invoke(CH.extensionGetPath),
+
+    onUpdateAvailable: (cb: (version: string) => void) => listen<string>(CH.updaterAvailable, cb),
+
+    taggerEnsure: (): Promise<void> => ipcRenderer.invoke(CH.taggerEnsure),
+    taggerCancelDownload: (): Promise<void> => ipcRenderer.invoke(CH.taggerCancelDownload),
+    taggerDelete: (): Promise<{ removedTags: number }> => ipcRenderer.invoke(CH.taggerDelete),
+    taggerIsLoaded: (): Promise<boolean> => ipcRenderer.invoke(CH.taggerIsLoaded),
+    taggerIsDownloaded: (): Promise<boolean> => ipcRenderer.invoke(CH.taggerIsDownloaded),
+    taggerAddTag: (imageId: number, tagName: string, source?: 'manual' | 'ai'): Promise<void> => ipcRenderer.invoke(CH.taggerAddTag, imageId, tagName, source),
+    taggerRemoveTag: (imageId: number, tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTag, imageId, tagName),
+    taggerGetTags: (imageId: number): Promise<{ name: string; source: 'manual' | 'ai' }[]> => ipcRenderer.invoke(CH.taggerGetTags, imageId),
+    taggerGetTagsBulk: (imageIds: number[]): Promise<Record<number, { name: string; source: 'manual' | 'ai' }[]>> => ipcRenderer.invoke(CH.taggerGetTagsBulk, imageIds),
+    taggerAddTagBulk: (imageIds: number[], tagName: string, source?: 'manual' | 'ai'): Promise<void> => ipcRenderer.invoke(CH.taggerAddTagBulk, imageIds, tagName, source),
+    taggerRemoveTagBulk: (imageIds: number[], tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTagBulk, imageIds, tagName),
+    onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
+    onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),
+    onTaggerReady: (cb: () => void) => listen<void>(CH.taggerReady, cb),
+    onTaggerError: (cb: (msg: string) => void) => listen<string>(CH.taggerError, cb),
+
+    taggerRetagAll: (): Promise<void> => ipcRenderer.invoke(CH.taggerRetagAll),
+    taggerRetagCancel: (): Promise<void> => ipcRenderer.invoke(CH.taggerRetagCancel),
+    onTaggerRetagProgress: (cb: (data: { current: number; total: number }) => void) =>
+      listen<{ current: number; total: number }>(CH.taggerRetagProgress, cb),
+    onTaggerRetagDone: (cb: (data: { tagged: number; canceled: boolean }) => void) =>
+      listen<{ tagged: number; canceled: boolean }>(CH.taggerRetagDone, cb),
+
+    shareExport: (): Promise<{ canceled: boolean; count?: number; path?: string }> =>
+      ipcRenderer.invoke(CH.shareExport),
+
+    shareExportCancel: (): Promise<void> => ipcRenderer.invoke(CH.shareExportCancel),
+
+    shareImport: (): Promise<{ canceled: boolean; count?: number; errors?: string[] }> =>
+      ipcRenderer.invoke(CH.shareImport),
+
+    importFiles: (paths: string[]): Promise<{ count: number; errors: string[]; truncated: boolean }> =>
+      ipcRenderer.invoke(CH.importFiles, paths),
+
+    clipboardPaste: (): Promise<{ ok: true; id: number } | { ok: false; reason: 'empty' | 'error' }> =>
+      ipcRenderer.invoke(CH.clipboardPaste),
+
+    clipboardCopyImage: (id: number): Promise<boolean> =>
+      ipcRenderer.invoke(CH.clipboardCopyImage, id),
+
+    getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  }
+}

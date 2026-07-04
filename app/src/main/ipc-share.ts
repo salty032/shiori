@@ -1,0 +1,209 @@
+// 一括共有（ライブラリ全体のエクスポート / インポート / スマートフォルダ設定の取り込み）の IPC ハンドラ。
+import { dialog } from 'electron'
+import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
+import { join, basename, extname } from 'path'
+import { randomUUID } from 'crypto'
+import { handleTrusted, sendToRenderer, safeExternalUrl } from './windows'
+import { listImagesForExport } from './db'
+import { loadSettings } from './settings'
+import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
+import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
+import { getVideoThumbProvider } from './video-thumb-provider'
+import { CH } from '../shared/api'
+import { registerCapturedMedia } from './captured-media'
+import { createProgressThrottle } from './progress-throttle'
+
+const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])
+
+let isShareExportCanceled = false
+
+export function registerShareHandlers(): void {
+  handleTrusted(CH.shareExport, async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'エクスポート先フォルダを選択',
+      properties: ['openDirectory']
+    })
+    if (canceled || !filePaths[0]) return { canceled: true }
+    isShareExportCanceled = false
+
+    const destDir = join(filePaths[0], `shiori_export_${formatDateForFilename(Date.now())}`)
+    const imagesDir = join(destDir, 'images')
+    await mkdir(imagesDir, { recursive: true })
+
+    const items = listImagesForExport()
+    const copyOne = async (item: (typeof items)[number]): Promise<string | null> => {
+      const src = await resolveRealCapturePath(item.filepath)
+      if (!src) return null
+      try { await stat(src) } catch { return null }
+
+      const filename = await uniqueExportFilename(imagesDir, basename(src))
+      await copyFile(src, join(imagesDir, filename))
+
+      let thumbFilename: string | null = null
+      if (item.thumb_path) {
+        const thumbSrc = await resolveRealCapturePath(item.thumb_path)
+        if (thumbSrc) {
+          try {
+            await stat(thumbSrc)
+            thumbFilename = await uniqueExportFilename(imagesDir, basename(thumbSrc))
+            await copyFile(thumbSrc, join(imagesDir, thumbFilename))
+          } catch { /* skip missing thumb */ }
+        }
+      }
+
+      return JSON.stringify({
+        version: 1,
+        file: filename,
+        ...(thumbFilename ? { thumb: thumbFilename } : {}),
+        url: item.url,
+        current_time: item.current_time,
+        title: item.title,
+        tags: item.manualTags,
+        memo: item.memo,
+        captured_at: item.captured_at,
+      })
+    }
+    const lines: string[] = []
+    let count = 0
+    const total = items.length
+    sendToRenderer(CH.exportProgress, { current: 0, total })
+    const shouldSend = createProgressThrottle(total)
+
+    for (let i = 0; i < items.length; i++) {
+      if (isShareExportCanceled) break
+      const line = await copyOne(items[i])
+      if (line) { lines.push(line); count++ }
+      if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
+    }
+
+    // 中断時も、それまでコピー済みの分だけで metadata.jsonl / settings.json を書き出す
+    // （途中までの書き出し結果をそのまま share:import で読み込める状態にしておく）。
+    await writeFile(join(destDir, 'metadata.jsonl'), lines.join('\n'), 'utf-8')
+
+    // スマートフォルダのみを共有用に書き出す（ホットキー・ToS同意・個人UI設定は含めない）
+    const current = loadSettings()
+    await writeFile(
+      join(destDir, 'settings.json'),
+      JSON.stringify({ version: 1, smartFolders: current.smartFolders }, null, 2),
+      'utf-8'
+    )
+
+    return { canceled: isShareExportCanceled, count, path: destDir }
+  })
+
+  handleTrusted(CH.shareExportCancel, () => { isShareExportCanceled = true })
+
+  handleTrusted(CH.shareImport, async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'インポートするフォルダを選択',
+      properties: ['openDirectory']
+    })
+    if (canceled || !filePaths[0]) return { canceled: true }
+
+    const srcDir = filePaths[0]
+    let content: string
+    try {
+      content = await readFile(join(srcDir, 'metadata.jsonl'), 'utf-8')
+    } catch {
+      return { canceled: false, count: 0, errors: ['metadata.jsonl が見つかりません'] }
+    }
+
+    let count = 0
+    const errors: string[] = []
+    const lines = content.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, MAX_EXPORT_IDS)
+
+    for (const line of lines) {
+      let entry: { version?: number; file?: unknown; thumb?: unknown; url?: unknown; current_time?: unknown; title?: unknown; tags?: unknown; memo?: unknown; captured_at?: unknown }
+      try { entry = JSON.parse(line) } catch { errors.push(`invalid JSON: ${line.slice(0, 50)}`); continue }
+
+      if (typeof entry.file !== 'string' || !entry.file) continue
+      const safeFile = basename(entry.file)
+      if (!safeFile || safeFile !== entry.file) { errors.push(`unsafe filename: ${entry.file}`); continue }
+
+      const ext = extname(safeFile).toLowerCase()
+      const isImage = SHARE_IMAGE_EXTS.has(ext)
+      const isVideo = SHARE_VIDEO_EXTS.has(ext)
+      if (!isImage && !isVideo) { errors.push(`unsupported extension: ${safeFile}`); continue }
+
+      const srcFile = join(srcDir, 'images', safeFile)
+      let srcStat: Awaited<ReturnType<typeof stat>>
+      try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${safeFile}`); continue }
+      if (srcStat.size > 500 * 1024 * 1024) { errors.push(`file too large: ${safeFile}`); continue }
+
+      const uid = randomUUID()
+      const ts = Date.now()
+      const capturedAt = typeof entry.captured_at === 'number' && Number.isFinite(entry.captured_at) ? entry.captured_at : ts
+      const dir = await ensureCaptureSubDir(capturedAt)
+      const destFile = join(dir, `cap_${ts}_${uid}${ext}`)
+
+      let thumbDest: string | null = null
+      if (typeof entry.thumb === 'string' && entry.thumb) {
+        const safeThumb = basename(entry.thumb)
+        if (safeThumb && safeThumb === entry.thumb) {
+          const srcThumb = join(srcDir, 'images', safeThumb)
+          try {
+            await stat(srcThumb)
+            const thumbExt = extname(safeThumb).toLowerCase() || '.png'
+            if (!SHARE_IMAGE_EXTS.has(thumbExt)) throw new Error('unsupported thumb extension')
+            thumbDest = thumbPathFor(destFile, thumbExt)
+            await mkdir(thumbnailDir(), { recursive: true })
+            await copyFile(srcThumb, thumbDest)
+          } catch { /* skip missing thumb */ }
+        }
+      }
+
+      try {
+        await copyFile(srcFile, destFile)
+      } catch (err) {
+        errors.push(`copy failed: ${safeFile}`)
+        if (thumbDest) try { await unlink(thumbDest) } catch {}
+        continue
+      }
+
+      // 動画は duration をメタデータに含めない方針のため、フォルダドロップ取り込みと同様に
+      // ここで実体から再取得する（再インポート動画でも duration バッジ・Trimmer が機能する）。
+      let duration: number | null = null
+      if (isVideo) {
+        try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
+          console.warn('[share:import] getVideoDuration failed', err)
+        }
+      }
+
+      const mediaType = isVideo ? 'video' : 'image'
+      const tags = Array.isArray(entry.tags)
+        ? (entry.tags as unknown[]).filter((t): t is string => typeof t === 'string').map((t) => t.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
+        : []
+
+      const result = await registerCapturedMedia({
+        insert: {
+          filepath: destFile,
+          captured_at: capturedAt,
+          title: typeof entry.title === 'string' ? entry.title.slice(0, MAX_TEXT_LENGTH) || null : null,
+          current_time: typeof entry.current_time === 'number' && Number.isFinite(entry.current_time) ? entry.current_time : null,
+          url: typeof entry.url === 'string' ? safeExternalUrl(entry.url) : null,
+          width: null,
+          height: null,
+          colors: null,
+          memo: typeof entry.memo === 'string' ? entry.memo.slice(0, 5000) || null : null,
+          media_type: mediaType,
+          duration,
+          thumb_path: thumbDest,
+          source: 'import',
+        },
+        filePath: destFile,
+        thumbPath: thumbDest,
+        extraTags: tags.length > 0 ? tags.map((name) => ({ name, source: 'manual' as const })) : undefined,
+        broadcastCaptureDone: false,
+        autoTag: null
+      })
+      if (!result.ok) {
+        errors.push(`insert failed: ${safeFile}`)
+        continue
+      }
+      count++
+    }
+
+    return { canceled: false, count, errors }
+  })
+}
