@@ -19,10 +19,10 @@ function buildTrayMenu(): Electron.Menu {
 }
 
 export function createTray(): void {
-  const TRAY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABu0lEQVR4nGNgoDX4yskpA6L/MzCwvmFg4EOXZ8Kl8T8DA2N9fT3THxYWzg8MDIK/WFnVhUmx+T8DAyOU5vzPw2P7X0iID1kcv+b//xlBOCEtzGiNk2XAfgYGG6hmnC5GASDNIO+dOLz4+tdL6//fPL7szpT+ijyQ7atWrWJGVsuEqpWBITQ0lJmRkfF/ZmqgsbayrBqXstxvNQt9ZVYmpi+MDAz/RUWv4vfC///7WUD0llV9k///u/L///dzf+9fWveOgYFBkJERrJcRnwsYGRgc/goJCfFpqsqFM/z6/Y+Bg43p4aMXexkYGN7/+/cP5Pz/yBpYkDn799eDnP9nal9plJKWsijDr9+//v76zXbk5MVlIPmGhga8zmf8//8/yEVsV44tufP/98V//39e+Hfj9IonDAwMXExMYMdiGMCEZvu/ZXOa07VNdJQZvn7/wcDKzHjp8nWQ7d/+/t3Lgu58dNsZpaR4hXdvmHzr368L////v/7/5a0Nv3zcjDVACkCpEp/zwUBSUpLLyUJfur85P/za+bUPd6xqPg4Sh3qNZCDs7miqDYq5//+JSL7I3qmvr2dhgMQ5QQAADPGm6cwFbecAAAAASUVORK5CYII='
+  const TRAY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB/klEQVR4nGNgwAP+MzAwXhAX58anhgmbYD1U/IasrCQHJ+eVcyoqoteVlHSvyst3gAwlaEAjA8M/kCGHxMRe//7/n4n1z5/+///+HWdgZFSFugyrPhQAs+mNovL0/2pq/x8qKs7EppkRVRtc7L+euLjY819flxuwsqn4srKLnvz53f3Xmw/HtBgY/oNciM8AFgYGhr8i/FxJYoJ8c2R//Ga4+vvXv3/MTAws/xhMH735eI6BgYEZpAakmAmLAf+YmJj+f/n0LcrG3vTvjprCX+Xejkyfv//6qCoi+RCmhgEHYAIRehpSavwcLL92rOr59///89+Rwc7/OBkYVjIygR0Msh0nYAER/OzM7Rb6Kv//fD7z+9m1jX8UxAX+S/BzhiCrQbERCkDG/42O9uD79ftvUnCAy39mHknG9ZsPML98/eGNs4/9Lqg6sN+xARYQIczDVq4iI/L/1b3tv///vPTbw87wPzcL4yxGRkYM25EBI4jw8DDj42FhfD6jp+TP//9P/h7bMeOvKC/HfxVpMQuoOgz/s0BpkFf+Xj13cwo/H7fEi5dvGD6+ff5r7Ya9rJ8+/zjz6tP3k4yMjGA1eF0gLcxTLi/Kv4SLieGpsab8fy1Fyf+ifJzZaJYRBvb2xiIivBxTJQW572pI8QojW0IIgPwIt0lPD39WBqkBAFMwq74EvPrSAAAAAElFTkSuQmCC'
   const trayIcon = nativeImage.createFromDataURL(TRAY_PNG)
   tray = new Tray(trayIcon)
-  tray.setToolTip('Shiori')
+  tray.setToolTip('栞')
   tray.setContextMenu(buildTrayMenu())
   tray.on('double-click', () => showMainWindow())
 }
