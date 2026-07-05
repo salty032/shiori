@@ -19,7 +19,7 @@ function buildTrayMenu(): Electron.Menu {
 }
 
 export function createTray(): void {
-  const TRAY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACE0lEQVR4AXyPb0gTYRzHvzd3ittcTQlL3+qbQbqcU7GoGVsghEJFr6aQ9GZBUtAb613kC9/ki0LopfWiXoiU9KY/QlbknyaBrpGwGRVuzZNtbre7427buUc9uXPnHu57v+f35/t5nseAMmvOZnvCtLZeVkZkgPoC2KBaZQEURa0IkuRU5tebmycEi+WikpNYFiAJwjIBBJxOesvheBRLpUwcy74nRkVHAurrYZYrKv4UzGZLI0XdXY/Hz/EMM9wPZBQziboAey3svr6ridd9rul5ZqM6kk66X8ZivV5gm5jU0gUYqgzekYdjlY8nnp733LvVJQ1f6z05MhDtbrKMqs1krwvoONvjqauzgq4yodF/A+6bfgwO9h+XcmKOmNTSA9Atba4L4KOAmAZyPCDnEVhcQDYrflCbyb4EYD+BznZXew3k4mEFsQjIIp+N48f35UyIwSIxqVUCqDlm9bY5HeoZCFwSv9b+zRWLUlGarwTQ7b7kqabzmqH/0b9YWQ1/1BT3Ew2gqRZW++kzHciz++29sPBtCQUJJe8nXQ2gkkZPZ5fLKMsF0tuVJHIIBtc2QgmEdguHfhrAnaErnoZTJiS3N5FmE+AFFlxmC8Gfv2cP+Q5SDeDt7Pzk6IP7q9NTM3IkHAHHZ5BKJfF86o3u9QlFA5hZigXGX3xuGR971uC77h8Y8t2e/PQ1/Io2Gt+RYT3tAAAA///r8xy5AAAABklEQVQDAAXuvGuw0D+SAAAAAElFTkSuQmCC'
+  const TRAY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABu0lEQVR4nGNgoDX4yskpA6L/MzCwvmFg4EOXZ8Kl8T8DA2N9fT3THxYWzg8MDIK/WFnVhUmx+T8DAyOU5vzPw2P7X0iID1kcv+b//xlBOCEtzGiNk2XAfgYGG6hmnC5GASDNIO+dOLz4+tdL6//fPL7szpT+ijyQ7atWrWJGVsuEqpWBITQ0lJmRkfF/ZmqgsbayrBqXstxvNQt9ZVYmpi+MDAz/RUWv4vfC///7WUD0llV9k///u/L///dzf+9fWveOgYFBkJERrJcRnwsYGRgc/goJCfFpqsqFM/z6/Y+Bg43p4aMXexkYGN7/+/cP5Pz/yBpYkDn799eDnP9nal9plJKWsijDr9+//v76zXbk5MVlIPmGhga8zmf8//8/yEVsV44tufP/98V//39e+Hfj9IonDAwMXExMYMdiGMCEZvu/ZXOa07VNdJQZvn7/wcDKzHjp8nWQ7d/+/t3Lgu58dNsZpaR4hXdvmHzr368L////v/7/5a0Nv3zcjDVACkCpEp/zwUBSUpLLyUJfur85P/za+bUPd6xqPg4Sh3qNZCDs7miqDYq5//+JSL7I3qmvr2dhgMQ5QQAADPGm6cwFbecAAAAASUVORK5CYII='
   const trayIcon = nativeImage.createFromDataURL(TRAY_PNG)
   tray = new Tray(trayIcon)
   tray.setToolTip('Shiori')
