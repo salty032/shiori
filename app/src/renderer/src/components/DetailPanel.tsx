@@ -465,10 +465,10 @@ const s: Record<string, React.CSSProperties> = {
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid #20242f', paddingBottom: 8 },
   metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start', padding: '2px 0 3px' },
-  metaRow: { display: 'flex', flexDirection: 'row', gap: 25, alignItems: 'baseline' },
+  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   row: { display: 'flex', flexDirection: 'column', gap: 5 },
   label: { color: '#7d879d', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
-  value: { fontSize: font.base, color: '#e3e8f6', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: 700 },
+  value: { fontSize: font.base, color: '#e3e8f6', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
   // 短いタイトルでも常に3行分の領域を確保し、画像によって下の要素の位置がズレないようにする
   titleValue: { flex: 1, minWidth: 0, fontSize: font.base, color: '#b8c0d4', lineHeight: 1.45, minHeight: 'calc(1.45em * 3)', fontWeight: 700, wordBreak: 'break-word', cursor: 'pointer', userSelect: 'text' as const },
   titleValueClamped: { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' },
