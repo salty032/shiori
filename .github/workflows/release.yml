@@ -26,6 +26,21 @@ jobs:
 
       - run: npm ci
 
+      # electron-builder は publish 先のリリースが未作成だと、複数アーティファクト
+      # （exe / blockmap / latest.yml）の並列アップロードがそれぞれ「リリース作成」を
+      # 同時に走らせ、同一タグのリリースが 2 つできることがある（既知のレース）。
+      # 先に空のリリースを 1 つ用意し、electron-builder には既存リリースへ添付だけ
+      # させて回避する。再実行で既に存在する場合は作らずに続行する。
+      - name: Ensure release exists (avoid duplicate-release race)
+        shell: pwsh
+        run: |
+          gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --title "$env:GITHUB_REF_NAME" --notes "Shiori $env:GITHUB_REF_NAME"
+          }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
