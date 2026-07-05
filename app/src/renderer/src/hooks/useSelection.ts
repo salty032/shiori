@@ -573,7 +573,7 @@ export function useSelection({
       }
       if (e.key === 'Escape' && !isEditing) { clearSelection(); return }
       // Enter と Space はどちらも「フォーカス中/選択中の画像を開く」（Space は Quick Look 的な
-      // クイックプレビュー慣習に合わせた追加口。ビューア内では Space は動画の再生/停止に使うため、
+      // クイックプレビュー慣習に合わせた追加口。ビューア内では Space はビューアを閉じる方に使うため、
       // ここ（viewerIdx === null のときだけ到達）でのみ「開く」に割り当てて競合を避ける）。
       if ((e.key === 'Enter' || e.code === 'Space') && !isEditing && !e.isComposing) {
         const { images, selectedIds } = latestRef.current

@@ -102,67 +102,75 @@ async function downloadFile(url: string, dest: string, onProgress?: ProgressCall
   const controller = new AbortController()
   const abort = (): void => controller.abort()
   options.signal?.addEventListener('abort', abort, { once: true })
-  const timeoutId = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS)
-  let resp: Response
+  // 本文ストリーミング中も監視する「無通信タイムアウト」。チャンク受信のたびに引き直すので、
+  // 進捗がある限り大容量DLは打ち切らず、回線が固着（この時間まったく受信できない）したときだけ
+  // 中断する。旧実装は fetch 解決直後に clearTimeout していたため本文の読み込みループには
+  // タイムアウトが効かず、回線が詰まるとダウンロードが無限にぶら下がる余地があった。
+  let stallTimer: ReturnType<typeof setTimeout> | null = null
+  const armStall = (): void => {
+    if (stallTimer) clearTimeout(stallTimer)
+    stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS)
+  }
+  armStall()
   try {
     throwIfAborted(options.signal)
-    resp = await net.fetch(url, { signal: controller.signal })
-  } finally {
-    clearTimeout(timeoutId)
-  }
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} downloading ${url}`)
-  const total = Number(resp.headers.get('content-length') ?? 0)
-  let received = 0
-  const tempDest = `${dest}.tmp`
-  const file = createWriteStream(tempDest)
-  const reader = resp.body!.getReader()
-  try {
+    const resp = await net.fetch(url, { signal: controller.signal })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} downloading ${url}`)
+    const total = Number(resp.headers.get('content-length') ?? 0)
+    let received = 0
+    const tempDest = `${dest}.tmp`
+    const file = createWriteStream(tempDest)
+    const reader = resp.body!.getReader()
     try {
-      while (true) {
-        throwIfAborted(options.signal)
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value) {
-          received += value.length
-          if (maxBytes && received > maxBytes) {
-            reader.cancel()
-            throw new Error(`Download too large (>${maxBytes} bytes): ${url}`)
+      try {
+        while (true) {
+          throwIfAborted(options.signal)
+          const { done, value } = await reader.read()
+          if (done) break
+          if (value) {
+            armStall()  // 受信があったのでタイムアウトを引き直す
+            received += value.length
+            if (maxBytes && received > maxBytes) {
+              reader.cancel()
+              throw new Error(`Download too large (>${maxBytes} bytes): ${url}`)
+            }
+            if (total > 0) onProgress?.(received / total)
+            await new Promise<void>((res, rej) => {
+              if (file.write(value)) res()
+              else { file.once('drain', res); file.once('error', rej) }
+            })
           }
-          if (total > 0) onProgress?.(received / total)
-          await new Promise<void>((res, rej) => {
-            if (file.write(value)) res()
-            else { file.once('drain', res); file.once('error', rej) }
-          })
         }
+        if (total > 0 && received !== total) {
+          throw new Error(`Incomplete download for ${url}: ${received}/${total} bytes`)
+        }
+      } finally {
+        await new Promise<void>((res, rej) => {
+          file.end()
+          file.once('finish', res)
+          file.once('error', rej)
+        })
       }
-      if (total > 0 && received !== total) {
-        throw new Error(`Incomplete download for ${url}: ${received}/${total} bytes`)
-      }
-    } finally {
-      await new Promise<void>((res, rej) => {
-        file.end()
-        file.once('finish', res)
-        file.once('error', rej)
-      })
-    }
-  } catch (err) {
-    await unlink(tempDest).catch(() => {})
-    throw err
-  } finally {
-    options.signal?.removeEventListener('abort', abort)
-  }
-  if (expectedSha256) {
-    const actual = await sha256File(tempDest)
-    if (actual !== expectedSha256) {
+    } catch (err) {
       await unlink(tempDest).catch(() => {})
-      throw new Error(`SHA-256 mismatch for ${url}: expected ${expectedSha256}, got ${actual}`)
+      throw err
     }
-  }
-  try {
-    await rename(tempDest, dest)
-  } catch (err) {
-    await unlink(tempDest).catch(() => {})
-    throw err
+    if (expectedSha256) {
+      const actual = await sha256File(tempDest)
+      if (actual !== expectedSha256) {
+        await unlink(tempDest).catch(() => {})
+        throw new Error(`SHA-256 mismatch for ${url}: expected ${expectedSha256}, got ${actual}`)
+      }
+    }
+    try {
+      await rename(tempDest, dest)
+    } catch (err) {
+      await unlink(tempDest).catch(() => {})
+      throw err
+    }
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer)
+    options.signal?.removeEventListener('abort', abort)
   }
 }
 
@@ -272,19 +280,34 @@ async function runTaggerInner(imagePath: string): Promise<TagResult[]> {
 
   const base = nativeImage.createFromPath(imagePath)
   if (base.isEmpty()) throw new Error(`Cannot decode image: ${imagePath}`)
-  const img = base.resize({ width: 448, height: 448 })
-  const buf = img.toBitmap()  // BGRA, 4 bytes/pixel
 
-  // BGRA → RGB float32 (0-255、WD Tagger は正規化なし)
-  const float32 = new Float32Array(448 * 448 * 3)
-  for (let i = 0; i < 448 * 448; i++) {
-    float32[i * 3 + 0] = buf[i * 4 + 2]  // R
-    float32[i * 3 + 1] = buf[i * 4 + 1]  // G
-    float32[i * 3 + 2] = buf[i * 4 + 0]  // B
+  // WD Tagger は正方形入力を前提とするが、単純に 448x448 へリサイズすると縦長/横長の絵が
+  // 潰れてタグ精度が落ちる。モデル本来の前処理（make_square）に合わせ、アスペクト比を保って
+  // 448 に収め、余白を白(255)でパディングする。
+  const SIZE = 448
+  const { width: ow, height: oh } = base.getSize()
+  const scale = Math.min(SIZE / ow, SIZE / oh)
+  const rw = Math.max(1, Math.min(SIZE, Math.round(ow * scale)))
+  const rh = Math.max(1, Math.min(SIZE, Math.round(oh * scale)))
+  const resized = base.resize({ width: rw, height: rh })
+  const buf = resized.toBitmap()  // BGRA, 4 bytes/pixel
+  const offX = Math.floor((SIZE - rw) / 2)
+  const offY = Math.floor((SIZE - rh) / 2)
+
+  // まず全体を白(255)で埋め、実画素を中央へ配置。BGRA → RGB float32 (0-255、WD Tagger は正規化なし)
+  const float32 = new Float32Array(SIZE * SIZE * 3).fill(255)
+  for (let y = 0; y < rh; y++) {
+    for (let x = 0; x < rw; x++) {
+      const src = (y * rw + x) * 4
+      const dst = ((y + offY) * SIZE + (x + offX)) * 3
+      float32[dst + 0] = buf[src + 2]  // R
+      float32[dst + 1] = buf[src + 1]  // G
+      float32[dst + 2] = buf[src + 0]  // B
+    }
   }
 
   const inputName = session.inputNames[0]
-  const tensor = new ortModule.Tensor('float32', float32, [1, 448, 448, 3])
+  const tensor = new ortModule.Tensor('float32', float32, [1, SIZE, SIZE, 3])
   const output = await session.run({ [inputName]: tensor })
   const scores = output[session.outputNames[0]].data as Float32Array
 

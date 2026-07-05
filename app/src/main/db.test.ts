@@ -46,12 +46,6 @@ describe('buildImageFilter', () => {
     expect(result.params).toEqual(['%#ff0000%'])
   })
 
-  it('mediaType は完全一致', () => {
-    const result = buildImageFilter({ mediaType: 'video' })
-    expect(result.where).toBe('WHERE media_type = ?')
-    expect(result.params).toEqual(['video'])
-  })
-
   it('after/toDate は captured_at の範囲条件', () => {
     const result = buildImageFilter({ after: 100, toDate: 200 })
     expect(result.where).toBe('WHERE captured_at >= ? AND captured_at < ?')
@@ -78,12 +72,12 @@ describe('buildImageFilter', () => {
     expect(buildImageFilter({ tags: [] }).where).toBe('')
   })
 
-  it('複数条件は AND で連結される（宣言順: search, after/before系, toDate, site, mediaType, tags, color）', () => {
-    const result = buildImageFilter({ search: 'cat', mediaType: 'image', site: 'example.com' })
+  it('複数条件は AND で連結される（宣言順: search, after/before系, toDate, site, tags, color）', () => {
+    const result = buildImageFilter({ search: 'cat', site: 'example.com' })
     expect(result.where).toBe(
-      "WHERE id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) AND host LIKE ? ESCAPE '\\' AND media_type = ?"
+      "WHERE id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) AND host LIKE ? ESCAPE '\\'"
     )
-    expect(result.params).toEqual(['"cat"', '%example.com%', 'image'])
+    expect(result.params).toEqual(['"cat"', '%example.com%'])
   })
 
   describe('カーソルページング（before/beforeId）の tie-break', () => {
@@ -123,9 +117,9 @@ describe('buildImageFilter', () => {
     })
 
     it('random でも他条件とは併用できる', () => {
-      const result = buildImageFilter({ sortOrder: 'random', before: 500, beforeId: 42, mediaType: 'video' })
-      expect(result.where).toBe('WHERE media_type = ?')
-      expect(result.params).toEqual(['video'])
+      const result = buildImageFilter({ sortOrder: 'random', before: 500, beforeId: 42, color: '#ff0000' })
+      expect(result.where).toBe(`WHERE colors LIKE ? ESCAPE '\\'`)
+      expect(result.params).toEqual(['%#ff0000%'])
     })
   })
 })

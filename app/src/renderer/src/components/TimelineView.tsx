@@ -2,17 +2,11 @@ import { memo, forwardRef, useImperativeHandle, useMemo, useState, useEffect } f
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
-import { cleanTitle, computeGridLayout, formatTime, thumbSrc, formatDuration } from '../utils'
+import { cleanTitle, computeGridLayout, formatTime, thumbSrc } from '../utils'
 import { font, s as appStyles } from '../styles'
 
-function videoDurationTime(img: ImageRow): string | null {
-  if (img.media_type !== 'video') return null
-  if (img.duration != null) return formatDuration(img.duration)
-  return null
-}
-
-// サムネ生成失敗（動画で thumb_path 無し・ファイル欠落等）時は webm 本体が <img> に渡って
-// 割れるため、ThumbCell / フィルムストリップと同様に onError でプレースホルダへ切り替える。
+// サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
+// ThumbCell / フィルムストリップと同様に onError でプレースホルダへ切り替える。
 const TimelineThumbImg = memo(function TimelineThumbImg({ img, cellHeight }: { img: ImageRow; cellHeight: number }) {
   const [failed, setFailed] = useState(false)
   if (failed) return <div style={{ ...appStyles.thumbFallback, height: cellHeight }} />
@@ -163,7 +157,6 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
             </div>
             <div style={{ ...s.grid, marginTop: CELL_GAP, gridTemplateColumns: `repeat(${columns}, ${cellWidth}px)` }}>
               {group.items.map(({ img, flatIndex }) => {
-                const videoTime = videoDurationTime(img)
                 const isSelected = p.selectedIds.has(img.id) || p.pendingIds.has(img.id)
                 return (
                   <div
@@ -176,12 +169,6 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                     <TimelineThumbImg img={img} cellHeight={cellHeight} />
                     {img.current_time != null && (
                       <div style={s.timeBadge}>{formatTime(img.current_time)}</div>
-                    )}
-                    {img.media_type === 'video' && (
-                      <>
-                        <div style={s.videoPlay}>▶</div>
-                        {videoTime && <div style={s.videoDuration}>{videoTime}</div>}
-                      </>
                     )}
                     {flatIndex === p.focusedIndex && !isSelected && <div style={appStyles.thumbFocusFrame} />}
                   </div>
@@ -212,7 +199,5 @@ const s: Record<string, React.CSSProperties> = {
   thumb: { position: 'relative', background: '#171a23', border: '1px solid #252b38', boxSizing: 'border-box', borderRadius: 4, overflow: 'hidden', cursor: 'pointer', width: '100%', contain: 'layout paint', boxShadow: '0 1px 0 rgba(255,255,255,0.035)' },
   thumbImg: { width: '100%', objectFit: 'cover', display: 'block' },
   timeBadge: { position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
-  videoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
-  videoDuration: { position: 'absolute', right: 6, top: 6, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none' },
   empty: { color: '#8a94aa', textAlign: 'center', width: '100%', minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' },
 }

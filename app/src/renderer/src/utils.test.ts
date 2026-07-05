@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanTitle, siteName, formatTime, buildTimeline, computeGridLayout, thumbSrc, formatDuration, splitHighlight } from './utils'
+import { cleanTitle, siteName, formatTime, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
 import { parseSearchQuery, buildImageQuery } from './stores/imageQuery'
 import type { ImageRow } from './types'
 
@@ -114,17 +114,11 @@ describe('parseSearchQuery', () => {
     expect(parseSearchQuery('tag:sky tag:sky').tags).toEqual(['sky'])
   })
 
-  it('site: と type: を通常検索から分離', () => {
-    expect(parseSearchQuery('site:netflix type:video 名場面')).toMatchObject({
+  it('site: を通常検索から分離', () => {
+    expect(parseSearchQuery('site:netflix 名場面')).toMatchObject({
       q: '名場面',
       site: 'netflix',
-      mediaType: 'video',
     })
-  })
-
-  it('type: は日本語の画像/動画も受理する', () => {
-    expect(parseSearchQuery('type:画像').mediaType).toBe('image')
-    expect(parseSearchQuery('type:動画').mediaType).toBe('video')
   })
 
   // 日付境界（ローカルタイムゾーン非依存にするため new Date で期待値を構築）
@@ -175,10 +169,9 @@ describe('buildImageQuery', () => {
     expect(q.search).toBeUndefined()
   })
 
-  it('検索内 site/type をクエリにマップする', () => {
-    const q = buildImageQuery({ ...base, search: 'site:netflix type:video clip' })
+  it('検索内 site をクエリにマップする', () => {
+    const q = buildImageQuery({ ...base, search: 'site:netflix clip' })
     expect(q.site).toBe('netflix')
-    expect(q.mediaType).toBe('video')
     expect(q.search).toBe('clip')
   })
 })
@@ -186,27 +179,19 @@ describe('buildImageQuery', () => {
 function makeRow(overrides: Partial<ImageRow>): ImageRow {
   return {
     id: 1, filepath: '/a.png', captured_at: 1000, title: null, current_time: null,
-    url: null, colors: null, memo: null, media_type: 'image',
-    duration: null, thumb_path: null, source: 'capture',
+    url: null, colors: null, memo: null,
+    thumb_path: null, source: 'capture',
     ...overrides,
   }
 }
 
 describe('thumbSrc', () => {
-  it('thumb_path があれば media_type 不問で kind=thumb', () => {
-    expect(thumbSrc(makeRow({ media_type: 'image', thumb_path: '/t.jpg' }))).toBe('capfile://img?id=1&kind=thumb')
-    expect(thumbSrc(makeRow({ media_type: 'video', thumb_path: '/t.png' }))).toBe('capfile://img?id=1&kind=thumb')
+  it('thumb_path があれば kind=thumb', () => {
+    expect(thumbSrc(makeRow({ thumb_path: '/t.jpg' }))).toBe('capfile://img?id=1&kind=thumb')
   })
   it('thumb_path が null なら kind=media', () => {
-    expect(thumbSrc(makeRow({ media_type: 'image', thumb_path: null }))).toBe('capfile://img?id=1&kind=media')
-    expect(thumbSrc(makeRow({ media_type: 'video', thumb_path: null }))).toBe('capfile://img?id=1&kind=media')
+    expect(thumbSrc(makeRow({ thumb_path: null }))).toBe('capfile://img?id=1&kind=media')
   })
-})
-
-describe('formatDuration', () => {
-  it('m:ss 形式', () => expect(formatDuration(65)).toBe('1:05'))
-  it('60秒未満は 0:ss', () => expect(formatDuration(5)).toBe('0:05'))
-  it('小数は切り捨て', () => expect(formatDuration(65.9)).toBe('1:05'))
 })
 
 describe('buildTimeline', () => {

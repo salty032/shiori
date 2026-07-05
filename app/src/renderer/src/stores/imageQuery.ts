@@ -48,29 +48,22 @@ export function isValidSearchDateToken(s: string): boolean {
   return parseSearchDate(s) !== null
 }
 
-export function parseSearchQuery(raw: string): { q: string | undefined; fromDate: number | null; toDate: number | null; tags: string[]; site: string | null; mediaType: 'image' | 'video' | null } {
+export function parseSearchQuery(raw: string): { q: string | undefined; fromDate: number | null; toDate: number | null; tags: string[]; site: string | null } {
   const fromMatch = raw.match(/(?:^|\s)from:(\S+)/i)
   const toMatch = raw.match(/(?:^|\s)to:(\S+)/i)
   const siteMatch = raw.match(/(?:^|\s)site:(\S+)/i)
-  const typeMatch = raw.match(/(?:^|\s)type:(\S+)/i)
   const tagMatches = [...raw.matchAll(/(?:^|\s)tag:(\S+)/gi)]
   const fromDate = fromMatch ? parseSearchDate(fromMatch[1]) : null
   const toDate = toMatch ? parseSearchDateEnd(toMatch[1]) : null
   const tags = [...new Set(tagMatches.map((m) => m[1].trim().toLowerCase()).filter(Boolean))]
   const site = siteMatch ? siteMatch[1].trim().toLowerCase() : null
-  const type = typeMatch ? typeMatch[1].trim().toLowerCase() : ''
-  const mediaType = type === 'video' || type === '動画'
-    ? 'video'
-    : type === 'image' || type === '画像'
-      ? 'image'
-      : null
-  const q = raw.replace(/(?:^|\s)(?:from|to|tag|site|type):\S+/gi, '').trim() || undefined
-  return { q, fromDate, toDate, tags, site, mediaType }
+  const q = raw.replace(/(?:^|\s)(?:from|to|tag|site):\S+/gi, '').trim() || undefined
+  return { q, fromDate, toDate, tags, site }
 }
 
-const FILTER_TOKEN_RE = /(?:^|\s)(?:from|to|tag|site|type):\S+/gi
+const FILTER_TOKEN_RE = /(?:^|\s)(?:from|to|tag|site):\S+/gi
 
-// tag:/site:/type:/from:/to: の構造化フィルタをまとめて前に、フリーワード部分を末尾に
+// tag:/site:/from:/to: の構造化フィルタをまとめて前に、フリーワード部分を末尾に
 // 揃える。フィルタリング結果自体は parseSearchQuery がトークンの位置に関係なく q を
 // 抽出するので、並び替えても検索結果は変わらない（表示上の見やすさのためだけの整形）。
 // タグクリックなどプログラムによる追加/削除の直後にだけ呼ぶこと。ユーザーが検索欄に
@@ -87,12 +80,11 @@ function mergeTags(selectedTags: string[], queryTags: string[]): string[] | unde
 }
 
 export function buildImageQuery(f: CommittedFilters): ImageQuery {
-  const { q, fromDate, toDate, tags, site, mediaType } = parseSearchQuery(f.search)
+  const { q, fromDate, toDate, tags, site } = parseSearchQuery(f.search)
   return {
     search: q,
     after: fromDate ?? undefined,
     site: site ?? undefined,
-    mediaType: mediaType ?? undefined,
     tags: mergeTags(f.tagFilters, tags),
     tagMode: f.tagMode,
     color: f.colorFilter ?? undefined,

@@ -993,6 +993,7 @@ window.addEventListener('pagehide', () => {
 // YouTube SPA ナビゲーション後、動画要素とタイトルが揃うまでポーリングして再送
 document.addEventListener('yt-navigate-finish', () => {
   clearInterval(ytNavPoll)
+  cachedTitle = '' // 前の動画のタイトルを新しい動画に持ち越さない
   let ticks = 0
   ytNavPoll = setInterval(() => {
     ticks++

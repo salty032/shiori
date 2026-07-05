@@ -44,10 +44,6 @@ export function optionalColor(value: unknown): string | undefined {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : undefined
 }
 
-export function optionalMediaType(value: unknown): 'image' | 'video' | undefined {
-  return value === 'image' || value === 'video' ? value : undefined
-}
-
 export function tagMode(value: unknown): 'and' | 'or' {
   return value === 'or' ? 'or' : 'and'
 }
@@ -77,7 +73,6 @@ export function imageQuery(raw: unknown): ImageQuery {
     search: optionalText(o.search),
     after: optionalNumber(o.after),
     site: optionalText(o.site),
-    mediaType: optionalMediaType(o.mediaType),
     tags: tagsFilter(o.tags),
     tagMode: tagMode(o.tagMode),
     color: optionalColor(o.color),

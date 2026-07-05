@@ -106,13 +106,15 @@ export function bootstrap(): void {
         return new Response('Not found', { status: 404 })
       }
 
+      // 画像専用ビルド。動画(video/webm・video/mp4)は扱わない。
       const EXT_CONTENT_TYPE: Record<string, string> = {
         '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.webp': 'image/webp', '.gif': 'image/gif', '.webm': 'video/webm', '.mp4': 'video/mp4'
+        '.webp': 'image/webp', '.gif': 'image/gif'
       }
       const contentType = EXT_CONTENT_TYPE[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
 
-      // <video> はシーク・再生のため Range リクエストを送る。net.fetch 委譲では
+      // 画像専用ビルドでは Range を送るクライアントは基本無いが、HTTP レスポンスとしての
+      // 正しさのため Range リクエストには 206/416 で応答できるようにしておく（画像でも無害）。
       const rangeHeader = request.headers.get('Range')
       if (rangeHeader) {
         const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
@@ -310,8 +312,6 @@ export function bootstrap(): void {
           height: null,
           colors: null,
           memo: null,
-          media_type: 'image',
-          duration: null,
           thumb_path: thumbOk ? thumbPath : null
         },
         filePath: imagePath,

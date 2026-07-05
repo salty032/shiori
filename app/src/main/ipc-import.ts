@@ -12,7 +12,6 @@ import { CH } from '../shared/api'
 import { registerCapturedMedia } from './captured-media'
 
 const IMPORT_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
-const IMPORT_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 const MAX_IMPORT_FILES = 200
 
 // 上限到達で列挙を打ち切った場合、呼び出し元がユーザーに「一部のみ取り込んだ」と
@@ -28,6 +27,9 @@ async function collectImportFiles(inputPaths: string[]): Promise<{ files: string
       if (depth > 4) return
       let entries: string[]
       try { entries = await readdir(p) } catch { return }
+      // readdir の順序は OS 依存。大量取り込みで上限200件に入るファイルや取り込み順が
+      // 環境で変わらないよう、名前順に固定して再現性を持たせる。
+      entries.sort()
       for (const name of entries) {
         if (result.length >= MAX_IMPORT_FILES) { truncated = true; break }
         await walk(join(p, name), depth + 1)
@@ -72,8 +74,6 @@ export function registerImportHandlers(): void {
         height: size.height || null,
         colors: null,
         memo: null,
-        media_type: 'image',
-        duration: null,
         thumb_path: thumbOk ? thumbFile : null,
         source: 'import',
       },
@@ -89,7 +89,7 @@ export function registerImportHandlers(): void {
   handleTrusted(CH.clipboardCopyImage, async (_event, id: number) => {
     if (!Number.isInteger(id) || id <= 0) return false
     const image = getImage(id)
-    if (!image || image.media_type === 'video') return false
+    if (!image) return false
     const filePath = await resolveRealCapturePath(image.filepath)
     if (!filePath) return false
     const img = nativeImage.createFromPath(filePath)
@@ -116,11 +116,8 @@ export function registerImportHandlers(): void {
       if (typeof rawPath !== 'string' || !rawPath) continue
 
       const ext = extname(rawPath).toLowerCase()
-      const isImage = IMPORT_IMAGE_EXTS.has(ext)
-      const isVideo = IMPORT_VIDEO_EXTS.has(ext)
-      if (!isImage && !isVideo) { errors.push(`unsupported: ${basename(rawPath)}`); continue }
-      // 動画はサムネイル・duration の取得に対応していないため取り込みを弾く。
-      if (isVideo) { errors.push(`動画ファイルは取り込めません: ${basename(rawPath)}`); continue }
+      // 本ビルドは画像専用。画像以外（動画含む）は取り込まない。
+      if (!IMPORT_IMAGE_EXTS.has(ext)) { errors.push(`unsupported: ${basename(rawPath)}`); continue }
 
       let srcStat: Awaited<ReturnType<typeof stat>>
       try { srcStat = await stat(rawPath) } catch { errors.push(`not found: ${basename(rawPath)}`); continue }
@@ -164,8 +161,6 @@ export function registerImportHandlers(): void {
           height,
           colors: null,
           memo: null,
-          media_type: 'image',
-          duration: null,
           thumb_path: thumbFile,
           source: 'import',
         },

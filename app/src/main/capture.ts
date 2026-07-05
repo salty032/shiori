@@ -20,7 +20,21 @@ let cachedDisplays: DisplayList | null = null
 let cachedDisplaysAt = 0
 const DISPLAY_CACHE_TTL = 30_000
 
+// モニタ抜き差し・DPI変更が起きると screenshot-desktop の display id / 座標が変わり、
+// 30秒キャッシュが古い id を指したまま別モニタを撮る恐れがある。screen の変化イベントで
+// 即キャッシュを破棄する。listen 登録は app ready 後（＝初回キャプチャ時）に一度だけ行う。
+let displayInvalidationBound = false
+function bindDisplayInvalidation(): void {
+  if (displayInvalidationBound) return
+  displayInvalidationBound = true
+  const invalidate = (): void => { cachedDisplays = null }
+  electronScreen.on('display-added', invalidate)
+  electronScreen.on('display-removed', invalidate)
+  electronScreen.on('display-metrics-changed', invalidate)
+}
+
 async function listDisplaysCached(): Promise<DisplayList> {
+  bindDisplayInvalidation()
   if (cachedDisplays && Date.now() - cachedDisplaysAt < DISPLAY_CACHE_TTL) return cachedDisplays
   cachedDisplays = await screenshot.listDisplays()
   cachedDisplaysAt = Date.now()
@@ -228,9 +242,15 @@ export async function captureScreen(): Promise<string> {
   isCapturing = true
 
   let context: CaptureContext = null
+  // 早期復帰（screenshot 直後）と finally の保険で二重に呼ばれても、プレーヤーUI復帰は
+  // 一度だけ送る。呼び出し側（bootstrap）の抑止に依存せず capture.ts 単体で exactly-once。
+  let didPostCapture = false
+  const runPostCapture = (): void => {
+    if (didPostCapture) return
+    didPostCapture = true
+    postCaptureHook?.()
+  }
   try {
-    const dir = await ensureCaptureSubDir(Date.now())
-
     if (preCaptureHook) context = await preCaptureHook()
 
     if (!canCaptureVideo()) {
@@ -247,8 +267,8 @@ export async function captureScreen(): Promise<string> {
 
     // スクショ取得時点でピクセルは確定済み。ここで即UIを復元し、ブラウザのプレーヤーUIが
     // 隠れている時間を、後続の保存パイプライン（クロップ・サムネ生成・DB挿入・色抽出）ぶん
-    // 引きずらないようにする。finally でも呼ぶが、postCaptureHook 側が二重送信を抑止する。
-    postCaptureHook?.()
+    // 引きずらないようにする。finally でも呼ぶが runPostCapture が exactly-once を保証する。
+    runPostCapture()
 
     if (browserWindow && videoRect) {
       const native = nativeImage.createFromBuffer(img)
@@ -256,6 +276,9 @@ export async function captureScreen(): Promise<string> {
       const crop = computeVideoCrop(ssW, ssH, electronDisplay)
       if (crop) {
         const cropped = native.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h })
+        // 有効なクロップが確定してから保存先サブフォルダを作る。前面/動画未検出/クロップ不正で
+        // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
+        const dir = await ensureCaptureSubDir(Date.now())
         const filepath = await writeCaptureFile(dir, cropped.toPNG())
         await notifyCaptureDone(filepath, context)
         return filepath
@@ -264,7 +287,7 @@ export async function captureScreen(): Promise<string> {
 
     throw new Error('Browser video crop area is invalid')
   } finally {
-    postCaptureHook?.()
+    runPostCapture()
     isCapturing = false
   }
 }

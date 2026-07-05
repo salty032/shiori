@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { cleanTitle, siteName, formatTime, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
 import { font, color, s as commonStyles } from '../styles'
-import VideoPlayer from './VideoPlayer'
 import TagEditor from './TagEditor'
 import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
@@ -74,14 +73,14 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const [fullImageSrc, setFullImageSrc] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!single || single.media_type === 'video') return
+    if (!single) return
     setFullImageSrc(null)
     let canceled = false
     const preload = new Image()
     preload.onload = () => { if (!canceled) setFullImageSrc(mediaUrl(single.id)) }
     preload.src = mediaUrl(single.id)
     return () => { canceled = true }
-  }, [single?.id, single?.media_type])
+  }, [single?.id])
 
   const bulkSuggestions = useMemo(() => {
     return tagSuggestions(bulkTagInput, allTags, (tag) => bulkTagMap.get(tag) !== 'all')
@@ -264,16 +263,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       {single ? (
         <>
           <div style={s.panelContent}>
-          {single.media_type === 'video' ? (
-            <VideoPlayer
-              id={single.id}
-              wrapperStyle={s.videoWrap}
-              videoStyle={s.videoEl}
-              pauseWhen={viewerOpen}
-            />
-          ) : (
-            <img src={fullImageSrc ?? thumbSrc(single)} style={s.img} alt="" />
-          )}
+          <img src={fullImageSrc ?? thumbSrc(single)} style={s.img} alt="" />
           <div style={s.meta}>
             <div style={s.titleRow}>
               {editingTitle ? (
@@ -309,18 +299,12 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 </div>
               )}
             </div>
-            {(single.current_time != null || single.media_type === 'video') && (
+            {single.current_time != null && (
               <div style={s.metaHalf}>
                 <div style={s.metaRow}>
                   <span style={s.label}>動画時刻</span>
-                  <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
+                  <span style={s.value}>{formatTime(single.current_time)}</span>
                 </div>
-                {single.media_type === 'video' && (
-                  <div style={s.metaRow}>
-                    <span style={s.label}>長さ</span>
-                    <span style={s.value}>{single.duration != null ? formatTime(single.duration) : '—'}</span>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -477,8 +461,6 @@ const s: Record<string, React.CSSProperties> = {
   emptyTitle: { color: '#6f778b', fontSize: font.base, fontWeight: 700 },
   emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: '#6f778b', fontSize: font.sm, lineHeight: 1.6 },
   img: { width: 'calc(100% - 32px)', margin: '16px 16px 0', borderRadius: 4, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: '#171a23', border: '1px solid #252b38', display: 'block', flexShrink: 0 },
-  videoWrap: { flexShrink: 0, margin: '16px 16px 0', borderRadius: 4, overflow: 'hidden', background: '#171a23', border: '1px solid #252b38' },
-  videoEl: { width: '100%', aspectRatio: '16 / 9', objectFit: 'contain' as const, cursor: 'pointer', display: 'block' },
   meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid #20242f', paddingBottom: 8 },

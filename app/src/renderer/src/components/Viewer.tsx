@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { ImageRow } from '../types'
 import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
 import { s } from '../styles'
-import VideoPlayer, { VideoPlayerHandle } from './VideoPlayer'
 
-// フィルムストリップの 1 枚。サムネ生成失敗（動画で thumb_path 無し等）時は
-// webm 本体が <img> に渡り割れるため、フォールバックのプレースホルダに切り替える。
+// フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
+// 割れ画像になるため、フォールバックのプレースホルダに切り替える。
 function FilmstripThumb({ img, active, onClick }: { img: ImageRow; active: boolean; onClick: (e: React.MouseEvent) => void }): React.JSX.Element {
   const [failed, setFailed] = useState(false)
   const style = { ...s.filmstripThumb, ...(active ? s.filmstripThumbActive : {}) }
@@ -28,7 +27,7 @@ type Props = {
   onToggleDetailPanel: () => void
 }
 
-// 画像／動画の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
+// 画像の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
 // すべてビューア内部の状態。開閉位置（index）だけは選択・キャプチャ追従のため親が持つ。
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
 export default function Viewer({ images, index, setIndex, total, titleStrip, onToggleDetailPanel }: Props) {
@@ -36,7 +35,6 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
-  const videoPlayerRef = useRef<VideoPlayerHandle>(null)
 
   // 画像が切り替わったらズーム・パンをリセット
   useEffect(() => {
@@ -58,12 +56,11 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
       if (isEditing) return
       if (e.code === 'Space') {
         e.preventDefault()
-        // 動画は再生/停止、それ以外（画像）は Quick Look 的に Space で閉じる（開くのと対称）。
-        if (images[index].media_type === 'video') videoPlayerRef.current?.togglePlay()
-        else close()
+        // 画像は Quick Look 的に Space で閉じる（開くのと対称）。
+        close()
         return
       }
-      if (images[index].media_type !== 'video' && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0')) {
+      if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') {
         e.preventDefault()
         if (e.key === '0') { setZoom(1); setPan({ x: 0, y: 0 }); return }
         zoomByKeyboard(e.key === '-' ? 0.8 : 1.25)
@@ -144,7 +141,6 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
 
   function handleWheel(e: React.WheelEvent): void {
     e.preventDefault()
-    if (img.media_type === 'video') return
     const factor = e.deltaY < 0 ? 1.25 : 0.8
     const nextZoom = Math.max(1, Math.min(8, zoom * factor))
     if (nextZoom === zoom) return
@@ -234,14 +230,6 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
     }
   }
 
-  function handleVideoClick(e: React.MouseEvent<HTMLVideoElement>): boolean {
-    if (isInsideContainedMedia(e.currentTarget, e.clientX, e.clientY, e.currentTarget.videoWidth, e.currentTarget.videoHeight)) {
-      return true
-    }
-    close()
-    return false
-  }
-
   const img = images[index]
   const filmSlots = Array.from({ length: 9 }, (_, i) => index - 4 + i)
   const title = img.title ? cleanTitle(img.title, titleStrip) : ''
@@ -256,25 +244,21 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
         </div>
       </div>
       <div style={s.viewerMediaStack}>
-        {img.media_type === 'video' ? (
-          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay onVideoClick={handleVideoClick} />
-        ) : (
-          <img
-            ref={imgRef}
-            src={mediaUrl(img.id)}
-            style={{
-              ...s.viewerImg,
-              transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
-              cursor: zoom > 1 ? 'grab' : 'default',
-            }}
-            onPointerDown={handleImagePointerDown}
-            onClick={handleImageClick}
-            alt=""
-            draggable={false}
-          />
-        )}
+        <img
+          ref={imgRef}
+          src={mediaUrl(img.id)}
+          style={{
+            ...s.viewerImg,
+            transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
+            cursor: zoom > 1 ? 'grab' : 'default',
+          }}
+          onPointerDown={handleImagePointerDown}
+          onClick={handleImageClick}
+          alt=""
+          draggable={false}
+        />
       </div>
-      {img.media_type !== 'video' && zoom > 1 && (
+      {zoom > 1 && (
         <div style={s.viewerZoomHud} onClick={(e) => e.stopPropagation()}>
           <span style={s.viewerZoomValue}>{Math.round(zoom * 100)}%</span>
         </div>

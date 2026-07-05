@@ -78,10 +78,6 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
           target = activeImages.find((img) => img.id === id)
         }
         if (!target) return
-        if (target.media_type === 'video') {
-          showToast('動画はクリップボードにコピーできません', 'info')
-          return
-        }
         e.preventDefault()
         window.api.clipboardCopyImage(target.id).then(
           (ok) => showToast(ok ? 'クリップボードにコピーしました' : '画像のコピーに失敗しました', ok ? 'success' : 'warning'),

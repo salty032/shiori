@@ -1,8 +1,8 @@
-// キャプチャ／クリップ／インポート／トリム／共有インポートで共通の
+// キャプチャ／クリップ／インポート／共有インポートで共通の
 // 「insertImage → 失敗時unlink巻き戻し → captureDone送信 → autotag起動」を1箇所にまとめる。
-// サムネ生成はメディア種別ごとに異なる（image/video・ベストエフォート可否）ため呼び出し側の責務のまま。
+// サムネ生成はベストエフォート可否が呼び出し側で異なるため、呼び出し側の責務のまま。
 import { unlink } from 'fs/promises'
-import { insertImage, addTagsBulk } from './db'
+import { insertImage, addTagsBulk, getImage } from './db'
 import { sendToRenderer } from './windows'
 import { canAutoTag, ensureModel, runTagger } from './tagger'
 import { CH } from '../shared/api'
@@ -53,6 +53,9 @@ export async function registerCapturedMedia(
 
   if (autoTag && canAutoTag()) {
     ensureModel().then(() => runTagger(autoTag.path)).then((tags) => {
+      // タグ付けは非同期。完了前に画像が削除されていたら、存在しない image_id への
+      // insert（FK違反）を試みてログを汚さないよう黙って捨てる。
+      if (!getImage(id)) return
       addTagsBulk(id, tags.map((t) => ({ name: t.name, source: 'ai' as const })))
       sendToRenderer(CH.taggerDone, { imageId: id })
     }).catch((err) => {

@@ -353,7 +353,7 @@ export default function SettingsModal(p: Props) {
   )
 }
 
-// video/ClipHotkeySettings 等、登録スロットが見た目を揃えるために再利用する。
+// 各種設定スロットが見た目を揃えるために再利用する共通スタイル。
 export const s: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(3,5,10,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
   panel: { background: '#0d0f14', border: '1px solid #20242f', borderRadius: 4, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,0.62)', overflow: 'hidden' },

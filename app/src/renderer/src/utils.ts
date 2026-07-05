@@ -153,16 +153,9 @@ export function mediaUrl(id: number, kind: 'media' | 'thumb' = 'media'): string 
 }
 
 // サムネ表示用 URL。thumb_path があれば軽量サムネ、なければ原本を指す
-// （media_type は問わない。capfile プロトコル側で kind=thumb は thumb_path ?? filepath にフォールバックする）。
+// （capfile プロトコル側で kind=thumb は thumb_path ?? filepath にフォールバックする）。
 export function thumbSrc(img: ImageRow): string {
   return mediaUrl(img.id, img.thumb_path ? 'thumb' : 'media')
-}
-
-// 動画の長さバッジ用 m:ss フォーマット（formatTime とは異なり常に m:ss、時間の桁上げなし）。
-export function formatDuration(seconds: number): string {
-  const sec = Math.floor(seconds)
-  const m = Math.floor(sec / 60)
-  return `${m}:${String(sec % 60).padStart(2, '0')}`
 }
 
 // グリッド/タイムラインの列数・セル幅・セル高(16:9)を共通計算する。

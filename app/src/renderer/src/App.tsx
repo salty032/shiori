@@ -445,7 +445,7 @@ export default function App() {
   const ctxMenuItems = useMemo<MenuItem[]>(() => {
     if (!ctxMenu) return []
     const items: MenuItem[] = []
-    if (single && single.media_type !== 'video') {
+    if (single) {
       items.push({
         label: 'コピー',
         onClick: () => {

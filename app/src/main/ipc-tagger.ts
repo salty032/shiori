@@ -74,11 +74,10 @@ export function registerTaggerHandlers(): void {
       let i = 0
       for (; i < targets.length; i++) {
         if (isRetagCanceled) break
-        const { id, filepath, thumb_path } = targets[i]
+        const { id, filepath } = targets[i]
         try {
-          // 動画クリップは thumb_path（静止画サムネイル）でタグ付けする。サムネ未生成ならスキップ。
-          const srcPath = filepath.endsWith('.webm') ? thumb_path : filepath
-          if (!srcPath) throw new Error('no tagger source (thumb not yet generated)')
+          const srcPath = filepath
+          if (!srcPath) throw new Error('no tagger source')
           const resolvedPath = await resolveRealCapturePath(srcPath)
           if (!resolvedPath) throw new Error('path not resolvable')
           const tags = await runTagger(resolvedPath)

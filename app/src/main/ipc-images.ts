@@ -16,20 +16,19 @@ import {
 import { CH } from '../shared/api'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { createImageThumb } from './image-thumb'
-import { getVideoThumbProvider } from './video-thumb-provider'
 import { createProgressThrottle } from './progress-throttle'
 
 let isThumbGen = false
 let isImagesExportCanceled = false
 
-// サムネイルが欠けている画像・動画にサムネを補完する。移行直後の旧データや、
+// サムネイルが欠けている画像にサムネを補完する。移行直後の旧データや、
 // 生成に失敗したまま登録されたエントリを対象に起動時（bootstrap.ts）から自動で呼ぶ。
 export async function backfillThumbnails(): Promise<void> {
   if (isThumbGen) return
   isThumbGen = true
   try {
     const targets = listImagesForThumbCheck()
-    for (const { id, filepath, thumb_path, media_type } of targets) {
+    for (const { id, filepath, thumb_path } of targets) {
       try {
         if (thumb_path) {
           const existingThumb = await resolveRealCapturePath(thumb_path)
@@ -44,15 +43,9 @@ export async function backfillThumbnails(): Promise<void> {
         }
         const resolved = await resolveRealCapturePath(filepath)
         if (!resolved) throw new Error('path not resolvable')
-        if (media_type === 'video') {
-          const thumbPath = thumbPathFor(resolved, '.png')
-          await getVideoThumbProvider().extractThumb(resolved, thumbPath)
-          setThumbPath(id, thumbPath)
-        } else {
-          const thumbPath = thumbPathFor(resolved)
-          await createImageThumb(resolved, thumbPath)
-          setThumbPath(id, thumbPath)
-        }
+        const thumbPath = thumbPathFor(resolved)
+        await createImageThumb(resolved, thumbPath)
+        setThumbPath(id, thumbPath)
       } catch (err) {
         console.error(`[thumbgen] skip id=${id}`, err)
       }

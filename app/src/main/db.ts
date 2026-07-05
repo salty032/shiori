@@ -73,8 +73,6 @@ export function initDb(): void {
       height       INTEGER,
       colors       TEXT,
       memo         TEXT,
-      media_type   TEXT,
-      duration     REAL,
       thumb_path   TEXT
     );
     CREATE TABLE IF NOT EXISTS tags (
@@ -97,8 +95,6 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN url TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN colors TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN memo TEXT')
-  addColumnIfMissing('ALTER TABLE images ADD COLUMN media_type TEXT')
-  addColumnIfMissing('ALTER TABLE images ADD COLUMN duration REAL')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN thumb_path TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN host TEXT')
   addColumnIfMissing("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'capture'")
@@ -183,8 +179,6 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"url"',
   '"colors"',
   '"memo"',
-  '"media_type"',
-  '"duration"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -197,8 +191,8 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   try { if (params.url) host = new URL(params.url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
   const source = params.source ?? 'capture'
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, thumb_path, host, source)
-     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @thumb_path, @host, @source)`
+    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, thumb_path, host, source)
+     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @thumb_path, @host, @source)`
   )
   const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source })
   _colorsCache = null
@@ -244,7 +238,6 @@ export function buildImageFilter(f: ImageFilter): { where: string; params: unkno
   }
   if (f.toDate != null) { conds.push('captured_at < ?'); params.push(f.toDate) }
   if (f.site) { conds.push("host LIKE ? ESCAPE '\\'"); params.push(`%${escapeLike(f.site)}%`) }
-  if (f.mediaType) { conds.push('media_type = ?'); params.push(f.mediaType) }
   if (f.tags && f.tags.length > 0) {
     const ph = f.tags.map(() => '?').join(', ')
     if (f.tagMode === 'or') {
@@ -339,20 +332,30 @@ export function deleteImage(id: number): string | null {
   })()
 }
 
+// 既存タグとの衝突時、手動追加(excluded.source='manual')なら source を 'manual' に昇格させ、
+// AI追加は既存行（手動で確定済みかもしれない）を降格させない。これがないと、AIが既に付けた
+// タグをユーザーが手動追加しても 'ai' のまま残り、manual のみを見るタグ一覧/件数に出てこない。
+const UPSERT_IMAGE_TAG =
+  "INSERT INTO image_tags (image_id, tag_id, source) VALUES (?, ?, ?) " +
+  "ON CONFLICT(image_id, tag_id) DO UPDATE SET source='manual' WHERE excluded.source='manual'"
+
 export function addTag(imageId: number, tagName: string, source: 'manual' | 'ai' = 'manual'): void {
   prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').run(tagName)
   const tag = prepare('SELECT id FROM tags WHERE name = ?').get(tagName) as { id: number }
-  prepare(
-    'INSERT OR IGNORE INTO image_tags (image_id, tag_id, source) VALUES (?, ?, ?)'
-  ).run(imageId, tag.id, source)
+  prepare(UPSERT_IMAGE_TAG).run(imageId, tag.id, source)
 }
 
 export function addTagsBulk(imageId: number, tags: { name: string; source: 'manual' | 'ai' }[]): void {
   if (tags.length === 0) return
   const insertTag = prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)')
   const getTag    = prepare('SELECT id FROM tags WHERE name = ?')
-  const insertIt  = prepare('INSERT OR IGNORE INTO image_tags (image_id, tag_id, source) VALUES (?, ?, ?)')
+  const insertIt  = prepare(UPSERT_IMAGE_TAG)
+  const imageExists = prepare('SELECT 1 FROM images WHERE id = ?')
   db.transaction(() => {
+    // 画像が（非同期の自動タグ付け完了前などに）削除済みなら、存在しない image_id への
+    // insert（FK違反）を避けて静かに何もしない。存在確認と insert を同一 transaction に
+    // 収めることで、呼び出し側の事前チェックに依存せず race をDB層で閉じる。
+    if (!imageExists.get(imageId)) return
     for (const { name, source } of tags) {
       insertTag.run(name)
       const tag = getTag.get(name) as { id: number }
@@ -388,7 +391,7 @@ export function addTagBulk(imageIds: number[], tagName: string, source: 'manual'
   if (imageIds.length === 0) return
   prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').run(tagName)
   const tag = prepare('SELECT id FROM tags WHERE name = ?').get(tagName) as { id: number }
-  const insertIt = prepare('INSERT OR IGNORE INTO image_tags (image_id, tag_id, source) VALUES (?, ?, ?)')
+  const insertIt = prepare(UPSERT_IMAGE_TAG)
   db.transaction(() => {
     for (const id of imageIds) insertIt.run(id, tag.id, source)
   })()
@@ -437,11 +440,11 @@ export function updateImageMemo(id: number, memo: string): void {
   prepare('UPDATE images SET memo = ? WHERE id = ?').run(memo || null, id)
 }
 
-export function listImagesForThumbCheck(): { id: number; filepath: string; thumb_path: string | null; media_type: string | null }[] {
+export function listImagesForThumbCheck(): { id: number; filepath: string; thumb_path: string | null }[] {
   return prepare(
-    `SELECT id, filepath, thumb_path, media_type FROM images
+    `SELECT id, filepath, thumb_path FROM images
      ORDER BY captured_at DESC`
-  ).all() as { id: number; filepath: string; thumb_path: string | null; media_type: string | null }[]
+  ).all() as { id: number; filepath: string; thumb_path: string | null }[]
 }
 
 export function setThumbPath(id: number, thumbPath: string): void {

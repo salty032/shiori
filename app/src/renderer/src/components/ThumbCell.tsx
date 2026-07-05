@@ -1,12 +1,7 @@
 import { useState, useEffect, useRef, memo } from 'react'
 import type { ImageRow } from '../types'
-import { cleanTitle, thumbSrc, formatDuration, splitHighlight } from '../utils'
+import { cleanTitle, thumbSrc, splitHighlight } from '../utils'
 import { s } from '../styles'
-
-function thumbDurationLabel(img: ImageRow): string | null {
-  if (img.media_type !== 'video') return null
-  return Number.isFinite(img.duration ?? NaN) ? formatDuration(img.duration!) : null
-}
 
 type Props = {
   img: ImageRow
@@ -38,7 +33,6 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
     }
     wasNewRef.current = isNew
   }, [isNew])
-  const durationLabel = thumbDurationLabel(img)
   const titleLabel = img.title ? cleanTitle(img.title, titleStrip) : ''
   const showNew = isNew || newExiting
   return (
@@ -49,14 +43,12 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
       onMouseLeave={() => setHovered(false)}
       onDoubleClick={() => onOpen(index)}>
       <div style={{ ...s.thumbImgWrap, height: cellHeight }}>
-        {/* サムネ生成失敗（動画で thumb_path 無し・ファイル欠落等）時は webm 本体が
-            <img> に渡り割れ画像になるため、フォールバックのプレースホルダに切り替える */}
+        {/* サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
+            フォールバックのプレースホルダに切り替える */}
         {thumbFailed
           ? <div style={s.thumbFallback} />
           : <img src={thumbSrc(img)} style={{ ...s.thumbImg, opacity: thumbLoaded ? 1 : 0 }} alt="" draggable={false}
               decoding="async" loading="lazy" onLoad={() => setThumbLoaded(true)} onError={() => setThumbFailed(true)} />}
-        {img.media_type === 'video' && <div style={s.thumbVideoPlay}>▶</div>}
-        {durationLabel && <div style={s.thumbVideoDuration}>{durationLabel}</div>}
         {showNew && <div style={isNew ? s.thumbNewBadge : s.thumbNewBadgeExit}>NEW</div>}
       </div>
       <div style={s.thumbLabel} title={titleLabel || undefined}>

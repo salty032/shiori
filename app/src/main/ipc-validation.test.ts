@@ -38,9 +38,9 @@ describe('sanitizeFilename', () => {
 
 describe('imageQuery', () => {
   it('不正型の各フィールドは既定値に落ちる', () => {
-    const q = imageQuery({ search: 123, after: 'x', site: 456, mediaType: 'movie', tags: 'not-array', tagMode: 'xor', color: 'red', toDate: 'x' })
+    const q = imageQuery({ search: 123, after: 'x', site: 456, tags: 'not-array', tagMode: 'xor', color: 'red', toDate: 'x' })
     expect(q).toEqual({
-      search: undefined, after: undefined, site: undefined, mediaType: undefined,
+      search: undefined, after: undefined, site: undefined,
       tags: undefined, tagMode: 'and', color: undefined, toDate: undefined,
     })
   })
@@ -52,9 +52,8 @@ describe('imageQuery', () => {
   })
 
   it('正常値はそのまま通る', () => {
-    const q = imageQuery({ search: 'foo', mediaType: 'video', tagMode: 'or', color: '#ff00ff' })
+    const q = imageQuery({ search: 'foo', tagMode: 'or', color: '#ff00ff' })
     expect(q.search).toBe('foo')
-    expect(q.mediaType).toBe('video')
     expect(q.tagMode).toBe('or')
     expect(q.color).toBe('#ff00ff')
   })
@@ -104,8 +103,8 @@ describe('imageListRequest', () => {
   })
 
   it('imageQuery のフィールドも同時に検証される', () => {
-    const r = imageListRequest({ mediaType: 'invalid', limit: 10 })
-    expect(r.mediaType).toBeUndefined()
+    const r = imageListRequest({ color: 'invalid', limit: 10 })
+    expect(r.color).toBeUndefined()
     expect(r.limit).toBe(10)
   })
 })

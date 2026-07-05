@@ -37,6 +37,7 @@ const TAGS_CSV = `row_id,name,category,count,aliases
 
 const fakeImage = {
   isEmpty: () => false,
+  getSize: () => ({ width: 448, height: 448 }),
   resize: () => fakeImage,
   toBitmap: () => new Uint8Array(448 * 448 * 4),
 }

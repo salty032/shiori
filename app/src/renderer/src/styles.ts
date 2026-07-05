@@ -88,8 +88,6 @@ export const s: Record<string, CSSProperties> = {
   thumbNewExit: { outline: '1px solid rgba(84,214,168,0)', outlineOffset: '-1px', boxShadow: '0 0 0 2px rgba(84,214,168,0)', transition: 'outline-color 0.9s ease, box-shadow 0.9s ease' },
   thumbNewBadge: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: 4, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' },
   thumbNewBadgeExit: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: 4, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)', animation: 'shioriNewBadgeOut 0.9s ease forwards' },
-  thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
-  thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   // Ctrl+矢印等の「選択を変えずにフォーカスだけ移動」時だけ表示する目印（呼び出し側で
   // focused && !selected の時だけ描画）。通常の矢印キー移動は選択とフォーカスが常に同じ
   // セルを指すため、選択ハイライトと二重表示すると常時点灯してうるさくなる。

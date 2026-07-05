@@ -8,13 +8,11 @@ import { listImagesForExport } from './db'
 import { loadSettings } from './settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
 import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
-import { getVideoThumbProvider } from './video-thumb-provider'
 import { CH } from '../shared/api'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 
 const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
-const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 
 let isShareExportCanceled = false
 
@@ -122,9 +120,8 @@ export function registerShareHandlers(): void {
       if (!safeFile || safeFile !== entry.file) { errors.push(`unsafe filename: ${entry.file}`); continue }
 
       const ext = extname(safeFile).toLowerCase()
-      const isImage = SHARE_IMAGE_EXTS.has(ext)
-      const isVideo = SHARE_VIDEO_EXTS.has(ext)
-      if (!isImage && !isVideo) { errors.push(`unsupported extension: ${safeFile}`); continue }
+      // 本ビルドは画像専用。動画エントリを含む共有バンドルを読み込んでも動画は取り込まない。
+      if (!SHARE_IMAGE_EXTS.has(ext)) { errors.push(`unsupported extension: ${safeFile}`); continue }
 
       const srcFile = join(srcDir, 'images', safeFile)
       let srcStat: Awaited<ReturnType<typeof stat>>
@@ -161,16 +158,6 @@ export function registerShareHandlers(): void {
         continue
       }
 
-      // 動画は duration をメタデータに含めない方針のため、フォルダドロップ取り込みと同様に
-      // ここで実体から再取得する（再インポート動画でも duration バッジ・Trimmer が機能する）。
-      let duration: number | null = null
-      if (isVideo) {
-        try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
-          console.warn('[share:import] getVideoDuration failed', err)
-        }
-      }
-
-      const mediaType = isVideo ? 'video' : 'image'
       const tags = Array.isArray(entry.tags)
         ? (entry.tags as unknown[]).filter((t): t is string => typeof t === 'string').map((t) => t.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
         : []
@@ -186,8 +173,6 @@ export function registerShareHandlers(): void {
           height: null,
           colors: null,
           memo: typeof entry.memo === 'string' ? entry.memo.slice(0, 5000) || null : null,
-          media_type: mediaType,
-          duration,
           thumb_path: thumbDest,
           source: 'import',
         },
