@@ -191,12 +191,14 @@ export default function SettingsModal(p: Props) {
                       {extensionConnected ? '受信中' : '未受信'}
                     </span>
                   </div>
-                  <div style={s.hint}>対応サイトの動画ページから Shiori に情報が届いているかを表示します。</div>
-                  {!extensionConnected && (
-                    <button style={s.addBtn} onClick={() => window.api.showExtensionFolder()}>
-                      拡張機能フォルダを開く
-                    </button>
-                  )}
+                  <div style={s.actionRow}>
+                    <div style={s.hint}>対応サイトの動画ページから Shiori に情報が届いているかを表示します。</div>
+                    {!extensionConnected && (
+                      <button style={s.addBtn} onClick={() => window.api.showExtensionFolder()}>
+                        拡張機能フォルダを開く
+                      </button>
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -258,9 +260,12 @@ export default function SettingsModal(p: Props) {
                           <span style={s.progressLabel}>{p.retagProgress.current}/{p.retagProgress.total}</span>
                         </div>
                       ) : (
-                        <button style={s.addBtn} onClick={p.onTaggerRetagAll}>
-                          既存画像にタグ付け...
-                        </button>
+                        <div style={s.actionRow}>
+                          <div style={s.hint}>タグが未付与の既存画像をまとめて処理します。</div>
+                          <button style={s.addBtn} onClick={p.onTaggerRetagAll}>
+                            既存画像にタグ付け...
+                          </button>
+                        </div>
                       )}
                     </div>
                   ) : p.taggerProgress !== null ? (
@@ -272,9 +277,12 @@ export default function SettingsModal(p: Props) {
                       <button style={s.cancelBtn} onClick={p.onTaggerCancelDownload}>中止</button>
                     </div>
                   ) : (
-                    <button style={s.addBtn} onClick={p.onTaggerDownload}>
-                      モデルをダウンロード
-                    </button>
+                    <div style={s.actionRow}>
+                      <div style={s.hint}>モデルを保存すると、以後のキャプチャで自動タグ付けを使えます。</div>
+                      <button style={s.addBtn} onClick={p.onTaggerDownload}>
+                        モデルをダウンロード
+                      </button>
+                    </div>
                   )}
                 </div>
               </>
@@ -365,11 +373,11 @@ export const s: Record<string, React.CSSProperties> = {
   title: { fontSize: font.xxl, fontWeight: 800, color: '#f7f9ff' },
   close: { width: 26, height: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#6f778b', cursor: 'pointer', padding: 0 },
   group: { borderTop: '1px solid #293142', paddingTop: 22, paddingBottom: 22, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 620 },
-  section: { fontSize: font.base, color: '#c1c8da', letterSpacing: 0, fontWeight: 800 },
+  section: { fontSize: font.xs, color: '#7f899f', letterSpacing: 0.4, fontWeight: 800 },
   toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  label: { fontSize: font.lg, color: '#dce3f2' },
-  sizeBtn: { padding: '6px 18px', borderRadius: 3, border: '1px solid', cursor: 'pointer', fontSize: font.base, transition: 'all 0.1s' },
+  label: { fontSize: font.lg, color: '#dce3f2', fontWeight: 700 },
+  sizeBtn: { padding: '6px 18px', background: '#171a23', borderRadius: 3, border: '1px solid #2b3243', color: '#dce3f2', cursor: 'pointer', fontSize: font.base, transition: 'all 0.1s' },
   hint: { fontSize: font.sm, color: '#8791a8', lineHeight: 1.7 },
   hotkeyBadge: { padding: '4px 10px', background: '#171a23', border: '1px solid #272c3a', borderRadius: 3, color: '#dce3f2', fontSize: font.base, fontFamily: 'monospace' },
   hotkeyCapture: { padding: '4px 10px', background: '#171a23', border: '1px solid #3b4355', borderRadius: 3, color: '#9ea5ff', fontSize: font.base, fontFamily: 'monospace', minWidth: 140, outline: 'none', cursor: 'text' },
@@ -382,7 +390,8 @@ export const s: Record<string, React.CSSProperties> = {
   statusMuted: { color: '#7f899f', background: 'rgba(127,137,159,0.08)', borderColor: 'rgba(127,137,159,0.22)' },
   inputRow: { display: 'flex', gap: 8 },
   input: { flex: 1, background: '#171a23', border: '1px solid #2b3243', borderRadius: 3, color: '#e7ebf5', padding: '7px 10px', fontSize: font.base, outline: 'none' },
-  addBtn: { padding: '7px 14px', background: '#1d2b40', border: '1px solid #38506d', borderRadius: 3, color: '#aeb8ff', cursor: 'pointer', fontSize: font.base, whiteSpace: 'nowrap' as const, fontWeight: 700 },
+  actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  addBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '7px 14px', background: '#1d2b40', border: '1px solid #38506d', borderRadius: 3, color: '#aeb8ff', cursor: 'pointer', fontSize: font.base, whiteSpace: 'nowrap' as const, fontWeight: 700 },
   patternEmpty: { color: '#7f899f', fontSize: font.base },
   patternList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
   patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#171a23', border: '1px solid #272c3a', borderRadius: 3, padding: '6px 10px' },
