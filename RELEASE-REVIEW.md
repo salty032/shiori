@@ -1,4 +1,4 @@
-# リリース前最終レビュー（v1.0.0）
+# リリース前最終レビュー（v1.0.2）
 
 - 実施日: 2026-07-05
 - 対象: リポジトリ全体（git 履歴ではなく現在のツリー全ファイル）
@@ -21,7 +21,7 @@
 | 個人情報・秘密情報（メール・ローカルパス・APIキー等）の混入 | ✅ なし |
 | TODO/FIXME 等の作業残しコメント | ✅ なし |
 | 拡張IDの整合（manifest の `key` から導出したID = settings.ts の既定許可ID） | ✅ 一致（`cgoo...bdpn`） |
-| バージョン整合（app 1.0.0 / extension 1.0.0 / README の表記） | ✅ 一致 |
+| バージョン整合（app 1.0.2 / extension 1.0.0 / README の表記） | ✅ 一致 |
 | リリース設定（publish 先 `salty032/shiori` = git remote） | ✅ 一致 |
 
 ---
@@ -88,7 +88,7 @@
 
 ## リリース手順の確認
 
-1. `git tag v1.0.0 && git push origin v1.0.0` で Release ワークフローが起動
-2. `Shiori-Setup-1.0.0.exe` が GitHub Releases に公開される（draft ではなく即公開設定）
-3. electron-updater は同リポジトリの Releases を4時間ごとに確認し、新版があれば
+1. `git tag v1.0.2 && git push origin v1.0.2` で Release ワークフローが起動
+2. `Shiori-Setup-1.0.2.exe` が GitHub Releases に公開される（draft ではなく即公開設定）
+3. electron-updater は起動時に一度だけ同リポジトリの Releases を確認し、新版があれば
    アプリ内バナーで通知（未署名のため自動DLはしない設計）
