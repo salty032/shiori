@@ -32,17 +32,26 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
 
   // Ctrl+V でクリップボード画像をインポート（テキスト入力中は無視）
   useEffect(() => {
+    // クリップボード読み取り〜登録は非同期。キー長押し等で連打されると同じ画像が
+    // 複数回取り込まれるため、処理中は後続の Ctrl+V を無視する再入ガードを張る。
+    let pasting = false
     const handler = async (e: KeyboardEvent): Promise<void> => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'v') return
       if (isEditingTarget(e.target)) return
-      const result = await window.api.clipboardPaste()
-      if (result.ok) {
-        ref.current.onLibraryChanged()
-        ref.current.showToast('クリップボードからインポートしました', 'success')
-      } else if (result.reason === 'empty') {
-        ref.current.showToast('クリップボードに画像がありません', 'info')
-      } else {
-        ref.current.showToast('クリップボードからの取り込みに失敗しました', 'error')
+      if (pasting) return
+      pasting = true
+      try {
+        const result = await window.api.clipboardPaste()
+        if (result.ok) {
+          ref.current.onLibraryChanged()
+          ref.current.showToast('クリップボードからインポートしました', 'success')
+        } else if (result.reason === 'empty') {
+          ref.current.showToast('クリップボードに画像がありません', 'info')
+        } else {
+          ref.current.showToast('クリップボードからの取り込みに失敗しました', 'error')
+        }
+      } finally {
+        pasting = false
       }
     }
     window.addEventListener('keydown', handler)
