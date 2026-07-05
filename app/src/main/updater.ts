@@ -22,12 +22,9 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
     console.error('[updater]', err.message)
   })
 
-  const check = (): void => {
-    autoUpdater.checkForUpdates().catch((err: Error) => {
-      console.warn('[updater] checkForUpdates failed:', err.message)
-    })
-  }
-
-  check()
-  setInterval(check, 4 * 60 * 60 * 1000)
+  // 更新確認は起動時に一度だけ。定期ポーリングはしない（トレイ常駐で長時間起動しっぱなしでも
+  // バックグラウンドで繰り返し確認せず、次回起動時にまとめて確認する方針）。
+  autoUpdater.checkForUpdates().catch((err: Error) => {
+    console.warn('[updater] checkForUpdates failed:', err.message)
+  })
 }
