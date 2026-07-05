@@ -61,7 +61,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "artifactName": "Shiori-Setup-${version}.exe"
+      "artifactName": "Shiori-Setup-${version}.exe",
+      "uninstallDisplayName": "${productName}"
     },
     "publish": {
       "provider": "github",

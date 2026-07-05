@@ -92,7 +92,7 @@ export function createWindow(onFocus: () => void): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'Shiori',
+    title: '栞',
     icon: join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
