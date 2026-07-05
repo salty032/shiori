@@ -413,6 +413,15 @@ export function deleteAllAiTags(): number {
   return prepare("DELETE FROM image_tags WHERE source = 'ai'").run().changes
 }
 
+// タグ名から該当する image_tags 行を全件削除する（対象画像を listImagesAll 等で列挙してから
+// removeTagBulk する経路だと MAX_TIMELINE_LIMIT で切り詰められてしまうため、SQL 側で
+// tag_id 一致だけで直接消す。件数上限なし）。戻り値は削除件数（画像から見た「消えた枚数」）。
+export function removeTagFromAllImages(tagName: string): number {
+  const tag = prepare('SELECT id FROM tags WHERE name = ?').get(tagName) as { id: number } | undefined
+  if (!tag) return 0
+  return prepare('DELETE FROM image_tags WHERE tag_id = ?').run(tag.id).changes
+}
+
 export function listAllTags(): string[] {
   return (prepare(
     'SELECT t.name FROM tags t JOIN image_tags it ON it.tag_id = t.id WHERE it.source = \'manual\' GROUP BY t.id ORDER BY COUNT(*) DESC, t.name'

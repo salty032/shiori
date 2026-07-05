@@ -1,7 +1,7 @@
 // WD Tagger 関連の IPC ハンドラ（モデル DL・手動タグ CRUD・一括再タグ付け）。
 import { handleTrusted, sendToRenderer } from './windows'
 import { ensureModel, runTagger, isModelLoaded, isModelDownloaded, deleteModel, cancelModelDownload } from './tagger'
-import { addTag, getImageTags, removeImageTag, addTagsBulk, listImagesForRetag, getImageTagsBulk, addTagBulk, removeTagBulk, deleteAllAiTags } from './db'
+import { addTag, getImageTags, removeImageTag, addTagsBulk, listImagesForRetag, getImageTagsBulk, addTagBulk, removeTagBulk, removeTagFromAllImages, deleteAllAiTags } from './db'
 import { optionalPositiveInteger, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH } from './ipc-validation'
 import { resolveRealCapturePath } from './paths'
 import { CH } from '../shared/api'
@@ -59,6 +59,10 @@ export function registerTaggerHandlers(): void {
     const ids = validImageIds(imageIds)
     const cleaned = optionalText(tagName, MAX_TAG_LENGTH)
     if (cleaned) removeTagBulk(ids, cleaned)
+  })
+  handleTrusted(CH.taggerRemoveTagFromAll, (_event, tagName: string) => {
+    const cleaned = optionalText(tagName, MAX_TAG_LENGTH)
+    return cleaned ? removeTagFromAllImages(cleaned) : 0
   })
 
   handleTrusted(CH.taggerRetagAll, async () => {

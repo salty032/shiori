@@ -37,6 +37,14 @@
       {
         "from": "../extension",
         "to": "extension"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE.txt"
+      },
+      {
+        "from": "../NOTICE.md",
+        "to": "NOTICE.md"
       }
     ],
     "icon": "build/icon.ico",

@@ -53,6 +53,9 @@ export interface ShioriApi {
   taggerGetTagsBulk: (imageIds: number[]) => Promise<Record<number, ImageTag[]>>
   taggerAddTagBulk: (imageIds: number[], tagName: string, source?: ImageTagSource) => Promise<void>
   taggerRemoveTagBulk: (imageIds: number[], tagName: string) => Promise<void>
+  // 「すべてから削除」用。listAllImages で ID を列挙してから removeTagBulk する経路だと
+  // MAX_TIMELINE_LIMIT で切り詰められるため、tag 名だけを渡し DB 側で全件消す。戻り値は削除枚数。
+  taggerRemoveTagFromAll: (tagName: string) => Promise<number>
   onTaggerDone: (cb: (data: { imageId: number }) => void) => () => void
   onTaggerDownloadProgress: (cb: (progress: number) => void) => () => void
   onTaggerReady: (cb: () => void) => () => void
@@ -115,6 +118,7 @@ export const CH = {
   taggerGetTagsBulk: 'tagger:getTagsBulk',
   taggerAddTagBulk: 'tagger:addTagBulk',
   taggerRemoveTagBulk: 'tagger:removeTagBulk',
+  taggerRemoveTagFromAll: 'tagger:removeTagFromAll',
   taggerRetagAll: 'tagger:retagAll',
   taggerRetagCancel: 'tagger:retagCancel',
   taggerDone: 'tagger:done',

@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { RELEASES_URL } from '../../shared/constants'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { buildTimeline, cleanTitle, chunkIds, computeGridLayout } from './utils'
+import { buildTimeline, cleanTitle, computeGridLayout } from './utils'
 import { s } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
@@ -402,17 +402,15 @@ export default function App() {
 
   async function deleteTagFromAllImages(tag: string): Promise<void> {
     try {
-      const rows = await window.api.listAllImages({ tags: [tag] })
-      const ids = rows.map((r) => r.id)
-      for (const chunk of chunkIds(ids)) {
-        await window.api.taggerRemoveTagBulk(chunk, tag)
-      }
+      // listAllImages で ID を列挙してから bulk 削除する経路だと MAX_TIMELINE_LIMIT（5000件）で
+      // 打ち切られ、超過分にタグが残ってしまう。DB 側でタグ名から直接全件削除する専用 IPC を使う。
+      const removedCount = await window.api.taggerRemoveTagFromAll(tag)
       filters.setTagFilters((prev) => prev.filter((t) => t !== tag))
       removeSearchTag(tag)
       filters.refreshTags()
       useImageStore.getState().reloadGrid(toast.showToast)
       useImageStore.getState().reloadTimeline(toast.showToast)
-      toast.showToast(`タグ「${tag}」を${ids.length}枚から削除しました`, 'success')
+      toast.showToast(`タグ「${tag}」を${removedCount}枚から削除しました`, 'success')
     } catch (err) {
       console.error('[tag] deleteTagFromAllImages failed', err)
       toast.showToast('タグの削除に失敗しました', 'warning')

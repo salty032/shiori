@@ -7,7 +7,7 @@ import { handleTrusted, sendToRenderer, safeExternalUrl } from './windows'
 import { listImagesForExport } from './db'
 import { loadSettings } from './settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
-import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
+import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, normalizeTagName, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../shared/api'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
@@ -158,8 +158,10 @@ export function registerShareHandlers(): void {
         continue
       }
 
+      // 手動タグ追加と同じ正規化（小文字化・空白→_）を通す。ここを素通しすると、
+      // 自前編集された共有データから "Tag Name" のような表記ゆれタグが作られてしまう。
       const tags = Array.isArray(entry.tags)
-        ? (entry.tags as unknown[]).filter((t): t is string => typeof t === 'string').map((t) => t.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
+        ? [...new Set((entry.tags as unknown[]).map((t) => normalizeTagName(t, MAX_TAG_LENGTH)).filter((t): t is string => t != null))]
         : []
 
       const result = await registerCapturedMedia({

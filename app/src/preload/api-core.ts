@@ -105,6 +105,7 @@ export function buildCoreApi(): ShioriApi {
     taggerGetTagsBulk: (imageIds: number[]): Promise<Record<number, { name: string; source: 'manual' | 'ai' }[]>> => ipcRenderer.invoke(CH.taggerGetTagsBulk, imageIds),
     taggerAddTagBulk: (imageIds: number[], tagName: string, source?: 'manual' | 'ai'): Promise<void> => ipcRenderer.invoke(CH.taggerAddTagBulk, imageIds, tagName, source),
     taggerRemoveTagBulk: (imageIds: number[], tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTagBulk, imageIds, tagName),
+    taggerRemoveTagFromAll: (tagName: string): Promise<number> => ipcRenderer.invoke(CH.taggerRemoveTagFromAll, tagName),
     onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
     onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),
     onTaggerReady: (cb: () => void) => listen<void>(CH.taggerReady, cb),
