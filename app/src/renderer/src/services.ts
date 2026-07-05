@@ -1,5 +1,24 @@
 import { siteName } from './utils'
 
+export type SupportedService = {
+  label: string
+  hosts: string[]
+}
+
+export const SUPPORTED_SERVICES: SupportedService[] = [
+  { label: 'YouTube', hosts: ['youtube.com'] },
+  { label: 'Netflix', hosts: ['netflix.com'] },
+  { label: 'Prime Video', hosts: ['amazon.co.jp', 'primevideo.com'] },
+  { label: 'Disney+', hosts: ['disneyplus.com'] },
+  { label: 'ABEMA', hosts: ['abema.tv'] },
+  { label: 'U-NEXT', hosts: ['video.unext.jp'] },
+  { label: 'niconico', hosts: ['nicovideo.jp'] },
+  { label: 'DMM TV', hosts: ['tv.dmm.com'] },
+  { label: 'dアニメストア', hosts: ['animestore.docomo.ne.jp'] },
+]
+
+export const DEFAULT_SERVICE_ORDER = SUPPORTED_SERVICES.map((service) => service.label)
+
 // サービス（配信サイト）ごとの表示色。serviceColor のフォールバック付きで参照する。
 const SERVICE_COLORS: Record<string, string> = {
   YouTube: '#ff5a5f',

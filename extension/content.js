@@ -80,6 +80,26 @@ function startFrameTracker(video) {
 // 表示中フレームの mediaTime(lastFrameTime)を基準に、隣接フレーム表示区間の中央へシークする。
 // 着地後 rVFC が返す実 mediaTime を lastFrameTime に反映するため、fps が多少不正確でも
 // 1ステップ＝確実に1フレームになり、累積ドリフトが発生しない。
+// Netflix は独自プレイヤー(MSE+DRM)の状態機械が <video> を監視しており、外部からの
+// currentTime 直書きや pause を「不正なシーク」として弾きエラーにする。そのため Netflix だけは
+// main world に注入したブリッジ(netflix-main.js)経由で内部プレイヤー API を呼ぶ。
+// フレーム位置計算・rVFC 着地補正（読み取り）はそのまま流用できる。
+function isNetflix() {
+  return location.hostname.replace(/^www\./, '') === 'netflix.com'
+}
+function netflixCmd(type, value) {
+  window.dispatchEvent(new CustomEvent('shiori-nflx-cmd', { detail: { type, value } }))
+}
+function pauseVideo(video) {
+  if (isNetflix()) netflixCmd('pause')
+  else { try { video.pause() } catch {} }
+}
+function seekVideo(video, timeSec) {
+  const t = Math.max(0, timeSec)
+  if (isNetflix()) netflixCmd('seek', Math.round(t * 1000))
+  else video.currentTime = t
+}
+
 function stepFrame(video, dir) {
   const dt = getFrameSec()
   // lastFrameTime が現在位置から乖離していれば（外部シーク等）currentTime を基準にし直す
@@ -87,7 +107,7 @@ function stepFrame(video, dir) {
     ? lastFrameTime
     : video.currentTime
   const target = dir > 0 ? anchor + dt * 1.5 : anchor - dt * 0.5
-  video.currentTime = Math.max(0, target)
+  seekVideo(video, target)
   // 楽観更新（連打でシーク完了前に次キーが来ても進めるよう移動先フレーム開始を推定）。
   // rVFC 着地時に実測 mediaTime で上書き補正される。
   lastFrameTime = Math.max(0, anchor + dir * dt)
@@ -967,7 +987,7 @@ function startStepGuard(video) {
       stepGuardTimer = null
       return
     }
-    try { video.pause() } catch {}
+    pauseVideo(video)
   }, 50)
 }
 
@@ -977,7 +997,7 @@ document.addEventListener('keydown', (e) => {
   if (!video) return
   e.preventDefault()
   e.stopPropagation()
-  video.pause()
+  pauseVideo(video)
   startFrameTracker(video)  // 初回接続前でも lastFrameTime を追従できるよう保証（冪等）
   stepFrame(video, e.key === 'ArrowRight' ? 1 : -1)
   startStepGuard(video)

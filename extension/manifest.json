@@ -48,6 +48,12 @@
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.netflix.com/*"],
+      "js": ["netflix-main.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ]
 }

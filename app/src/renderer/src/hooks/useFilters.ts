@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Settings, SmartFolder } from '../types'
 import { SITE_NAME_MAP } from '../utils'
+import { DEFAULT_SERVICE_ORDER } from '../services'
 import { useFilterStore } from '../stores/filterStore'
 import type { ShowToast } from './useToast'
-
-const DEFAULT_SERVICE_ORDER = ['YouTube', 'Netflix', 'Prime Video', 'Disney+', 'ABEMA', 'U-NEXT', 'niconico', 'DMM TV', 'dアニメストア']
 
 export function useFilters(settings: Settings, setSettings: (updated: Settings) => void, showToast?: ShowToast) {
   // 確定フィルタの状態は filterStore が単一の真実。ここはストアを購読して

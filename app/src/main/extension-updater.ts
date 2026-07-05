@@ -70,7 +70,7 @@ export function checkExtensionUpdate(): void {
 
       if (installedVersion) {
         new Notification({
-          title: '栞',
+          title: 'Shiori',
           body: `拡張機能が ${installedVersion} → ${bundledVersion} に更新されました。Chrome の chrome://extensions で再読み込みを押してください。`
         }).show()
       }
