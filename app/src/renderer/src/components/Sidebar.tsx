@@ -196,7 +196,7 @@ export default function Sidebar({
         <div style={s.sidebarHeaderRow}>
           <div style={s.sidebarBrand}>
             <img src={appIcon} width={16} height={16} alt="" style={s.sidebarIcon} />
-            <span style={s.sidebarBrandName}>栞</span>
+            <span style={s.sidebarBrandName}>Shiori</span>
           </div>
           <span style={s.count}>{count} 枚</span>
         </div>
