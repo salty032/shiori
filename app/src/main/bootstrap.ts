@@ -1,4 +1,4 @@
-import { app, globalShortcut, protocol, Menu, shell, session } from 'electron'
+import { app, dialog, globalShortcut, protocol, Menu, shell, session } from 'electron'
 import { extname, join } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream } from 'fs'
@@ -163,7 +163,22 @@ export function bootstrap(): void {
     })
 
     checkExtensionUpdate()
-    initDb()
+    try {
+      initDb()
+    } catch (err) {
+      // DB が開けないと以降の初期化（トレイ・ウィンドウ生成含む）が全て道連れになり、
+      // UI が一切無いままロックだけ保持したプロセスが残ってしまう。安全側に倒し、
+      // ユーザーに気付ける形で即座に終了する（再起動すれば直ることが多い一時的要因：
+      // クラッシュ後の WAL 破損、AV/バックアップソフトによるファイルロック等）。
+      console.error('[startup] initDb failed', err)
+      dialog.showErrorBox(
+        'Shiori',
+        'データベースを開けなかったため起動できませんでした。\n\n' +
+          '他のプロセスがファイルをロックしていないか確認するか、PCを再起動してから再度お試しください。'
+      )
+      app.quit()
+      return
+    }
     migrateThumbnailsToOwnDir().catch((err) => console.warn('[migrate-thumb] failed', err))
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
     const wsSettings = loadSettings()
