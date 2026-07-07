@@ -40,12 +40,6 @@ describe('buildImageFilter', () => {
     expect(result.params).toEqual(['%example.com%'])
   })
 
-  it('color は colors の LIKE', () => {
-    const result = buildImageFilter({ color: '#ff0000' })
-    expect(result.where).toBe(`WHERE colors LIKE ? ESCAPE '\\'`)
-    expect(result.params).toEqual(['%#ff0000%'])
-  })
-
   it('after/toDate は captured_at の範囲条件', () => {
     const result = buildImageFilter({ after: 100, toDate: 200 })
     expect(result.where).toBe('WHERE captured_at >= ? AND captured_at < ?')
@@ -72,7 +66,7 @@ describe('buildImageFilter', () => {
     expect(buildImageFilter({ tags: [] }).where).toBe('')
   })
 
-  it('複数条件は AND で連結される（宣言順: search, after/before系, toDate, site, tags, color）', () => {
+  it('複数条件は AND で連結される（宣言順: search, after/before系, toDate, site, tags）', () => {
     const result = buildImageFilter({ search: 'cat', site: 'example.com' })
     expect(result.where).toBe(
       "WHERE id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) AND host LIKE ? ESCAPE '\\'"
@@ -117,9 +111,9 @@ describe('buildImageFilter', () => {
     })
 
     it('random でも他条件とは併用できる', () => {
-      const result = buildImageFilter({ sortOrder: 'random', before: 500, beforeId: 42, color: '#ff0000' })
-      expect(result.where).toBe(`WHERE colors LIKE ? ESCAPE '\\'`)
-      expect(result.params).toEqual(['%#ff0000%'])
+      const result = buildImageFilter({ sortOrder: 'random', before: 500, beforeId: 42, site: 'example.com' })
+      expect(result.where).toBe(`WHERE host LIKE ? ESCAPE '\\'`)
+      expect(result.params).toEqual(['%example.com%'])
     })
   })
 })

@@ -4,7 +4,7 @@ import { access, stat, copyFile } from 'fs/promises'
 import { basename, extname } from 'path'
 import { handleTrusted, sendToRenderer } from './windows'
 import {
-  listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts, listColors,
+  listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts,
   getImage, deleteImage, updateImageTitle, updateImageMemo, listImagesForThumbCheck, setThumbPath
 } from './db'
 import {
@@ -66,7 +66,6 @@ export function registerImageHandlers(): void {
   handleTrusted(CH.imagesListSiteCounts, () => listSiteCounts())
   handleTrusted(CH.imagesListAllTags, () => listAllTags())
   handleTrusted(CH.imagesListTagCounts, () => listTagCounts())
-  handleTrusted(CH.imagesListColors, () => listColors())
 
   handleTrusted(CH.imagesExport, async (_event, imageIds: number[]) => {
     const uniqueIds = Array.isArray(imageIds)
@@ -98,8 +97,13 @@ export function registerImageHandlers(): void {
       const timePart = formatTimecodeForFilename(image.current_time)
       const srcExt = extname(src) || '.png'
       const preferred = `${baseTitle}_${datePart}${timePart ? `_t${timePart}` : ''}${srcExt}`
-      await copyFile(src, await uniqueExportPath(dest, preferred, used))
-      return true
+      try {
+        await copyFile(src, await uniqueExportPath(dest, preferred, used))
+        return true
+      } catch (err) {
+        console.warn(`[images:export] copy failed id=${id}`, err)
+        return false
+      }
     }
     let count = 0
     const total = ids.length

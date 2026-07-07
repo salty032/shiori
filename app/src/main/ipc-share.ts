@@ -35,8 +35,14 @@ export function registerShareHandlers(): void {
       if (!src) return null
       try { await stat(src) } catch { return null }
 
-      const filename = await uniqueExportFilename(imagesDir, basename(src))
-      await copyFile(src, join(imagesDir, filename))
+      let filename: string
+      try {
+        filename = await uniqueExportFilename(imagesDir, basename(src))
+        await copyFile(src, join(imagesDir, filename))
+      } catch (err) {
+        console.warn(`[share:export] copy failed ${src}`, err)
+        return null
+      }
 
       let thumbFilename: string | null = null
       if (item.thumb_path) {

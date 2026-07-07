@@ -87,7 +87,6 @@ export function buildImageQuery(f: CommittedFilters): ImageQuery {
     site: site ?? undefined,
     tags: mergeTags(f.tagFilters, tags),
     tagMode: f.tagMode,
-    color: f.colorFilter ?? undefined,
     toDate: toDate ?? undefined,
   }
 }

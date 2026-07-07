@@ -48,7 +48,6 @@ function smartFolders(value: unknown): SmartFolder[] {
       tags: stringList(data.tags),
       tagMode: data.tagMode === 'or' ? 'or' : 'and',
       site: nullableText(data.site),
-      color: typeof data.color === 'string' && /^#[0-9a-f]{6}$/i.test(data.color) ? data.color : null,
       search: nullableText(data.search) ?? ''
     }
   })

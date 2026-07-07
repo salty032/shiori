@@ -32,9 +32,6 @@ export function buildCoreApi(): ShioriApi {
     listTagCounts: (): Promise<Record<string, number>> =>
       ipcRenderer.invoke(CH.imagesListTagCounts),
 
-    listColors: (): Promise<string[]> =>
-      ipcRenderer.invoke(CH.imagesListColors),
-
     exportImages: (imageIds: number[]): Promise<{ canceled: boolean; count?: number; truncated?: boolean }> =>
       ipcRenderer.invoke(CH.imagesExport, imageIds),
 

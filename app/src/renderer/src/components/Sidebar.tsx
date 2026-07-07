@@ -181,7 +181,7 @@ export default function Sidebar({
     ? '現在の絞り込みをスマートフォルダとして保存'
     : filters.activeSmartFolderId
       ? 'スマートフォルダ表示中は新規保存できません'
-      : 'タグ・サイト・色・検索などで絞り込むと保存できます'
+      : 'タグ・サイト・検索などで絞り込むと保存できます'
 
   useEffect(() => {
     if (canCreateSmartFolder) return

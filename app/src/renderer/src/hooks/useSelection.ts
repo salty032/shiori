@@ -6,7 +6,6 @@ import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterSt
 import { buildImageQuery } from '../stores/imageQuery'
 import { useExportStore } from '../stores/exportStore'
 
-const GAP = 8
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
 const SELECTION_HISTORY_LIMIT = 30
@@ -29,12 +28,17 @@ export interface GridLayout {
   cellWidth: number
   cellHeight: number
   rowHeight: number
+  // 実描画（App.tsx の COL_GAP/ROW_GAP）と同じ値を渡すこと。ここが実描画とズレると、
+  // 列数が多いとき矩形選択の当たり判定が右端付近で数px〜数十pxずれる。
+  colGap: number
+  rowGap: number
 }
 
 function hitTestBox(
   ax: number, ay: number, cx: number, cy: number,
   images: ImageRow[],
   columns: number, cellWidth: number, cellHeight: number, rowHeight: number,
+  colGap: number, rowGap: number,
 ): Set<number> {
   const box = { left: Math.min(ax, cx), top: Math.min(ay, cy), right: Math.max(ax, cx), bottom: Math.max(ay, cy) }
   const next = new Set<number>()
@@ -42,9 +46,9 @@ function hitTestBox(
   images.forEach((img, i) => {
     const row = Math.floor(i / columns)
     const col = i % columns
-    const left = col * (cellWidth + GAP)
+    const left = col * (cellWidth + colGap)
     const top = row * rowHeight
-    const hitHeight = Math.max(cellHeight, rowHeight - GAP)
+    const hitHeight = Math.max(cellHeight, rowHeight - rowGap)
     if (left < box.right && left + cellWidth > box.left && top < box.bottom && top + hitHeight > box.top) {
       next.add(img.id)
     }
@@ -437,8 +441,8 @@ export function useSelection({
 
   function hitTestSelectionBox(ax: number, ay: number, cx: number, cy: number): Set<number> {
     if (!gridActiveRef.current) return hitTestDomBox(ax, ay, cx, cy)
-    const { columns, cellWidth, cellHeight, rowHeight } = latestLayoutRef.current
-    return hitTestBox(ax, ay, cx, cy, latestRef.current.images, columns, cellWidth, cellHeight, rowHeight)
+    const { columns, cellWidth, cellHeight, rowHeight, colGap, rowGap } = latestLayoutRef.current
+    return hitTestBox(ax, ay, cx, cy, latestRef.current.images, columns, cellWidth, cellHeight, rowHeight, colGap, rowGap)
   }
 
   function updateRubberHit(clientX: number, clientY: number): void {

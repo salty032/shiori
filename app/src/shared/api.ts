@@ -15,7 +15,6 @@ export interface ShioriApi {
   listSiteCounts: () => Promise<Record<string, number>>
   listAllTags: () => Promise<string[]>
   listTagCounts: () => Promise<Record<string, number>>
-  listColors: () => Promise<string[]>
   exportImages: (imageIds: number[]) => Promise<{ canceled: boolean; count?: number; truncated?: boolean }>
   // 進行中の imagesExport を中断する（数百枚規模のコピーが分単位になりうるため）。
   // count が届いている exportImages の戻り値と canceled: true の組み合わせで
@@ -84,7 +83,6 @@ export const CH = {
   imagesListSiteCounts: 'images:listSiteCounts',
   imagesListAllTags: 'images:listAllTags',
   imagesListTagCounts: 'images:listTagCounts',
-  imagesListColors: 'images:listColors',
   imagesExport: 'images:export',
   imagesExportCancel: 'images:exportCancel',
   imagesGet: 'images:get',

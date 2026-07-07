@@ -110,23 +110,13 @@ describe('normalizeSettings', () => {
 
   describe('smartFolders', () => {
     it('有効なスマートフォルダ', () => {
-      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'and', site: null, color: null, search: '' }
+      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'and', site: null, search: '' }
       const result = normalizeSettings({ smartFolders: [folder] }).smartFolders
       expect(result).toHaveLength(1)
       expect(result[0].name).toBe('テスト')
     })
-    it('color が #rrggbb 形式でない → null', () => {
-      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'and', site: null, color: 'red', search: '' }
-      const result = normalizeSettings({ smartFolders: [folder] }).smartFolders
-      expect(result[0].color).toBeNull()
-    })
-    it('有効な color', () => {
-      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'and', site: null, color: '#ff0000', search: '' }
-      const result = normalizeSettings({ smartFolders: [folder] }).smartFolders
-      expect(result[0].color).toBe('#ff0000')
-    })
     it('tagMode が "or" 以外 → "and"', () => {
-      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'invalid', site: null, color: null, search: '' }
+      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'invalid', site: null, search: '' }
       const result = normalizeSettings({ smartFolders: [folder] }).smartFolders
       expect(result[0].tagMode).toBe('and')
     })

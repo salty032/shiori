@@ -39,11 +39,6 @@ export function normalizeTagName(value: unknown, max = MAX_TAG_LENGTH): string |
   return normalized || undefined
 }
 
-export function optionalColor(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  return /^#[0-9a-f]{6}$/i.test(value) ? value : undefined
-}
-
 export function tagMode(value: unknown): 'and' | 'or' {
   return value === 'or' ? 'or' : 'and'
 }
@@ -75,7 +70,6 @@ export function imageQuery(raw: unknown): ImageQuery {
     site: optionalText(o.site),
     tags: tagsFilter(o.tags),
     tagMode: tagMode(o.tagMode),
-    color: optionalColor(o.color),
     toDate: optionalNumber(o.toDate),
   }
 }

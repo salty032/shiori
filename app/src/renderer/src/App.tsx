@@ -206,7 +206,7 @@ export default function App() {
     showToast: toast.showToast,
     updateToast: toast.updateToast,
     dismissToast: toast.dismissToast,
-    gridLayout: { gridRef, timelineRef, scrollRef: mainRef, columns, cellWidth, cellHeight, rowHeight },
+    gridLayout: { gridRef, timelineRef, scrollRef: mainRef, columns, cellWidth, cellHeight, rowHeight, colGap: COL_GAP, rowGap: ROW_GAP },
     navigationColumnsRef,
     scrollToIndex: scrollToActiveIndex,
     removeImages,

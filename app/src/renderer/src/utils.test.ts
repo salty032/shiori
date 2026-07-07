@@ -149,7 +149,7 @@ describe('parseSearchQuery', () => {
 })
 
 describe('buildImageQuery', () => {
-  const base = { search: '', tagFilters: [] as string[], tagMode: 'and' as const, colorFilter: null }
+  const base = { search: '', tagFilters: [] as string[], tagMode: 'and' as const }
 
   it('選択タグと検索内タグをマージ（重複排除）', () => {
     const q = buildImageQuery({ ...base, search: 'tag:sky', tagFilters: ['sea', 'sky'] })
@@ -162,11 +162,6 @@ describe('buildImageQuery', () => {
     const q = buildImageQuery({ ...base, search: 'from:2024-01 to:2024-02' })
     expect(q.after).toBe(new Date(2024, 0, 1).getTime())
     expect(q.toDate).toBe(new Date(2024, 2, 1).getTime())
-  })
-  it('colorFilter を素通しし、空検索は search undefined', () => {
-    const q = buildImageQuery({ ...base, colorFilter: '#ff0000' })
-    expect(q.color).toBe('#ff0000')
-    expect(q.search).toBeUndefined()
   })
 
   it('検索内 site をクエリにマップする', () => {

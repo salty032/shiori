@@ -67,13 +67,17 @@ export function bootstrap(): void {
   // ケースでは立てない。post-capture を空打ちせず、screenshot 直後の早期復帰と揃える
   let preCaptureSent = false
 
+  // 前回の再取得試行も失敗していた場合は通知を抑止する。他アプリがホットキーを握っている間、
+  // Shiori ⇔ ブラウザを行き来してウィンドウをフォーカスするたびに（focus イベント経由で
+  // この関数が呼ばれる）同じ「登録できませんでした」エラーが視聴中ページへ繰り返し表示されるのを防ぐ。
+  let reclaimNotifiedFailure = false
   function reclaimHotkeysIfFree(): void {
     const st = loadSettings()
-    if (!globalShortcut.isRegistered(st.captureHotkey)) {
-      registerHotkey(st.captureHotkey, (m) => {
-        sendBrowserNotice('error', m)
-      })
-    }
+    if (globalShortcut.isRegistered(st.captureHotkey)) return
+    const ok = registerHotkey(st.captureHotkey, (m) => {
+      if (!reclaimNotifiedFailure) sendBrowserNotice('error', m)
+    })
+    reclaimNotifiedFailure = !ok
   }
 
   app.whenReady().then(async () => {

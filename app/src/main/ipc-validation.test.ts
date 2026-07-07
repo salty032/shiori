@@ -38,10 +38,10 @@ describe('sanitizeFilename', () => {
 
 describe('imageQuery', () => {
   it('不正型の各フィールドは既定値に落ちる', () => {
-    const q = imageQuery({ search: 123, after: 'x', site: 456, tags: 'not-array', tagMode: 'xor', color: 'red', toDate: 'x' })
+    const q = imageQuery({ search: 123, after: 'x', site: 456, tags: 'not-array', tagMode: 'xor', toDate: 'x' })
     expect(q).toEqual({
       search: undefined, after: undefined, site: undefined,
-      tags: undefined, tagMode: 'and', color: undefined, toDate: undefined,
+      tags: undefined, tagMode: 'and', toDate: undefined,
     })
   })
 
@@ -52,10 +52,9 @@ describe('imageQuery', () => {
   })
 
   it('正常値はそのまま通る', () => {
-    const q = imageQuery({ search: 'foo', tagMode: 'or', color: '#ff00ff' })
+    const q = imageQuery({ search: 'foo', tagMode: 'or' })
     expect(q.search).toBe('foo')
     expect(q.tagMode).toBe('or')
-    expect(q.color).toBe('#ff00ff')
   })
 
   it('tags: 重複除去', () => {
@@ -103,8 +102,8 @@ describe('imageListRequest', () => {
   })
 
   it('imageQuery のフィールドも同時に検証される', () => {
-    const r = imageListRequest({ color: 'invalid', limit: 10 })
-    expect(r.color).toBeUndefined()
+    const r = imageListRequest({ tagMode: 'xor', limit: 10 })
+    expect(r.tagMode).toBe('and')
     expect(r.limit).toBe(10)
   })
 })

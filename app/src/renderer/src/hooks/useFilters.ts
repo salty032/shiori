@@ -15,7 +15,6 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   const tagFilters = useFilterStore((s) => s.tagFilters)
   const tagMode = useFilterStore((s) => s.tagMode)
   const allTags = useFilterStore((s) => s.allTags)
-  const colorFilter = useFilterStore((s) => s.colorFilter)
   const sortOrder = useFilterStore((s) => s.sortOrder)
   const shuffleSeed = useFilterStore((s) => s.shuffleSeed)
 
@@ -24,7 +23,6 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   const setSearchComposing = useFilterStore((s) => s.setSearchComposing)
   const setTagFilters = useFilterStore((s) => s.setTagFilters)
   const setTagMode = useFilterStore((s) => s.setTagMode)
-  const setColorFilter = useFilterStore((s) => s.setColorFilter)
   const setSortOrder = useFilterStore((s) => s.setSortOrder)
   const setShuffleSeed = useFilterStore((s) => s.setShuffleSeed)
   const setSites = useFilterStore((s) => s.setSites)
@@ -43,7 +41,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   }, [setSites, setAllTags])
 
   function hasActiveFilter(): boolean {
-    return tagFilters.length > 0 || colorFilter !== null || searchInput !== ''
+    return tagFilters.length > 0 || searchInput !== ''
   }
 
   function clearAllFilters(): void {
@@ -69,7 +67,6 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
       tags: [...new Set([...tagFilters, ...textTags])],
       tagMode,
       site: textSite,
-      color: colorFilter,
       search,
     }
     const prev = settings
@@ -125,7 +122,6 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
       search: composedSearch,
       tagFilters: folder.tags,
       tagMode: folder.tagMode,
-      colorFilter: folder.color,
     })
   }
 
@@ -155,7 +151,6 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
     tagFilters, setTagFilters,
     tagMode, setTagMode,
     allTags,
-    colorFilter, setColorFilter,
     sortOrder, setSortOrder,
     shuffleSeed, setShuffleSeed,
     creatingFolder, setCreatingFolder,

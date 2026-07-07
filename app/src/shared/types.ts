@@ -28,7 +28,6 @@ export type SmartFolder = {
   tags: string[]
   tagMode: TagMode
   site: string | null
-  color: string | null
   search: string
 }
 
@@ -52,7 +51,6 @@ export type ImageQuery = {
   site?: string
   tags?: string[]
   tagMode?: TagMode
-  color?: string
   toDate?: number
 }
 

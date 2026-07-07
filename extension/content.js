@@ -993,6 +993,8 @@ function startStepGuard(video) {
 
 document.addEventListener('keydown', (e) => {
   if (!e.shiftKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+  const target = e.target
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
   const video = getVideo()
   if (!video) return
   e.preventDefault()

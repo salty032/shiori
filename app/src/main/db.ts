@@ -183,9 +183,6 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"source"'
 ].join(', ')
 
-// listColors の結果キャッシュ。insertImage / deleteImage で無効化する
-let _colorsCache: string[] | null = null
-
 export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & { source?: 'capture' | 'import' }): number {
   let host: string | null = null
   try { if (params.url) host = new URL(params.url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
@@ -195,7 +192,6 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
      VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @thumb_path, @host, @source)`
   )
   const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source })
-  _colorsCache = null
   return Number(result.lastInsertRowid)
 }
 
@@ -248,7 +244,6 @@ export function buildImageFilter(f: ImageFilter): { where: string; params: unkno
       params.push(...f.tags, f.tags.length)
     }
   }
-  if (f.color) { conds.push("colors LIKE ? ESCAPE '\\'"); params.push(`%${escapeLike(f.color)}%`) }
   return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params }
 }
 
@@ -278,33 +273,6 @@ export function countImages(query: ImageQuery = {}): number {
   return result.cnt
 }
 
-export function colorDist(h1: string, h2: string): number {
-  const r1 = parseInt(h1.slice(1, 3), 16), g1 = parseInt(h1.slice(3, 5), 16), b1 = parseInt(h1.slice(5, 7), 16)
-  const r2 = parseInt(h2.slice(1, 3), 16), g2 = parseInt(h2.slice(3, 5), 16), b2 = parseInt(h2.slice(5, 7), 16)
-  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2)
-}
-
-export function listColors(limit = 20): string[] {
-  const cappedLimit = clampLimit(limit)
-  if (_colorsCache !== null) return _colorsCache.slice(0, cappedLimit)
-  const rows = prepare('SELECT colors FROM images WHERE colors IS NOT NULL').all() as { colors: string }[]
-  const freq = new Map<string, number>()
-  for (const { colors } of rows) {
-    for (const c of colors.split(',')) {
-      const t = c.trim()
-      if (t) freq.set(t, (freq.get(t) ?? 0) + 1)
-    }
-  }
-  const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1])
-  const result: string[] = []
-  for (const [hex] of sorted) {
-    if (result.length >= MAX_LIST_LIMIT) break
-    if (!result.some(c => colorDist(hex, c) < 60)) result.push(hex)
-  }
-  _colorsCache = result
-  return result.slice(0, cappedLimit)
-}
-
 export function listSites(): string[] {
   return (prepare("SELECT DISTINCT host FROM images WHERE host IS NOT NULL AND host != '' ORDER BY host").all() as { host: string }[]).map((r) => r.host)
 }
@@ -327,7 +295,6 @@ export function deleteImage(id: number): string | null {
     if (!row) return null
     prepare('DELETE FROM image_tags WHERE image_id = ?').run(id)
     prepare('DELETE FROM images WHERE id = ?').run(id)
-    _colorsCache = null
     return row.filepath
   })()
 }

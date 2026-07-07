@@ -249,12 +249,9 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
         },
       })
     }
-    if (filters.colorFilter) {
-      chips.push({ onRemove: () => filters.setColorFilter(null) })
-    }
     return chips
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.sites, filters.tagFilters, filters.colorFilter, searchTags])
+  }, [filters.search, filters.sites, filters.tagFilters, searchTags])
 
   return (
     <div ref={ref} style={s.stickyHeader}>
