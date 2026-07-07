@@ -235,7 +235,13 @@ export function bootstrap(): void {
       // renderer は変更したいキーだけを送る部分パッチ。ここで最新の保存値とマージすることで、
       // 「複数箇所が同時に別キーを変更すると片方が巻き戻る」レースを構造的になくす
       // （旧: renderer 側で全体オブジェクトを組み立てて送る方式だったため、読み込み待ちが必要だった）
-      const merged = { ...loadSettings(), ...(patch && typeof patch === 'object' ? patch : {}) }
+      // captureHotkey はここでは無視する。実際の登録可否（グローバルショートカット競合）は
+      // main 側の状態が真実であり、専用 IPC（CH.captureSetHotkey）を経由しないと
+      // globalShortcut への登録が伴わない。この汎用口を素通しすると「設定ファイル上の値と
+      // 実際に登録されているホットキーが食い違う」状態を作れてしまうため、ここで弾く。
+      const { captureHotkey: _ignoredCaptureHotkey, ...safePatch } =
+        (patch && typeof patch === 'object' ? patch : {}) as Partial<Settings>
+      const merged = { ...loadSettings(), ...safePatch }
       saveSettings(merged)
       const saved = loadSettings()
       setAllowedExtensionIds(saved.allowedExtensionIds)

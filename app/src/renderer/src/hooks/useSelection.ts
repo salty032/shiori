@@ -740,11 +740,21 @@ export function useSelection({
   }
 
   useEffect(() => {
-    return () => {
+    const flushPendingDelete = (): void => {
       const pending = pendingDeleteRef.current
       if (!pending) return
       pendingDeleteRef.current = null
       commitPendingDelete(pending, false)
+    }
+    // トレイの「終了」等でウィンドウごと畳まれる場合、この effect のクリーンアップは
+    // JS コンテキストごと破棄されるため走らない。pagehide はウィンドウが閉じる過程で
+    // React のアンマウントより前に確実に発火するので、Undo 猶予（4秒）の途中で
+    // 終了しても「ゴミ箱へ移動しました」の内容どおり削除が実行されるようにする
+    // （main 側の IPC ハンドラは応答を待たれなくても独立して完走する）。
+    window.addEventListener('pagehide', flushPendingDelete)
+    return () => {
+      window.removeEventListener('pagehide', flushPendingDelete)
+      flushPendingDelete()
     }
   }, [])
 

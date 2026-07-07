@@ -320,6 +320,9 @@ export function changeHotkey(newHotkey: string, onError?: (message: string) => v
   const previousHotkey = currentHotkey
   unregisterHotkey()
   const ok = registerHotkey(newHotkey, onError)
-  if (!ok) registerHotkey(previousHotkey)
+  // 巻き戻し（旧キー再登録）が失敗した場合も、呼び出し元の onError で気付けるようにする。
+  // onError を渡さないと registerHotkey は console.warn のみでホットキーが完全に失われても
+  // 呼び出し元・ユーザーのどちらにも伝わらない。
+  if (!ok) registerHotkey(previousHotkey, onError)
   return ok
 }

@@ -13,6 +13,13 @@ import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 
 const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+// 手編集・破損した metadata.jsonl の captured_at で異常値（負値・極端な未来値等）を受け入れると、
+// ensureCaptureSubDir が "NaN-NaN" 等の壊れたフォルダ名を作ったり、一覧の並び順が恒久的に
+// 壊れたりする。妥当な epoch 範囲（0〜2100年）にクランプし、範囲外は取り込み時刻にフォールバックする。
+const MAX_REASONABLE_CAPTURED_AT = new Date(2100, 0, 1).getTime()
+function isValidCapturedAt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < MAX_REASONABLE_CAPTURED_AT
+}
 
 let isShareExportCanceled = false
 
@@ -136,7 +143,7 @@ export function registerShareHandlers(): void {
 
       const uid = randomUUID()
       const ts = Date.now()
-      const capturedAt = typeof entry.captured_at === 'number' && Number.isFinite(entry.captured_at) ? entry.captured_at : ts
+      const capturedAt = isValidCapturedAt(entry.captured_at) ? entry.captured_at : ts
       const dir = await ensureCaptureSubDir(capturedAt)
       const destFile = join(dir, `cap_${ts}_${uid}${ext}`)
 

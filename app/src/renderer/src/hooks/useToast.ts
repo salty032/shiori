@@ -67,15 +67,26 @@ export function useToast() {
     timersRef.current.set(id, timer)
   }
 
+  // 上限超過分を押し出す。アクション付き（「元に戻す」等）は実際の操作猶予（例: 削除の
+  // Undo タイマー）と表示が食い違うと紛らわしいため、可能な限りアクションなしの最古側から
+  // 落とす。Array.prototype.sort は安定ソートなので、同じ「アクション有無」内では元の順序
+  // （＝古い順）が保たれる。全件アクション付きのときだけ最古から落ちる。
+  const withinLimit = (list: ToastItem[]): { kept: ToastItem[]; evictedIds: number[] } => {
+    if (list.length <= MAX_TOASTS) return { kept: list, evictedIds: [] }
+    const overflow = list.length - MAX_TOASTS
+    const byEvictability = [...list].sort((a, b) => Number(Boolean(a.action)) - Number(Boolean(b.action)))
+    const evictedIds = byEvictability.slice(0, overflow).map((t) => t.id)
+    const evictedSet = new Set(evictedIds)
+    return { kept: list.filter((t) => !evictedSet.has(t.id)), evictedIds }
+  }
+
   const showToast = useCallback<ShowToast>((message, tone = 'info', ms, action) => {
     const id = ++idRef.current
     setToasts((prev) => {
       const next = [...prev, { id, message, tone, action: action ?? null, closing: false }]
-      if (next.length <= MAX_TOASTS) return next
-      // 上限超過分（最古側）は表示から落とし、タイマーも解除する
-      const overflow = next.slice(0, next.length - MAX_TOASTS)
-      overflow.forEach((t) => clearTimer(t.id))
-      return next.slice(next.length - MAX_TOASTS)
+      const { kept, evictedIds } = withinLimit(next)
+      evictedIds.forEach(clearTimer)
+      return kept
     })
     scheduleDismiss(id, ms)
     return id
@@ -89,7 +100,9 @@ export function useToast() {
         return prev.map((t) => (t.id === id ? { id, message, tone, action: action ?? null, closing: false } : t))
       }
       const next = [...prev, { id, message, tone, action: action ?? null, closing: false }]
-      return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
+      const { kept, evictedIds } = withinLimit(next)
+      evictedIds.forEach(clearTimer)
+      return kept
     })
     scheduleDismiss(id, ms)
   }, [])
