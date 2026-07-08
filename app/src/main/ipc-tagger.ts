@@ -78,9 +78,12 @@ export function registerTaggerHandlers(): void {
       let i = 0
       for (; i < targets.length; i++) {
         if (isRetagCanceled) break
-        const { id, filepath } = targets[i]
+        const { id, filepath, thumb_path } = targets[i]
         try {
-          const srcPath = filepath
+          // キャプチャ/取り込み時の自動タグ付けは 480px サムネで推論している（bootstrap.ts）ため、
+          // retagAll も同じ入力を使わないと経路によって付くタグが変わってしまう。サムネが無い
+          // （旧データ等）場合のみ原本にフォールバックする。
+          const srcPath = thumb_path ?? filepath
           if (!srcPath) throw new Error('no tagger source')
           const resolvedPath = await resolveRealCapturePath(srcPath)
           if (!resolvedPath) throw new Error('path not resolvable')

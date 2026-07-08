@@ -47,6 +47,9 @@ export default function SettingsModal(p: Props) {
   const [shareImportStatus, setShareImportStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [shareExporting, setShareExporting] = useState(false)
   const [shareImporting, setShareImporting] = useState(false)
+  // export:progress・中止ボタンは images/share の1系統しか持たないため、選択エクスポートが
+  // 進行中は共有書き出しを disabled にして混線を防ぐ（B-6）。
+  const otherExportActive = useExportStore((st) => st.exportKind === 'images')
   const [capturing, setCapturing] = useState(false)
   const [capturedAccel, setCapturedAccel] = useState<string | null>(null)
   const [hotkeyError, setHotkeyError] = useState<string | null>(null)
@@ -313,9 +316,9 @@ export default function SettingsModal(p: Props) {
                   <div style={s.dataHeader}>
                     <div>
                       <div style={s.dataTitle}>書き出し</div>
-                      <div style={s.hint}>キャプチャ、タグ、メモ、スマートフォルダをフォルダへ保存します。</div>
+                      <div style={s.hint}>キャプチャ、タグ、メモ、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）</div>
                     </div>
-                    <button style={s.addBtn} disabled={shareExporting} onClick={async () => {
+                    <button style={s.addBtn} disabled={shareExporting || otherExportActive} onClick={async () => {
                       setShareExporting(true)
                       setShareExportStatus(null)
                       useExportStore.getState().startExport('share')
@@ -346,7 +349,7 @@ export default function SettingsModal(p: Props) {
                   <div style={s.dataHeader}>
                     <div>
                       <div style={s.dataTitle}>読み込み</div>
-                      <div style={s.hint}>画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。</div>
+                      <div style={s.hint}>画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。同じフォルダを再度読み込むと重複して追加されるのでご注意ください。</div>
                     </div>
                     <button style={s.addBtn} disabled={shareImporting} onClick={async () => {
                       setShareImporting(true)

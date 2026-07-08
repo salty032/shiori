@@ -5,7 +5,7 @@ import { basename, extname } from 'path'
 import { handleTrusted, sendToRenderer } from './windows'
 import {
   listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts,
-  getImage, deleteImage, updateImageTitle, updateImageMemo, listImagesForThumbCheck, setThumbPath
+  getImage, deleteImage, deleteImagesBulk, updateImageTitle, updateImageMemo, listImagesForThumbCheck, setThumbPath
 } from './db'
 import {
   MAX_EXPORT_IDS,
@@ -14,9 +14,14 @@ import {
   sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, uniqueExportPath
 } from './ipc-validation'
 import { CH } from '../shared/api'
+import { MAX_BULK_IDS } from '../shared/constants'
+import type { DeleteImageResult } from '../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { createImageThumb } from './image-thumb'
 import { createProgressThrottle } from './progress-throttle'
+// ゴミ箱への移動を並列投入しすぎると Windows のシェル操作が一時的に失敗するため絞る
+// （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
+const DELETE_TRASH_CONCURRENCY = 4
 
 let isThumbGen = false
 let isImagesExportCanceled = false
@@ -177,5 +182,58 @@ export function registerImageHandlers(): void {
       console.error(`[images:delete] failed id=${imageId}`, err)
       return { ok: false, id: imageId, error: message }
     }
+  })
+
+  handleTrusted(CH.imagesDeleteBulk, async (_event, ids: unknown): Promise<DeleteImageResult[]> => {
+    const validIds = Array.isArray(ids)
+      ? [...new Set(ids.map(optionalPositiveInteger).filter((id): id is number => id != null))].slice(0, MAX_BULK_IDS)
+      : []
+    if (validIds.length === 0) return []
+
+    const found = validIds
+      .map((id) => ({ id, image: getImage(id) }))
+      .filter((x): x is { id: number; image: NonNullable<ReturnType<typeof getImage>> } => x.image != null)
+    const foundIdSet = new Set(found.map((x) => x.id))
+    const results: DeleteImageResult[] = validIds
+      .filter((id) => !foundIdSet.has(id))
+      .map((id) => ({ ok: false, id, error: 'not found' }))
+
+    // DB 行はまとめて 1 トランザクションで削除して確定させる（B-7）。単体削除と同じ理由で、
+    // ゴミ箱移動が後で失敗しても DB は戻さない（孤立ファイルは無害・ゴースト行は避けたい）。
+    deleteImagesBulk(found.map((x) => x.id))
+
+    let cursor = 0
+    const worker = async (): Promise<void> => {
+      while (cursor < found.length) {
+        const { id, image } = found[cursor++]
+        const mainSafe = await resolveRealCapturePath(image.filepath)
+        if (mainSafe) {
+          try {
+            await stat(mainSafe)
+            await shell.trashItem(mainSafe)
+          } catch (err) {
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+              console.warn(`[images:deleteBulk] main file trash failed id=${id} (non-fatal, DB row already removed)`, err)
+            }
+          }
+        }
+        if (image.thumb_path) {
+          const thumbSafe = await resolveRealCapturePath(image.thumb_path)
+          if (thumbSafe) {
+            try {
+              await stat(thumbSafe)
+              await shell.trashItem(thumbSafe)
+            } catch (err) {
+              if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+                console.warn(`[images:deleteBulk] thumb trash failed id=${id} (non-fatal)`, err)
+              }
+            }
+          }
+        }
+        results.push({ ok: true, id })
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(DELETE_TRASH_CONCURRENCY, found.length) }, worker))
+    return results
   })
 }

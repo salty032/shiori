@@ -29,6 +29,9 @@ export interface ShioriApi {
   updateImageTitle: (id: number, title: string) => Promise<void>
   updateImageMemo: (id: number, memo: string) => Promise<void>
   deleteImage: (id: number) => Promise<DeleteImageResult>
+  // DB 削除は main 側で 1 トランザクションにまとめる（B-7）。ゴミ箱移動はサーバ側で
+  // 逐次ベストエフォート実行し、id ごとの成否を deleteImage と同じ形で返す。
+  deleteImagesBulk: (ids: number[]) => Promise<DeleteImageResult[]>
   openUrl: (url: string) => Promise<void>
   showInFolder: (imageId: number) => Promise<void>
   showExtensionFolder: () => Promise<void>
@@ -89,6 +92,7 @@ export const CH = {
   imagesUpdateTitle: 'images:updateTitle',
   imagesUpdateMemo: 'images:updateMemo',
   imagesDelete: 'images:delete',
+  imagesDeleteBulk: 'images:deleteBulk',
   // shell
   shellOpenUrl: 'shell:openUrl',
   shellShowInFolder: 'shell:showInFolder',

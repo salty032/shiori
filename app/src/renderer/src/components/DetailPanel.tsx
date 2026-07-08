@@ -385,6 +385,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
           <div style={s.emptyHints}>
             <div>クリックで選択・ダブルクリックで拡大</div>
             <div>タグをクリックで絞り込み</div>
+            <div>T キーで選択中にタグ追加</div>
           </div>
         </div>
       ) : (

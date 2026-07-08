@@ -95,7 +95,10 @@ function pauseVideo(video) {
   else { try { video.pause() } catch {} }
 }
 function seekVideo(video, timeSec) {
-  const t = Math.max(0, timeSec)
+  let t = Math.max(0, timeSec)
+  // 末尾付近での前方コマ送りは尺を超えた ms を内部 API に渡しうる（Netflix ブリッジ側で
+  // 不定挙動になる報告あり）。duration が有限なら僅かに手前でクランプしておく。
+  if (Number.isFinite(video.duration)) t = Math.max(0, Math.min(video.duration - 0.1, t))
   if (isNetflix()) netflixCmd('seek', Math.round(t * 1000))
   else video.currentTime = t
 }

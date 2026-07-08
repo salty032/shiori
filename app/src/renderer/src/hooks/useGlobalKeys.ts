@@ -78,6 +78,9 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
         return
       }
       if (!editing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        // テキスト選択中（例: DetailPanel のタイトル）は標準のテキストコピーを優先し、画像コピーを横取りしない
+        const selection = window.getSelection()
+        if (selection && !selection.isCollapsed && selection.toString() !== '') return
         const { viewerIdx, activeImages, selectedIds, showToast } = ref.current
         let target: ImageRow | undefined
         if (viewerIdx !== null) {

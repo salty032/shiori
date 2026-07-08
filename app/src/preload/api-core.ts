@@ -62,6 +62,9 @@ export function buildCoreApi(): ShioriApi {
     deleteImage: (id: number) =>
       ipcRenderer.invoke(CH.imagesDelete, id),
 
+    deleteImagesBulk: (ids: number[]) =>
+      ipcRenderer.invoke(CH.imagesDeleteBulk, ids),
+
     openUrl: (url: string): Promise<void> =>
       ipcRenderer.invoke(CH.shellOpenUrl, url),
 

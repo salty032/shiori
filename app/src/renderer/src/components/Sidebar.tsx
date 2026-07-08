@@ -31,6 +31,8 @@ type Props = {
   onDeleteTag: (tag: string) => void
 }
 
+const THUMB_SIZES: number[] = [120, 160, 220]
+
 const SMART_FOLDER_LONG_PRESS_MS = 350
 const SMART_FOLDER_DRAG_THRESHOLD_PX = 6
 
@@ -43,6 +45,10 @@ export default function Sidebar({
   thumbnailSize, onThumbnailSize, viewMode, onViewMode,
   onDeleteSmartFolder, onReorderSmartFolders, onDeleteTag,
 }: Props) {
+  const nearestThumbSize = THUMB_SIZES.reduce(
+    (best, size) => Math.abs(size - thumbnailSize) < Math.abs(best - thumbnailSize) ? size : best,
+    THUMB_SIZES[0],
+  )
   const [showAllTags, setShowAllTags] = useState(false)
   const [dragFolderId, setDragFolderId] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -338,11 +344,14 @@ export default function Sidebar({
       <div style={s.sidebarUtilitySection}>
         <div style={s.sidebarControls}>
           <div style={s.thumbSizeControl} title="サムネイルサイズ">
-            {/* 選択中ハイライト（背面）。選択先のセグメントへスライドする */}
-            <div style={{ ...s.segSlider, width: 30, transform: `translateX(${Math.max(0, [120, 160, 220].indexOf(thumbnailSize)) * 30}px)` }} />
+            {/* 選択中ハイライト（背面）。選択先のセグメントへスライドする。settings.json の
+                thumbnailSize は 80-360 を許容するが UI は3択のみなので、旧値・手編集で
+                ちょうど一致しない値が入っていても最も近いボタンをアクティブに見せる
+                （でないと indexOf===-1 でどのボタンもハイライトされなくなる）。 */}
+            <div style={{ ...s.segSlider, width: 30, transform: `translateX(${THUMB_SIZES.indexOf(nearestThumbSize) * 30}px)` }} />
             {([['S', 120], ['M', 160], ['L', 220]] as const).map(([label, size]) => (
               <button key={size}
-                style={{ ...s.thumbSizeBtn, ...(thumbnailSize === size ? s.segActive : {}) }}
+                style={{ ...s.thumbSizeBtn, ...(nearestThumbSize === size ? s.segActive : {}) }}
                 onClick={() => onThumbnailSize(size)}
                 title={label === 'S' ? '小' : label === 'M' ? '中' : '大'}>{label}</button>
             ))}

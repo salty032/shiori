@@ -30,15 +30,20 @@ export default function ConfirmDialog({
       if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
+        return
       }
       if (e.key === 'Enter' && !e.isComposing) {
+        // Tab で「キャンセル」へフォーカスしてから Enter しても確定が走ってしまわないよう、
+        // フォーカスがボタン上にあるときはブラウザのネイティブな Enter→click に任せる
+        // （そのボタン自身の onClick が正しく呼ばれる）。
+        if (document.activeElement instanceof HTMLButtonElement) return
         e.preventDefault()
         handleConfirm()
       }
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  })
+  }, [busy])
 
   async function handleConfirm(): Promise<void> {
     if (busy) return

@@ -5,13 +5,12 @@ import type { RemovedImagesSnapshot } from '../stores/imageStore'
 import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterStore'
 import { buildImageQuery } from '../stores/imageQuery'
 import { useExportStore } from '../stores/exportStore'
+import { MAX_BULK_IDS } from '../../../shared/constants'
 
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
 const SELECTION_HISTORY_LIMIT = 30
 const DELETE_UNDO_MS = 4000
-// ゴミ箱移動の同時実行数。並列しすぎると Windows のシェル操作が一時的に失敗するため絞る。
-const DELETE_CONCURRENCY = 4
 const GRID_NAV_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'] as const
 
 function sameIds(a: Set<number>, b: Set<number>): boolean {
@@ -65,13 +64,11 @@ async function deleteImages(
   showProgress = true,
 ): Promise<void> {
   const idList = [...ids]
-  // ゴミ箱への移動を OS シェルへ一気に並列投入すると、Windows ではまれに一部が一時的に
-  // 失敗扱いとなり「◯枚は移動できませんでした」という誤った警告が出る。同時実行数を絞って
-  // 干渉を避けつつ、完全な逐次よりは速く処理する。
-  // 件数が多いと時間がかかるため、少し待っても終わらない場合だけ「削除中…」を表示する
-  // （すぐ終わるなら出さずチラつきを避ける）。完了時は同じトースト（progressToastId）を
-  // updateToast で差し替える（トーストがスタック化されて以降、新規 showToast だと
-  // 「削除中…」と完了メッセージが両方残ってしまうため）。
+  // DB 削除は main 側で 1 トランザクションにまとめ、ゴミ箱移動も main 側で逐次ベストエフォート
+  // 実行する（B-7）。件数が多いと時間がかかるため、少し待っても終わらない場合だけ
+  // 「削除中…」を表示する（すぐ終わるなら出さずチラつきを避ける）。完了時は同じトースト
+  // （progressToastId）を updateToast で差し替える（トーストがスタック化されて以降、新規
+  // showToast だと「削除中…」と完了メッセージが両方残ってしまうため）。
   let progressTimer: number | null = null
   let progressToastId: number | null = null
   if (showProgress) {
@@ -81,19 +78,14 @@ async function deleteImages(
     }, 400)
   }
 
-  const results: DeleteImageResult[] = []
+  let results: DeleteImageResult[]
   try {
-    // 共有カーソルを複数ワーカーで進め、同時に走る削除を DELETE_CONCURRENCY 件までに制限する。
-    let cursor = 0
-    const worker = async (): Promise<void> => {
-      while (cursor < idList.length) {
-        const id = idList[cursor++]
-        results.push(await window.api.deleteImage(id))
-      }
+    // main 側の images:deleteBulk は1回あたり MAX_BULK_IDS 件までしか受け付けないため
+    // （他の bulk IPC と揃えた上限）、Ctrl+A の最大5000件のような大きな選択はチャンクに分けて呼ぶ。
+    results = []
+    for (let i = 0; i < idList.length; i += MAX_BULK_IDS) {
+      results.push(...await window.api.deleteImagesBulk(idList.slice(i, i + MAX_BULK_IDS)))
     }
-    await Promise.all(
-      Array.from({ length: Math.min(DELETE_CONCURRENCY, idList.length) }, worker),
-    )
   } finally {
     if (progressTimer !== null) window.clearTimeout(progressTimer)
   }
@@ -718,6 +710,12 @@ export function useSelection({
   // DetailPanel の「エクスポート」を押した場合は、グリッド選択ではなくビューアの
   // 現在画像を対象にするため呼び出し元（App.tsx）から渡す（P1）。
   async function exportSelected(ids: number[] = [...selectedIds]): Promise<void> {
+    // export:progress チャンネル・中止ボタンは images/share の1系統しかないため、共有書き出しが
+    // 進行中に選択エクスポートを始めると進捗・中止が混線する（B-6）。片方が完了するまで待たせる。
+    if (useExportStore.getState().exportKind !== null) {
+      showToast('他のエクスポートが完了してからお試しください', 'warning')
+      return
+    }
     useExportStore.getState().startExport('images')
     try {
       const result = await window.api.exportImages(ids)

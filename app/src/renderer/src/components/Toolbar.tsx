@@ -24,6 +24,10 @@ type ActivePrefix = 'tag' | 'site' | null
 type SuggestionPrefix = Exclude<ActivePrefix, null>
 type ForcedSuggestion = { prefix: SuggestionPrefix; search: string }
 
+// 素のキーワード入力の commitSearch（FTS 検索＋COUNT の IPC を伴う）をこの間隔でまとめる。
+// 演算子確定・Enter・チップ操作は即時のまま（下記 setSearchImmediate 経由）。
+const SEARCH_COMMIT_DEBOUNCE_MS = 200
+
 const TAG_PREFIX_RE = /(?:^|\s)tag:(\S*)$/i
 const SITE_PREFIX_RE = /(?:^|\s)site:(\S*)$/i
 const FROM_PREFIX_RE = /(?:^|\s)from:(\S*)$/i
@@ -58,6 +62,9 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   const sortMenuRef = useRef<HTMLDivElement>(null)
   const searchWrapRef = useRef<HTMLDivElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
+  const commitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => { if (commitDebounceRef.current) clearTimeout(commitDebounceRef.current) }, [])
 
   const searchInteractionActive = searchFocused || forcedSuggestion !== null
   const suggestionSearch = forcedSuggestion?.search ?? filters.search
@@ -139,6 +146,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   const hasOpenMenu = suggestionsVisible && (activeSuggestions.length > 0 || dateHint !== null)
 
   function setSearchImmediate(next: string): void {
+    if (commitDebounceRef.current) { clearTimeout(commitDebounceRef.current); commitDebounceRef.current = null }
     setForcedSuggestion(null)
     filters.setSearch(next)
     filters.commitSearch(next)
@@ -272,10 +280,21 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                 setForcedSuggestion(null)
                 const next = e.target.value
                 filters.setSearch(next)
-                if (!(e.nativeEvent as InputEvent).isComposing && isPureKeywordSearch(next)) filters.commitSearch(next)
+                if (commitDebounceRef.current) { clearTimeout(commitDebounceRef.current); commitDebounceRef.current = null }
+                if (!(e.nativeEvent as InputEvent).isComposing && isPureKeywordSearch(next)) {
+                  commitDebounceRef.current = setTimeout(() => {
+                    commitDebounceRef.current = null
+                    filters.commitSearch(next)
+                  }, SEARCH_COMMIT_DEBOUNCE_MS)
+                }
               }}
               onFocus={() => { setSearchFocused(true); setSuggestionsDismissed(false) }}
-              onBlur={() => addSearchHistory(filters.search)}
+              onBlur={() => {
+                // blur 時点で確定を待たせたままにしない（デバウンス未発火のまま履歴に古い値が
+                // 積まれるのを防ぐ）。
+                if (commitDebounceRef.current) { clearTimeout(commitDebounceRef.current); commitDebounceRef.current = null; filters.commitSearch(filters.search) }
+                addSearchHistory(filters.search)
+              }}
               onKeyDown={(e) => {
                 // Esc は他の早期 return より前で拾い、開いているものに応じて1段階ずつ動作させる。
                 // 1. サジェスト/日付ヒントが開いていれば閉じるだけ（テキスト維持）
@@ -300,6 +319,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing
                   && !(suggestionsVisible && activeSuggestions.length > 0 && highlightedIndex >= 0)) {
                   e.preventDefault()
+                  if (commitDebounceRef.current) { clearTimeout(commitDebounceRef.current); commitDebounceRef.current = null }
                   filters.commitSearch(filters.search)
                   return
                 }
@@ -312,7 +332,11 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
               title="/ で検索にフォーカス" />
           </div>
           {(filters.search || activeFilterChips.length > 0) && (
-            <button style={s.searchWrapClear} onClick={() => { setForcedSuggestion(null); filters.clearAllFilters() }} title="検索をクリア"><XIcon size={11} strokeWidth={2.2} /></button>
+            <button style={s.searchWrapClear} onClick={() => {
+              if (commitDebounceRef.current) { clearTimeout(commitDebounceRef.current); commitDebounceRef.current = null }
+              setForcedSuggestion(null)
+              filters.clearAllFilters()
+            }} title="検索をクリア"><XIcon size={11} strokeWidth={2.2} /></button>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'tag' && (
             <div ref={suggestionsRef} style={s.searchSuggestions}>

@@ -36,12 +36,31 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
+  // まずサムネを表示し、原本のデコードが終わったら差し替える（DetailPanel の R-7 と同じ方針）。
+  // 矢印キーで連続移動したときにフル解像度デコード待ちで白フラッシュするのを防ぐ。
+  const [fullSrc, setFullSrc] = useState<string | null>(null)
 
   // 画像が切り替わったらズーム・パンをリセット
   useEffect(() => {
     setZoom(1)
     setPan({ x: 0, y: 0 })
   }, [index])
+
+  useEffect(() => {
+    const current = images[index]
+    if (!current) return
+    setFullSrc(null)
+    let canceled = false
+    const preload = new Image()
+    preload.onload = () => { if (!canceled) setFullSrc(mediaUrl(current.id)) }
+    preload.src = mediaUrl(current.id)
+    // 前後1枚は表示には使わないが、先読みしてブラウザキャッシュに載せておく
+    // （次に進んだときの preload.onload までの待ちを短くする）。
+    for (const n of [images[index - 1], images[index + 1]]) {
+      if (n) new Image().src = mediaUrl(n.id)
+    }
+    return () => { canceled = true }
+  }, [images, index])
 
   function close(): void {
     if (closing) return
@@ -256,7 +275,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
       <div style={s.viewerMediaStack}>
         <img
           ref={imgRef}
-          src={mediaUrl(img.id)}
+          src={fullSrc ?? thumbSrc(img)}
           style={{
             ...s.viewerImg,
             transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,

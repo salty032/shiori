@@ -299,6 +299,21 @@ export function deleteImage(id: number): string | null {
   })()
 }
 
+// 一括削除の DB 側を 1 トランザクションにまとめる（B-7）。1枚ずつ IPC 往復していた旧経路は
+// 数千枚だと分単位になっていた。ゴミ箱移動（シェル）は非トランザクショナルな後始末として
+// 呼び出し元（ipc-images.ts）が逐次ベストエフォートで行う。
+export function deleteImagesBulk(ids: number[]): void {
+  if (ids.length === 0) return
+  const delTags = prepare('DELETE FROM image_tags WHERE image_id = ?')
+  const delImg = prepare('DELETE FROM images WHERE id = ?')
+  db.transaction(() => {
+    for (const id of ids) {
+      delTags.run(id)
+      delImg.run(id)
+    }
+  })()
+}
+
 // 既存タグとの衝突時、手動追加(excluded.source='manual')なら source を 'manual' に昇格させ、
 // AI追加は既存行（手動で確定済みかもしれない）を降格させない。これがないと、AIが既に付けた
 // タグをユーザーが手動追加しても 'ai' のまま残り、manual のみを見るタグ一覧/件数に出てこない。
