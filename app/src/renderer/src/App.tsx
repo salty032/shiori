@@ -710,6 +710,13 @@ export default function App() {
                 onLibraryChanged()
                 filters.refreshTags()
               }
+              // スマートフォルダが取り込まれた場合、main 側で settings.json 経由で保存済みなので
+              // ここでは最新の設定を取り直して反映するだけでよい（IPC は呼ばない setSettings）。
+              if (!result.canceled && (result.importedFolders ?? 0) > 0) {
+                window.api.getSettings().then(settings.setSettings).catch((err) => {
+                  console.error('[settings] refresh after share import failed', err)
+                })
+              }
               return result
             }}
           />

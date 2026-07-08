@@ -359,8 +359,15 @@ export function addTagBulk(imageIds: number[], tagName: string, source: 'manual'
   prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').run(tagName)
   const tag = prepare('SELECT id FROM tags WHERE name = ?').get(tagName) as { id: number }
   const insertIt = prepare(UPSERT_IMAGE_TAG)
+  const imageExists = prepare('SELECT 1 FROM images WHERE id = ?')
   db.transaction(() => {
-    for (const id of imageIds) insertIt.run(id, tag.id, source)
+    // addTagsBulk と同じ理由: 選択中に画像が削除済み（Undo 猶予明けのコミットと競合等）だと
+    // FK 違反で transaction 全体がロールバックし、有効な画像への付与まで巻き添えで失敗する。
+    // 存在しない id はスキップして続行する。
+    for (const id of imageIds) {
+      if (!imageExists.get(id)) continue
+      insertIt.run(id, tag.id, source)
+    }
   })()
 }
 

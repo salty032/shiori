@@ -38,7 +38,7 @@ function nullableText(value: unknown): string | null {
   return trimmed ? trimmed.slice(0, MAX_TEXT_LENGTH) : null
 }
 
-function smartFolders(value: unknown): SmartFolder[] {
+export function smartFolders(value: unknown): SmartFolder[] {
   if (!Array.isArray(value)) return []
   return value.slice(0, MAX_SMART_FOLDERS).map((folder, index) => {
     const data = folder && typeof folder === 'object' ? folder as Record<string, unknown> : {}

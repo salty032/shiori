@@ -893,6 +893,7 @@ function scheduleReconnect() {
   reconnectScheduled = true
   const dying = port
   port = null
+  clearInterval(pingInterval)
   try { dying?.disconnect() } catch {}
   setTimeout(() => {
     reconnectScheduled = false
@@ -930,6 +931,12 @@ function normalizePortMessage(msg) {
   return null
 }
 
+// 動画が一時停止中かつタブ非フォーカスだと sendTimecode が送られず port/WS が無通信になり、
+// Chrome が MV3 Service Worker をアイドル停止 → port 切断 → SW 再起動というチャーンが起きる。
+// 無通信を防ぐため、接続中は一定間隔で ping を送って SW/WS 双方のアイドルタイマーを更新する。
+const PING_INTERVAL_MS = 20000
+let pingInterval = null
+
 function connectPort() {
   if (port) return
 
@@ -938,6 +945,11 @@ function connectPort() {
   } catch {
     return  // 拡張コンテキスト無効
   }
+
+  clearInterval(pingInterval)
+  pingInterval = setInterval(() => {
+    try { port?.postMessage({ type: 'ping' }) } catch {}
+  }, PING_INTERVAL_MS)
 
   port.onMessage.addListener((msg) => {
     const safeMsg = normalizePortMessage(msg)
@@ -973,6 +985,7 @@ function connectPort() {
   port.onDisconnect.addListener(() => {
     port = null
     clearInterval(timecodeInterval)
+    clearInterval(pingInterval)
     scheduleReconnect()  // SW が死んだ → 同様に再接続
   })
 }
@@ -1009,6 +1022,7 @@ window.addEventListener('focus', () => sendTimecode({ force: true }))
 window.addEventListener('pagehide', () => {
   clearInterval(timecodeInterval)
   clearInterval(ytNavPoll)
+  clearInterval(pingInterval)
   restorePlayerUI()
 })
 

@@ -39,6 +39,9 @@ export type RemovedImagesSnapshot = {
   grid: { index: number; image: ImageRow }[]
   timeline: { index: number; image: ImageRow }[]
   gridTotalCount: number | null
+  // removeImages に渡された ids 全体（グリッド/タイムラインに未ロードだった分も含む）。
+  // 件数の巻き戻しは grid/timeline の snapshot（ロード済み行だけ）ではなくこちらから数える。
+  removedIds: number[]
 }
 
 type ImageState = {
@@ -192,6 +195,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
         .map((image, index) => ({ index, image }))
         .filter(({ image }) => ids.has(image.id)),
       gridTotalCount: s.gridTotalCount,
+      removedIds: [...ids],
     }
     set({
       gridImages: s.gridImages.filter((img) => !ids.has(img.id)),
@@ -216,10 +220,10 @@ export const useImageStore = create<ImageState>((set, get) => ({
       }
       return next
     }
-    const restoredCount = new Set([
-      ...snapshot.grid.map(({ image }) => image.id),
-      ...snapshot.timeline.map(({ image }) => image.id),
-    ].filter(shouldRestore)).size
+    // 件数の復元は snapshot に積まれたロード済み行ではなく removeImages 時点の ids 全体から
+    // 数える。グリッドが1ページしか読み込んでいない状態で大量選択→削除→Undo すると、
+    // 未ロード分がロード済み行の集計から漏れて件数が戻り切らないため。
+    const restoredCount = snapshot.removedIds.filter(shouldRestore).length
     return {
       gridImages: restoreList(s.gridImages, snapshot.grid),
       timelineImages: restoreList(s.timelineImages, snapshot.timeline),

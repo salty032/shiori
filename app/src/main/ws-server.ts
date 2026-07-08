@@ -1,7 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 
-const PORT = 39821
+export const PORT = 39821
 const HOST = '127.0.0.1'
 const MAX_TITLE_LENGTH = 500
 const MAX_URL_LENGTH = 2048
@@ -26,6 +26,16 @@ type ConnectCallback = (send: (msg: object) => void) => void
 
 let httpServer: ReturnType<typeof createServer> | null = null
 let wss: WebSocketServer | null = null
+// ポート占有で listen に失敗した場合、呼び出し側（bootstrap）へ伝える一回限りのフラグ。
+// startWsServer はウィンドウ生成前に呼ばれるため sendNotice は無言で消える。他の破損設定通知
+// （consumeCorruptSettingsNotice）と同じパターンで、ウィンドウ準備後に拾わせる。
+let _portInUseNotice = false
+
+export function consumePortInUseNotice(): boolean {
+  const v = _portInUseNotice
+  _portInUseNotice = false
+  return v
+}
 // 設定で明示された許可拡張 ID。normalizeSettings が常に非空（未設定時は既定拡張IDへフォールバック）を保証する。
 let allowedExtensionIds: string[] = []
 const handlers: MessageHandler[] = []
@@ -230,7 +240,10 @@ export function startWsServer(options?: { allowedExtensionIds?: string[] }): voi
     console.log(`[WS] listening on ws://${HOST}:${PORT}`)
   })
 
-  httpServer.on('error', (err) => console.error('[WS] http server error', err))
+  httpServer.on('error', (err) => {
+    console.error('[WS] http server error', err)
+    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') _portInUseNotice = true
+  })
 }
 
 // ハンドラ登録。戻り値を呼ぶと解除できる（一時ハンドラ用）

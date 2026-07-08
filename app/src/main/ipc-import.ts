@@ -35,7 +35,11 @@ async function collectImportFiles(inputPaths: string[]): Promise<{ files: string
         await walk(join(p, name), depth + 1)
       }
     } else if (info.isFile()) {
-      result.push(p)
+      // フォルダ展開由来（depth>0）は拡張子未対応ファイル（サイドカーの .txt/.json 等）を数に
+      // 入れない。数に入れると名前順で先に並ぶ非画像ファイルが MAX_IMPORT_FILES の枠を食い潰し、
+      // 画像がほとんど取り込まれなくなるため。直接ドロップされた単体ファイル（depth===0）は
+      // 従来どおり通し、後段のループで「unsupported extension」エラーとして案内する。
+      if (depth === 0 || IMPORT_IMAGE_EXTS.has(extname(p).toLowerCase())) result.push(p)
     }
   }
   for (const p of inputPaths) {

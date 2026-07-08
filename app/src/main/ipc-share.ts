@@ -5,7 +5,7 @@ import { join, basename, extname } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted, sendToRenderer, safeExternalUrl } from './windows'
 import { listImagesForExport } from './db'
-import { loadSettings } from './settings'
+import { loadSettings, saveSettings, smartFolders } from './settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
 import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, normalizeTagName, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../shared/api'
@@ -204,6 +204,28 @@ export function registerShareHandlers(): void {
       count++
     }
 
-    return { canceled: false, count, errors }
+    // settings.json（スマートフォルダのみ）は任意。無くても画像取り込みには影響しない。
+    // 名前が完全一致する既存フォルダはスキップし、それ以外は id を採番し直して追記する
+    // （エクスポート元とインポート先で id が衝突しうるため）。
+    let importedFolders = 0
+    try {
+      const settingsRaw = await readFile(join(srcDir, 'settings.json'), 'utf-8')
+      const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }
+      const incoming = smartFolders(parsed?.smartFolders)
+      if (incoming.length > 0) {
+        const current = loadSettings()
+        const existingNames = new Set(current.smartFolders.map((f) => f.name))
+        const ts = Date.now()
+        const toAdd = incoming
+          .filter((f) => !existingNames.has(f.name))
+          .map((f, i) => ({ ...f, id: `import-${ts}-${i}` }))
+        if (toAdd.length > 0) {
+          saveSettings({ ...current, smartFolders: [...current.smartFolders, ...toAdd] })
+          importedFolders = toAdd.length
+        }
+      }
+    } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
+
+    return { canceled: false, count, errors, importedFolders }
   })
 }

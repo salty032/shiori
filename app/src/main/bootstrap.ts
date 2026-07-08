@@ -3,7 +3,7 @@ import { extname, join } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { Readable } from 'stream'
-import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds } from './ws-server'
+import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, consumePortInUseNotice, PORT as WS_PORT } from './ws-server'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo,
@@ -250,7 +250,7 @@ export function bootstrap(): void {
     handleTrusted(CH.captureSetHotkey, (_event, hotkey: string) => {
       const normalized = normalizeCaptureHotkey(hotkey)
       if (!normalized) return false
-      const ok = changeHotkey(normalized)
+      const ok = changeHotkey(normalized, (m) => sendNotice('error', m))
       if (ok) {
         const updated = { ...loadSettings(), captureHotkey: normalized }
         saveSettings(updated)
@@ -293,7 +293,7 @@ export function bootstrap(): void {
         broadcastMessage({ type: 'request-timecode', requestId })
       })
       // タイムコードは content.js の rAF 後に届く（＝DOM 描画済みの合図）
-      // それを待ってから OS コンポジタ向けに 50ms マージンを取ってスクショ
+      // それを待ってから OS コンポジタ向けに 20ms マージンを取ってスクショ
       const latest = await pendingTimecode
       await new Promise<void>((resolve) => setTimeout(resolve, 20))
       pendingTimecode = null
@@ -330,7 +330,7 @@ export function bootstrap(): void {
         insert: {
           filepath: imagePath,
           captured_at: Date.now(),
-          title: timecode?.title ?? null,
+          title: timecode?.title || null,
           current_time: timecode?.currentTime ?? null,
           url: timecode?.url ?? null,
           width: null,
@@ -361,6 +361,13 @@ export function bootstrap(): void {
       // sendNotice は mainWindow 生成前だと無言で消えるため、初回描画後に送る
       getMainWindow()?.webContents.once('did-finish-load', () => {
         sendNotice('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
+      })
+    }
+    if (consumePortInUseNotice()) {
+      // 他プロセスが WS ポートを LISTEN していると拡張と接続できない。原因が分からないまま
+      // 「キャプチャ対象を検出できませんでした」に化けるのを防ぐため、明示的に案内する。
+      getMainWindow()?.webContents.once('did-finish-load', () => {
+        sendNotice('error', `ポート${WS_PORT}が他のアプリに使用されているため、ブラウザ拡張と接続できません。`)
       })
     }
     registerHotkey(loadSettings().captureHotkey, (message) => {

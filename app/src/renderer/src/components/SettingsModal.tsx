@@ -355,7 +355,8 @@ export default function SettingsModal(p: Props) {
                         const result = await p.onShareImport()
                         if (!result.canceled) {
                           const errMsg = result.errors && result.errors.length > 0 ? `（エラー ${result.errors.length} 件）` : ''
-                          setShareImportStatus({ text: `${result.count ?? 0} 件を読み込みました${errMsg}` })
+                          const folderMsg = result.importedFolders ? `、スマートフォルダ ${result.importedFolders} 件` : ''
+                          setShareImportStatus({ text: `${result.count ?? 0} 件を読み込みました${folderMsg}${errMsg}` })
                         }
                       } catch (err) {
                         console.error('[settings] share import failed', err)

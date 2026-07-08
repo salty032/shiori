@@ -120,7 +120,7 @@ export function buildCoreApi(): ShioriApi {
 
     shareExportCancel: (): Promise<void> => ipcRenderer.invoke(CH.shareExportCancel),
 
-    shareImport: (): Promise<{ canceled: boolean; count?: number; errors?: string[] }> =>
+    shareImport: (): Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }> =>
       ipcRenderer.invoke(CH.shareImport),
 
     importFiles: (paths: string[]): Promise<{ count: number; errors: string[]; truncated: boolean }> =>

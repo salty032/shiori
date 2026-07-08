@@ -79,6 +79,17 @@ describe('imageStore mutations', () => {
     expect(s.timelineImages.map((i) => i.id)).toEqual([1, 2, 3, 4])
   })
 
+  it('restoreImages は snapshot 未ロード分（grid/timelineどちらにも無かった id）の件数も戻す', () => {
+    // id:5 は grid にも timeline にも存在しない（Ctrl+A で選択されたが未ロードの行を想定）。
+    const snapshot = useImageStore.getState().removeImages(new Set([2, 5]))
+    expect(useImageStore.getState().gridTotalCount).toBe(8)
+    useImageStore.getState().restoreImages(snapshot)
+    const s = useImageStore.getState()
+    // 件数は removedIds（2件）ぶん戻る。行データが無い id:5 はリストへは戻らない。
+    expect(s.gridTotalCount).toBe(10)
+    expect(s.gridImages.map((i) => i.id)).toEqual([1, 2, 3])
+  })
+
   it('adjustGridTotalCount は件数のみ増減する', () => {
     useImageStore.getState().adjustGridTotalCount(-3)
     expect(useImageStore.getState().gridTotalCount).toBe(7)
