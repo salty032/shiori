@@ -274,8 +274,6 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                 filters.setSearch(next)
                 if (!(e.nativeEvent as InputEvent).isComposing && isPureKeywordSearch(next)) filters.commitSearch(next)
               }}
-              onCompositionStart={() => filters.setSearchComposing(true)}
-              onCompositionEnd={() => filters.setSearchComposing(false)}
               onFocus={() => { setSearchFocused(true); setSuggestionsDismissed(false) }}
               onBlur={() => addSearchHistory(filters.search)}
               onKeyDown={(e) => {
@@ -296,8 +294,9 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                   activeFilterChips[activeFilterChips.length - 1].onRemove()
                   return
                 }
-                // Enter は 200ms デバウンスを待たず即座に確定する。サジェストを選択中（highlightedIndex
-                // >= 0）の場合は下の分岐で「そのサジェストを確定」する従来動作を優先する。
+                // 素のキーワードは onChange で毎打鍵 commit 済みだが、tag:/site: 等の演算子は
+                // 確定まで反映を待つため、Enter で明示的に commit する。サジェストを選択中
+                // （highlightedIndex >= 0）の場合は下の分岐で「そのサジェストを確定」する従来動作を優先する。
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing
                   && !(suggestionsVisible && activeSuggestions.length > 0 && highlightedIndex >= 0)) {
                   e.preventDefault()

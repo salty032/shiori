@@ -53,7 +53,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const [memoStatus, setMemoStatus] = useState<MemoSaveStatus>('idle')
   const titleInputRef = useRef<HTMLTextAreaElement>(null)
   const savingRef = useRef(false)  // prevents Escape/Enter from double-saving via onBlur
-  const memoSavingRef = useRef(false)
   const memoStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const memoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingMemoSaveRef = useRef<PendingMemoSave | null>(null)
@@ -93,7 +92,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
     if (!single) return
     activeImageIdRef.current = single.id
     savingRef.current = true   // cancel any in-progress edit on image change
-    memoSavingRef.current = true
     if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
     setEditingTitle(false)
     setTitleExpanded(false)
@@ -201,7 +199,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
         memoStatusTimerRef.current = setTimeout(() => setMemoStatus('idle'), 1600)
       }
     } catch (err) {
-      memoSavingRef.current = false
       if (showStatus && activeImageIdRef.current === pending.id) setMemoStatus('error')
       console.error('[memo] save failed', err)
     }
@@ -332,7 +329,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 placeholder="メモを入力..."
                 rows={3}
                 onChange={(e) => {
-                  memoSavingRef.current = false
                   if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
                   const nextMemo = e.target.value
                   const baseMemo = single.memo ?? ''
@@ -348,7 +344,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 onBlur={saveMemo}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
-                    memoSavingRef.current = true
                     if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
                     if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current)
                     pendingMemoSaveRef.current = null

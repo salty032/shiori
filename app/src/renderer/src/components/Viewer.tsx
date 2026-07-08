@@ -35,6 +35,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
+  const viewerRef = useRef<HTMLDivElement>(null)
 
   // 画像が切り替わったらズーム・パンをリセット
   useEffect(() => {
@@ -139,19 +140,28 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
     }
   }
 
-  function handleWheel(e: React.WheelEvent): void {
-    e.preventDefault()
-    const factor = e.deltaY < 0 ? 1.25 : 0.8
-    const nextZoom = Math.max(1, Math.min(8, zoom * factor))
-    if (nextZoom === zoom) return
-    if (nextZoom <= 1) {
-      setZoom(1)
-      setPan({ x: 0, y: 0 })
-      return
+  // React 17+ はホイールイベントをルートに passive: true で登録するため、onWheel prop 内の
+  // preventDefault は無効（console に intervention 警告が出るだけで効果がない）。
+  // ズームには scroll 連鎖の阻止が必須なので、ref に対して passive: false で自前登録する。
+  useEffect(() => {
+    const el = viewerRef.current
+    if (!el) return
+    const onWheelNative = (e: WheelEvent): void => {
+      e.preventDefault()
+      const factor = e.deltaY < 0 ? 1.25 : 0.8
+      const nextZoom = Math.max(1, Math.min(8, zoom * factor))
+      if (nextZoom === zoom) return
+      if (nextZoom <= 1) {
+        setZoom(1)
+        setPan({ x: 0, y: 0 })
+        return
+      }
+      setPan(clampPan(panForZoomAt(e.clientX, e.clientY, nextZoom, zoom, pan), nextZoom))
+      setZoom(nextZoom)
     }
-    setPan(clampPan(panForZoomAt(e.clientX, e.clientY, nextZoom, zoom, pan), nextZoom))
-    setZoom(nextZoom)
-  }
+    el.addEventListener('wheel', onWheelNative, { passive: false })
+    return () => el.removeEventListener('wheel', onWheelNative)
+  }, [zoom, pan])
 
   function toggleZoomAt(clientX: number, clientY: number): void {
     if (zoom > 1) {
@@ -235,7 +245,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
   const title = img.title ? cleanTitle(img.title, titleStrip) : ''
 
   return (
-    <div style={{ ...s.viewer, animation: closing ? 'shioriViewerOut 0.11s ease-out forwards' : 'shioriViewerIn 0.15s ease-out' }} onClick={close} onWheel={handleWheel}>
+    <div ref={viewerRef} style={{ ...s.viewer, animation: closing ? 'shioriViewerOut 0.11s ease-out forwards' : 'shioriViewerIn 0.15s ease-out' }} onClick={close}>
       <div style={s.viewerTopBar} onClick={(e) => e.stopPropagation()}>
         <div style={s.viewerTitle} title={title}>{title}</div>
         <div style={s.viewerActions}>

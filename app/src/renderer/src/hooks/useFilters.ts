@@ -20,7 +20,6 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
 
   const setSearch = useFilterStore((s) => s.setSearchInput)
   const commitSearch = useFilterStore((s) => s.commitSearch)
-  const setSearchComposing = useFilterStore((s) => s.setSearchComposing)
   const setTagFilters = useFilterStore((s) => s.setTagFilters)
   const setTagMode = useFilterStore((s) => s.setTagMode)
   const setSortOrder = useFilterStore((s) => s.setSortOrder)
@@ -146,7 +145,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   return {
     // search は検索ボックスの即時値（従来どおり）。committedSearch は実際にクエリへ
     // 反映されている確定値（ハイライト表示など「今の結果が何に一致したか」を知りたい用途向け）。
-    search: searchInput, committedSearch, setSearch, commitSearch, setSearchComposing,
+    search: searchInput, committedSearch, setSearch, commitSearch,
     sites: sortedSites,
     tagFilters, setTagFilters,
     tagMode, setTagMode,

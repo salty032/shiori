@@ -25,7 +25,7 @@ type Props = {
   onTaggerDelete: () => void
   onTaggerRetagAll: () => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
-  onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[] }>
+  onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
 }
 
 export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {

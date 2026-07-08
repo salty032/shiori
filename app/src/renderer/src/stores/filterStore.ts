@@ -15,7 +15,6 @@ export type CommittedFilters = {
 type FilterState = {
   searchInput: string
   committedSearch: string
-  searchComposing: boolean
   tagFilters: string[]
   tagMode: TagMode
   sortOrder: SortOrder
@@ -28,7 +27,6 @@ type FilterState = {
 
   setSearchInput: (v: Setter<string>) => void
   commitSearch: (v: string) => void
-  setSearchComposing: (v: boolean) => void
   setTagFilters: (v: Setter<string[]>) => void
   setTagMode: (v: Setter<TagMode>) => void
   setSortOrder: (v: SortOrder) => void
@@ -42,7 +40,6 @@ type FilterState = {
 export const useFilterStore = create<FilterState>((set) => ({
   searchInput: '',
   committedSearch: '',
-  searchComposing: false,
   tagFilters: [],
   tagMode: 'and',
   sortOrder: 'date_desc',
@@ -53,7 +50,6 @@ export const useFilterStore = create<FilterState>((set) => ({
 
   setSearchInput: (v) => set((s) => ({ searchInput: resolve(v, s.searchInput), activeSmartFolderId: null })),
   commitSearch: (v) => set({ committedSearch: v }),
-  setSearchComposing: (v) => set({ searchComposing: v }),
   setTagFilters: (v) => set((s) => ({ tagFilters: resolve(v, s.tagFilters), activeSmartFolderId: null })),
   setTagMode: (v) => set((s) => ({ tagMode: resolve(v, s.tagMode), activeSmartFolderId: null })),
   setSortOrder: (v) => set({ sortOrder: v }),
