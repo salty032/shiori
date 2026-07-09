@@ -146,8 +146,11 @@ export default function App() {
     if (result.count > 0) {
       filters.refreshSites()
       // B11/U-2: 200件上限で打ち切られた場合、超過分が黙って捨てられたことを明示する
+      // CODE-REVIEW-v1.0.4 B-1: 一部失敗があった場合も成功一色にせず件数を明示する
       const truncatedMsg = result.truncated ? '（200件の上限を超えたため一部は取り込まれていません）' : ''
-      toast.showToast(`${result.count}枚をインポートしました${truncatedMsg}`, result.truncated ? 'warning' : 'success')
+      const failedMsg = result.errors.length > 0 ? `（${result.errors.length}件は取り込めませんでした）` : ''
+      const isPartial = result.truncated || result.errors.length > 0
+      toast.showToast(`${result.count}枚をインポートしました${truncatedMsg}${failedMsg}`, isPartial ? 'warning' : 'success')
     } else if (result.errors.length > 0) {
       toast.showToast(`インポートできませんでした（${result.errors.length}件）`, 'warning')
     }

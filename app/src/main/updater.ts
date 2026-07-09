@@ -22,9 +22,14 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
     console.error('[updater]', err.message)
   })
 
-  // 更新確認は起動時に一度だけ。定期ポーリングはしない（トレイ常駐で長時間起動しっぱなしでも
-  // バックグラウンドで繰り返し確認せず、次回起動時にまとめて確認する方針）。
-  autoUpdater.checkForUpdates().catch((err: Error) => {
-    console.warn('[updater] checkForUpdates failed:', err.message)
-  })
+  const check = (): void => {
+    autoUpdater.checkForUpdates().catch((err: Error) => {
+      console.warn('[updater] checkForUpdates failed:', err.message)
+    })
+  }
+
+  // CODE-REVIEW-v1.0.4 B-4: トレイ常駐で何週間も起動しっぱなしのユーザーがいるため、
+  // 起動時に加えて 24h ごとにも確認する（lastNotifiedVersion ガードで多重通知はしない）。
+  check()
+  setInterval(check, 24 * 60 * 60 * 1000)
 }
