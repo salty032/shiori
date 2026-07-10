@@ -1,29 +1,21 @@
 // 一括共有（ライブラリ全体のエクスポート / インポート / スマートフォルダ設定の取り込み）の IPC ハンドラ。
 import { dialog } from 'electron'
 import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
-import { join, basename, extname } from 'path'
+import { join, basename } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted, sendToRenderer, safeExternalUrl } from './windows'
 import { listImagesForExport } from './db'
 import { loadSettings, saveSettings, smartFolders } from './settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
-import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, normalizeTagName, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
+import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../shared/api'
-import { MAX_MEMO_LENGTH } from '../shared/constants'
+import { parseShareEntry } from './share-entry'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 
-const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
-// 手編集・破損した metadata.jsonl の captured_at で異常値（負値・極端な未来値等）を受け入れると、
-// ensureCaptureSubDir が "NaN-NaN" 等の壊れたフォルダ名を作ったり、一覧の並び順が恒久的に
-// 壊れたりする。妥当な epoch 範囲（0〜2100年）にクランプし、範囲外は取り込み時刻にフォールバックする。
-const MAX_REASONABLE_CAPTURED_AT = new Date(2100, 0, 1).getTime()
-function isValidCapturedAt(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < MAX_REASONABLE_CAPTURED_AT
-}
-
 let isShareExporting = false
 let isShareExportCanceled = false
+let isShareImporting = false
 
 export function registerShareHandlers(): void {
   handleTrusted(CH.shareExport, async () => {
@@ -116,126 +108,119 @@ export function registerShareHandlers(): void {
   handleTrusted(CH.shareExportCancel, () => { isShareExportCanceled = true })
 
   handleTrusted(CH.shareImport, async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: 'インポートするフォルダを選択',
-      properties: ['openDirectory']
-    })
-    if (canceled || !filePaths[0]) return { canceled: true }
-
-    const srcDir = filePaths[0]
-    let content: string
+    // shareExport/imagesExport と同じ理由（R-5）: renderer 側のボタン disable だけでは
+    // 並行呼び出しを防げず、同じフォルダの画像が二重登録されうる（画像には重複チェックが
+    // ないため、スマートフォルダと違って静かに重複が積み上がる）（D-1）。
+    if (isShareImporting) return { canceled: true }
+    isShareImporting = true
     try {
-      content = await readFile(join(srcDir, 'metadata.jsonl'), 'utf-8')
-    } catch {
-      return { canceled: false, count: 0, errors: ['metadata.jsonl が見つかりません'] }
-    }
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'インポートするフォルダを選択',
+        properties: ['openDirectory']
+      })
+      if (canceled || !filePaths[0]) return { canceled: true }
 
-    let count = 0
-    const errors: string[] = []
-    const lines = content.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, MAX_EXPORT_IDS)
+      const srcDir = filePaths[0]
+      let content: string
+      try {
+        content = await readFile(join(srcDir, 'metadata.jsonl'), 'utf-8')
+      } catch {
+        return { canceled: false, count: 0, errors: ['metadata.jsonl が見つかりません'] }
+      }
 
-    for (const line of lines) {
-      let entry: { version?: number; file?: unknown; thumb?: unknown; url?: unknown; current_time?: unknown; title?: unknown; tags?: unknown; memo?: unknown; captured_at?: unknown }
-      try { entry = JSON.parse(line) } catch { errors.push(`invalid JSON: ${line.slice(0, 50)}`); continue }
+      let count = 0
+      const errors: string[] = []
+      // 行数キャップは撤廃（B-2）。1件ずつ逐次処理で、ファイル存在・拡張子・captured_at 等の
+      // 検証は行単位で完結しているため、件数上限をここに設ける必然性が薄い一方、
+      // 1000枚超のライブラリで超過分が無言で消えるほうが実害が大きい。
+      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
 
-      if (typeof entry.file !== 'string' || !entry.file) continue
-      const safeFile = basename(entry.file)
-      if (!safeFile || safeFile !== entry.file) { errors.push(`unsafe filename: ${entry.file}`); continue }
+      for (const line of lines) {
+        const parsed = parseShareEntry(line, Date.now())
+        if (parsed === null) continue
+        if ('error' in parsed) { errors.push(parsed.error); continue }
 
-      const ext = extname(safeFile).toLowerCase()
-      // 本ビルドは画像専用。動画エントリを含む共有バンドルを読み込んでも動画は取り込まない。
-      if (!SHARE_IMAGE_EXTS.has(ext)) { errors.push(`unsupported extension: ${safeFile}`); continue }
+        const srcFile = join(srcDir, 'images', parsed.file)
+        let srcStat: Awaited<ReturnType<typeof stat>>
+        try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${parsed.file}`); continue }
+        if (srcStat.size > 500 * 1024 * 1024) { errors.push(`file too large: ${parsed.file}`); continue }
 
-      const srcFile = join(srcDir, 'images', safeFile)
-      let srcStat: Awaited<ReturnType<typeof stat>>
-      try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${safeFile}`); continue }
-      if (srcStat.size > 500 * 1024 * 1024) { errors.push(`file too large: ${safeFile}`); continue }
+        const uid = randomUUID()
+        const ts = Date.now()
+        const dir = await ensureCaptureSubDir(parsed.capturedAt)
+        const destFile = join(dir, `cap_${ts}_${uid}${parsed.ext}`)
 
-      const uid = randomUUID()
-      const ts = Date.now()
-      const capturedAt = isValidCapturedAt(entry.captured_at) ? entry.captured_at : ts
-      const dir = await ensureCaptureSubDir(capturedAt)
-      const destFile = join(dir, `cap_${ts}_${uid}${ext}`)
-
-      let thumbDest: string | null = null
-      if (typeof entry.thumb === 'string' && entry.thumb) {
-        const safeThumb = basename(entry.thumb)
-        if (safeThumb && safeThumb === entry.thumb) {
-          const srcThumb = join(srcDir, 'images', safeThumb)
+        let thumbDest: string | null = null
+        if (parsed.thumbFile && parsed.thumbExt) {
+          const srcThumb = join(srcDir, 'images', parsed.thumbFile)
           try {
             await stat(srcThumb)
-            const thumbExt = extname(safeThumb).toLowerCase() || '.png'
-            if (!SHARE_IMAGE_EXTS.has(thumbExt)) throw new Error('unsupported thumb extension')
-            thumbDest = thumbPathFor(destFile, thumbExt)
+            thumbDest = thumbPathFor(destFile, parsed.thumbExt)
             await mkdir(thumbnailDir(), { recursive: true })
             await copyFile(srcThumb, thumbDest)
           } catch { /* skip missing thumb */ }
         }
-      }
 
-      try {
-        await copyFile(srcFile, destFile)
-      } catch (err) {
-        errors.push(`copy failed: ${safeFile}`)
-        if (thumbDest) try { await unlink(thumbDest) } catch {}
-        continue
-      }
-
-      // 手動タグ追加と同じ正規化（小文字化・空白→_）を通す。ここを素通しすると、
-      // 自前編集された共有データから "Tag Name" のような表記ゆれタグが作られてしまう。
-      const tags = Array.isArray(entry.tags)
-        ? [...new Set((entry.tags as unknown[]).map((t) => normalizeTagName(t, MAX_TAG_LENGTH)).filter((t): t is string => t != null))]
-        : []
-
-      const result = await registerCapturedMedia({
-        insert: {
-          filepath: destFile,
-          captured_at: capturedAt,
-          title: typeof entry.title === 'string' ? entry.title.slice(0, MAX_TEXT_LENGTH) || null : null,
-          current_time: typeof entry.current_time === 'number' && Number.isFinite(entry.current_time) ? entry.current_time : null,
-          url: typeof entry.url === 'string' ? safeExternalUrl(entry.url) : null,
-          width: null,
-          height: null,
-          colors: null,
-          memo: typeof entry.memo === 'string' ? entry.memo.slice(0, MAX_MEMO_LENGTH) || null : null,
-          thumb_path: thumbDest,
-          source: 'import',
-        },
-        filePath: destFile,
-        thumbPath: thumbDest,
-        extraTags: tags.length > 0 ? tags.map((name) => ({ name, source: 'manual' as const })) : undefined,
-        broadcastCaptureDone: false,
-        autoTag: null
-      })
-      if (!result.ok) {
-        errors.push(`insert failed: ${safeFile}`)
-        continue
-      }
-      count++
-    }
-
-    // settings.json（スマートフォルダのみ）は任意。無くても画像取り込みには影響しない。
-    // 名前が完全一致する既存フォルダはスキップし、それ以外は id を採番し直して追記する
-    // （エクスポート元とインポート先で id が衝突しうるため）。
-    let importedFolders = 0
-    try {
-      const settingsRaw = await readFile(join(srcDir, 'settings.json'), 'utf-8')
-      const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }
-      const incoming = smartFolders(parsed?.smartFolders)
-      if (incoming.length > 0) {
-        const current = loadSettings()
-        const existingNames = new Set(current.smartFolders.map((f) => f.name))
-        const ts = Date.now()
-        const toAdd = incoming
-          .filter((f) => !existingNames.has(f.name))
-          .map((f, i) => ({ ...f, id: `import-${ts}-${i}` }))
-        if (toAdd.length > 0) {
-          saveSettings({ ...current, smartFolders: [...current.smartFolders, ...toAdd] })
-          importedFolders = toAdd.length
+        try {
+          await copyFile(srcFile, destFile)
+        } catch {
+          errors.push(`copy failed: ${parsed.file}`)
+          if (thumbDest) try { await unlink(thumbDest) } catch {}
+          continue
         }
-      }
-    } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
 
-    return { canceled: false, count, errors, importedFolders }
+        const result = await registerCapturedMedia({
+          insert: {
+            filepath: destFile,
+            captured_at: parsed.capturedAt,
+            title: parsed.title,
+            current_time: parsed.currentTime,
+            url: parsed.url ? safeExternalUrl(parsed.url) : null,
+            width: null,
+            height: null,
+            colors: null,
+            memo: parsed.memo,
+            thumb_path: thumbDest,
+            source: 'import',
+          },
+          filePath: destFile,
+          thumbPath: thumbDest,
+          extraTags: parsed.tags.length > 0 ? parsed.tags.map((name) => ({ name, source: 'manual' as const })) : undefined,
+          broadcastCaptureDone: false,
+          autoTag: null
+        })
+        if (!result.ok) {
+          errors.push(`insert failed: ${parsed.file}`)
+          continue
+        }
+        count++
+      }
+
+      // settings.json（スマートフォルダのみ）は任意。無くても画像取り込みには影響しない。
+      // 名前が完全一致する既存フォルダはスキップし、それ以外は id を採番し直して追記する
+      // （エクスポート元とインポート先で id が衝突しうるため）。
+      let importedFolders = 0
+      try {
+        const settingsRaw = await readFile(join(srcDir, 'settings.json'), 'utf-8')
+        const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }
+        const incoming = smartFolders(parsed?.smartFolders)
+        if (incoming.length > 0) {
+          const current = loadSettings()
+          const existingNames = new Set(current.smartFolders.map((f) => f.name))
+          const ts = Date.now()
+          const toAdd = incoming
+            .filter((f) => !existingNames.has(f.name))
+            .map((f, i) => ({ ...f, id: `import-${ts}-${i}` }))
+          if (toAdd.length > 0) {
+            saveSettings({ ...current, smartFolders: [...current.smartFolders, ...toAdd] })
+            importedFolders = toAdd.length
+          }
+        }
+      } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
+
+      return { canceled: false, count, errors, importedFolders }
+    } finally {
+      isShareImporting = false
+    }
   })
 }
