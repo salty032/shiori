@@ -289,14 +289,26 @@ export default function Sidebar({
             <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 18 }}>
               <span>タグ</span>
               <div style={s.tagLabelActions}>
-                {filters.tagFilters.length >= 2 && (
+                {/* タグクリックは searchTags（検索欄の tag:xxx）に書き込まれ、tagFilters は
+                    旧形式スマートフォルダ経由でしか更新されないため、表示条件は両方の
+                    合算で判定する（U-1）。buildImageQuery はマージ後の全タグに tagMode を
+                    適用するので、クエリロジック側の変更は不要。 */}
+                {[...new Set([...filters.tagFilters, ...searchTags])].length >= 2 && (
                   <button onClick={() => filters.setTagMode((m) => m === 'and' ? 'or' : 'and')}
                     style={{ ...s.tagModeBtn, color: filters.tagMode === 'and' ? '#66a86f' : '#b5965c' }}>
                     {filters.tagMode === 'and' ? 'AND' : 'OR'}
                   </button>
                 )}
-                {filters.tagFilters.length > 0 && (
-                  <button onClick={() => filters.setTagFilters([])} style={{ ...s.sidebarXBtn, ...s.tagClearBtn }} title="タグフィルターをすべて解除"><XIcon size={11} strokeWidth={2} /></button>
+                {(filters.tagFilters.length > 0 || searchTags.length > 0) && (
+                  <button onClick={() => {
+                    filters.setTagFilters([])
+                    // searchTags 由来のタグは検索欄の tag:xxx トークンなので、まとめて1回で
+                    // 剥がす（onRemoveSearchTag を複数回呼ぶと毎回同じ古い filters.search を
+                    // 元に計算するため、後の呼び出しが前の呼び出しの結果を上書きしてしまう）。
+                    const next = filters.search.replace(/(?:^|\s)tag:\S+/gi, '').replace(/\s+/g, ' ').trim()
+                    filters.setSearch(next)
+                    filters.commitSearch(next)
+                  }} style={{ ...s.sidebarXBtn, ...s.tagClearBtn }} title="タグフィルターをすべて解除"><XIcon size={11} strokeWidth={2} /></button>
                 )}
               </div>
             </div>

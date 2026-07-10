@@ -1,11 +1,11 @@
 import type { ImageRow, ImageTag } from './types'
-import { MAX_BULK_IDS } from '../../shared/constants'
+import { MAX_BULK_IDS, MAX_TAG_LENGTH } from '../../shared/constants'
+
+export { MAX_TAG_LENGTH }
 
 // DetailPanel/QuickTagInput/TagEditor で個別に持っていた同一実装を集約（B7/Q1）。
 // main 側（ipc-tagger.ts）も taggerAddTag* で同じ正規化を最終防衛として適用しており、
 // 表記ゆれ（"Tag Name" 等）で別タグ化しないよう両側で揃える。
-export const MAX_TAG_LENGTH = 16
-
 export function normalizeTag(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, '_').slice(0, MAX_TAG_LENGTH)
 }

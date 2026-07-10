@@ -44,9 +44,11 @@ function addColumnIfMissing(sql: string): void {
     db.exec(sql)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    if (!/duplicate column/i.test(message)) {
-      console.warn('[db] migration failed', message)
-    }
+    // 列が既に存在する（＝このマイグレーションは実行済み）以外のエラーは、ディスクフル・
+    // 破損等で ALTER が本当に失敗したことを意味する。ここを warn で握りつぶすと、
+    // 一部の列が欠けた半端なスキーマのまま起動が続行し、後続クエリが不可解に壊れる。
+    // throw して initDb 呼び出し元（bootstrap.ts）の起動失敗ダイアログに乗せる（N-2）。
+    if (!/duplicate column/i.test(message)) throw err
   }
 }
 
@@ -122,7 +124,13 @@ export function initDb(): void {
     CREATE TRIGGER IF NOT EXISTS images_fts_ad AFTER DELETE ON images BEGIN
       INSERT INTO images_fts(images_fts, rowid, title, memo) VALUES('delete', old.id, old.title, old.memo);
     END;
-    CREATE TRIGGER IF NOT EXISTS images_fts_au AFTER UPDATE ON images BEGIN
+  `)
+  // title/memo に限らず全ての UPDATE（サムネ backfill・host backfill 等）で発火する旧トリガーが
+  // 既存 DB に残っている可能性があるため、毎回 DROP してから title/memo 限定版で作り直す（N-1）。
+  // 冪等なので何度実行しても害はない。
+  db.exec(`
+    DROP TRIGGER IF EXISTS images_fts_au;
+    CREATE TRIGGER images_fts_au AFTER UPDATE OF title, memo ON images BEGIN
       INSERT INTO images_fts(images_fts, rowid, title, memo) VALUES('delete', old.id, old.title, old.memo);
       INSERT INTO images_fts(rowid, title, memo) VALUES (new.id, new.title, new.memo);
     END;

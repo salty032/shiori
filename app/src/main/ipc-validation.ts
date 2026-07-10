@@ -4,12 +4,13 @@ import { join, extname } from 'path'
 import { access } from 'fs/promises'
 import { resolveRealCapturePath } from './paths'
 import type { ImageQuery, ImageListRequest, SortOrder } from '../shared/types'
+import { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../shared/constants'
 
 export const MAX_IMAGE_LIMIT = 200
 export const MAX_TEXT_LENGTH = 500
 export const MAX_TAGS_PER_FILTER = 50
-export const MAX_TAG_LENGTH = 16
 export const MAX_EXPORT_IDS = 1000
+export { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH }
 
 export function clampImageLimit(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 50
@@ -51,7 +52,9 @@ export function tagsFilter(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined
   const tags = value
     .filter((tag): tag is string => typeof tag === 'string')
-    .map((tag) => tag.trim().slice(0, MAX_TAG_LENGTH))
+    // 既存タグ名との照合用なので、生成側の上限(MAX_TAG_LENGTH)ではなく参照用の
+    // MAX_TAG_LOOKUP_LENGTH で切り詰める（B-1: AI タグは16字超で普通に存在する）。
+    .map((tag) => tag.trim().slice(0, MAX_TAG_LOOKUP_LENGTH))
     .filter(Boolean)
   return [...new Set(tags)].slice(0, MAX_TAGS_PER_FILTER)
 }

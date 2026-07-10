@@ -2,7 +2,7 @@
 import { handleTrusted, sendToRenderer } from './windows'
 import { ensureModel, runTagger, isModelLoaded, isModelDownloaded, deleteModel, cancelModelDownload } from './tagger'
 import { addTag, getImageTags, removeImageTag, addTagsBulk, listImagesForRetag, getImageTagsBulk, addTagBulk, removeTagBulk, removeTagFromAllImages, deleteAllAiTags } from './db'
-import { optionalPositiveInteger, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH } from './ipc-validation'
+import { optionalPositiveInteger, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from './ipc-validation'
 import { resolveRealCapturePath } from './paths'
 import { CH } from '../shared/api'
 import { MAX_BULK_IDS } from '../shared/constants'
@@ -43,7 +43,8 @@ export function registerTaggerHandlers(): void {
   handleTrusted(CH.taggerRemoveTag, (_event, imageId: number, tagName: string) => {
     const id = optionalPositiveInteger(imageId)
     if (!id) return
-    const cleaned = optionalText(tagName, MAX_TAG_LENGTH)
+    // 既存タグ名（AI タグ含む）との照合なので参照用の上限を使う（B-1）。
+    const cleaned = optionalText(tagName, MAX_TAG_LOOKUP_LENGTH)
     if (cleaned) removeImageTag(id, cleaned)
   })
   handleTrusted(CH.taggerGetTagsBulk, (_event, imageIds: number[]) => {
@@ -57,11 +58,11 @@ export function registerTaggerHandlers(): void {
   })
   handleTrusted(CH.taggerRemoveTagBulk, (_event, imageIds: number[], tagName: string) => {
     const ids = validImageIds(imageIds)
-    const cleaned = optionalText(tagName, MAX_TAG_LENGTH)
+    const cleaned = optionalText(tagName, MAX_TAG_LOOKUP_LENGTH)
     if (cleaned) removeTagBulk(ids, cleaned)
   })
   handleTrusted(CH.taggerRemoveTagFromAll, (_event, tagName: string) => {
-    const cleaned = optionalText(tagName, MAX_TAG_LENGTH)
+    const cleaned = optionalText(tagName, MAX_TAG_LOOKUP_LENGTH)
     return cleaned ? removeTagFromAllImages(cleaned) : 0
   })
 

@@ -1,8 +1,8 @@
 // Netflix 専用・ページの main world で動くブリッジ。
-// Netflix は独自プレイヤー(MSE+DRM)の状態機械が <video> 要素を監視しており、content script
-// (isolated world)から currentTime を直書きしたり pause を叩くと「不正なシーク」として弾き、
-// エラーにする。frame-accurate なコマ送りを実現するには Netflix 自身の内部プレイヤー API を
-// 通す必要があるが、その API(netflix.appContext…)は main world にしか存在しない。
+// Netflix は独自プレイヤーが <video> 要素の状態と再生制御を管理しており、content script
+// (isolated world)から currentTime を直書きしたり pause を叩くと再生状態が崩れることがある。
+// コマ送り時の pause/seek をページ側の通常の再生制御に寄せるには、Netflix 側のプレイヤー API を
+// 通す必要があるが、その API(netflix.appContext...)は main world にしか存在しない。
 // そこで content.js からは window の CustomEvent 'shiori-nflx-cmd' でコマンドを送り、
 // ここで受けて内部 API の pause()/seek() を呼ぶ。
 //

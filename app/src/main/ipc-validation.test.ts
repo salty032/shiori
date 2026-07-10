@@ -5,7 +5,8 @@ vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/user
 import {
   sanitizeFilename, imageQuery, imageListRequest,
   formatDateForFilename, formatTimecodeForFilename,
-  MAX_IMAGE_LIMIT, MAX_TAGS_PER_FILTER, MAX_TAG_LENGTH,
+  normalizeTagName, optionalText, tagsFilter,
+  MAX_IMAGE_LIMIT, MAX_TAGS_PER_FILTER, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH,
 } from './ipc-validation'
 
 describe('sanitizeFilename', () => {
@@ -68,9 +69,50 @@ describe('imageQuery', () => {
     expect(q.tags).toHaveLength(MAX_TAGS_PER_FILTER)
   })
 
-  it('tags: 各タグは MAX_TAG_LENGTH 文字で切り詰め', () => {
-    const q = imageQuery({ tags: ['a'.repeat(MAX_TAG_LENGTH + 10)] })
-    expect(q.tags?.[0]).toHaveLength(MAX_TAG_LENGTH)
+  it('tags: 各タグは MAX_TAG_LOOKUP_LENGTH 文字で切り詰め（参照用の上限）', () => {
+    const q = imageQuery({ tags: ['a'.repeat(MAX_TAG_LOOKUP_LENGTH + 10)] })
+    expect(q.tags?.[0]).toHaveLength(MAX_TAG_LOOKUP_LENGTH)
+  })
+
+  it('tags: WD Tagger の AI タグ（17字超）が絞り込みで生き残る（B-1回帰）', () => {
+    // looking_at_viewer / simple_background 等、MAX_TAG_LENGTH(16→64) 以前の
+    // 上限だと切り詰められて照合が一致しなくなっていた
+    const q = imageQuery({ tags: ['looking_at_viewer', 'simple_background'] })
+    expect(q.tags).toEqual(['looking_at_viewer', 'simple_background'])
+  })
+})
+
+describe('tagsFilter', () => {
+  it('MAX_TAG_LOOKUP_LENGTH 以下のタグ名はそのまま通す（B-1回帰）', () => {
+    expect(tagsFilter(['looking_at_viewer'])).toEqual(['looking_at_viewer'])
+  })
+
+  it('MAX_TAG_LOOKUP_LENGTH 超は切り詰める', () => {
+    const long = 'a'.repeat(MAX_TAG_LOOKUP_LENGTH + 10)
+    expect(tagsFilter([long])?.[0]).toHaveLength(MAX_TAG_LOOKUP_LENGTH)
+  })
+})
+
+describe('normalizeTagName', () => {
+  it('既定(MAX_TAG_LENGTH)で切り詰め・小文字化・空白を_に変換', () => {
+    expect(normalizeTagName('Tag Name')).toBe('tag_name')
+  })
+
+  it('MAX_TAG_LENGTH(64) までの手動タグ名はそのまま通る', () => {
+    const name = 'a'.repeat(60)
+    expect(normalizeTagName(name)).toBe(name)
+  })
+
+  it('明示的な max 指定（削除系の参照用途）を尊重する', () => {
+    const long = 'looking_at_viewer'
+    expect(normalizeTagName(long, MAX_TAG_LOOKUP_LENGTH)).toBe(long)
+  })
+})
+
+describe('optionalText（remove系での参照用途）', () => {
+  it('17字超のタグ名も MAX_TAG_LOOKUP_LENGTH 指定なら切り詰めずに残る（B-1回帰）', () => {
+    const long = 'looking_at_viewer'
+    expect(optionalText(long, MAX_TAG_LOOKUP_LENGTH)).toBe(long)
   })
 })
 

@@ -14,7 +14,7 @@ import {
   sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, uniqueExportPath
 } from './ipc-validation'
 import { CH } from '../shared/api'
-import { MAX_BULK_IDS } from '../shared/constants'
+import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../shared/constants'
 import type { DeleteImageResult } from '../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { createImageThumb } from './image-thumb'
@@ -24,6 +24,7 @@ import { createProgressThrottle } from './progress-throttle'
 const DELETE_TRASH_CONCURRENCY = 4
 
 let isThumbGen = false
+let isImagesExporting = false
 let isImagesExportCanceled = false
 
 // サムネイルが欠けている画像にサムネを補完する。移行直後の旧データや、
@@ -73,53 +74,62 @@ export function registerImageHandlers(): void {
   handleTrusted(CH.imagesListTagCounts, () => listTagCounts())
 
   handleTrusted(CH.imagesExport, async (_event, imageIds: number[]) => {
-    const uniqueIds = Array.isArray(imageIds)
-      ? [...new Set(imageIds.map(optionalPositiveInteger).filter((id): id is number => id != null))]
-      : []
-    const truncated = uniqueIds.length > MAX_EXPORT_IDS
-    const ids = uniqueIds.slice(0, MAX_EXPORT_IDS)
+    // renderer 側（exportStore の exportKind ガード）だけだと、拡張機能の別ウィンドウや
+    // 復旧不能な状態からの二重呼び出しを防げない。isImagesExportCanceled がモジュール単一の
+    // フラグなので、並行実行されると片方の中止操作がもう片方も止め、進捗表示も混線する（R-5）。
+    if (isImagesExporting) return { canceled: true }
+    isImagesExporting = true
+    try {
+      const uniqueIds = Array.isArray(imageIds)
+        ? [...new Set(imageIds.map(optionalPositiveInteger).filter((id): id is number => id != null))]
+        : []
+      const truncated = uniqueIds.length > MAX_EXPORT_IDS
+      const ids = uniqueIds.slice(0, MAX_EXPORT_IDS)
 
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: 'エクスポート先フォルダを選択',
-      properties: ['openDirectory']
-    })
-    if (canceled || !filePaths[0]) return { canceled: true }
-    isImagesExportCanceled = false
-    const dest = filePaths[0]
-    const used = new Set<string>()
-    const copyOne = async (id: number): Promise<boolean> => {
-      const image = getImage(id)
-      if (!image) return false
-      const src = await resolveRealCapturePath(image.filepath)
-      if (!src) return false
-      try {
-        await stat(src)
-      } catch {
-        return false
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'エクスポート先フォルダを選択',
+        properties: ['openDirectory']
+      })
+      if (canceled || !filePaths[0]) return { canceled: true }
+      isImagesExportCanceled = false
+      const dest = filePaths[0]
+      const used = new Set<string>()
+      const copyOne = async (id: number): Promise<boolean> => {
+        const image = getImage(id)
+        if (!image) return false
+        const src = await resolveRealCapturePath(image.filepath)
+        if (!src) return false
+        try {
+          await stat(src)
+        } catch {
+          return false
+        }
+        const baseTitle = sanitizeFilename(image.title || basename(src, extname(src)))
+        const datePart = formatDateForFilename(image.captured_at)
+        const timePart = formatTimecodeForFilename(image.current_time)
+        const srcExt = extname(src) || '.png'
+        const preferred = `${baseTitle}_${datePart}${timePart ? `_t${timePart}` : ''}${srcExt}`
+        try {
+          await copyFile(src, await uniqueExportPath(dest, preferred, used))
+          return true
+        } catch (err) {
+          console.warn(`[images:export] copy failed id=${id}`, err)
+          return false
+        }
       }
-      const baseTitle = sanitizeFilename(image.title || basename(src, extname(src)))
-      const datePart = formatDateForFilename(image.captured_at)
-      const timePart = formatTimecodeForFilename(image.current_time)
-      const srcExt = extname(src) || '.png'
-      const preferred = `${baseTitle}_${datePart}${timePart ? `_t${timePart}` : ''}${srcExt}`
-      try {
-        await copyFile(src, await uniqueExportPath(dest, preferred, used))
-        return true
-      } catch (err) {
-        console.warn(`[images:export] copy failed id=${id}`, err)
-        return false
+      let count = 0
+      const total = ids.length
+      sendToRenderer(CH.exportProgress, { current: 0, total })
+      const shouldSend = createProgressThrottle(total)
+      for (let i = 0; i < ids.length; i++) {
+        if (isImagesExportCanceled) break
+        if (await copyOne(ids[i])) count++
+        if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
       }
+      return { canceled: isImagesExportCanceled, count, truncated }
+    } finally {
+      isImagesExporting = false
     }
-    let count = 0
-    const total = ids.length
-    sendToRenderer(CH.exportProgress, { current: 0, total })
-    const shouldSend = createProgressThrottle(total)
-    for (let i = 0; i < ids.length; i++) {
-      if (isImagesExportCanceled) break
-      if (await copyOne(ids[i])) count++
-      if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
-    }
-    return { canceled: isImagesExportCanceled, count, truncated }
   })
 
   handleTrusted(CH.imagesExportCancel, () => { isImagesExportCanceled = true })
@@ -135,7 +145,7 @@ export function registerImageHandlers(): void {
   })
   handleTrusted(CH.imagesUpdateMemo, (_event, id: number, memo: string) => {
     const imageId = optionalPositiveInteger(id)
-    if (imageId) updateImageMemo(imageId, optionalText(memo, 5000) ?? '')
+    if (imageId) updateImageMemo(imageId, optionalText(memo, MAX_MEMO_LENGTH) ?? '')
   })
 
   handleTrusted(CH.imagesDelete, async (_event, id: number) => {

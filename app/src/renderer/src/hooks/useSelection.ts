@@ -84,7 +84,18 @@ async function deleteImages(
     // （他の bulk IPC と揃えた上限）、Ctrl+A の最大5000件のような大きな選択はチャンクに分けて呼ぶ。
     results = []
     for (let i = 0; i < idList.length; i += MAX_BULK_IDS) {
-      results.push(...await window.api.deleteImagesBulk(idList.slice(i, i + MAX_BULK_IDS)))
+      const chunk = idList.slice(i, i + MAX_BULK_IDS)
+      try {
+        results.push(...await window.api.deleteImagesBulk(chunk))
+      } catch (err) {
+        // このチャンクの invoke 自体が失敗すると成否が不明（前のチャンクは DB 削除済みの可能性が
+        // 高い）。ここで throw して呼び出し元に snapshot 全体を復元させると、既に削除済みの分が
+        // 「DB に無いのに一覧には残る」ゴースト表示になる（N-3）。以降を全て未処理扱いにして
+        // ループを打ち切り、既存の ok:false 経路（onFailed による部分復元）に乗せる。
+        console.error('[delete] chunk invoke failed', err)
+        for (const id of idList.slice(i)) results.push({ ok: false, id, error: 'ipc failed' })
+        break
+      }
     }
   } finally {
     if (progressTimer !== null) window.clearTimeout(progressTimer)
@@ -546,6 +557,7 @@ export function useSelection({
       if (!isEditing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         const loaded = latestRef.current.images
+        if (loaded.length === 0) return
         anchorIdx.current = 0
         setFocusIdx(loaded.length - 1)
         // グリッドはカーソルページングで一部しか読み込まれていないため、`images`（表示済み分だけ）

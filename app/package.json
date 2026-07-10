@@ -13,8 +13,8 @@
     "verify": "npm run typecheck && npm test",
     "build": "npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
-    "package": "npm run typecheck && electron-vite build && electron-builder --win --x64",
-    "release": "npm run typecheck && electron-vite build && electron-builder --win --x64 --publish always",
+    "package": "npm run verify && electron-vite build && electron-builder --win --x64",
+    "release": "npm run verify && electron-vite build && electron-builder --win --x64 --publish always",
     "postinstall": "electron-rebuild -f -w better-sqlite3 -w onnxruntime-node"
   },
   "build": {

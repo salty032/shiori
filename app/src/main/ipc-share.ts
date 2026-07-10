@@ -9,6 +9,7 @@ import { loadSettings, saveSettings, smartFolders } from './settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
 import { MAX_EXPORT_IDS, MAX_TEXT_LENGTH, MAX_TAG_LENGTH, normalizeTagName, formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../shared/api'
+import { MAX_MEMO_LENGTH } from '../shared/constants'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 
@@ -21,86 +22,95 @@ function isValidCapturedAt(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < MAX_REASONABLE_CAPTURED_AT
 }
 
+let isShareExporting = false
 let isShareExportCanceled = false
 
 export function registerShareHandlers(): void {
   handleTrusted(CH.shareExport, async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: 'エクスポート先フォルダを選択',
-      properties: ['openDirectory']
-    })
-    if (canceled || !filePaths[0]) return { canceled: true }
-    isShareExportCanceled = false
-
-    const destDir = join(filePaths[0], `shiori_export_${formatDateForFilename(Date.now())}`)
-    const imagesDir = join(destDir, 'images')
-    await mkdir(imagesDir, { recursive: true })
-
-    const items = listImagesForExport()
-    const copyOne = async (item: (typeof items)[number]): Promise<string | null> => {
-      const src = await resolveRealCapturePath(item.filepath)
-      if (!src) return null
-      try { await stat(src) } catch { return null }
-
-      let filename: string
-      try {
-        filename = await uniqueExportFilename(imagesDir, basename(src))
-        await copyFile(src, join(imagesDir, filename))
-      } catch (err) {
-        console.warn(`[share:export] copy failed ${src}`, err)
-        return null
-      }
-
-      let thumbFilename: string | null = null
-      if (item.thumb_path) {
-        const thumbSrc = await resolveRealCapturePath(item.thumb_path)
-        if (thumbSrc) {
-          try {
-            await stat(thumbSrc)
-            thumbFilename = await uniqueExportFilename(imagesDir, basename(thumbSrc))
-            await copyFile(thumbSrc, join(imagesDir, thumbFilename))
-          } catch { /* skip missing thumb */ }
-        }
-      }
-
-      return JSON.stringify({
-        version: 1,
-        file: filename,
-        ...(thumbFilename ? { thumb: thumbFilename } : {}),
-        url: item.url,
-        current_time: item.current_time,
-        title: item.title,
-        tags: item.manualTags,
-        memo: item.memo,
-        captured_at: item.captured_at,
+    // images:export と同じ理由（R-5）: renderer 側ガードだけでは並行実行を防げず、
+    // isShareExportCanceled が単一フラグなので混線しうる。
+    if (isShareExporting) return { canceled: true }
+    isShareExporting = true
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'エクスポート先フォルダを選択',
+        properties: ['openDirectory']
       })
+      if (canceled || !filePaths[0]) return { canceled: true }
+      isShareExportCanceled = false
+
+      const destDir = join(filePaths[0], `shiori_export_${formatDateForFilename(Date.now())}`)
+      const imagesDir = join(destDir, 'images')
+      await mkdir(imagesDir, { recursive: true })
+
+      const items = listImagesForExport()
+      const copyOne = async (item: (typeof items)[number]): Promise<string | null> => {
+        const src = await resolveRealCapturePath(item.filepath)
+        if (!src) return null
+        try { await stat(src) } catch { return null }
+
+        let filename: string
+        try {
+          filename = await uniqueExportFilename(imagesDir, basename(src))
+          await copyFile(src, join(imagesDir, filename))
+        } catch (err) {
+          console.warn(`[share:export] copy failed ${src}`, err)
+          return null
+        }
+
+        let thumbFilename: string | null = null
+        if (item.thumb_path) {
+          const thumbSrc = await resolveRealCapturePath(item.thumb_path)
+          if (thumbSrc) {
+            try {
+              await stat(thumbSrc)
+              thumbFilename = await uniqueExportFilename(imagesDir, basename(thumbSrc))
+              await copyFile(thumbSrc, join(imagesDir, thumbFilename))
+            } catch { /* skip missing thumb */ }
+          }
+        }
+
+        return JSON.stringify({
+          version: 1,
+          file: filename,
+          ...(thumbFilename ? { thumb: thumbFilename } : {}),
+          url: item.url,
+          current_time: item.current_time,
+          title: item.title,
+          tags: item.manualTags,
+          memo: item.memo,
+          captured_at: item.captured_at,
+        })
+      }
+      const lines: string[] = []
+      let count = 0
+      const total = items.length
+      sendToRenderer(CH.exportProgress, { current: 0, total })
+      const shouldSend = createProgressThrottle(total)
+
+      for (let i = 0; i < items.length; i++) {
+        if (isShareExportCanceled) break
+        const line = await copyOne(items[i])
+        if (line) { lines.push(line); count++ }
+        if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
+      }
+
+      // 中断時も、それまでコピー済みの分だけで metadata.jsonl / settings.json を書き出す
+      // （途中までの書き出し結果をそのまま share:import で読み込める状態にしておく）。
+      await writeFile(join(destDir, 'metadata.jsonl'), lines.join('\n'), 'utf-8')
+
+      // スマートフォルダのみを共有用に書き出す（ホットキー・ToS同意・個人UI設定は含めない）
+      const current = loadSettings()
+      await writeFile(
+        join(destDir, 'settings.json'),
+        JSON.stringify({ version: 1, smartFolders: current.smartFolders }, null, 2),
+        'utf-8'
+      )
+
+      return { canceled: isShareExportCanceled, count, path: destDir }
+    } finally {
+      isShareExporting = false
     }
-    const lines: string[] = []
-    let count = 0
-    const total = items.length
-    sendToRenderer(CH.exportProgress, { current: 0, total })
-    const shouldSend = createProgressThrottle(total)
-
-    for (let i = 0; i < items.length; i++) {
-      if (isShareExportCanceled) break
-      const line = await copyOne(items[i])
-      if (line) { lines.push(line); count++ }
-      if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
-    }
-
-    // 中断時も、それまでコピー済みの分だけで metadata.jsonl / settings.json を書き出す
-    // （途中までの書き出し結果をそのまま share:import で読み込める状態にしておく）。
-    await writeFile(join(destDir, 'metadata.jsonl'), lines.join('\n'), 'utf-8')
-
-    // スマートフォルダのみを共有用に書き出す（ホットキー・ToS同意・個人UI設定は含めない）
-    const current = loadSettings()
-    await writeFile(
-      join(destDir, 'settings.json'),
-      JSON.stringify({ version: 1, smartFolders: current.smartFolders }, null, 2),
-      'utf-8'
-    )
-
-    return { canceled: isShareExportCanceled, count, path: destDir }
   })
 
   handleTrusted(CH.shareExportCancel, () => { isShareExportCanceled = true })
@@ -187,7 +197,7 @@ export function registerShareHandlers(): void {
           width: null,
           height: null,
           colors: null,
-          memo: typeof entry.memo === 'string' ? entry.memo.slice(0, 5000) || null : null,
+          memo: typeof entry.memo === 'string' ? entry.memo.slice(0, MAX_MEMO_LENGTH) || null : null,
           thumb_path: thumbDest,
           source: 'import',
         },

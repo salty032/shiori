@@ -80,9 +80,9 @@ function startFrameTracker(video) {
 // 表示中フレームの mediaTime(lastFrameTime)を基準に、隣接フレーム表示区間の中央へシークする。
 // 着地後 rVFC が返す実 mediaTime を lastFrameTime に反映するため、fps が多少不正確でも
 // 1ステップ＝確実に1フレームになり、累積ドリフトが発生しない。
-// Netflix は独自プレイヤー(MSE+DRM)の状態機械が <video> を監視しており、外部からの
-// currentTime 直書きや pause を「不正なシーク」として弾きエラーにする。そのため Netflix だけは
-// main world に注入したブリッジ(netflix-main.js)経由で内部プレイヤー API を呼ぶ。
+// Netflix は独自プレイヤーが <video> の状態と再生制御を管理しており、content script から
+// currentTime 直書きや pause を行うと再生状態が崩れることがある。そのため Netflix だけは
+// main world に注入したブリッジ(netflix-main.js)経由で、ページ側の通常の再生制御に寄せる。
 // フレーム位置計算・rVFC 着地補正（読み取り）はそのまま流用できる。
 function isNetflix() {
   return location.hostname.replace(/^www\./, '') === 'netflix.com'
@@ -766,7 +766,7 @@ function isFullscreenVideoRect(video, rect) {
 function captureRectForVideo(video, rect) {
   const surfaceRect = primeVideoSurfaceRect(video)
   const baseRect = surfaceRect ?? rect
-  // Prime Video DRM: 全画面時、HTMLコンテナはリサイズされないがCDMは画面全体に描画する。
+  // Prime Video: 全画面時に HTML 側のコンテナ矩形と実際の表示域がずれる場合がある。
   // surfaceRect が実際の描画域より小さいため、ビューポート全体を使う。
   if (surfaceRect && document.fullscreenElement && video && !video.videoWidth) {
     return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
