@@ -245,10 +245,16 @@ const SERVICE_PLAYER_UI = {
   'primevideo.com': {
     hide: ['[class*="atvwebplayersdk-player-container"]>*:not([class*="atvwebplayersdk-video-surface"])'],
   },
-  'disneyplus.com': [
-    '.overlay__controls',
-    'RATINGS-OVERLAY',
-  ],
+  // Disney+: 旧 .overlay__controls はDOM刷新で消滅。現在は Web Components 化されており、
+  // ホスト要素(light DOM)は残るが中身は open/closed shadow のため <style> 注入方式で
+  // ホストごと隠す。実際にキャプチャに写り込むものだけを確認しながら1つずつ追加中。
+  'disneyplus.com': {
+    hide: [
+      'ratings-overlay',
+      'main-app-controls-overlay',  // 下部コントロールバー（シークバー・再生/一時停止・スキップ等）
+      'title-overlay',  // 左上のタイトル・話数表示
+    ],
+  },
   // Netflix: emotion の難読クラス(default-ltr-iqcdef-cache-*)はビルド毎に変わるため使わず、
   // 安定したセマンティッククラスのみ。動作確認しながら1つずつ追加中。
   // Prime と同じく <style> タグ注入方式（React 再レンダリングで inline style が
