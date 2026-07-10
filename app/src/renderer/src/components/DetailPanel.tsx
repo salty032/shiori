@@ -14,7 +14,6 @@ type Props = {
   settings: Settings
   taggerDoneKey: number
   allTags: string[]
-  viewerOpen: boolean
   onShowInFolder: () => void
   onTagsChanged: () => void
   onTitleChanged: (id: number, title: string) => void
@@ -38,7 +37,7 @@ function sortBulkTags(a: [string, BulkTagStatus], b: [string, BulkTagStatus]): n
   return a[1] === 'all' ? -1 : 1
 }
 
-export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onShowInFolder, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
+export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, onShowInFolder, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
     min: 300,

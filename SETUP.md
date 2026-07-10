@@ -47,6 +47,11 @@ cd app
 npm test
 ```
 
+大半のテストは Node 環境（vitest.config.ts の既定）で動くが、DOM 操作を伴うフック
+（`useSelection.test.ts` 等）はファイル先頭の `// @vitest-environment jsdom` で個別に
+jsdom 環境を指定している。`jsdom` / `@testing-library/react` は devDependencies に含まれるため、
+`npm install` 以外の追加作業は不要。
+
 型チェック + テストをまとめて実行：
 
 ```

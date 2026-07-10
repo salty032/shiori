@@ -83,21 +83,6 @@ title は `folder.name` のみで、機能の存在に気づく手段がない�
 キーボード対応が徹底されているアプリの中では目立つ。実装するなら highlightedIndex state +
 keydown リスナー（既存の Escape リスナーと同じ場所）で足りる。
 
-### U-8. DetailPanel の `viewerOpen` prop が未使用
-
-**場所**: `app/src/renderer/src/components/DetailPanel.tsx:17,41`
-
-受け取って破棄しているだけのデッドコード。Props 型・分割代入・App.tsx:732 の受け渡しの
-3 箇所を削除する。
-
-### U-9. トーストの EXIT_MS とアニメーション秒数の不一致
-
-**場所**: `app/src/renderer/src/hooks/useToast.ts:22-23`、`App.tsx:652`
-
-コメントは「App.tsx の shioriToastOut 指定秒数と合わせる」だが、実際は EXIT_MS=300ms に対し
-アニメーションは 0.2s。`forwards` のおかげで見た目は壊れていない（透明のまま 100ms 残るだけ）が、
-コメントと実装がズレている。EXIT_MS を 200 にするか、両方 250ms 等に揃える。
-
 ### U-10. テキストグリフと SVG アイコンの混在
 
 **場所**: `Toolbar.tsx:434`（ソートボタンの `▾`）、`Viewer.tsx:272`（閉じるの `✕`）、
@@ -109,19 +94,6 @@ ChevronDownIcon / XIcon に置き換えると統一感が出る。純粋な見�
 ---
 
 # Part 2: バグ・回帰リスク / セキュリティ / 仕様・設計とのズレ
-
-## バグ・回帰リスク
-
-### B-3. 【低】Ctrl+A（全選択）の非同期解決がフィルタ変更後に着弾するレース
-
-**場所**: `app/src/renderer/src/hooks/useSelection.ts:566-579`
-
-Ctrl+A は `listAllImages` を非同期で取得して選択を組み立てるが、解決を待つ間に
-フィルタを変更すると、`filterQueryKey` 変化による選択クリアの**後に**古いクエリの
-ID 集合で `setSelectedIds` が走り、新しいフィルタ表示の上に旧フィルタの選択が復活する。
-
-**修正**: 発行時点の `filterQueryKey`（`selectQueryKey(useFilterStore.getState())`）を捕捉し、
-resolve 時に現在値と一致する場合のみ反映する。
 
 ## セキュリティ
 
@@ -192,27 +164,10 @@ Part 2 に続き、今回は前回未確認だった層を検査した。**新�
 
 ## テスト不足
 
-現状: 13 ファイル / 約 254 テスト。main 側の純粋ロジック（hotkey/paths/ipc-validation/
+現状: 14 ファイル / 約 269 テスト。main 側の純粋ロジック（hotkey/paths/ipc-validation/
 settings/ws パース/capture クロップ計算/tagger 状態機械/db/share-entry）と renderer の utils
-（parseSearchQuery/buildImageQuery/buildTimeline/computeGridLayout）・imageStore は良好。
-以下が無防備な順:
-
-### T-1.【高】useSelection.ts（772行・テスト0）
-
-renderer で最も複雑な層（矩形選択の当たり判定・削除 Undo/コミットのタイマーフロー・
-選択履歴・Ctrl+A）が丸ごと未テスト。前回レビュー R-2 で最有価値と判定済みだが未着手。
-
-**費用対効果順の足し先**:
-1. `hitTestBox`（useSelection.ts:36）— 既に pure 関数。DOM 不要で即テスト可能
-   （colGap/rowGap 境界、右端の当たり判定）
-2. 削除フロー: `queueDelete` → Undo → 猶予明けコミット、連続削除時の前回分フラッシュ、
-   `pagehide` フラッシュ、チャンク失敗時の部分復元（作業ツリーの N-3 修正の回帰テスト）
-3. 選択履歴 undo/redo（SELECTION_HISTORY_LIMIT 境界）と Ctrl+A の 5000 件キャップ警告。
-   **B-3（Ctrl+A レース）を直すときに必ず回帰テストを添えること**
-
-**前提作業**: `@testing-library/react` を devDependencies に追加し、対象テストファイル先頭に
-`// @vitest-environment jsdom` を付ける（vitest.config.ts は node のままでよい）。
-`window.api` はモック注入。
+（parseSearchQuery/buildImageQuery/buildTimeline/computeGridLayout）・imageStore・useSelection
+（hitTestBox・削除Undo/コミット・選択履歴・Ctrl+A）は良好。以下が無防備な順:
 
 ### T-4.【低】useToast の押し出しポリシー
 
@@ -334,8 +289,8 @@ W-1/W-2 の統一を README（「ローカルインポート」「エクスポ�
 
 ### 問題なしを確認したもの
 
-- **SETUP.md**: scripts（dev/typecheck/test/verify）・dev.bat・extension の `node --check` まで
-  現状と一致。T-1 で jsdom / @testing-library を導入したら前提の追記だけ忘れないこと。
+- **SETUP.md**: scripts（dev/typecheck/test/verify）・dev.bat・extension の `node --check`・
+  jsdom / @testing-library 導入の前提追記まで現状と一致。
 - **NOTICE.md**: WD Tagger（Apache-2.0）・npm 主要依存・Icons8 の表記あり。実依存と一致。
 - **LICENSE / README の免責・プライバシー節**: 実装（ローカル保存・ws://127.0.0.1 のみ・
   HF ダウンロード時のみ外部通信）と一致していることをコード側から確認済み。
@@ -345,17 +300,16 @@ W-1/W-2 の統一を README（「ローカルインポート」「エクスポ�
 # 実施順の推奨
 
 済み: B-1（AIタグ16字問題）+ T-2/M-2 の該当部分、U-1（AND/ORトグル）、S-1（release に verify）、
-B-2/D-1/T-3（共有インポート: 打ち切り撤廃 + 並行ガード + parseShareEntry 抽出）。
+B-2/D-1/T-3（共有インポート: 打ち切り撤廃 + 並行ガード + parseShareEntry 抽出）、
+U-8/U-9（クリーンアップ）、T-1（useSelection テスト整備）+ B-3（レース修正と回帰テスト）。
 以下は残タスク。
 
-1. U-8, U-9（数分で終わるクリーンアップ）
-2. **T-1**（useSelection テスト整備。jsdom 前提作業を含む）＋ B-3（レース修正と回帰テスト）
-3. U-2, U-5, D-3（小さい追加で体験改善が確実）
-4. U-4（フォーカストラップ。20-30 行）、M-1（パリティテスト）
-5. U-3, D-2（ショートカット一覧・インポート進捗）
-6. **DOC-1**（README 拡張機能セットアップ手順の修正）
-7. W-1〜W-5, DOC-4（用語統一。一括置換なので 1 コミットでまとめて）
-8. U-6, U-7, U-10, T-4, M-3, M-4（余裕があれば）
+1. U-2, U-5, D-3（小さい追加で体験改善が確実）
+2. U-4（フォーカストラップ。20-30 行）、M-1（パリティテスト）
+3. U-3, D-2（ショートカット一覧・インポート進捗）
+4. **DOC-1**（README 拡張機能セットアップ手順の修正）
+5. W-1〜W-5, DOC-4（用語統一。一括置換なので 1 コミットでまとめて）
+6. U-6, U-7, U-10, T-4, M-3, M-4（余裕があれば）
 
 （BLOG-DRAFT.md は削除済みのため、旧 DOC-2/DOC-3/ブログ公開ブロッカーの記載は対象外）
 

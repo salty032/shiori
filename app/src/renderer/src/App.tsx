@@ -649,7 +649,7 @@ export default function App() {
                   key={t.id}
                   style={{
                     ...s.notificationCard,
-                    animation: t.closing ? 'shioriToastOut 0.2s ease-in forwards' : 'shioriToastIn 0.22s ease-out',
+                    animation: t.closing ? 'shioriToastOut 0.3s ease-in forwards' : 'shioriToastIn 0.22s ease-out',
                     ...(t.tone === 'error' ? s.toastError : t.tone === 'warning' ? s.toastWarning : t.tone === 'success' ? s.toastSuccess : s.toastInfo),
                   }}
                 >
@@ -729,7 +729,6 @@ export default function App() {
         <DetailPanel
           selectedIds={selection.selectedIds}
           single={single}
-          viewerOpen={viewerIdx !== null}
           settings={settings.settings}
           taggerDoneKey={tagRefreshKey}
           allTags={filters.allTags}

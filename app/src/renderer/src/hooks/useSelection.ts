@@ -33,7 +33,7 @@ export interface GridLayout {
   rowGap: number
 }
 
-function hitTestBox(
+export function hitTestBox(
   ax: number, ay: number, cx: number, cy: number,
   images: ImageRow[],
   columns: number, cellWidth: number, cellHeight: number, rowHeight: number,
@@ -563,9 +563,16 @@ export function useSelection({
         // グリッドはカーソルページングで一部しか読み込まれていないため、`images`（表示済み分だけ）
         // ではなく現在のフィルタに一致する全件を取り直して選択する（タイムラインは既に全件読み込み
         // 済みだが、query は同一なので同じ経路で問題ない）。
+        // 発行時点のフィルタを覚えておき、resolve 時に変わっていたら結果を捨てる（B-3）。
+        // 取得を待つ間にフィルタを変更すると、フィルタ変更による選択クリア（上の filterQueryKey
+        // effect）の後にこの then/catch が古いフィルタの ID 集合で setSelectedIds を上書きし、
+        // 新しいフィルタ表示の上に旧フィルタの選択が復活してしまう。
+        const issuedQueryKey = selectQueryKey(useFilterStore.getState())
+        const isStale = (): boolean => selectQueryKey(useFilterStore.getState()) !== issuedQueryKey
         const selectAllQuery = buildImageQuery(getCommitted(useFilterStore.getState()))
         Promise.all([window.api.listAllImages(selectAllQuery), window.api.countImages(selectAllQuery)])
           .then(([rows, count]) => {
+            if (isStale()) return
             setSelectedIds(new Set(rows.map((r) => r.id)))
             // B10: listAllImages は上限（5000件）でキャップされるため、実件数がそれを
             // 超えている場合は「全選択のつもりが一部しか選ばれていない」ことを明示する。
@@ -575,6 +582,7 @@ export function useSelection({
           })
           .catch((err) => {
             console.error('[selection] selectAll failed', err)
+            if (isStale()) return
             setSelectedIds(new Set(loaded.map((i) => i.id)))
           })
         return
