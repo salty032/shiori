@@ -10,38 +10,6 @@ main プロセス・IPC・WS サーバー・拡張・共有インポート/エ�
 
 # Part 1: UI/UX
 
-## 高
-
-### U-1. タグの AND/OR 切り替えが実質的に到達不能
-
-**場所**: `app/src/renderer/src/components/Sidebar.tsx:292`
-
-AND/OR トグルの表示条件が `filters.tagFilters.length >= 2` になっているが、
-現在の UI ではタグクリックは検索欄の `tag:xxx` テキスト（= `searchTags`）に書き込む方式で、
-`tagFilters`（構造化状態）は今の UI からはもう更新されない
-（`useFilters.ts:51-53` のコメントに明記されているとおり）。
-
-その結果、**サイドバーでタグを 2 つ以上選んでもトグルは一切表示されず、常に AND
-（filterStore のデフォルト）で固定**される。OR に切り替える手段は、`tagFilters` を持つ
-旧形式スマートフォルダを読み込んだ場合しか残っていない。README が謳う「タグ（AND/OR）」
-機能が事実上壊れている。
-
-**修正**: 表示条件を Toolbar の `activeFilterChips` と同じ「合算したアクティブタグ数」にする。
-`searchTags` は既に Sidebar の props にある。
-
-```tsx
-// Sidebar.tsx:292 付近
-{[...new Set([...filters.tagFilters, ...searchTags])].length >= 2 && (
-  <button onClick={() => filters.setTagMode(...)} ...>
-```
-
-`buildImageQuery`（`imageQuery.ts:82-92`）はマージ後のタグ全体に `tagMode` を適用するため、
-クエリロジック側の変更は不要。表示条件の 1 行だけでよい。
-
-トグル解除ボタン（タグフィルターをすべて解除、Sidebar.tsx:298）の表示条件
-`filters.tagFilters.length > 0` も同様に searchTags を含めて見直すこと
-（現状、searchTags 由来のタグしか無いときに「すべて解除」が出ない）。
-
 ## 中
 
 ### U-2. 絞り込み結果ゼロの空状態に「解除」導線がない
@@ -144,42 +112,6 @@ ChevronDownIcon / XIcon に置き換えると統一感が出る。純粋な見�
 
 ## バグ・回帰リスク
 
-### B-1. 【高】16文字を超えるAIタグは「絞り込み」も「削除」もできない
-
-**場所**:
-- 挿入側（切り詰めなし）: `app/src/main/captured-media.ts:59`、`app/src/main/ipc-tagger.ts:91`（retagAll）
-- 参照側（16文字で切り詰め）: `app/src/main/ipc-validation.ts:11`（`MAX_TAG_LENGTH = 16`）、
-  `ipc-validation.ts:50-57`（`tagsFilter`）、`ipc-tagger.ts:43-48,58-66`（remove 系の `optionalText(tagName, MAX_TAG_LENGTH)`）
-
-`MAX_TAG_LENGTH = 16` は手動タグの追加（renderer `normalizeTag` / main `normalizeTagName`）、
-タグフィルタ（`tagsFilter`）、タグ削除（`optionalText`）のすべてで適用されるが、
-**WD Tagger の AI タグは `addTagsBulk` に生の名前のまま挿入され、切り詰めを通らない**。
-WD v3 の語彙には `looking_at_viewer`（17字）、`simple_background`（17字）、
-`hair_between_eyes`（17字）などごく一般的な 17 字以上のタグが多数あり、
-キャラ名タグは 30 字を超えるものもある。
-
-その結果、DB には 16 字超のタグが普通に存在し、以下がすべて壊れる:
-
-1. **絞り込み**: DetailPanel の AI タグチップをクリック → `tag:looking_at_viewer` →
-   main の `tagsFilter` が 16 字に切り詰め → `looking_at_viewe` で SQL 照合 → **一致ゼロ**。
-   「クリックで絞り込み」と案内しているのに常に「該当する画像がありません」になる。
-2. **削除**: TagEditor / DetailPanel 一括編集の右クリック削除 → `taggerRemoveTag(Bulk)` が
-   16 字に切り詰めた名前で `tags.name` を照合 → 見つからず **無言の no-op**。
-   renderer は楽観更新でチップを消すため一見成功に見えるが、次の再取得で復活する。
-3. **手動での同名追加**: 入力欄の `maxLength={MAX_TAG_LENGTH}` により、そもそも
-   17 字以上のタグ名を入力できない（AI タグと同名の手動タグを付けられない）。
-
-**修正方針**: 「生成系（新規タグ名の作成）」と「参照系（既存タグの照合）」で上限を分ける。
-- 最小差分: `ipc-validation.ts` に `MAX_TAG_LOOKUP_LENGTH = 100` 程度を追加し、
-  `tagsFilter` と remove 系（`taggerRemoveTag` / `taggerRemoveTagBulk` / `taggerRemoveTagFromAll`）の
-  切り詰めをこちらに変更する。renderer 側の `parseSearchQuery` は切り詰めていないので変更不要。
-- あわせて renderer の入力欄 `maxLength` を緩めるか（AI タグと同名の手動追加を許す）、
-  AI タグ挿入時に正規化を通すか（既存 DB との互換が壊れるため非推奨）はどちらか選ぶ。
-  前者（参照系の上限緩和 + 入力上限を 64 等へ）を推奨。
-
-**検証**: AI タグ付け済みライブラリで `looking_at_viewer` 等 17 字以上のタグチップを
-クリック → 結果が出ること。右クリック削除 → 画像を選び直しても復活しないこと。
-
 ### B-2. 【中】共有インポートが 1000 行で黙って打ち切られる
 
 **場所**: `app/src/main/ipc-share.ts:134`（`.slice(0, MAX_EXPORT_IDS)`）
@@ -264,10 +196,6 @@ resolve 時に現在値と一致する場合のみ反映する。
 件数ラベル自体も `useTimeline` で `countImages` を並行取得して真値を出すのが一貫する
 （`reloadTimeline` は既に count を取得しているので流用できる）。
 
-### D-4. 【参照】README「タグ（AND/OR）」と実装のズレ
-
-Part 1 の U-1 と同件。README が機能として明記しているため、仕様ズレとしても最優先。
-
 ---
 
 # Part 3: セキュリティ（深掘り） / テスト不足 / 保守性
@@ -289,21 +217,9 @@ Part 2 に続き、今回は前回未確認だった層を検査した。**新�
 - **依存関係**: Electron 42 / React 19 / ws 8.18 / better-sqlite3 12 と全てメジャー最新系。
   `overrides` で esbuild 0.28.1 に固定済み（dev サーバー脆弱性対応とみられる）。
 
-### S-1.【低・プロセス】リリースフローに `npm audit` と自動テストが入っていない
-
-**場所**: `app/package.json` scripts
-
-`package` / `release` スクリプトは `typecheck → build → electron-builder` で、
-**`npm test` を実行しない**。`verify`（typecheck + test）は存在するが手動起点のみで、
-テストが落ちたままリリースできてしまう。CI も無い。
-
-**修正**: `"release": "npm run verify && electron-vite build && electron-builder ..."` に変更
-（`package` も同様）。余力があれば GitHub Actions で push 時に `npm run verify` +
-定期的な `npm audit` を回す。コード変更ゼロで回帰防止効果が大きい。
-
 ## テスト不足
 
-現状: 12 ファイル / 約 233 テスト。main 側の純粋ロジック（hotkey/paths/ipc-validation/
+現状: 12 ファイル / 約 239 テスト。main 側の純粋ロジック（hotkey/paths/ipc-validation/
 settings/ws パース/capture クロップ計算/tagger 状態機械/db）と renderer の utils
 （parseSearchQuery/buildImageQuery/buildTimeline/computeGridLayout）・imageStore は良好。
 以下が無防備な順:
@@ -325,10 +241,8 @@ renderer で最も複雑な層（矩形選択の当たり判定・削除 Undo/�
 `// @vitest-environment jsdom` を付ける（vitest.config.ts は node のままでよい）。
 `window.api` はモック注入。
 
-### T-2.【高】Part 2 のバグ修正に回帰テストを添える
+### T-2.【中】Part 2 のバグ修正に回帰テストを添える
 
-- **B-1**: `normalizeTagName` / `tagsFilter` / remove 系の「17字以上のタグ名で照合が生き残る」
-  ケースを ipc-validation.test.ts と db.test.ts（addTagsBulk で長名を挿入 → フィルタ/削除が効く）に追加
 - **B-2**: metadata.jsonl 1000 行超の全件取り込み（or truncated 報告）— T-3 の抽出とセットで
 
 ### T-3.【中】shareImport のエントリ検証がハンドラ内クロージャでテスト不能
@@ -348,7 +262,7 @@ renderHook + fake timers で数ケース書ける。
 
 ### T-5.【低】拡張（content.js 1049行 / background.js 273行）はテスト0
 
-バンドラ無しのため直接は難しい。最小の防衛として M-2（下記）のパリティテストを推奨。
+バンドラ無しのため直接は難しい。最小の防衛として M-1（下記）のパリティテストを推奨。
 コマ送りロジック等の本格テストは R-1（分割は大改修時に同時実施）の判断を維持してよい。
 
 ## 保守性
@@ -371,15 +285,6 @@ renderHook + fake timers で数ケース書ける。
 正規表現で抽出して ws-server.ts の export 値と一致することを assert する。
 番兵として `NAMED_CAPTURE_KEYS` のキー集合も shared/hotkey.ts と比較する。
 分割・ビルド導入なしでドリフトを検知できる。
-
-### M-2.【中】MAX_TAG_LENGTH と memo 上限（5000）の重複定義
-
-**場所**: `app/src/renderer/src/utils.ts:7` と `app/src/main/ipc-validation.ts:11`（ともに 16）、
-memo の 5000 は `ipc-images.ts:148` と `ipc-share.ts:199` にマジックナンバーで 2 箇所
-
-B-1 の修正は両側の MAX_TAG_LENGTH に触れる。この機会に `shared/constants.ts`
-（MAX_BULK_IDS が既にある）へ `MAX_TAG_LENGTH` / `MAX_MEMO_LENGTH` を移し、
-renderer/main の双方が import する形に集約する。
 
 ### M-3.【低】App.tsx（789行）から「タグのグローバル削除」クラスタだけ切り出す
 
@@ -471,14 +376,6 @@ Danbooru 系の**英語タグ**（`outdoors` / `smile` / `night`）で、日本�
 このまま公開すると読者の期待とスクリーンショットが食い違う。例を実際のタグ名に直すか、
 「（英語タグ）」と注記する。
 
-### DOC-3.【中】README / BLOG-DRAFT が謳う「タグ（AND/OR）」は現状壊れている
-
-**場所**: `README.md:17`、`BLOG-DRAFT.md:52`
-
-Part 1 の U-1 のとおり、AND/OR 切り替えは現在の UI から実質到達不能。
-**U-1（+ B-1）を修正してからブログを公開すること**。修正が先送りになる場合は
-文言から「（AND/OR）」を一時的に外す。
-
 ### DOC-4.【低】ドキュメントと UI の用語統一
 
 W-1/W-2 の統一を README（「ローカルインポート」「エクスポート」「データ書き出し/読み込み」）と
@@ -497,24 +394,21 @@ BLOG-DRAFT（「一括インポート」「エクスポート／インポート�
 
 # 実施順の推奨
 
-1. **B-1**（AIタグ 16 字問題。ユーザーが機能の欠陥として直撃する）＋ **T-2/M-2**（回帰テストと定数集約を同時に）
-2. **U-1**（AND/OR トグル。1 行変更で壊れた機能が復活）
-3. **S-1**（release スクリプトに verify を入れる。1 行・効果大）
-4. **B-2, D-1, T-3**（共有インポート: 打ち切り撤廃 + 並行ガード + parseShareEntry 抽出。同じファイルなので一括で）
-5. U-8, U-9（数分で終わるクリーンアップ）
-6. **T-1**（useSelection テスト整備。jsdom 前提作業を含む）＋ B-3（レース修正と回帰テスト）
-7. U-2, U-5, D-3（小さい追加で体験改善が確実）
-8. U-4（フォーカストラップ。20-30 行）、M-1（パリティテスト）
-9. U-3, D-2（ショートカット一覧・インポート進捗）
-10. **DOC-1〜3**（README 手順修正・ブログのタグ例修正。DOC-3 は U-1 修正が済んでいれば解消）
-11. W-1〜W-5, DOC-4（用語統一。一括置換なので 1 コミットでまとめて）
-12. U-6, U-7, U-10, T-4, M-3, M-4（余裕があれば）
+済み: B-1（AIタグ16字問題）+ T-2/M-2 の該当部分、U-1（AND/ORトグル）、S-1（release に verify）。
+以下は残タスク。
 
-※ブログ公開のブロッカー: DOC-2（タグ例が日本語）と DOC-3（AND/OR が未修正のまま謳っている）の 2 点。
+1. **B-2, D-1, T-3**（共有インポート: 打ち切り撤廃 + 並行ガード + parseShareEntry 抽出。同じファイルなので一括で）
+2. U-8, U-9（数分で終わるクリーンアップ）
+3. **T-1**（useSelection テスト整備。jsdom 前提作業を含む）＋ B-3（レース修正と回帰テスト）
+4. U-2, U-5, D-3（小さい追加で体験改善が確実）
+5. U-4（フォーカストラップ。20-30 行）、M-1（パリティテスト）
+6. U-3, D-2（ショートカット一覧・インポート進捗）
+7. **DOC-1, DOC-2**（README 手順修正・ブログのタグ例修正）
+8. W-1〜W-5, DOC-4（用語統一。一括置換なので 1 コミットでまとめて）
+9. U-6, U-7, U-10, T-4, M-3, M-4（余裕があれば）
+
+※ブログ公開のブロッカー: DOC-2（タグ例が日本語）のみ残存。DOC-3（AND/OR 未修正）は U-1 修正で解消済み。
 
 検証メモ:
-- B-1: 17 字以上の AI タグ（例 `looking_at_viewer`）で「チップクリック絞り込みが機能する」
-  「右クリック削除が再取得後も維持される」の 2 点を確認
 - B-2: 1000 行超の metadata.jsonl を用意（実画像はダミー可）して全件読み込まれることを確認
-- U-1: サイドバーでタグを 2 つクリック → AND/OR トグルが出る・OR で結果が広がることを確認
 - U-4: 設定モーダルで Tab 連打 → フォーカスがモーダル外へ出ないことを確認
