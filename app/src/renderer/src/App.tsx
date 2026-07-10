@@ -562,7 +562,6 @@ export default function App() {
                 focusedIndex={selection.focusedIndex}
                 loading={timeline.loading}
                 hasActiveFilter={filters.hasActiveFilter()}
-                onClearFilters={() => filters.clearAllFilters()}
                 onOpen={setViewerIdx}
                 onContextMenu={handleTimelineContextMenu}
                 containerWidth={containerWidth}
@@ -580,9 +579,6 @@ export default function App() {
                 {filters.hasActiveFilter() ? (
                   <>
                     <div style={s.emptyTitle}>該当する画像がありません</div>
-                    <div style={s.emptyActions}>
-                      <button style={s.emptyBtn} onClick={() => filters.clearAllFilters()}>絞り込みを解除</button>
-                    </div>
                   </>
                 ) : (
                   <>
