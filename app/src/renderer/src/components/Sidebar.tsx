@@ -106,6 +106,11 @@ export default function Sidebar({
       return smartFolders.length
     }
 
+    // 挿入スロット番号（overIndex）を実際の移動先 index へ正規化する。ドラッグ中の行は
+    // 配列からまだ抜かれていないため、自分より後ろへ挿入する場合は1つ詰める必要がある。
+    const resolveTargetIndex = (overIndex: number): number =>
+      fromIndex < overIndex ? overIndex - 1 : overIndex
+
     let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       timer = null
       dragging = true
@@ -134,7 +139,12 @@ export default function Sidebar({
         return
       }
       const deltaY = ev.clientY - startY
-      overIndex = computeOverIndex(deltaY)
+      const raw = computeOverIndex(deltaY)
+      // 先頭/末尾の行は反対側に比較対象が無いため、ほぼ動かしていなくても
+      // computeOverIndex が最初から末尾（または先頭）を返してしまう。実際には
+      // 順番が変わらない（今の位置に戻るだけの）overIndex は fromIndex に丸め、
+      // 「動かしてもいないのに元の位置の直下に挿入ラインが張り付く」見た目を防ぐ。
+      overIndex = resolveTargetIndex(raw) === fromIndex ? fromIndex : raw
       setDragOverIndex(overIndex)
       setDragDeltaY(deltaY)
     }
@@ -148,7 +158,7 @@ export default function Sidebar({
       // click は pointerup 直後に同期的に発火するのでここでは消さず、直後の
       // onClick に消させる。click 自体が起きなかった場合の保険として次のタスクで戻す。
       setTimeout(() => { smartFolderDraggedRef.current = false }, 0)
-      const to = fromIndex < overIndex ? overIndex - 1 : overIndex
+      const to = resolveTargetIndex(overIndex)
       if (to === fromIndex) return
       const next = [...smartFolders]
       const [moved] = next.splice(fromIndex, 1)
