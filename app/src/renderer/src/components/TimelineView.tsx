@@ -38,6 +38,7 @@ type Props = {
   focusedIndex: number | null
   loading: boolean
   hasActiveFilter: boolean
+  onClearFilters: () => void
   onOpen: (flatIndex: number) => void
   onContextMenu: (flatIndex: number, e: React.MouseEvent) => void
   containerWidth: number
@@ -104,8 +105,11 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
   if (p.groups.length === 0) {
     if (p.loading) return <div style={s.empty}>読み込み中...</div>
     return (
-      <div style={s.empty}>
-        {p.hasActiveFilter ? '該当する画像がありません' : 'まだ画像がありません'}
+      <div style={{ ...s.empty, flexDirection: 'column', gap: 12 }}>
+        <div>{p.hasActiveFilter ? '該当する画像がありません' : 'まだ画像がありません'}</div>
+        {p.hasActiveFilter && (
+          <button style={appStyles.emptyBtn} onClick={p.onClearFilters}>絞り込みを解除</button>
+        )}
       </div>
     )
   }

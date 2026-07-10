@@ -64,7 +64,7 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
   const updateToast = vi.fn()
   const dismissToast = vi.fn()
   const removeImages = vi.fn((ids: Set<number>): RemovedImagesSnapshot => ({
-    grid: [], timeline: [], gridTotalCount: null, removedIds: [...ids],
+    grid: [], timeline: [], gridTotalCount: null, timelineTotalCount: null, removedIds: [...ids],
   }))
   const restoreImages = vi.fn()
   const setViewerIdx = vi.fn()

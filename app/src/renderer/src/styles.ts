@@ -107,7 +107,7 @@ export const s: Record<string, CSSProperties> = {
   emptyHint: { color: '#6a7390', fontSize: font.sm, marginTop: 4 },
   loadingMore: { textAlign: 'center', padding: 16, color: '#888', fontSize: font.base },
   filterBtn: { background: 'none', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: font.base, textAlign: 'left' as const, padding: '6px 8px' },
-  smartFolderRow: { width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 4 },
+  smartFolderRow: { width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, cursor: 'grab' },
   smartFolderRowDragging: { position: 'relative' as const, zIndex: 5, opacity: 0.85, background: '#232838', border: '1px solid #4a5372', borderRadius: 3, boxShadow: '0 10px 24px rgba(0,0,0,0.5)', cursor: 'grabbing' },
   smartFolderInsertLine: { height: 2, margin: '2px 0', borderRadius: 2, background: '#7b7bf6', boxShadow: '0 0 0 1px rgba(123,123,246,.18)', transition: 'opacity .08s ease' },
   smartFolderBtn: { flex: 1, minWidth: 0, minHeight: 28, display: 'flex', alignItems: 'center', gap: 7, padding: '5px 8px', background: 'rgba(23,26,35,0.48)', border: '1px solid #20242f', borderRadius: 3, color: '#a8b1c5', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const },

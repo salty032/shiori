@@ -263,7 +263,7 @@ export default function Sidebar({
                     ...s.smartFolderBtn,
                     ...(filters.activeSmartFolderId === folder.id ? s.smartFolderActive : {}),
                   }}
-                  title={folder.name}>
+                  title={`${folder.name}（長押しで並べ替え）`}>
                   <FolderIcon size={12} strokeWidth={1.6} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{folder.name}</span>
                 </button>

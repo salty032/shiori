@@ -6,6 +6,7 @@ import { SUPPORTED_SERVICES, alpha, serviceColor } from '../services'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { XIcon } from './Icon'
 import { useExportStore } from '../stores/exportStore'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   settings: Settings
@@ -113,11 +114,14 @@ export default function SettingsModal(p: Props) {
   useEffect(() => { setFpsInputDraft(String(p.settings.frameFps)) }, [p.settings.frameFps])
   useEffect(() => () => { if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current) }, [])
 
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, true)
+
   return (
     <div style={s.overlay} onClick={p.onClose}>
-      <div style={s.panel} onClick={(e) => e.stopPropagation()}>
+      <div style={s.panel} ref={panelRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div style={s.header}>
-          <span style={s.title}>設定</span>
+          <span id="settings-modal-title" style={s.title}>設定</span>
           <button style={s.close} onClick={p.onClose} title="閉じる"><XIcon size={17} /></button>
         </div>
 

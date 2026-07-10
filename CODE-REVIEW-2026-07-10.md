@@ -12,20 +12,6 @@ main プロセス・IPC・WS サーバー・拡張・共有インポート/エ�
 
 ## 中
 
-### U-2. 絞り込み結果ゼロの空状態に「解除」導線がない
-
-**場所**: `app/src/renderer/src/App.tsx:579-581`（グリッド）、
-`app/src/renderer/src/components/TimelineView.tsx:107-110`（タイムライン）
-
-フィルタ有効時の空状態は「該当する画像がありません」の 1 行のみで行き止まり。
-リカバリーには検索欄右端の小さな ✕ を探す必要がある。初回起動時の空状態
-（手順 + ボタン 2 つ + ヒント）が丁寧に作り込まれているのと対照的。
-
-**修正**: 「絞り込みを解除」ボタンを 1 つ追加し `filters.clearAllFilters()` を呼ぶ。
-グリッド側は `s.emptyBtn` スタイルを流用できる。TimelineView 側は `hasActiveFilter`
-しか受け取っていないので、`onClearFilters?: () => void` を props に足すか、
-空状態の描画を App.tsx 側（グリッドと共通）へ寄せる。
-
 ### U-3. ショートカットの発見可能性が低い
 
 **場所**: アプリ全体（`useGlobalKeys.ts` / `useSelection.ts` / `Viewer.tsx`）
@@ -37,32 +23,6 @@ Shift+クリック、ビューア内の `Space`/`Tab`/`+ - 0`/`Home/End` と隠�
 **修正案**（どちらか）:
 1. SettingsModal に「ショートカット」タブを追加（静的な表を出すだけ。実装が最も安全）
 2. `?` キーでチートシートオーバーレイ表示（`useGlobalKeys` に追加。`isEditingTarget` ガード必須）
-
-### U-4. SettingsModal / QuickTagInput にフォーカストラップがない
-
-**場所**: `app/src/renderer/src/components/SettingsModal.tsx:117-118`、
-`app/src/renderer/src/components/QuickTagInput.tsx:79`
-
-`ConfirmDialog.tsx:61` は `role="dialog" aria-modal="true"` を持つが、SettingsModal と
-QuickTagInput にはどちらもなく、フォーカストラップも無い。キーイベントの window 伝搬は
-遮断していても（SettingsModal.tsx:73-80）、**Tab キーによるフォーカス移動自体は防げない**ため、
-モーダル表示中に Tab で背後のグリッド/サイドバーのボタンへフォーカスが抜け、
-Enter で背後のボタンが押せてしまう。
-
-**修正**: 両モーダルに `role="dialog" aria-modal="true"` を付与し、Tab/Shift+Tab を
-モーダル内の focusable 要素でループさせる（keydown で先頭/末尾を判定して preventDefault +
-手動 focus する 20 行程度の処理で十分。ライブラリ不要）。
-
-### U-5. スマートフォルダの並べ替えに視覚的な手がかりがない
-
-**場所**: `app/src/renderer/src/components/Sidebar.tsx:73`（handleSmartFolderPressStart）
-
-長押し 350ms でドラッグ開始という実装は堅牢だが、ホバー時のカーソルは通常のまま・
-title は `folder.name` のみで、機能の存在に気づく手段がない。
-
-**修正**（小さい順にどれか / 併用可）:
-- `smartFolderBtn` の title を「（長押しで並べ替え）」を含む文言にする
-- 行ホバーで `cursor: grab` にする（ドラッグ中の `grabbing` は実装済み）
 
 ## 低
 
@@ -131,16 +91,6 @@ ChevronDownIcon / XIcon に置き換えると統一感が出る。純粋な見�
 ボタンラベルの「読み込み中...」だけで待たせる（中止手段もない）。エクスポートと同じ
 `exportProgress` の枠組みに乗せるか、少なくとも件数進捗をイベントで流すと対称になる。
 
-### D-3. 【低】タイムライン表示中のサイドバー件数が 5000 で頭打ち
-
-**場所**: `app/src/renderer/src/App.tsx:514`
-
-グリッド表示中は `imageList.totalCount`（COUNT クエリの真値）を出すのに、タイムライン表示中は
-`timeline.images.length`（`MAX_TIMELINE_LIMIT`=5000 でキャップ済み）を出すため、
-5000 件超のライブラリではビュー切替で件数表示が変わる。切り詰めトースト（B10）は出るが、
-件数ラベル自体も `useTimeline` で `countImages` を並行取得して真値を出すのが一貫する
-（`reloadTimeline` は既に count を取得しているので流用できる）。
-
 ---
 
 # Part 3: セキュリティ（深掘り） / テスト不足 / 保守性
@@ -164,10 +114,11 @@ Part 2 に続き、今回は前回未確認だった層を検査した。**新�
 
 ## テスト不足
 
-現状: 14 ファイル / 約 269 テスト。main 側の純粋ロジック（hotkey/paths/ipc-validation/
-settings/ws パース/capture クロップ計算/tagger 状態機械/db/share-entry）と renderer の utils
-（parseSearchQuery/buildImageQuery/buildTimeline/computeGridLayout）・imageStore・useSelection
-（hitTestBox・削除Undo/コミット・選択履歴・Ctrl+A）は良好。以下が無防備な順:
+現状: 15 ファイル / 約 273 テスト。main 側の純粋ロジック（hotkey/paths/ipc-validation/
+settings/ws パース/capture クロップ計算/tagger 状態機械/db/share-entry/extension パリティ）と
+renderer の utils（parseSearchQuery/buildImageQuery/buildTimeline/computeGridLayout）・
+imageStore・useSelection（hitTestBox・削除Undo/コミット・選択履歴・Ctrl+A）は良好。
+以下が無防備な順:
 
 ### T-4.【低】useToast の押し出しポリシー
 
@@ -176,29 +127,13 @@ renderHook + fake timers で数ケース書ける。
 
 ### T-5.【低】拡張（content.js 1049行 / background.js 273行）はテスト0
 
-バンドラ無しのため直接は難しい。最小の防衛として M-1（下記）のパリティテストを推奨。
+バンドラ無しのため直接は難しい。パリティテスト（旧M-1）は追加済み。
 コマ送りロジック等の本格テストは R-1（分割は大改修時に同時実施）の判断を維持してよい。
 
 ## 保守性
 
 前提: このコードベースの保守性は全体として高い（「なぜ」を書くコメント規律、レビューID による
 決定のトレーサビリティ、C-1〜C-3 での重複集約済み）。以下は残っている弱点。
-
-### M-1.【中】WS メッセージ検証ロジックの三重実装が手動同期依存
-
-**場所**: `app/src/main/ws-server.ts`（テスト済）、`extension/background.js:34-150`（未テスト）、
-`extension/content.js`（定数のみ重複）
-
-`MAX_*` 定数群・boundedNumber・safeUrl・safeRect・isValidCaptureKey が app 側と拡張側で
-コピー実装されている。拡張はバンドラ無しなので共有モジュール化はできないが、
-**片側だけ定数や検証条件を変えると静かに食い違う**のが現実的なリスク
-（実際 `NAMED_CAPTURE_KEYS` は shared/hotkey.ts と background.js の 2 箇所に対で存在する）。
-
-**修正（安価で効果大）**: vitest に「パリティテスト」を1本追加する —
-`extension/background.js` をテキストとして読み、`MAX_WS_MESSAGE_BYTES` 等の定数値を
-正規表現で抽出して ws-server.ts の export 値と一致することを assert する。
-番兵として `NAMED_CAPTURE_KEYS` のキー集合も shared/hotkey.ts と比較する。
-分割・ビルド導入なしでドリフトを検知できる。
 
 ### M-3.【低】App.tsx（789行）から「タグのグローバル削除」クラスタだけ切り出す
 
@@ -301,17 +236,14 @@ W-1/W-2 の統一を README（「ローカルインポート」「エクスポ�
 
 済み: B-1（AIタグ16字問題）+ T-2/M-2 の該当部分、U-1（AND/ORトグル）、S-1（release に verify）、
 B-2/D-1/T-3（共有インポート: 打ち切り撤廃 + 並行ガード + parseShareEntry 抽出）、
-U-8/U-9（クリーンアップ）、T-1（useSelection テスト整備）+ B-3（レース修正と回帰テスト）。
+U-8/U-9（クリーンアップ）、T-1（useSelection テスト整備）+ B-3（レース修正と回帰テスト）、
+U-2/U-5/D-3（空状態解除ボタン・並べ替えヒント・タイムライン件数真値化）、
+U-4（フォーカストラップ）、M-1（extension パリティテスト）。
 以下は残タスク。
 
-1. U-2, U-5, D-3（小さい追加で体験改善が確実）
-2. U-4（フォーカストラップ。20-30 行）、M-1（パリティテスト）
-3. U-3, D-2（ショートカット一覧・インポート進捗）
-4. **DOC-1**（README 拡張機能セットアップ手順の修正）
-5. W-1〜W-5, DOC-4（用語統一。一括置換なので 1 コミットでまとめて）
-6. U-6, U-7, U-10, T-4, M-3, M-4（余裕があれば）
+1. U-3, D-2（ショートカット一覧・インポート進捗）
+2. **DOC-1**（README 拡張機能セットアップ手順の修正）
+3. W-1〜W-5, DOC-4（用語統一。一括置換なので 1 コミットでまとめて）
+4. U-6, U-7, U-10, T-4, M-3, M-4（余裕があれば）
 
 （BLOG-DRAFT.md は削除済みのため、旧 DOC-2/DOC-3/ブログ公開ブロッカーの記載は対象外）
-
-検証メモ:
-- U-4: 設定モーダルで Tab 連打 → フォーカスがモーダル外へ出ないことを確認

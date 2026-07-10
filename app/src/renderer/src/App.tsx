@@ -511,7 +511,7 @@ export default function App() {
             することで、DetailPanel（右）はビューア表示中も隠れず操作できる（P1）。 */}
         <div style={s.viewerHost}>
         <Sidebar
-          count={viewMode === 'timeline' ? timeline.images.length : (imageList.totalCount ?? imageList.images.length)}
+          count={viewMode === 'timeline' ? (timeline.totalCount ?? timeline.images.length) : (imageList.totalCount ?? imageList.images.length)}
           filters={filters}
           smartFolders={settings.settings.smartFolders}
           searchTags={searchQuery.tags}
@@ -562,6 +562,7 @@ export default function App() {
                 focusedIndex={selection.focusedIndex}
                 loading={timeline.loading}
                 hasActiveFilter={filters.hasActiveFilter()}
+                onClearFilters={() => filters.clearAllFilters()}
                 onOpen={setViewerIdx}
                 onContextMenu={handleTimelineContextMenu}
                 containerWidth={containerWidth}
@@ -579,6 +580,9 @@ export default function App() {
                 {filters.hasActiveFilter() ? (
                   <>
                     <div style={s.emptyTitle}>該当する画像がありません</div>
+                    <div style={s.emptyActions}>
+                      <button style={s.emptyBtn} onClick={() => filters.clearAllFilters()}>絞り込みを解除</button>
+                    </div>
                   </>
                 ) : (
                   <>

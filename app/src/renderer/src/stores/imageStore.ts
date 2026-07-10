@@ -39,6 +39,7 @@ export type RemovedImagesSnapshot = {
   grid: { index: number; image: ImageRow }[]
   timeline: { index: number; image: ImageRow }[]
   gridTotalCount: number | null
+  timelineTotalCount: number | null
   // removeImages に渡された ids 全体（グリッド/タイムラインに未ロードだった分も含む）。
   // 件数の巻き戻しは grid/timeline の snapshot（ロード済み行だけ）ではなくこちらから数える。
   removedIds: number[]
@@ -56,6 +57,9 @@ type ImageState = {
   // --- タイムライン（一括取得） ---
   timelineImages: ImageRow[]
   timelineLoading: boolean
+  // countImages の真値（MAX_TIMELINE_LIMIT で打ち切られる timelineImages.length とは別。
+  // サイドバーの件数表示をグリッド表示と一貫させるために使う。D-3）
+  timelineTotalCount: number | null
   // --- 新着 NEW 表示（裏画面でも即時。消去は前面化後の数秒） ---
   newIds: Set<number>
 
@@ -92,6 +96,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
   gridReloading: false,
   timelineImages: [],
   timelineLoading: false,
+  timelineTotalCount: null,
   newIds: new Set(),
 
   loadMoreGrid: async (showToast) => {
@@ -161,7 +166,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
       const query = buildImageQuery(getCommitted(useFilterStore.getState()))
       const [rows, count] = await Promise.all([window.api.listAllImages(query), window.api.countImages(query)])
       if (generation !== timelineGeneration) return
-      set({ timelineImages: rows })
+      set({ timelineImages: rows, timelineTotalCount: count })
       if (count > rows.length) {
         if (!timelineTruncatedNotified) {
           timelineTruncatedNotified = true
@@ -195,12 +200,15 @@ export const useImageStore = create<ImageState>((set, get) => ({
         .map((image, index) => ({ index, image }))
         .filter(({ image }) => ids.has(image.id)),
       gridTotalCount: s.gridTotalCount,
+      timelineTotalCount: s.timelineTotalCount,
       removedIds: [...ids],
     }
     set({
       gridImages: s.gridImages.filter((img) => !ids.has(img.id)),
       timelineImages: s.timelineImages.filter((img) => !ids.has(img.id)),
       gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount - ids.size : null,
+      // D-3: サイドバー件数をタイムライン表示中も真値で出すため、グリッドと同じ扱いで減算する。
+      timelineTotalCount: s.timelineTotalCount !== null ? s.timelineTotalCount - ids.size : null,
     })
     return snapshot
   },
@@ -228,6 +236,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
       gridImages: restoreList(s.gridImages, snapshot.grid),
       timelineImages: restoreList(s.timelineImages, snapshot.timeline),
       gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount + restoredCount : snapshot.gridTotalCount,
+      timelineTotalCount: s.timelineTotalCount !== null ? s.timelineTotalCount + restoredCount : snapshot.timelineTotalCount,
     }
   }),
 

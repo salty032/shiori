@@ -9,6 +9,9 @@ import { useImageStore } from '../stores/imageStore'
 export function useTimeline(active: boolean, showToast: ShowToast) {
   const images = useImageStore((s) => s.timelineImages)
   const loading = useImageStore((s) => s.timelineLoading)
+  // countImages の真値。MAX_TIMELINE_LIMIT で打ち切られる images.length と違い、
+  // グリッド表示の totalCount と同じ意味でサイドバー件数表示に使える（D-3）。
+  const totalCount = useImageStore((s) => s.timelineTotalCount)
 
   const reload = useCallback(() => useImageStore.getState().reloadTimeline(showToast), [showToast])
 
@@ -20,5 +23,5 @@ export function useTimeline(active: boolean, showToast: ShowToast) {
     if (active) reload()
   }, [active, queryKey, reload])
 
-  return { images, loading, reload }
+  return { images, loading, totalCount, reload }
 }

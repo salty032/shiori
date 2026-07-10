@@ -29,6 +29,7 @@ describe('imageStore mutations', () => {
       gridLoading: false,
       timelineImages: [img(1), img(2), img(3), img(4)],
       timelineLoading: false,
+      timelineTotalCount: 12,
     })
   })
 
@@ -54,6 +55,8 @@ describe('imageStore mutations', () => {
     expect(s.gridImages.map((i) => i.id)).toEqual([3])
     expect(s.timelineImages.map((i) => i.id)).toEqual([3, 4])
     expect(s.gridTotalCount).toBe(8)
+    // D-3: timelineTotalCount も gridTotalCount と同様に真値のまま減算されること
+    expect(s.timelineTotalCount).toBe(10)
   })
 
   it('removeImages はグリッド未ロード分を含む削除でも件数を ids.size ぶん減らす', () => {
@@ -88,6 +91,8 @@ describe('imageStore mutations', () => {
     // 件数は removedIds（2件）ぶん戻る。行データが無い id:5 はリストへは戻らない。
     expect(s.gridTotalCount).toBe(10)
     expect(s.gridImages.map((i) => i.id)).toEqual([1, 2, 3])
+    // D-3: timelineTotalCount も同様に戻る
+    expect(s.timelineTotalCount).toBe(12)
   })
 
   it('adjustGridTotalCount は件数のみ増減する', () => {

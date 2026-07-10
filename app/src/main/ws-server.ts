@@ -3,17 +3,20 @@ import { WebSocketServer, WebSocket } from 'ws'
 
 export const PORT = 39821
 const HOST = '127.0.0.1'
-const MAX_TITLE_LENGTH = 500
-const MAX_URL_LENGTH = 2048
-const MAX_WS_PAYLOAD_BYTES = 16 * 1024
-const MAX_REQUEST_ID_LENGTH = 80
-const MAX_TIMECODE_SECONDS = 10_000_000
-const MIN_SCREEN_COORD = -100_000
-const MAX_SCREEN_COORD = 100_000
-const MIN_SCREEN_SIZE = 1
-const MAX_SCREEN_SIZE = 20_000
-const MIN_DEVICE_PIXEL_RATIO = 0.25
-const MAX_DEVICE_PIXEL_RATIO = 8
+// extension/background.js（バンドラ無しのため import 不可）にも同じ値のコピーがある。
+// 片側だけ変えると静かに食い違うため、ws-server.test.ts のパリティテストが
+// このモジュールの export 値と background.js のテキストを比較して検知する（M-1）。
+export const MAX_TITLE_LENGTH = 500
+export const MAX_URL_LENGTH = 2048
+export const MAX_WS_PAYLOAD_BYTES = 16 * 1024
+export const MAX_REQUEST_ID_LENGTH = 80
+export const MAX_TIMECODE_SECONDS = 10_000_000
+export const MIN_SCREEN_COORD = -100_000
+export const MAX_SCREEN_COORD = 100_000
+export const MIN_SCREEN_SIZE = 1
+export const MAX_SCREEN_SIZE = 20_000
+export const MIN_DEVICE_PIXEL_RATIO = 0.25
+export const MAX_DEVICE_PIXEL_RATIO = 8
 
 export type VideoRect = { left: number; top: number; width: number; height: number }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { font, radius } from '../styles'
 import { normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, MAX_TAG_LENGTH } from '../utils'
 import { useTagSuggest } from '../hooks/useTagSuggest'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   imageIds: number[]
@@ -16,6 +17,8 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
   const [tagsOnAll, setTagsOnAll] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, true)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -77,9 +80,9 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
 
   return (
     <div style={s.overlay} onMouseDown={onClose} data-keep-selection>
-      <div style={s.panel} onMouseDown={(e) => e.stopPropagation()}>
+      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="quick-tag-title">
         <div style={s.header}>
-          <span style={s.title}>タグを追加</span>
+          <span id="quick-tag-title" style={s.title}>タグを追加</span>
           <span style={s.target}>{targetLabel}</span>
         </div>
         <input

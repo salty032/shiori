@@ -42,6 +42,11 @@ const NAMED_KEYS = new Map<string, string>([
 
 const DISALLOWED_KEYS = new Set(['Plus', '+'])
 
+// extension/background.js の NAMED_CAPTURE_KEYS（バンドラ無しのためコピー実装）と対になる
+// 正規化後キー名の集合。片側だけキーを増減すると静かに食い違うため、ws-server.test.ts の
+// パリティテストがここと background.js のテキストを比較して検知する（M-1）。
+export const NAMED_CAPTURE_KEY_VALUES = new Set(NAMED_KEYS.values())
+
 function normalizeMainKey(value: string): string | null {
   if (/^[a-z]$/i.test(value)) return value.toUpperCase()
   if (/^[0-9]$/.test(value)) return value
