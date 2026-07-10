@@ -3,8 +3,9 @@ import type { SmartFolder } from '../types'
 import type { Filters } from '../hooks/useFilters'
 import type { ViewMode } from './Toolbar'
 import { s, font } from '../styles'
-import { FolderIcon, GridIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
+import { FolderIcon, GridIcon, HelpCircleIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
 import ContextMenu from './ContextMenu'
+import ShortcutsFlyout from './ShortcutsFlyout'
 import { usePanelResize } from '../hooks/usePanelResize'
 import appIcon from '../../../../build/icon.ico'
 
@@ -50,6 +51,8 @@ export default function Sidebar({
     THUMB_SIZES[0],
   )
   const [showAllTags, setShowAllTags] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const shortcutsBtnRef = useRef<HTMLButtonElement>(null)
   const [dragFolderId, setDragFolderId] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [tagCtxMenu, setTagCtxMenu] = useState<{ x: number; y: number; tag: string } | null>(null)
@@ -399,8 +402,15 @@ export default function Sidebar({
             <SettingsIcon size={16} />
             <span style={{ fontSize: font.base, fontWeight: 800 }}>設定</span>
           </button>
+          <button ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? '#9ea5ff' : '#888' }}
+            onClick={() => setShowShortcuts((v) => !v)} title="ショートカット一覧">
+            <HelpCircleIcon size={16} />
+          </button>
         </div>
       </div>
+      {showShortcuts && (
+        <ShortcutsFlyout anchorEl={shortcutsBtnRef.current} onClose={() => setShowShortcuts(false)} />
+      )}
     </aside>
   )
 }

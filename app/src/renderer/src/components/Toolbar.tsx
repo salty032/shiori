@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import type { Filters } from '../hooks/useFilters'
 import { s } from '../styles'
 import { serviceLabel } from '../services'
-import { XIcon } from './Icon'
+import { XIcon, ChevronDownIcon } from './Icon'
 import { useSearchHistoryStore } from '../stores/searchHistoryStore'
 import { parseSearchQuery } from '../stores/imageQuery'
 
@@ -430,8 +430,8 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
           )}
         </div>
         <div ref={sortMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
-          <button style={s.sortBtn} onClick={() => setSortMenuOpen((v) => !v)}>
-            {SORT_LABELS[filters.sortOrder]} ▾
+          <button style={{ ...s.sortBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => setSortMenuOpen((v) => !v)}>
+            {SORT_LABELS[filters.sortOrder]} <ChevronDownIcon size={10} />
           </button>
           {sortMenuOpen && (
             <div style={s.sortMenu}>

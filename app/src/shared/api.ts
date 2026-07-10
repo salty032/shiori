@@ -70,6 +70,9 @@ export interface ShioriApi {
   // imagesExportCancel 同様、進行中の shareExport を中断する。
   shareExportCancel: () => Promise<void>
   shareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  // shareExportCancel 同様、進行中の shareImport を中断する（D-2）。
+  shareImportCancel: () => Promise<void>
+  onShareImportProgress: (cb: (data: { current: number; total: number }) => void) => () => void
   importFiles: (paths: string[]) => Promise<{ count: number; errors: string[]; truncated: boolean }>
   clipboardPaste: () => Promise<{ ok: true; id: number } | { ok: false; reason: 'empty' | 'error' }>
   clipboardCopyImage: (id: number) => Promise<boolean>
@@ -133,6 +136,8 @@ export const CH = {
   shareExport: 'share:export',
   shareExportCancel: 'share:exportCancel',
   shareImport: 'share:import',
+  shareImportCancel: 'share:importCancel',
+  shareImportProgress: 'share:importProgress',
   // import
   importFiles: 'import:files',
   // clipboard

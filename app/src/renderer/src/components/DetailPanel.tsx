@@ -403,7 +403,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 .map(([name, status]) => (
                   <span key={name}
                     style={status === 'all' ? commonStyles.tagChipManual : s.tagChipPartial}
-                    title={(status === 'some' ? '一部の画像のみ（クリックで全員に追加）' : '') + '（右クリックで削除）'}
+                    title={(status === 'some' ? '一部の画像のみ（クリックですべてに追加）' : '') + '（右クリックで削除）'}
                     onClick={() => status === 'some' ? bulkAddTag(name) : undefined}
                     onContextMenu={(e) => { e.preventDefault(); setBulkTagCtxMenu({ x: e.clientX, y: e.clientY, tag: name }) }}>
                     {name}
@@ -423,7 +423,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   value={bulkTagInput}
                   onChange={setBulkTagInput}
                   suggestions={bulkSuggestions}
-                  placeholder="タグを追加（全員に）..."
+                  placeholder="タグを追加（選択中すべてに）..."
                   onConfirm={handleBulkConfirm}
                   onCancel={handleBulkCancel}
                 />

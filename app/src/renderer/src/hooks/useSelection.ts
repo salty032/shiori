@@ -66,15 +66,15 @@ async function deleteImages(
   const idList = [...ids]
   // DB 削除は main 側で 1 トランザクションにまとめ、ゴミ箱移動も main 側で逐次ベストエフォート
   // 実行する（B-7）。件数が多いと時間がかかるため、少し待っても終わらない場合だけ
-  // 「削除中…」を表示する（すぐ終わるなら出さずチラつきを避ける）。完了時は同じトースト
+  // 「ゴミ箱へ移動中...」を表示する（すぐ終わるなら出さずチラつきを避ける）。完了時は同じトースト
   // （progressToastId）を updateToast で差し替える（トーストがスタック化されて以降、新規
-  // showToast だと「削除中…」と完了メッセージが両方残ってしまうため）。
+  // showToast だと「ゴミ箱へ移動中...」と完了メッセージが両方残ってしまうため）。
   let progressTimer: number | null = null
   let progressToastId: number | null = null
   if (showProgress) {
     progressTimer = window.setTimeout(() => {
       progressTimer = null
-      progressToastId = showToast(`${idList.length}枚を削除中…`, 'info', 60000)
+      progressToastId = showToast(`${idList.length}枚をゴミ箱へ移動中...`, 'info', 60000)
     }, 400)
   }
 

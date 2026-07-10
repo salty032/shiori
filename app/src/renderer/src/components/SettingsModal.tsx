@@ -29,6 +29,15 @@ type Props = {
   onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
 }
 
+// M-4: 表示ラベルと状態識別子を分離する（ラベル文言の変更が型・状態キーの変更を兼ねないように）。
+type TabId = 'general' | 'capture' | 'tag' | 'data'
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'general', label: '基本' },
+  { id: 'capture', label: 'キャプチャ' },
+  { id: 'tag', label: 'タグ' },
+  { id: 'data', label: 'データ' },
+]
+
 export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
     <button
@@ -48,6 +57,11 @@ export default function SettingsModal(p: Props) {
   const [shareImportStatus, setShareImportStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [shareExporting, setShareExporting] = useState(false)
   const [shareImporting, setShareImporting] = useState(false)
+  // D-2: エクスポートの export:progress と対称に、共有インポートも件数進捗と中止手段を持つ。
+  const [shareImportProgress, setShareImportProgress] = useState<{ current: number; total: number } | null>(null)
+  useEffect(() => window.api.onShareImportProgress((data) => {
+    setShareImportProgress(data.current >= data.total ? null : data)
+  }), [])
   // export:progress・中止ボタンは images/share の1系統しか持たないため、選択エクスポートが
   // 進行中は共有書き出しを disabled にして混線を防ぐ（B-6）。
   const otherExportActive = useExportStore((st) => st.exportKind === 'images')
@@ -102,8 +116,7 @@ export default function SettingsModal(p: Props) {
     return () => document.removeEventListener('keydown', handler)
   }, [capturing])
 
-  const [activeTab, setActiveTab] = useState<'基本' | 'キャプチャ' | 'タグ' | 'データ'>('基本')
-  const TABS = ['基本', 'キャプチャ', 'タグ', 'データ'] as const
+  const [activeTab, setActiveTab] = useState<TabId>('general')
 
   // fps カスタム数値入力は1打鍵ごとに保存すると IPC + 拡張への再送が無駄に多い（R-3）。
   // ローカル state に持ち、300ms 入力が止まってから確定する。プリセットボタン側は
@@ -129,18 +142,18 @@ export default function SettingsModal(p: Props) {
           <div style={s.sidebar}>
             {TABS.map((tab) => (
               <button
-                key={tab}
+                key={tab.id}
                 className="shiori-menu-item"
-                style={{ ...s.tabBtn, ...(activeTab === tab ? s.tabBtnActive : {}) }}
-                onClick={() => setActiveTab(tab)}
+                style={{ ...s.tabBtn, ...(activeTab === tab.id ? s.tabBtnActive : {}) }}
+                onClick={() => setActiveTab(tab.id)}
               >
-                {tab}
+                {tab.label}
               </button>
             ))}
           </div>
 
           <div style={s.tabContent}>
-            {activeTab === '基本' && (
+            {activeTab === 'general' && (
               <>
                 <div style={s.group}>
                   <div style={s.section}>起動</div>
@@ -228,7 +241,7 @@ export default function SettingsModal(p: Props) {
               </>
             )}
 
-            {activeTab === 'キャプチャ' && (
+            {activeTab === 'capture' && (
               <>
                 <div style={s.group}>
                   <div style={s.section}>ホットキー</div>
@@ -266,7 +279,7 @@ export default function SettingsModal(p: Props) {
               </>
             )}
 
-            {activeTab === 'タグ' && (
+            {activeTab === 'tag' && (
               <>
                 <div style={s.group}>
                   <div style={s.section}>自動タグ付け (WD Tagger)</div>
@@ -313,7 +326,7 @@ export default function SettingsModal(p: Props) {
               </>
             )}
 
-            {activeTab === 'データ' && (
+            {activeTab === 'data' && (
               <div style={s.group}>
                 <div style={s.section}>データ</div>
                 <div style={s.dataBlock}>
@@ -329,10 +342,10 @@ export default function SettingsModal(p: Props) {
                       try {
                         const result = await p.onShareExport()
                         if (result.canceled) {
-                          if (result.count != null) setShareExportStatus({ text: `${result.count} 件で中止しました` })
+                          if (result.count != null) setShareExportStatus({ text: `${result.count} 枚で中止しました` })
                           // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
                         } else {
-                          setShareExportStatus({ text: `${result.count ?? 0} 件を書き出しました` })
+                          setShareExportStatus({ text: `${result.count ?? 0} 枚を書き出しました` })
                         }
                       } catch (err) {
                         console.error('[settings] share export failed', err)
@@ -355,25 +368,41 @@ export default function SettingsModal(p: Props) {
                       <div style={s.dataTitle}>読み込み</div>
                       <div style={s.hint}>画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。同じフォルダを再度読み込むと重複して追加されるのでご注意ください。</div>
                     </div>
-                    <button style={s.addBtn} disabled={shareImporting} onClick={async () => {
-                      setShareImporting(true)
-                      setShareImportStatus(null)
-                      try {
-                        const result = await p.onShareImport()
-                        if (!result.canceled) {
-                          const errMsg = result.errors && result.errors.length > 0 ? `（エラー ${result.errors.length} 件）` : ''
-                          const folderMsg = result.importedFolders ? `、スマートフォルダ ${result.importedFolders} 件` : ''
-                          setShareImportStatus({ text: `${result.count ?? 0} 件を読み込みました${folderMsg}${errMsg}` })
+                    {shareImportProgress ? (
+                      <div style={{ ...s.progressWrap, flex: '0 0 220px' }}>
+                        <div style={s.progressBar}>
+                          <div style={{ ...s.progressFill, width: `${shareImportProgress.total > 0 ? Math.round(shareImportProgress.current / shareImportProgress.total * 100) : 0}%` }} />
+                        </div>
+                        <span style={s.progressLabel}>{shareImportProgress.current}/{shareImportProgress.total}</span>
+                        <button style={s.cancelBtn} onClick={() => window.api.shareImportCancel()}>中止</button>
+                      </div>
+                    ) : (
+                      <button style={s.addBtn} disabled={shareImporting} onClick={async () => {
+                        setShareImporting(true)
+                        setShareImportStatus(null)
+                        try {
+                          const result = await p.onShareImport()
+                          if (result.canceled) {
+                            if (result.count != null) setShareImportStatus({ text: `${result.count} 枚で中止しました` })
+                            // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
+                          } else {
+                            const errMsg = result.errors && result.errors.length > 0 ? `（エラー ${result.errors.length} 件）` : ''
+                            const folderMsg = result.importedFolders ? `、スマートフォルダ ${result.importedFolders} 件` : ''
+                            setShareImportStatus({ text: `${result.count ?? 0} 枚を読み込みました${folderMsg}${errMsg}` })
+                          }
+                        } catch (err) {
+                          console.error('[settings] share import failed', err)
+                          setShareImportStatus({ text: '読み込みに失敗しました', error: true })
+                        } finally {
+                          setShareImporting(false)
+                          // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
+                          // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
+                          setShareImportProgress(null)
                         }
-                      } catch (err) {
-                        console.error('[settings] share import failed', err)
-                        setShareImportStatus({ text: '読み込みに失敗しました', error: true })
-                      } finally {
-                        setShareImporting(false)
-                      }
-                    }}>
-                      {shareImporting ? '読み込み中...' : 'ライブラリを読み込む...'}
-                    </button>
+                      }}>
+                        {shareImporting ? '読み込み中...' : 'ライブラリを読み込む...'}
+                      </button>
+                    )}
                   </div>
                   {shareImportStatus && <div style={{ ...s.statusLine, ...(shareImportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareImportStatus.text}</div>}
                 </div>

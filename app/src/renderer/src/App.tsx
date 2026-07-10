@@ -13,6 +13,7 @@ import Toolbar, { type ViewMode } from './components/Toolbar'
 import ThumbCell from './components/ThumbCell'
 import TimelineView, { CELL_GAP as TIMELINE_CELL_GAP, type TimelineViewHandle } from './components/TimelineView'
 import ContextMenu, { type MenuItem } from './components/ContextMenu'
+import { XIcon } from './components/Icon'
 import { useToast } from './hooks/useToast'
 import { useSettings } from './hooks/useSettings'
 import { useFilters } from './hooks/useFilters'
@@ -26,21 +27,12 @@ import { useTagger } from './hooks/useTagger'
 import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
 import { useGlobalKeys } from './hooks/useGlobalKeys'
-import type { SmartFolder } from './types'
+import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
 
 // サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
 const COL_GAP = 6
 const ROW_GAP = 10
 const LABEL_HEIGHT = 20
-
-type ConfirmDialogState = {
-  title: string
-  message: string
-  confirmLabel: string
-  cancelLabel?: string
-  danger?: boolean
-  onConfirm: () => void | Promise<void>
-}
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
@@ -150,9 +142,9 @@ export default function App() {
       const truncatedMsg = result.truncated ? '（200件の上限を超えたため一部は取り込まれていません）' : ''
       const failedMsg = result.errors.length > 0 ? `（${result.errors.length}件は取り込めませんでした）` : ''
       const isPartial = result.truncated || result.errors.length > 0
-      toast.showToast(`${result.count}枚をインポートしました${truncatedMsg}${failedMsg}`, isPartial ? 'warning' : 'success')
+      toast.showToast(`${result.count}枚を取り込みました${truncatedMsg}${failedMsg}`, isPartial ? 'warning' : 'success')
     } else if (result.errors.length > 0) {
-      toast.showToast(`インポートできませんでした（${result.errors.length}件）`, 'warning')
+      toast.showToast(`取り込めませんでした（${result.errors.length}件）`, 'warning')
     }
   }
 
@@ -393,54 +385,17 @@ export default function App() {
     if (img) handleThumbContextMenu(e, img.id)
   }, [timelineOrderedRef, handleThumbContextMenu])
 
-  function confirmSmartFolderDelete(folder: SmartFolder): void {
-    setConfirmDialog({
-      title: 'スマートフォルダを削除',
-      message: `「${folder.name}」を削除しますか？\n保存した絞り込み条件だけが削除され、画像は削除されません。`,
-      confirmLabel: '削除',
-      danger: true,
-      onConfirm: () => filters.deleteSmartFolder(folder.id),
-    })
-  }
-
-  async function deleteTagFromAllImages(tag: string): Promise<void> {
-    try {
-      // listAllImages で ID を列挙してから bulk 削除する経路だと MAX_TIMELINE_LIMIT（5000件）で
-      // 打ち切られ、超過分にタグが残ってしまう。DB 側でタグ名から直接全件削除する専用 IPC を使う。
-      const removedCount = await window.api.taggerRemoveTagFromAll(tag)
-      filters.setTagFilters((prev) => prev.filter((t) => t !== tag))
-      removeSearchTag(tag)
-      filters.refreshTags()
-      useImageStore.getState().reloadGrid(toast.showToast)
-      useImageStore.getState().reloadTimeline(toast.showToast)
-      toast.showToast(`タグ「${tag}」を${removedCount}枚から削除しました`, 'success')
-    } catch (err) {
-      console.error('[tag] deleteTagFromAllImages failed', err)
-      toast.showToast('タグの削除に失敗しました', 'warning')
-    }
-  }
-
-  async function confirmDeleteTagGlobally(tag: string): Promise<void> {
-    // サイドバーの件数バッジ廃止に伴い常時取得の tagCounts をやめ、削除確認時にオンデマンドで数える（F-7）。
-    const count = await window.api.countImages({ tags: [tag] })
-    setConfirmDialog({
-      title: 'タグを削除',
-      message: `タグ「${tag}」を${count}枚の画像すべてから削除しますか？この操作は元に戻せません。`,
-      confirmLabel: '削除',
-      danger: true,
-      onConfirm: () => deleteTagFromAllImages(tag),
-    })
-  }
-
-  function confirmTaggerDelete(): void {
-    setConfirmDialog({
-      title: 'AIタグ付けモデルを削除',
-      message: '再度使うには約600MBのモデルをダウンロードする必要があります。これまでに付与されたAIタグ（手動タグは除く）もライブラリ全体から削除されます。この操作は元に戻せません。',
-      confirmLabel: '削除',
-      danger: true,
-      onConfirm: tagger.handleTaggerDelete,
-    })
-  }
+  // M-3: 確認ダイアログの組み立て（スマートフォルダ削除・タグ全体削除・タガーモデル削除）は
+  // 配線ではなくドメインロジックのため useConfirmActions に切り出している。
+  const { confirmSmartFolderDelete, confirmDeleteTagGlobally, confirmTaggerDelete } = useConfirmActions({
+    setConfirmDialog,
+    showToast: toast.showToast,
+    deleteSmartFolder: filters.deleteSmartFolder,
+    setTagFilters: filters.setTagFilters,
+    refreshTags: filters.refreshTags,
+    removeSearchTag,
+    taggerDelete: tagger.handleTaggerDelete,
+  })
 
   // 選択状態に応じてメニュー項目を組み立てる。単一選択時のみトリミング/Explorer を出す。
   const ctxMenuItems = useMemo<MenuItem[]>(() => {
@@ -487,7 +442,8 @@ export default function App() {
 
     const { current, total } = exportProgress
     return {
-      label: 'エクスポート中',
+      // W-4: share 起点の進捗は SettingsModal の「書き出し中...」と表示を揃える
+      label: exportKind === 'share' ? 'ライブラリを書き出し中' : 'エクスポート中',
       detail: `${current}/${total}`,
       progress: total > 0 ? clamp01(current / total) : 0,
       onCancel: exportKind === 'share' ? () => window.api.shareExportCancel() : () => window.api.imagesExportCancel(),
@@ -503,7 +459,7 @@ export default function App() {
             <span>v{settings.updateVersion} が利用可能です</span>
             <button style={s.updateBtn} onClick={() => window.api.openUrl(RELEASES_URL)}>リリースページを開く</button>
           </div>
-          <button style={s.sidebarXBtn} onClick={() => setUpdateBannerDismissed(true)} title="今は更新しない">✕</button>
+          <button style={s.sidebarXBtn} onClick={() => setUpdateBannerDismissed(true)} title="今は更新しない"><XIcon size={13} /></button>
         </div>
       )}
       <div style={s.root}>

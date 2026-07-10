@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ImageRow } from '../types'
 import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
 import { s } from '../styles'
+import { XIcon } from './Icon'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -268,8 +269,11 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
       <div style={s.viewerTopBar} onClick={(e) => e.stopPropagation()}>
         <div style={s.viewerTitle} title={title}>{title}</div>
         <div style={s.viewerActions}>
-          <span style={s.viewerCounter}>{index + 1} / {Math.max(total, images.length)}</span>
-          <button style={s.viewerClose} onClick={close} title="閉じる (Esc)">✕</button>
+          {/* U-6: End は読み込み済み分の末尾（images.length-1）までしか移動しないため、
+              未読み込みが残る間はカウンタと End の到達点がズレる。実害は小さい
+              （後続ロードで辿れる）ため、挙動は変えずツールチップで補足するに留める。 */}
+          <span style={s.viewerCounter} title={images.length < total ? 'End は読み込み済みの最後へ移動します' : undefined}>{index + 1} / {Math.max(total, images.length)}</span>
+          <button style={s.viewerClose} onClick={close} title="閉じる (Esc)"><XIcon size={15} /></button>
         </div>
       </div>
       <div style={s.viewerMediaStack}>

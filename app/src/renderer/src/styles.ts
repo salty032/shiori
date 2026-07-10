@@ -138,8 +138,9 @@ export const s: Record<string, CSSProperties> = {
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: '#6f778b', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid rgba(32,36,47,0.85)', background: 'rgba(8,10,15,0.36)', display: 'flex', flexDirection: 'column' as const, gap: 7 },
   sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 168, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'rgba(12,14,20,0.4)', border: '1px solid rgba(73,82,108,0.3)', borderRadius: 5, padding: 2 },
-  sidebarBottom: { flexShrink: 0, display: 'grid' },
-  gearBtn: { width: '100%', height: 34, boxSizing: 'border-box' as const, background: 'rgba(23,26,35,0.72)', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start' },
+  sidebarBottom: { flexShrink: 0, display: 'flex', gap: 6 },
+  gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'rgba(23,26,35,0.72)', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start' },
+  shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
   sidebarXBtn: { background: 'none', border: 'none', color: '#a8b1c5', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   // 通知と進捗タスクを同じ下中央スタックにまとめる。完了通知と進行中タスクが
   // 別デザインで重なる状態を避けつつ、視線移動が少ない位置に出す。
@@ -176,7 +177,7 @@ export const s: Record<string, CSSProperties> = {
   viewerTitle: { minWidth: 0, flex: 1, color: '#d6dbea', fontSize: font.sm, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, textShadow: '0 2px 10px rgba(0,0,0,0.9)' },
   viewerActions: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 },
   viewerCounter: { color: 'rgba(255,255,255,0.46)', fontSize: font.base, fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' as const, letterSpacing: 0.5 },
-  viewerClose: { background: 'none', border: 'none', color: '#999', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
+  viewerClose: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#999', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
   viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: 24, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, pointerEvents: 'none' as const },
   viewerZoomValue: { color: 'rgba(232,236,248,0.68)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
   filmstrip: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, padding: '30px 80px 18px', background: 'linear-gradient(transparent, rgba(0,0,0,0.82))', zIndex: 1 },

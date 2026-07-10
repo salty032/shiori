@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react'
 export type ToastTone = 'info' | 'success' | 'warning' | 'error'
 export type ToastAction = { label: string; onClick: () => void }
 // 戻り値は追加されたトーストの id。updateToast で同じトーストを差し替えたい呼び出し元
-// （例: deleteImages の「削除中…」→完了メッセージ）が使う。
+// （例: deleteImages の「ゴミ箱へ移動中...」→完了メッセージ）が使う。
 export type ShowToast = (message: string, tone?: ToastTone, ms?: number, action?: ToastAction) => number
 export type UpdateToast = (id: number, message: string, tone?: ToastTone, ms?: number, action?: ToastAction) => void
 export type DismissToast = (id: number) => void
@@ -92,7 +92,7 @@ export function useToast() {
     return id
   }, [])
 
-  // 「進捗中…」のように、同じ操作の続きとして既存トーストの内容を差し替える。
+  // 「進捗中...」のように、同じ操作の続きとして既存トーストの内容を差し替える。
   // 対象の id が既に消えていた場合（タイムアウト/上限落ち）は新規追加として扱う。
   const updateToast = useCallback<UpdateToast>((id, message, tone = 'info', ms, action) => {
     setToasts((prev) => {

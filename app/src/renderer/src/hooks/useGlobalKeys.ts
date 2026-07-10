@@ -44,7 +44,7 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
         const result = await window.api.clipboardPaste()
         if (result.ok) {
           ref.current.onLibraryChanged()
-          ref.current.showToast('クリップボードからインポートしました', 'success')
+          ref.current.showToast('クリップボードから取り込みました', 'success')
         } else if (result.reason === 'empty') {
           ref.current.showToast('クリップボードに画像がありません', 'info')
         } else {

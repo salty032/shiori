@@ -16,6 +16,7 @@ import { createProgressThrottle } from './progress-throttle'
 let isShareExporting = false
 let isShareExportCanceled = false
 let isShareImporting = false
+let isShareImportCanceled = false
 
 export function registerShareHandlers(): void {
   handleTrusted(CH.shareExport, async () => {
@@ -25,7 +26,7 @@ export function registerShareHandlers(): void {
     isShareExporting = true
     try {
       const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: 'エクスポート先フォルダを選択',
+        title: '書き出し先フォルダを選択',
         properties: ['openDirectory']
       })
       if (canceled || !filePaths[0]) return { canceled: true }
@@ -115,10 +116,11 @@ export function registerShareHandlers(): void {
     isShareImporting = true
     try {
       const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: 'インポートするフォルダを選択',
+        title: '読み込むフォルダを選択',
         properties: ['openDirectory']
       })
       if (canceled || !filePaths[0]) return { canceled: true }
+      isShareImportCanceled = false
 
       const srcDir = filePaths[0]
       let content: string
@@ -134,66 +136,75 @@ export function registerShareHandlers(): void {
       // 検証は行単位で完結しているため、件数上限をここに設ける必然性が薄い一方、
       // 1000枚超のライブラリで超過分が無言で消えるほうが実害が大きい。
       const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
+      const total = lines.length
+      sendToRenderer(CH.shareImportProgress, { current: 0, total })
+      const shouldSend = createProgressThrottle(total)
 
-      for (const line of lines) {
-        const parsed = parseShareEntry(line, Date.now())
-        if (parsed === null) continue
-        if ('error' in parsed) { errors.push(parsed.error); continue }
-
-        const srcFile = join(srcDir, 'images', parsed.file)
-        let srcStat: Awaited<ReturnType<typeof stat>>
-        try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${parsed.file}`); continue }
-        if (srcStat.size > 500 * 1024 * 1024) { errors.push(`file too large: ${parsed.file}`); continue }
-
-        const uid = randomUUID()
-        const ts = Date.now()
-        const dir = await ensureCaptureSubDir(parsed.capturedAt)
-        const destFile = join(dir, `cap_${ts}_${uid}${parsed.ext}`)
-
-        let thumbDest: string | null = null
-        if (parsed.thumbFile && parsed.thumbExt) {
-          const srcThumb = join(srcDir, 'images', parsed.thumbFile)
-          try {
-            await stat(srcThumb)
-            thumbDest = thumbPathFor(destFile, parsed.thumbExt)
-            await mkdir(thumbnailDir(), { recursive: true })
-            await copyFile(srcThumb, thumbDest)
-          } catch { /* skip missing thumb */ }
-        }
-
+      for (let i = 0; i < lines.length; i++) {
+        if (isShareImportCanceled) break
         try {
-          await copyFile(srcFile, destFile)
-        } catch {
-          errors.push(`copy failed: ${parsed.file}`)
-          if (thumbDest) try { await unlink(thumbDest) } catch {}
-          continue
-        }
+          const line = lines[i]
+          const parsed = parseShareEntry(line, Date.now())
+          if (parsed === null) continue
+          if ('error' in parsed) { errors.push(parsed.error); continue }
 
-        const result = await registerCapturedMedia({
-          insert: {
-            filepath: destFile,
-            captured_at: parsed.capturedAt,
-            title: parsed.title,
-            current_time: parsed.currentTime,
-            url: parsed.url ? safeExternalUrl(parsed.url) : null,
-            width: null,
-            height: null,
-            colors: null,
-            memo: parsed.memo,
-            thumb_path: thumbDest,
-            source: 'import',
-          },
-          filePath: destFile,
-          thumbPath: thumbDest,
-          extraTags: parsed.tags.length > 0 ? parsed.tags.map((name) => ({ name, source: 'manual' as const })) : undefined,
-          broadcastCaptureDone: false,
-          autoTag: null
-        })
-        if (!result.ok) {
-          errors.push(`insert failed: ${parsed.file}`)
-          continue
+          const srcFile = join(srcDir, 'images', parsed.file)
+          let srcStat: Awaited<ReturnType<typeof stat>>
+          try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${parsed.file}`); continue }
+          if (srcStat.size > 500 * 1024 * 1024) { errors.push(`file too large: ${parsed.file}`); continue }
+
+          const uid = randomUUID()
+          const ts = Date.now()
+          const dir = await ensureCaptureSubDir(parsed.capturedAt)
+          const destFile = join(dir, `cap_${ts}_${uid}${parsed.ext}`)
+
+          let thumbDest: string | null = null
+          if (parsed.thumbFile && parsed.thumbExt) {
+            const srcThumb = join(srcDir, 'images', parsed.thumbFile)
+            try {
+              await stat(srcThumb)
+              thumbDest = thumbPathFor(destFile, parsed.thumbExt)
+              await mkdir(thumbnailDir(), { recursive: true })
+              await copyFile(srcThumb, thumbDest)
+            } catch { /* skip missing thumb */ }
+          }
+
+          try {
+            await copyFile(srcFile, destFile)
+          } catch {
+            errors.push(`copy failed: ${parsed.file}`)
+            if (thumbDest) try { await unlink(thumbDest) } catch {}
+            continue
+          }
+
+          const result = await registerCapturedMedia({
+            insert: {
+              filepath: destFile,
+              captured_at: parsed.capturedAt,
+              title: parsed.title,
+              current_time: parsed.currentTime,
+              url: parsed.url ? safeExternalUrl(parsed.url) : null,
+              width: null,
+              height: null,
+              colors: null,
+              memo: parsed.memo,
+              thumb_path: thumbDest,
+              source: 'import',
+            },
+            filePath: destFile,
+            thumbPath: thumbDest,
+            extraTags: parsed.tags.length > 0 ? parsed.tags.map((name) => ({ name, source: 'manual' as const })) : undefined,
+            broadcastCaptureDone: false,
+            autoTag: null
+          })
+          if (!result.ok) {
+            errors.push(`insert failed: ${parsed.file}`)
+            continue
+          }
+          count++
+        } finally {
+          if (shouldSend(i + 1)) sendToRenderer(CH.shareImportProgress, { current: i + 1, total })
         }
-        count++
       }
 
       // settings.json（スマートフォルダのみ）は任意。無くても画像取り込みには影響しない。
@@ -218,9 +229,11 @@ export function registerShareHandlers(): void {
         }
       } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
 
-      return { canceled: false, count, errors, importedFolders }
+      return { canceled: isShareImportCanceled, count, errors, importedFolders }
     } finally {
       isShareImporting = false
     }
   })
+
+  handleTrusted(CH.shareImportCancel, () => { isShareImportCanceled = true })
 }

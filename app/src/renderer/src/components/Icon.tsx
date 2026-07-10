@@ -59,6 +59,14 @@ export function XIcon({ size = 16, strokeWidth = 1.8 }: IconProps): React.JSX.El
   )
 }
 
+export function ChevronDownIcon({ size = 10, strokeWidth = 1.8 }: IconProps): React.JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" {...common} strokeWidth={strokeWidth}>
+      <polyline points="3,6 8,11 13,6" />
+    </svg>
+  )
+}
+
 export function PencilIcon({ size = 14, strokeWidth = 1.6 }: IconProps): React.JSX.Element {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" {...common} strokeWidth={strokeWidth}>
