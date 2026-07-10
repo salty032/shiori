@@ -80,7 +80,9 @@ export default function Sidebar({
     const startX = e.clientX
     const startY = e.clientY
     let dragging = false
-    let overIndex = fromIndex
+    // ドロップ確定時の計算に使う「生」の挿入スロット番号。表示用の dragOverIndex
+    // （null なら非表示）とは別に保持する。
+    let rawOverIndex = fromIndex
 
     // 掴んでいる行自身は transform で追従して動いているため、その getBoundingClientRect は
     // ポインタと一緒に動いてしまい判定に使えない（自分自身と比較する形になり、特に
@@ -118,7 +120,9 @@ export default function Sidebar({
       // ウィンドウ外に出ても pointerup を取りこぼさないよう、ドラッグ確定時にのみキャプチャする。
       captureEl.setPointerCapture(pointerId)
       setDragFolderId(smartFolders[fromIndex].id)
-      setDragOverIndex(fromIndex)
+      // 持ち上げた直後はまだ動かしていない＝どこにドロップしても無意味（今の場所に戻るだけ）
+      // なので、挿入ラインはまだ出さない。
+      setDragOverIndex(null)
       setDragDeltaY(0)
     }, SMART_FOLDER_LONG_PRESS_MS)
 
@@ -140,12 +144,13 @@ export default function Sidebar({
       }
       const deltaY = ev.clientY - startY
       const raw = computeOverIndex(deltaY)
+      rawOverIndex = raw
       // 先頭/末尾の行は反対側に比較対象が無いため、ほぼ動かしていなくても
-      // computeOverIndex が最初から末尾（または先頭）を返してしまう。実際には
-      // 順番が変わらない（今の位置に戻るだけの）overIndex は fromIndex に丸め、
-      // 「動かしてもいないのに元の位置の直下に挿入ラインが張り付く」見た目を防ぐ。
-      overIndex = resolveTargetIndex(raw) === fromIndex ? fromIndex : raw
-      setDragOverIndex(overIndex)
+      // computeOverIndex が最初から末尾（または先頭）を返してしまう。ドロップしても
+      // 実際には順番が変わらない（今の位置に戻るだけの）位置では、挿入ラインを
+      // 自分の元の場所に固定表示するのではなく非表示にする（null）。
+      const isNoop = resolveTargetIndex(raw) === fromIndex
+      setDragOverIndex(isNoop ? null : raw)
       setDragDeltaY(deltaY)
     }
 
@@ -158,7 +163,7 @@ export default function Sidebar({
       // click は pointerup 直後に同期的に発火するのでここでは消さず、直後の
       // onClick に消させる。click 自体が起きなかった場合の保険として次のタスクで戻す。
       setTimeout(() => { smartFolderDraggedRef.current = false }, 0)
-      const to = resolveTargetIndex(overIndex)
+      const to = resolveTargetIndex(rawOverIndex)
       if (to === fromIndex) return
       const next = [...smartFolders]
       const [moved] = next.splice(fromIndex, 1)
