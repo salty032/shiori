@@ -314,8 +314,16 @@ export function useSelection({
     return true
   }
 
+  // 削除直後の短時間はダブルクリックでのビューアオープンを無視する（openIndex 参照）。
+  const lastDeleteAtRef = useRef(0)
+  // 「選択→急いで Delete」を素早く行うと、削除で一覧が詰まって同じ画面位置に別の画像が
+  // スライドしてくるため、2クリック目がその新しい画像への意図しないダブルクリックとして
+  // 判定され、ビューアが開いてしまうことがある。削除直後の短時間はオープンを無視して防ぐ。
+  const SUPPRESS_OPEN_AFTER_DELETE_MS = 400
+
   function queueDelete(ids: Set<number>): void {
     if (ids.size === 0) return
+    lastDeleteAtRef.current = performance.now()
     const previous = pendingDeleteRef.current
     if (previous) {
       pendingDeleteRef.current = null
@@ -356,6 +364,11 @@ export function useSelection({
     // ビューアが id で復元画像へ戻れるよう印を付けておく。
     if (pendingDeleteRef.current) pendingDeleteRef.current.viewerRestoreId = id
     setViewerIdx(nextViewerIdx)
+  }
+
+  function openIndex(idx: number): void {
+    if (performance.now() - lastDeleteAtRef.current < SUPPRESS_OPEN_AFTER_DELETE_MS) return
+    setViewerIdx(idx)
   }
 
   function selectIndex(idx: number, modifiers?: { shift?: boolean; ctrl?: boolean; meta?: boolean }): void {
@@ -776,5 +789,5 @@ export function useSelection({
     }
   }, [])
 
-  return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce }
+  return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, openIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce }
 }

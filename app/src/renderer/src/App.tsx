@@ -518,7 +518,7 @@ export default function App() {
                 focusedIndex={selection.focusedIndex}
                 loading={timeline.loading}
                 hasActiveFilter={filters.hasActiveFilter()}
-                onOpen={setViewerIdx}
+                onOpen={selection.openIndex}
                 onContextMenu={handleTimelineContextMenu}
                 containerWidth={containerWidth}
                 scrollRef={mainRef}
@@ -573,7 +573,7 @@ export default function App() {
                           titleStrip={settings.settings.titleStrip}
                           highlight={highlightQuery}
                           onContextMenu={handleThumbContextMenu}
-                          onOpen={setViewerIdx}
+                          onOpen={selection.openIndex}
                           index={start + localIdx}
                         />
                       ))}
