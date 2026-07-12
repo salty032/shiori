@@ -651,6 +651,7 @@ export default function App() {
             onUpdateFrameFpsAuto={settings.updateFrameFpsAuto}
             onUpdateCaptureHotkey={settings.updateCaptureHotkey}
             onUpdateCaptureNotify={settings.updateCaptureNotify}
+            onUpdateShowAiTags={settings.updateShowAiTags}
             onTaggerDownload={tagger.handleTaggerDownload}
             onTaggerCancelDownload={tagger.handleTaggerCancelDownload}
             onTaggerDelete={confirmTaggerDelete}

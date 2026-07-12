@@ -419,10 +419,23 @@ export function removeTagFromAllImages(tagName: string): number {
   return prepare('DELETE FROM image_tags WHERE tag_id = ?').run(tag.id).changes
 }
 
-export function listAllTags(): string[] {
+// includeAi=false（既定）: 手動タグのみ、件数の多い順。
+// includeAi=true: 手動タグを常に上位ブロックとし（人間のタグを優先）、その後にAI専用タグを
+// 件数順で続ける。同じタグ名で手動画像とAI画像が混在していても、手動が1件でもあれば
+// 「手動タグブロック」に属する扱いにする（MAX(...)で判定）。source も同じ「手動が1件でもあれば
+// manual」ルールで畳んで返し、サイドバー等の集約表示で手動/AIを色分けできるようにする。
+export function listAllTags(includeAi = false): ImageTag[] {
+  if (!includeAi) {
+    return (prepare(
+      'SELECT t.name FROM tags t JOIN image_tags it ON it.tag_id = t.id WHERE it.source = \'manual\' GROUP BY t.id ORDER BY COUNT(*) DESC, t.name'
+    ).all() as { name: string }[]).map((r) => ({ name: r.name, source: 'manual' as const }))
+  }
   return (prepare(
-    'SELECT t.name FROM tags t JOIN image_tags it ON it.tag_id = t.id WHERE it.source = \'manual\' GROUP BY t.id ORDER BY COUNT(*) DESC, t.name'
-  ).all() as { name: string }[]).map((r) => r.name)
+    `SELECT t.name, MAX(CASE WHEN it.source = 'manual' THEN 1 ELSE 0 END) AS hasManual
+     FROM tags t JOIN image_tags it ON it.tag_id = t.id
+     GROUP BY t.id
+     ORDER BY hasManual DESC, COUNT(*) DESC, t.name`
+  ).all() as { name: string; hasManual: number }[]).map((r) => ({ name: r.name, source: r.hasManual ? 'manual' as const : 'ai' as const }))
 }
 
 export function listTagCounts(): Record<string, number> {

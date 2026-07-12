@@ -92,6 +92,8 @@ export function createWindow(onFocus: () => void): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    minWidth: 960,
+    minHeight: 480,
     title: 'Shiori',
     icon: join(__dirname, '../../build/icon.ico'),
     webPreferences: {

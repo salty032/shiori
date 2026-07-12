@@ -13,4 +13,5 @@ export const SETTINGS_DEFAULTS: Settings = {
   captureNotify: true,
   allowedExtensionIds: [],
   serviceOrder: [],
+  showAiTags: false,
 }

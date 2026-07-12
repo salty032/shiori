@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from 'fs'
+import { readFileSync, existsSync, renameSync } from 'fs'
+import { writeFile, rename, unlink } from 'fs/promises'
 import { normalizeCaptureHotkey } from './hotkey'
 import type { SmartFolder, Settings } from '../shared/types'
 import { SETTINGS_DEFAULTS } from '../shared/settingsDefaults'
@@ -79,6 +80,7 @@ export function normalizeSettings(value: unknown): Settings {
     captureNotify: data.captureNotify !== false,
     allowedExtensionIds: allowedIds.length > 0 ? allowedIds : [EXTENSION_ID],
     serviceOrder: stringList(data.serviceOrder),
+    showAiTags: data.showAiTags === true,
   }
 }
 
@@ -119,18 +121,51 @@ export function loadSettings(): Settings {
   return _settingsCache
 }
 
-export function saveSettings(s: unknown): void {
-  // tmp に書いてから rename（同一FS上ではアトミック）。
-  // 書き込み途中のクラッシュ・電源断で settings.json 本体が壊れるのを防ぐ。
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// 直列化された永続化キュー。連続変更でもディスクへの書き込み順序が入れ替わらないようにする。
+let _persistChain: Promise<void> = Promise.resolve()
+
+// ディスクへの永続化はベストエフォート。Windows ではウイルス対策・検索インデクサ・別ハンドルが
+// settings.json を一時的にロックし、rename/write が EPERM/EBUSY/EACCES で間欠的に失敗する。
+// これを同期書き込みで throw させると settingsSet IPC が reject し、renderer 側が楽観更新を
+// 巻き戻して「設定がたまに反映されない」原因になっていた。ここではリトライで吸収し、最終的に
+// 失敗しても throw しない（セッション内の値は _settingsCache が保持し、次の変更で再度書き込まれる）。
+async function persistToDisk(data: Settings): Promise<void> {
   const path = settingsPath()
   const tmp = `${path}.tmp`
-  try {
-    const normalized = normalizeSettings(s)
-    writeFileSync(tmp, JSON.stringify(normalized, null, 2), 'utf-8')
-    renameSync(tmp, path)
-    _settingsCache = normalized
-  } catch (err) {
-    try { unlinkSync(tmp) } catch {}
-    throw err
+  const json = JSON.stringify(data, null, 2)
+  const MAX_ATTEMPTS = 5
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      // tmp に書いてから rename（同一FS上ではアトミック）。
+      // 書き込み途中のクラッシュ・電源断で settings.json 本体が壊れるのを防ぐ。
+      await writeFile(tmp, json, 'utf-8')
+      await rename(tmp, path)
+      return
+    } catch (err) {
+      await unlink(tmp).catch(() => {})
+      const code = (err as NodeJS.ErrnoException).code
+      const transient = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES'
+      if (attempt === MAX_ATTEMPTS || !transient) {
+        // tmp+rename が通らない場合の最終手段として実ファイルへ直接書き込む
+        // （原子性は劣るが rename の EPERM を回避できる）。これも失敗したら諦める。
+        try { await writeFile(path, json, 'utf-8'); return }
+        catch (fallbackErr) { console.error('[settings] persist failed after retries:', fallbackErr); return }
+      }
+      await delay(80 * attempt)  // 80,160,240,320ms のバックオフ
+    }
   }
+}
+
+export function saveSettings(s: unknown): void {
+  const normalized = normalizeSettings(s)
+  // セッション内の真実はここ。ディスク反映を待たず即座に確定し、loadSettings/getSettings が
+  // 常に最新値を返すようにする（永続化の成否と UI 反映を切り離す）。
+  _settingsCache = normalized
+  _persistChain = _persistChain
+    .then(() => persistToDisk(normalized))
+    .catch((err) => { console.error('[settings] unexpected persist error:', err) })
 }

@@ -84,7 +84,7 @@ const s: Record<string, React.CSSProperties> = {
   panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: '#0d0f14', border: '1px solid #252b38', borderRadius: 4, boxShadow: '0 24px 70px rgba(0,0,0,0.62)', overflow: 'hidden' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 18px 12px', borderBottom: '1px solid #20242f' },
   title: { minWidth: 0, color: '#eef1ff', fontSize: font.xl, fontWeight: 800, lineHeight: 1.35 },
-  closeBtn: { flexShrink: 0, width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#6f778b', cursor: 'pointer', padding: 0 },
+  closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(23,26,35,0.5)', border: '1px solid transparent', borderRadius: 4, color: '#8791a8', cursor: 'pointer', padding: 0 },
   body: { padding: '16px 18px 18px', color: '#aab3c8', fontSize: font.base, lineHeight: 1.65, whiteSpace: 'pre-wrap' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px 16px', background: '#101218', borderTop: '1px solid #20242f' },
   cancelBtn: { height: 34, padding: '0 14px', background: '#171a23', border: '1px solid #2b3243', borderRadius: 3, color: '#dce3f2', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },

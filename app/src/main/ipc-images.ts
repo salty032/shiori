@@ -70,7 +70,7 @@ export function registerImageHandlers(): void {
 
   handleTrusted(CH.imagesListSites, () => listSites())
   handleTrusted(CH.imagesListSiteCounts, () => listSiteCounts())
-  handleTrusted(CH.imagesListAllTags, () => listAllTags())
+  handleTrusted(CH.imagesListAllTags, (_event, includeAi: unknown) => listAllTags(includeAi === true))
   handleTrusted(CH.imagesListTagCounts, () => listTagCounts())
 
   handleTrusted(CH.imagesExport, async (_event, imageIds: number[]) => {

@@ -15,6 +15,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   const tagFilters = useFilterStore((s) => s.tagFilters)
   const tagMode = useFilterStore((s) => s.tagMode)
   const allTags = useFilterStore((s) => s.allTags)
+  const aiOnlyTags = useFilterStore((s) => s.aiOnlyTags)
   const sortOrder = useFilterStore((s) => s.sortOrder)
   const shuffleSeed = useFilterStore((s) => s.shuffleSeed)
 
@@ -36,8 +37,8 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
 
   useEffect(() => {
     window.api.listSites().then(setSites)
-    window.api.listAllTags().then(setAllTags)
-  }, [setSites, setAllTags])
+    window.api.listAllTags(settings.showAiTags).then(setAllTags)
+  }, [setSites, setAllTags, settings.showAiTags])
 
   function hasActiveFilter(): boolean {
     return tagFilters.length > 0 || searchInput !== ''
@@ -125,7 +126,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   }
 
   function refreshTags(): void {
-    window.api.listAllTags().then(setAllTags)
+    window.api.listAllTags(settings.showAiTags).then(setAllTags)
   }
   function refreshSites(): void {
     window.api.listSites().then(setSites)
@@ -150,6 +151,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
     tagFilters, setTagFilters,
     tagMode, setTagMode,
     allTags,
+    aiOnlyTags,
     sortOrder, setSortOrder,
     shuffleSeed, setShuffleSeed,
     creatingFolder, setCreatingFolder,

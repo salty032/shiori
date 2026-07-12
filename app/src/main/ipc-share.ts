@@ -17,6 +17,23 @@ let isShareExporting = false
 let isShareExportCanceled = false
 let isShareImporting = false
 let isShareImportCanceled = false
+const MAX_SHARE_METADATA_BYTES = 64 * 1024 * 1024
+const MAX_SHARE_SETTINGS_BYTES = 1024 * 1024
+
+// 同じ秒に連続して書き出しても既存バンドルへ画像が混ざらないよう、ディレクトリ作成自体を
+// 衝突判定として使って一意な保存先を予約する（事前 access だけだと TOCTOU になる）。
+async function createUniqueExportDir(parent: string, timestamp: number): Promise<string> {
+  const base = `shiori_export_${formatDateForFilename(timestamp)}`
+  for (let n = 0; ; n++) {
+    const candidate = join(parent, n === 0 ? base : `${base}_${n}`)
+    try {
+      await mkdir(candidate)
+      return candidate
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
+    }
+  }
+}
 
 export function registerShareHandlers(): void {
   handleTrusted(CH.shareExport, async () => {
@@ -32,7 +49,7 @@ export function registerShareHandlers(): void {
       if (canceled || !filePaths[0]) return { canceled: true }
       isShareExportCanceled = false
 
-      const destDir = join(filePaths[0], `shiori_export_${formatDateForFilename(Date.now())}`)
+      const destDir = await createUniqueExportDir(filePaths[0], Date.now())
       const imagesDir = join(destDir, 'images')
       await mkdir(imagesDir, { recursive: true })
 
@@ -125,7 +142,12 @@ export function registerShareHandlers(): void {
       const srcDir = filePaths[0]
       let content: string
       try {
-        content = await readFile(join(srcDir, 'metadata.jsonl'), 'utf-8')
+        const metadataPath = join(srcDir, 'metadata.jsonl')
+        const metadataStat = await stat(metadataPath)
+        if (!metadataStat.isFile() || metadataStat.size > MAX_SHARE_METADATA_BYTES) {
+          return { canceled: false, count: 0, errors: ['metadata.jsonl が大きすぎます（上限64MB）'] }
+        }
+        content = await readFile(metadataPath, 'utf-8')
       } catch {
         return { canceled: false, count: 0, errors: ['metadata.jsonl が見つかりません'] }
       }
@@ -211,23 +233,31 @@ export function registerShareHandlers(): void {
       // 名前が完全一致する既存フォルダはスキップし、それ以外は id を採番し直して追記する
       // （エクスポート元とインポート先で id が衝突しうるため）。
       let importedFolders = 0
-      try {
-        const settingsRaw = await readFile(join(srcDir, 'settings.json'), 'utf-8')
-        const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }
-        const incoming = smartFolders(parsed?.smartFolders)
-        if (incoming.length > 0) {
-          const current = loadSettings()
-          const existingNames = new Set(current.smartFolders.map((f) => f.name))
-          const ts = Date.now()
-          const toAdd = incoming
-            .filter((f) => !existingNames.has(f.name))
-            .map((f, i) => ({ ...f, id: `import-${ts}-${i}` }))
-          if (toAdd.length > 0) {
-            saveSettings({ ...current, smartFolders: [...current.smartFolders, ...toAdd] })
-            importedFolders = toAdd.length
+      if (!isShareImportCanceled) {
+        try {
+          const settingsPath = join(srcDir, 'settings.json')
+          const settingsStat = await stat(settingsPath)
+          if (!settingsStat.isFile() || settingsStat.size > MAX_SHARE_SETTINGS_BYTES) {
+            errors.push('settings.json が大きすぎます（上限1MB）')
+          } else {
+            const settingsRaw = await readFile(settingsPath, 'utf-8')
+            const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }
+            const incoming = smartFolders(parsed?.smartFolders)
+            if (incoming.length > 0) {
+              const current = loadSettings()
+              const existingNames = new Set(current.smartFolders.map((f) => f.name))
+              const ts = Date.now()
+              const toAdd = incoming
+                .filter((f) => !existingNames.has(f.name))
+                .map((f, i) => ({ ...f, id: `import-${ts}-${i}` }))
+              if (toAdd.length > 0) {
+                saveSettings({ ...current, smartFolders: [...current.smartFolders, ...toAdd] })
+                importedFolders = toAdd.length
+              }
+            }
           }
-        }
-      } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
+        } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
+      }
 
       return { canceled: isShareImportCanceled, count, errors, importedFolders }
     } finally {

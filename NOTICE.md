@@ -23,6 +23,7 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 |---|---|---|
 | Electron | MIT | アプリケーション基盤 |
 | React / React DOM | MIT | UI |
+| zustand | MIT | 状態管理 |
 | better-sqlite3 | MIT | メタデータDB |
 | onnxruntime-node | MIT | ONNX 推論ランタイム |
 | ws | MIT | WebSocket サーバー |
@@ -37,7 +38,7 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 
 ## アイコン素材
 
-- 提供元: [Icons8](https://icons8.com)
-- 用途: アプリケーションアイコン
+- [Shiori icon by Icons8](https://icons8.com)
+- 用途: アプリケーションおよび Chrome 拡張機能のアイコン
 
 ---

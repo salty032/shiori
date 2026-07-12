@@ -13,7 +13,7 @@ export interface ShioriApi {
   listAllImages: (query: ImageQuery) => Promise<ImageRow[]>
   listSites: () => Promise<string[]>
   listSiteCounts: () => Promise<Record<string, number>>
-  listAllTags: () => Promise<string[]>
+  listAllTags: (includeAi?: boolean) => Promise<ImageTag[]>
   listTagCounts: () => Promise<Record<string, number>>
   exportImages: (imageIds: number[]) => Promise<{ canceled: boolean; count?: number; truncated?: boolean }>
   // 進行中の imagesExport を中断する（数百枚規模のコピーが分単位になりうるため）。

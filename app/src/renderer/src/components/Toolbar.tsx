@@ -264,7 +264,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   return (
     <div ref={ref} style={s.stickyHeader}>
       <div style={s.searchBar}>
-        <div ref={searchWrapRef} style={s.searchInputWrap}>
+        <div ref={searchWrapRef} className="shiori-search-input-wrap" style={s.searchInputWrap}>
           {searching ? (
             <svg style={s.searchSpinner} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M14.5 8a6.5 6.5 0 1 1-2-4.7" />
@@ -275,7 +275,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </svg>
           )}
           <div style={s.searchInputInner}>
-            <input ref={searchInputRef} style={s.searchInput} value={filters.search}
+            <input ref={searchInputRef} className="shiori-search-input" style={s.searchInput} value={filters.search}
               onChange={(e) => {
                 setForcedSuggestion(null)
                 const next = e.target.value

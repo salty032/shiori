@@ -16,6 +16,7 @@ const DEFAULTS = {
   captureNotify: true,
   allowedExtensionIds: [DEFAULT_EXTENSION_ID],
   serviceOrder: [],
+  showAiTags: false,
 }
 
 describe('normalizeSettings', () => {

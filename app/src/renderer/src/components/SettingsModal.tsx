@@ -21,6 +21,7 @@ type Props = {
   onUpdateFrameFpsAuto: (enabled: boolean) => void
   onUpdateCaptureHotkey: (hotkey: string) => Promise<boolean>
   onUpdateCaptureNotify: (enabled: boolean) => void
+  onUpdateShowAiTags: (enabled: boolean) => void
   onTaggerDownload: () => void
   onTaggerCancelDownload: () => void
   onTaggerDelete: () => void
@@ -88,7 +89,7 @@ export default function SettingsModal(p: Props) {
   useEffect(() => {
     const block = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape' && !capturing && !slotCapturing) p.onClose()
+      if (e.key === 'Escape' && !capturing && !slotCapturing) closeSettings()
     }
     document.addEventListener('keydown', block)
     return () => document.removeEventListener('keydown', block)
@@ -124,18 +125,37 @@ export default function SettingsModal(p: Props) {
   const FPS_INPUT_DEBOUNCE_MS = 300
   const [fpsInputDraft, setFpsInputDraft] = useState(String(p.settings.frameFps))
   const fpsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => { setFpsInputDraft(String(p.settings.frameFps)) }, [p.settings.frameFps])
+  const fpsInputDraftRef = useRef(fpsInputDraft)
+  useEffect(() => {
+    const value = String(p.settings.frameFps)
+    setFpsInputDraft(value)
+    fpsInputDraftRef.current = value
+  }, [p.settings.frameFps])
   useEffect(() => () => { if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current) }, [])
+
+  function flushPendingFps(): void {
+    if (!fpsDebounceRef.current) return
+    clearTimeout(fpsDebounceRef.current)
+    fpsDebounceRef.current = null
+    const raw = fpsInputDraftRef.current
+    const value = Number(raw)
+    if (raw && value >= 1 && value <= 60) p.onUpdateFrameFps(value)
+  }
+
+  function closeSettings(): void {
+    flushPendingFps()
+    p.onClose()
+  }
 
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef, true)
 
   return (
-    <div style={s.overlay} onClick={p.onClose}>
+    <div style={s.overlay} onClick={closeSettings}>
       <div style={s.panel} ref={panelRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div style={s.header}>
           <span id="settings-modal-title" style={s.title}>設定</span>
-          <button style={s.close} onClick={p.onClose} title="閉じる"><XIcon size={17} /></button>
+          <button style={s.close} onClick={closeSettings} title="閉じる"><XIcon size={17} /></button>
         </div>
 
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -183,19 +203,25 @@ export default function SettingsModal(p: Props) {
                         })}
                         <input type="number" min={1} max={60} value={fpsInputDraft}
                           onChange={(e) => {
-                            const raw = e.target.value
-                            setFpsInputDraft(raw)
-                            const v = Number(raw)
-                            if (!raw || !(v >= 1 && v <= 60)) return
-                            if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current)
-                            fpsDebounceRef.current = setTimeout(() => p.onUpdateFrameFps(v), FPS_INPUT_DEBOUNCE_MS)
+                             const raw = e.target.value
+                             setFpsInputDraft(raw)
+                             fpsInputDraftRef.current = raw
+                             if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current)
+                             fpsDebounceRef.current = null
+                             const v = Number(raw)
+                             if (!raw || !(v >= 1 && v <= 60)) return
+                             fpsDebounceRef.current = setTimeout(() => {
+                               fpsDebounceRef.current = null
+                               p.onUpdateFrameFps(v)
+                             }, FPS_INPUT_DEBOUNCE_MS)
                           }}
                           onBlur={() => {
                             if (!fpsDebounceRef.current) return
                             clearTimeout(fpsDebounceRef.current)
                             fpsDebounceRef.current = null
-                            const v = Number(fpsInputDraft)
-                            if (fpsInputDraft && v >= 1 && v <= 60) p.onUpdateFrameFps(v)
+                            const raw = fpsInputDraftRef.current
+                            const v = Number(raw)
+                            if (raw && v >= 1 && v <= 60) p.onUpdateFrameFps(v)
                             else setFpsInputDraft(String(p.settings.frameFps))
                           }}
                           style={{ ...s.input, width: 52, textAlign: 'center' as const, padding: '6px 4px' }} />
@@ -323,6 +349,14 @@ export default function SettingsModal(p: Props) {
                     </div>
                   )}
                 </div>
+                <div style={s.group}>
+                  <div style={s.section}>サイドバー表示</div>
+                  <div style={s.toggleRow}>
+                    <span style={s.label}>AIタグもサイドバーに表示する</span>
+                    <ToggleSwitch checked={p.settings.showAiTags ?? false} onChange={p.onUpdateShowAiTags} />
+                  </div>
+                  <div style={s.hint}>OFFの間は手動で付けたタグのみを表示します。ONにするとAIタグも表示されますが、手動タグを優先して上位に並べます。</div>
+                </div>
               </>
             )}
 
@@ -422,11 +456,11 @@ export const s: Record<string, React.CSSProperties> = {
   panel: { background: '#0d0f14', border: '1px solid #20242f', borderRadius: 4, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,0.62)', overflow: 'hidden' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid #20242f' },
   sidebar: { width: 124, padding: '8px 10px', gap: 2, flexShrink: 0, background: '#090c12', borderRight: '1px solid #1e2230', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
-  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: '#717a92', padding: '7px 10px', borderRadius: 3, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
+  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: '#8791a8', padding: '7px 10px', borderRadius: 3, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
   tabBtnActive: { color: '#c8cff7', background: '#1a1f35', fontWeight: 700 },
   tabContent: { overflowY: 'auto' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
   title: { fontSize: font.xxl, fontWeight: 800, color: '#f7f9ff' },
-  close: { width: 26, height: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#6f778b', cursor: 'pointer', padding: 0 },
+  close: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(23,26,35,0.5)', border: '1px solid transparent', borderRadius: 4, color: '#8791a8', cursor: 'pointer', padding: 0 },
   group: { borderTop: '1px solid #293142', paddingTop: 22, paddingBottom: 22, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 620 },
   section: { fontSize: font.xs, color: '#7f899f', letterSpacing: 0.4, fontWeight: 800 },
   toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 },
@@ -436,9 +470,9 @@ export const s: Record<string, React.CSSProperties> = {
   hint: { fontSize: font.sm, color: '#8791a8', lineHeight: 1.7 },
   hotkeyBadge: { padding: '4px 10px', background: '#171a23', border: '1px solid #272c3a', borderRadius: 3, color: '#dce3f2', fontSize: font.base, fontFamily: 'monospace' },
   hotkeyCapture: { padding: '4px 10px', background: '#171a23', border: '1px solid #3b4355', borderRadius: 3, color: '#9ea5ff', fontSize: font.base, fontFamily: 'monospace', minWidth: 140, outline: 'none', cursor: 'text' },
-  toggleSwitch: { width: 40, height: 22, padding: 2, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: '#171a23', border: '1px solid #343b4c', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
+  toggleSwitch: { width: 44, height: 28, padding: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: '#171a23', border: '1px solid #343b4c', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
   toggleSwitchOn: { background: 'rgba(111,111,242,0.24)', borderColor: 'rgba(126,138,255,0.6)' },
-  toggleKnob: { width: 16, height: 16, borderRadius: 999, background: '#8a94aa', boxShadow: '0 1px 3px rgba(0,0,0,0.45)', transition: 'transform 0.16s cubic-bezier(.22,1,.36,1), background 0.16s ease' },
+  toggleKnob: { width: 20, height: 20, borderRadius: 999, background: '#8a94aa', boxShadow: '0 1px 3px rgba(0,0,0,0.45)', transition: 'transform 0.16s cubic-bezier(.22,1,.36,1), background 0.16s ease' },
   toggleKnobOn: { background: '#c5cbff' },
   statusBadge: { display: 'inline-flex', alignItems: 'center', height: 22, padding: '0 8px', borderRadius: 999, fontSize: font.xs, fontWeight: 800, border: '1px solid', whiteSpace: 'nowrap' as const },
   statusOk: { color: '#7cb87c', background: 'rgba(45,130,70,0.12)', borderColor: 'rgba(90,170,105,0.35)' },

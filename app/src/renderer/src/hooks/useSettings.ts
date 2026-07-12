@@ -52,5 +52,6 @@ export function useSettings(showToast?: ShowToast) {
     updateFrameFpsAuto: (v: boolean) => update('frameFpsAuto', v, showToast),
     updateCaptureHotkey: applyCaptureHotkey,
     updateCaptureNotify: (v: boolean) => update('captureNotify', v, showToast),
+    updateShowAiTags: (v: boolean) => update('showAiTags', v, showToast),
   }
 }

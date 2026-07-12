@@ -19,9 +19,9 @@
   background: #555;
 }
 body { background: #111; color: #eee; font-family: system-ui, sans-serif; }
-input::placeholder { color: #555; }
+input::placeholder,
+textarea::placeholder { color: #7a8499; }
 button:not(:disabled):hover { filter: brightness(1.13); }
-button:focus-visible { outline: 2px solid rgba(123,123,246,0.65); outline-offset: 2px; border-radius: 3px; }
 
 /* メニュー/サジェスト項目（透明背景でボタンの brightness hover が効かないもの）用の共通ホバー。
    キーボード選択中のハイライトと同系色にして、マウス操作とキー操作の見た目を揃える。 */

@@ -304,7 +304,7 @@ export default function Sidebar({
 
         {filters.allTags.length > 0 && (
           <div style={s.siteGroup}>
-            <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 18 }}>
+            <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 }}>
               <span>タグ</span>
               <div style={s.tagLabelActions}>
                 {/* タグクリックは searchTags（検索欄の tag:xxx）に書き込まれ、tagFilters は
@@ -333,6 +333,12 @@ export default function Sidebar({
             <div style={s.sidebarTagList}>
               {visibleTags.map((tag) => {
                 const active = filters.tagFilters.includes(tag) || searchTags.includes(tag)
+                // 由来ごとに色相を固定し、非選択=薄い色 / 選択=濃い色で表す（手動: 薄緑→濃緑 / AI: 薄藍→濃藍）。
+                // 選択で別色相に化けて色が混ざらないよう、由来別の active スタイルを使い分ける。
+                const aiOnly = filters.aiOnlyTags.has(tag)
+                const chipStyle = active
+                  ? (aiOnly ? s.sidebarTagChipAiActive : s.sidebarTagChipActive)
+                  : (aiOnly ? s.sidebarTagChipAi : s.sidebarTagChipManual)
                 return (
                   <button key={tag}
                     onClick={() => {
@@ -347,8 +353,8 @@ export default function Sidebar({
                       }
                     }}
                     onContextMenu={(e) => { e.preventDefault(); setTagCtxMenu({ x: e.clientX, y: e.clientY, tag }) }}
-                    style={{ ...s.sidebarTagChip, ...(active ? s.sidebarTagChipActive : {}) }}
-                    title={`${tag}（右クリックでタグ自体を削除）`}>
+                    style={{ ...s.sidebarTagChip, ...chipStyle }}
+                    title={`${tag}${aiOnly ? '（AIタグ）' : ''}（右クリックでタグ自体を削除）`}>
                     <span style={s.sidebarTagChipText}>{tag}</span>
                   </button>
                 )
@@ -378,7 +384,7 @@ export default function Sidebar({
                 thumbnailSize は 80-360 を許容するが UI は3択のみなので、旧値・手編集で
                 ちょうど一致しない値が入っていても最も近いボタンをアクティブに見せる
                 （でないと indexOf===-1 でどのボタンもハイライトされなくなる）。 */}
-            <div style={{ ...s.segSlider, width: 30, transform: `translateX(${THUMB_SIZES.indexOf(nearestThumbSize) * 30}px)` }} />
+            <div style={{ ...s.segSlider, width: 34, transform: `translateX(${THUMB_SIZES.indexOf(nearestThumbSize) * 34}px)` }} />
             {([['S', 120], ['M', 160], ['L', 220]] as const).map(([label, size]) => (
               <button key={size}
                 style={{ ...s.thumbSizeBtn, ...(nearestThumbSize === size ? s.segActive : {}) }}
@@ -388,7 +394,7 @@ export default function Sidebar({
           </div>
           <div style={s.controlDivider} />
           <div style={s.viewToggle}>
-            <div style={{ ...s.segSlider, width: 34, transform: `translateX(${viewMode === 'timeline' ? 34 : 0}px)` }} />
+            <div style={{ ...s.segSlider, width: 38, transform: `translateX(${viewMode === 'timeline' ? 38 : 0}px)` }} />
             {([['grid', <GridIcon key="i" />, 'グリッド'], ['timeline', <ListIcon key="i" />, 'タイムライン']] as const).map(([mode, icon, label]) => (
               <button key={mode}
                 style={{ ...s.viewToggleBtn, ...(viewMode === mode ? s.segActive : {}) }}

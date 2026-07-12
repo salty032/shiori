@@ -31,13 +31,15 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
   },
 
   update: async (key, value, showToast) => {
-    const prev = get().settings
-    set({ settings: { ...prev, [key]: value } })
+    const prevValue = get().settings[key]
+    set((s) => ({ settings: { ...s.settings, [key]: value } }))
     try {
       await window.api.setSettings({ [key]: value } as Partial<Settings>)
     } catch (err) {
       console.error('[settings] update failed', key, err)
-      set({ settings: prev })
+      // 巻き戻しは対象キーのみを最新 state に対して行う。全体スナップショット（prev）へ戻すと、
+      // await 中に成功した別キーの変更まで消えてしまう（連続操作時の巻き添え）。
+      set((s) => ({ settings: { ...s.settings, [key]: prevValue } }))
       showToast?.('設定の保存に失敗しました', 'error')
     }
   },

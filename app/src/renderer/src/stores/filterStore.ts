@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SortOrder, TagMode } from '../types'
+import type { ImageTag, SortOrder, TagMode } from '../types'
 
 type Setter<T> = T | ((prev: T) => T)
 function resolve<T>(value: Setter<T>, prev: T): T {
@@ -20,7 +20,11 @@ type FilterState = {
   sortOrder: SortOrder
   shuffleSeed: number
   sites: string[]
+  // allTags はオートコンプリート用の「タグ名の配列」（従来どおり）。集約表示での手動/AI
+  // 色分け用に、AI専用（手動が1件も無い）タグ名の集合を aiOnlyTags として並行して持つ。
+  // 両者は setAllTags で同一の ImageTag[] から一度に導出するのでズレない。
   allTags: string[]
+  aiOnlyTags: Set<string>
   // フォルダを開いた直後〜条件を手で触るまでの近似的な「アクティブ」表示用。
   // 厳密な条件一致判定ではない（例えば同じ内容を手動で再現しても付かない）。
   activeSmartFolderId: string | null
@@ -32,7 +36,7 @@ type FilterState = {
   setSortOrder: (v: SortOrder) => void
   setShuffleSeed: (v: number) => void
   setSites: (v: string[]) => void
-  setAllTags: (v: string[]) => void
+  setAllTags: (v: ImageTag[]) => void
   applySmartFolder: (id: string, f: CommittedFilters) => void
   clearAll: () => void
 }
@@ -46,6 +50,7 @@ export const useFilterStore = create<FilterState>((set) => ({
   shuffleSeed: Date.now(),
   sites: [],
   allTags: [],
+  aiOnlyTags: new Set(),
   activeSmartFolderId: null,
 
   setSearchInput: (v) => set((s) => ({ searchInput: resolve(v, s.searchInput), activeSmartFolderId: null })),
@@ -55,7 +60,10 @@ export const useFilterStore = create<FilterState>((set) => ({
   setSortOrder: (v) => set({ sortOrder: v }),
   setShuffleSeed: (v) => set({ shuffleSeed: v }),
   setSites: (v) => set({ sites: v }),
-  setAllTags: (v) => set({ allTags: v }),
+  setAllTags: (v) => set({
+    allTags: v.map((t) => t.name),
+    aiOnlyTags: new Set(v.filter((t) => t.source === 'ai').map((t) => t.name)),
+  }),
 
   applySmartFolder: (id, f) => set({
     searchInput: f.search,

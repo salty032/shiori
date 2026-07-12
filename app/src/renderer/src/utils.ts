@@ -1,4 +1,4 @@
-import type { ImageRow, ImageTag } from './types'
+import type { ImageRow, ImageTag, ImageTagSource } from './types'
 import { MAX_BULK_IDS, MAX_TAG_LENGTH } from '../../shared/constants'
 
 export { MAX_TAG_LENGTH }
@@ -33,14 +33,26 @@ export function tagSuggestions(
 // 複数画像へのタグ一括操作（DetailPanelの一括編集/QuickTagInputで個別に持っていた
 // 取得・追加・削除ロジックを集約: F-9）。
 
-// imageIds 各々のタグを chunked で取得し、タグ名 → 何枚に付いているかの頻度表にする。
+// タグ名 → 「何枚に付いているか(count)」と「集約後の由来(source)」。source は
+// 「手動が1件でもあれば manual」で畳む（DB の listAllTags や UPSERT 昇格と同じルール）。
+export type BulkTagInfo = { count: number; source: ImageTagSource }
+
+// imageIds 各々のタグを chunked で取得し、上記の頻度＋由来表にする。
 // 呼び出し側は count===imageIds.length で「全員に付いている」か判定する。
-export async function fetchBulkTagFrequency(imageIds: number[]): Promise<Map<string, number>> {
+export async function fetchBulkTagFrequency(imageIds: number[]): Promise<Map<string, BulkTagInfo>> {
   const results = await Promise.all(chunkIds(imageIds).map((chunk) => window.api.taggerGetTagsBulk(chunk)))
   const byId = Object.assign({}, ...results) as Record<number, ImageTag[]>
-  const freq = new Map<string, number>()
+  const freq = new Map<string, BulkTagInfo>()
   for (const id of imageIds) {
-    for (const { name } of byId[id] ?? []) freq.set(name, (freq.get(name) ?? 0) + 1)
+    for (const { name, source } of byId[id] ?? []) {
+      const prev = freq.get(name)
+      if (prev) {
+        prev.count += 1
+        if (source === 'manual') prev.source = 'manual'
+      } else {
+        freq.set(name, { count: 1, source })
+      }
+    }
   }
   return freq
 }

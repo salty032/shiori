@@ -93,7 +93,7 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
       </div>
       <div className="shiori-tag-list" style={styles.tagList}>
         {[...tags].sort((a, b) => a.source === b.source ? 0 : a.source === 'manual' ? -1 : 1).map(tag => (
-          <span key={tag.name} style={{ ...(tag.source === 'ai' ? styles.tagChipAi : s.tagChipManual), cursor: onFilterByTag ? 'pointer' : 'default' }}
+          <span key={tag.name} style={{ ...(tag.source === 'ai' ? s.tagChipAi : s.tagChipManual), cursor: onFilterByTag ? 'pointer' : 'default' }}
             title={(onFilterByTag ? 'クリックで絞り込み / 絞り込み中なら解除' : '') + '（右クリックで削除）'}
             onClick={() => onFilterByTag?.(tag.name)}
             onContextMenu={(e) => { e.preventDefault(); setTagCtxMenu({ x: e.clientX, y: e.clientY, tag: tag.name }) }}>
@@ -139,6 +139,5 @@ const styles: Record<string, React.CSSProperties> = {
   tagLegend: { fontSize: font.xs, color: '#7f899f', fontWeight: 400, letterSpacing: 0 },
   tagList: { display: 'flex', flexWrap: 'wrap', gap: 7, minHeight: 4, maxHeight: TAG_LIST_COLLAPSED_MAX_HEIGHT, overflowY: 'auto' as const, overflowX: 'hidden' as const },
   tagControlRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, minHeight: 28 },
-  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(111,111,242,0.14)', border: '1px solid rgba(111,111,242,0.5)', borderRadius: 999, color: '#9ea5ff', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
   tagError: { color: color.danger, fontSize: font.sm },
 }

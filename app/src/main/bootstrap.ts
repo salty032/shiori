@@ -37,6 +37,7 @@ import { registerImportHandlers } from './ipc-import'
 import { optionalPositiveInteger } from './ipc-validation'
 import { sendBrowserNotice } from './browser-notice'
 import { CH } from '../shared/api'
+import { waitForPreferredTimecode, type CaptureTimecode } from './timecode-request'
 
 export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
@@ -61,7 +62,7 @@ export function bootstrap(): void {
   const CAPTURE_TIMECODE_TIMEOUT_MS = 900
   const CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS = 1500
 
-  let pendingTimecode: Promise<{ title: string; currentTime: number | null; url: string | null } | null> | null = null
+  let pendingTimecode: Promise<CaptureTimecode | null> | null = null
   // pre-capture を実際にブラウザへ送ったかどうかのフラグ。post-capture（UI復帰）を pre-capture と
   // 対称に送るための旗。Shiori 前面・ガードでの中断など pre-capture を送る前に中止した
   // ケースでは立てない。post-capture を空打ちせず、screenshot 直後の早期復帰と揃える
@@ -186,11 +187,12 @@ export function bootstrap(): void {
     migrateThumbnailsToOwnDir().catch((err) => console.warn('[migrate-thumb] failed', err))
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
     const wsSettings = loadSettings()
-    startWsServer({ allowedExtensionIds: wsSettings.allowedExtensionIds })
     onWsClientConnect((send) => {
       const s = loadSettings()
       send({ type: 'settings', frameFps: s.frameFps ?? 24, frameFpsAuto: s.frameFpsAuto !== false, captureKey: captureHotkeyMainKey(s.captureHotkey) })
     })
+    // listen 開始前に接続コールバックを登録し、起動直後の接続にも必ず設定を返す。
+    startWsServer({ allowedExtensionIds: wsSettings.allowedExtensionIds })
 
     onExtensionMessage((msg) => {
       if (msg.type === 'timecode') {
@@ -276,22 +278,9 @@ export function bootstrap(): void {
       // pre-capture を先に送り hidePlayerUI を実行させてから rAF をスケジュールする
       // こうすることで rAF（＝DOM描画済みの合図）が必ず hidePlayerUI の後に発火する
       const requestId = `${Date.now()}-${Math.random()}`
-      pendingTimecode = new Promise((resolve) => {
-        let off = (): void => {}
-        const timer = setTimeout(() => {
-          off()
-          resolve(null)
-        }, CAPTURE_TIMECODE_TIMEOUT_MS)
-        off = onExtensionMessage((msg) => {
-          if (msg.type === 'timecode' && msg.requestId === requestId) {
-            clearTimeout(timer)
-            off()
-            resolve({ title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null })
-          }
-        })
-        broadcastMessage({ type: 'pre-capture' })
-        broadcastMessage({ type: 'request-timecode', requestId })
-      })
+      pendingTimecode = waitForPreferredTimecode(requestId, CAPTURE_TIMECODE_TIMEOUT_MS, onExtensionMessage)
+      broadcastMessage({ type: 'pre-capture' })
+      broadcastMessage({ type: 'request-timecode', requestId })
       // タイムコードは content.js の rAF 後に届く（＝DOM 描画済みの合図）
       // それを待ってから OS コンポジタ向けに 20ms マージンを取ってスクショ
       const latest = await pendingTimecode

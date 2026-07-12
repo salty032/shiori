@@ -41,6 +41,7 @@ export type Settings = {
   captureNotify: boolean
   allowedExtensionIds: string[]
   serviceOrder: string[]
+  showAiTags: boolean
 }
 
 // 一覧のフィルタ条件。renderer が組み立て、main が検証し、SQL に落とすまでの

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import type { ImageRow, Settings } from '../types'
+import type { ImageRow, ImageTagSource, Settings } from '../types'
 import { cleanTitle, siteName, formatTime, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
 import { font, color, s as commonStyles } from '../styles'
 import TagEditor from './TagEditor'
@@ -24,7 +24,10 @@ type Props = {
   onClearSelection: () => void
 }
 
-type BulkTagStatus = 'all' | 'some'
+// coverage=選択中の何枚に付いているか（all=全部 / some=一部）。source=集約後の由来。
+// 色を由来（緑=手動 / 藍=AI）に固定し、coverage は破線＋件数バッジという別チャンネルで表す。
+type BulkCoverage = 'all' | 'some'
+type BulkTagEntry = { coverage: BulkCoverage; source: ImageTagSource }
 type MemoSaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 type PendingMemoSave = { id: number; value: string; base: string }
 // フォルダドロップ等で自動タグ付けが連続完了すると taggerDoneKey が連打され、
@@ -32,9 +35,19 @@ type PendingMemoSave = { id: number; value: string; base: string }
 const BULK_TAG_REFRESH_DEBOUNCE_MS = 300
 const MEMO_AUTOSAVE_DELAY_MS = 700
 
-function sortBulkTags(a: [string, BulkTagStatus], b: [string, BulkTagStatus]): number {
-  if (a[1] === b[1]) return a[0].localeCompare(b[0])
-  return a[1] === 'all' ? -1 : 1
+// 全部付き(all)を先頭、次に手動→AIの順、最後にタグ名で安定ソート。
+function sortBulkTags(a: [string, BulkTagEntry], b: [string, BulkTagEntry]): number {
+  if (a[1].coverage !== b[1].coverage) return a[1].coverage === 'all' ? -1 : 1
+  if (a[1].source !== b[1].source) return a[1].source === 'manual' ? -1 : 1
+  return a[0].localeCompare(b[0])
+}
+
+// titleInput は box-sizing: border-box のため、height には border 分を足し戻す必要がある
+// （scrollHeight は border を含まないため、素で代入すると border-bottom の 1px 分だけ縮んでしまう）
+function resizeTitleInput(el: HTMLTextAreaElement): void {
+  const borderHeight = el.offsetHeight - el.clientHeight
+  el.style.height = 'auto'
+  el.style.height = (el.scrollHeight + borderHeight) + 'px'
 }
 
 export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, onShowInFolder, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
@@ -58,7 +71,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const activeImageIdRef = useRef<number | null>(single?.id ?? null)
   const prevTaggerDoneKeyRef = useRef(taggerDoneKey)
 
-  const [bulkTagMap, setBulkTagMap] = useState<Map<string, BulkTagStatus>>(new Map())
+  const [bulkTagMap, setBulkTagMap] = useState<Map<string, BulkTagEntry>>(new Map())
   const [bulkTagInput, setBulkTagInput] = useState('')
   const [bulkTagInputOpen, setBulkTagInputOpen] = useState(false)
   const bulkInputRef = useRef<HTMLInputElement>(null)
@@ -81,7 +94,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   }, [single?.id])
 
   const bulkSuggestions = useMemo(() => {
-    return tagSuggestions(bulkTagInput, allTags, (tag) => bulkTagMap.get(tag) !== 'all')
+    return tagSuggestions(bulkTagInput, allTags, (tag) => bulkTagMap.get(tag)?.coverage !== 'all')
   }, [allTags, bulkTagInput, bulkTagMap])
 
   // 選択画像が変わったときだけ編集状態をリセットする。taggerDoneKey の変化（裏で別画像の
@@ -128,8 +141,8 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
         .then((freq) => {
           if (canceled) return
           const total = selectedIdList.length
-          const map = new Map<string, BulkTagStatus>()
-          for (const [name, count] of freq) map.set(name, count === total ? 'all' : 'some')
+          const map = new Map<string, BulkTagEntry>()
+          for (const [name, { count, source }] of freq) map.set(name, { coverage: count === total ? 'all' : 'some', source })
           setBulkTagMap(map)
         }).catch((err) => { if (!canceled) console.error('[tags] getTagsBulk failed', err) })
     }, delay)
@@ -141,7 +154,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
     if (!trimmed) return
     try {
       await addTagToImages(selectedIdList, trimmed)
-      setBulkTagMap(prev => new Map([...prev, [trimmed, 'all']]))
+      setBulkTagMap(prev => new Map([...prev, [trimmed, { coverage: 'all', source: 'manual' }]]))
       setBulkTagInputOpen(false)
       onTagsChanged()
     } catch (err) {
@@ -173,8 +186,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       const el = titleInputRef.current
       if (!el) return
       el.select()
-      el.style.height = 'auto'
-      el.style.height = el.scrollHeight + 'px'
+      resizeTitleInput(el)
     }, 0)
   }
 
@@ -270,8 +282,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   rows={1}
                   onChange={(e) => {
                     setTitleDraft(e.target.value)
-                    e.target.style.height = 'auto'
-                    e.target.style.height = e.target.scrollHeight + 'px'
+                    resizeTitleInput(e.target)
                   }}
                   onKeyDown={handleTitleKeyDown}
                   onBlur={saveTitle}
@@ -400,15 +411,19 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
             <div style={s.tagList}>
               {[...bulkTagMap.entries()]
                 .sort(sortBulkTags)
-                .map(([name, status]) => (
-                  <span key={name}
-                    style={status === 'all' ? commonStyles.tagChipManual : s.tagChipPartial}
-                    title={(status === 'some' ? '一部の画像のみ（クリックですべてに追加）' : '') + '（右クリックで削除）'}
-                    onClick={() => status === 'some' ? bulkAddTag(name) : undefined}
-                    onContextMenu={(e) => { e.preventDefault(); setBulkTagCtxMenu({ x: e.clientX, y: e.clientY, tag: name }) }}>
-                    {name}
-                  </span>
-                ))}
+                .map(([name, entry]) => {
+                  const partial = entry.coverage === 'some'
+                  const base = entry.source === 'ai' ? commonStyles.tagChipAi : commonStyles.tagChipManual
+                  return (
+                    <span key={name}
+                      style={{ ...base, ...(partial ? s.tagChipPartialMod : {}), cursor: partial ? 'pointer' : 'default' }}
+                      title={(entry.source === 'ai' ? 'AIタグ' : '手動タグ') + (partial ? '・一部の画像のみ（クリックですべてに追加）' : '') + '（右クリックで削除）'}
+                      onClick={() => partial ? bulkAddTag(name) : undefined}
+                      onContextMenu={(e) => { e.preventDefault(); setBulkTagCtxMenu({ x: e.clientX, y: e.clientY, tag: name }) }}>
+                      {name}
+                    </span>
+                  )
+                })}
               {bulkTagCtxMenu && (
                 <ContextMenu
                   x={bulkTagCtxMenu.x}
@@ -453,9 +468,9 @@ const s: Record<string, React.CSSProperties> = {
   actions: { padding: '16px 12px', borderTop: '1px solid #20242f', background: '#0d0f14', display: 'flex', flexDirection: 'column' as const, gap: 10, flexShrink: 0 },
   actionRow: { display: 'flex', gap: 10, minWidth: 0 },
   empty: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, padding: '0 20px', textAlign: 'center' as const },
-  emptyTitle: { color: '#6f778b', fontSize: font.base, fontWeight: 700 },
-  emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: '#6f778b', fontSize: font.sm, lineHeight: 1.6 },
-  img: { width: 'calc(100% - 32px)', margin: '16px 16px 0', borderRadius: 4, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: '#171a23', border: '1px solid #252b38', display: 'block', flexShrink: 0 },
+  emptyTitle: { color: '#8791a8', fontSize: font.base, fontWeight: 700 },
+  emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: '#8791a8', fontSize: font.sm, lineHeight: 1.6 },
+  img: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: '#171a23', border: '1px solid #252b38', display: 'block', flexShrink: 0 },
   meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid #20242f', paddingBottom: 8 },
@@ -467,20 +482,22 @@ const s: Record<string, React.CSSProperties> = {
   // 短いタイトルでも常に3行分の領域を確保し、画像によって下の要素の位置がズレないようにする
   titleValue: { flex: 1, minWidth: 0, fontSize: font.base, color: '#b8c0d4', lineHeight: 1.45, minHeight: 'calc(1.45em * 3)', fontWeight: 700, wordBreak: 'break-word', cursor: 'pointer', userSelect: 'text' as const },
   titleValueClamped: { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' },
-  titleEditBtn: { flexShrink: 0, width: 20, height: 20, padding: 0, background: 'transparent', border: 'none', borderRadius: 3, color: '#6f778b', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
-  titleInput: { width: '100%', minHeight: 'calc(1.45em * 3)', background: 'transparent', border: 'none', borderBottom: '1px solid #3b4355', color: '#dce3f2', padding: '0 0 8px', fontSize: font.base, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-all', lineHeight: 1.45, fontFamily: 'inherit' },
+  titleEditBtn: { flexShrink: 0, width: 28, height: 28, padding: 0, background: 'rgba(23,26,35,0.55)', border: '1px solid transparent', borderRadius: 4, color: '#8791a8', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
+  titleInput: { width: 'calc(100% - 34px)', minHeight: 'calc(1.45em * 3 + 9px)', background: 'transparent', border: 'none', borderBottom: '1px solid #20242f', color: '#dce3f2', padding: '0 0 8px', fontSize: font.base, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-word', lineHeight: 1.45, fontFamily: 'inherit' },
   metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid rgba(32,36,47,0.72)', display: 'flex', flexDirection: 'column' as const, gap: 8 },
   subtleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 },
-  subtleLabel: { color: '#596277', fontSize: font.xs, fontWeight: 700 },
-  subtleValue: { color: '#7c869c', fontSize: font.xs, userSelect: 'text' as const, textAlign: 'right' as const, lineHeight: 1.35 },
-  subtleUrlBadge: { minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: 0, background: 'transparent', border: 'none', color: '#7c869c', fontSize: font.xs, fontWeight: 700, cursor: 'pointer', textAlign: 'right' as const, lineHeight: 1.35 },
+  subtleLabel: { color: '#565e6f', fontSize: font.sm, fontWeight: 600 },
+  subtleValue: { color: '#666d80', fontSize: font.sm, userSelect: 'text' as const, textAlign: 'right' as const, lineHeight: 1.35 },
+  subtleUrlBadge: { minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: 0, background: 'transparent', border: 'none', color: '#666d80', fontSize: font.sm, fontWeight: 600, cursor: 'pointer', textAlign: 'right' as const, lineHeight: 1.35 },
   memoLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 16 },
   memoStatus: { color: '#7f899f', fontSize: font.xs, fontWeight: 700, lineHeight: 1 },
   memoStatusError: { color: color.danger },
   tagSection: { display: 'flex', flexDirection: 'column', gap: 8 },
   tagLabel: { color: '#7d879d', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
   tagList: { display: 'flex', flexWrap: 'wrap', gap: 7, minHeight: 4 },
-  tagChipPartial: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(216,164,82,0.12)', border: '1px dashed rgba(216,164,82,0.55)', borderRadius: 999, color: '#d7b16f', fontSize: font.sm, fontWeight: 700, cursor: 'pointer', userSelect: 'text' as const },
+  // 「一部にのみ付いている」= coverage:some を表す修飾。由来色(緑/藍)の上に重ね、色相は保ったまま
+  // 破線＋減光で「まだ全部には付いていない」を示す。
+  tagChipPartialMod: { borderStyle: 'dashed' as const, opacity: 0.66 },
   memoInput: { width: '100%', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, color: '#dce3f2', padding: '10px 12px', fontSize: font.base, outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, fontFamily: 'inherit', lineHeight: 1.5 },
   multi: { padding: 16, display: 'flex', flexDirection: 'column', gap: 12 },
   multiHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

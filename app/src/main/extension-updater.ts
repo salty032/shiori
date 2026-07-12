@@ -39,14 +39,22 @@ function compareVersions(a: string, b: string): number {
 
 // サブフォルダ（将来のアイコンディレクトリ等）も取りこぼさないよう再帰コピーする。
 // フラット前提の copyFileSync だとディレクトリに当たって throw し、起動を巻き込む。
-function copyDir(src: string, dest: string): void {
+function copyDir(src: string, dest: string, deferManifest = false): void {
   mkdirSync(dest, { recursive: true })
   for (const entry of readdirSync(src, { withFileTypes: true })) {
+    if (deferManifest && entry.name === 'manifest.json') continue
     const s = join(src, entry.name)
     const d = join(dest, entry.name)
     if (entry.isDirectory()) copyDir(s, d)
     else copyFileSync(s, d)
   }
+}
+
+// manifest は更新完了のコミットマーカーとして最後に置く。途中でコピーに失敗しても
+// installedVersion は旧版のままなので、次回起動時に更新を再試行できる。
+export function copyExtensionUpdate(src: string, dest: string): void {
+  copyDir(src, dest, true)
+  copyFileSync(join(src, 'manifest.json'), join(dest, 'manifest.json'))
 }
 
 export function checkExtensionUpdate(): void {
@@ -66,7 +74,7 @@ export function checkExtensionUpdate(): void {
     const installedVersion = readVersion(installed)
 
     if (!installedVersion || compareVersions(bundledVersion, installedVersion) > 0) {
-      copyDir(bundled, installed)
+      copyExtensionUpdate(bundled, installed)
 
       if (installedVersion) {
         new Notification({
