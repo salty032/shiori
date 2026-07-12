@@ -30,7 +30,7 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
       .then((freq) => {
         if (canceled) return
         const next = new Set<string>()
-        for (const [name, count] of freq) if (count === imageIds.length) next.add(name)
+        for (const [name, { count }] of freq) if (count === imageIds.length) next.add(name)
         setTagsOnAll(next)
       })
       .catch((err) => console.error('[quick-tag] getTagsBulk failed', err))

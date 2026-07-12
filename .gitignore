@@ -7,3 +7,7 @@ app/out/
 .DS_Store
 Thumbs.db
 .claude/
+
+# 開発用ハンドオフ/レビューメモ（公開リポジトリ・配布物には不要）
+FIREFOX-SUPPORT.md
+*-REVIEW.md
