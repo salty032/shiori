@@ -22,6 +22,11 @@ export type ImageRow = {
 
 export type ImageTag = { name: string; source: ImageTagSource }
 
+// ライブラリ全体のタグ一覧（listAllTags）専用。count はそのタグが付いている画像の枚数。
+// サイドバーは「枚数がしきい値以上のタグ」を出すため件数を必要とする（順位で切ると、
+// 画像を足すたびに順位が動いて境界のタグが出たり消えたりする）。
+export type TagWithCount = ImageTag & { count: number }
+
 export type SmartFolder = {
   id: string
   name: string

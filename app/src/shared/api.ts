@@ -2,7 +2,7 @@
 // preload はこの型で実装を縛られ、renderer はこの型を Window.api として宣言する。
 // 片方だけ変更すると型エラーになるため、両者がズレることはない。
 import type {
-  ImageRow, ImageTag, ImageTagSource, Settings,
+  ImageRow, ImageTag, TagWithCount, ImageTagSource, Settings,
   CaptureData, ExtensionTimecode, AppNotice,
   ImageQuery, ImageListRequest, DeleteImageResult,
 } from './types'
@@ -13,7 +13,7 @@ export interface ShioriApi {
   listAllImages: (query: ImageQuery) => Promise<ImageRow[]>
   listSites: () => Promise<string[]>
   listSiteCounts: () => Promise<Record<string, number>>
-  listAllTags: (includeAi?: boolean) => Promise<ImageTag[]>
+  listAllTags: (includeAi?: boolean) => Promise<TagWithCount[]>
   listTagCounts: () => Promise<Record<string, number>>
   exportImages: (imageIds: number[]) => Promise<{ canceled: boolean; count?: number; truncated?: boolean }>
   // 進行中の imagesExport を中断する（数百枚規模のコピーが分単位になりうるため）。

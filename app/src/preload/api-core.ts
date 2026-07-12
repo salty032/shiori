@@ -1,5 +1,5 @@
 ﻿import { ipcRenderer, webUtils } from 'electron'
-import type { ImageRow, ImageTag, Settings, CaptureData, ExtensionTimecode, AppNotice, ImageQuery, ImageListRequest } from '../shared/types'
+import type { ImageRow, ImageTag, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, ImageQuery, ImageListRequest } from '../shared/types'
 import type { ShioriApi } from '../shared/api'
 import { CH } from '../shared/api'
 
@@ -26,7 +26,7 @@ export function buildCoreApi(): ShioriApi {
     listSiteCounts: (): Promise<Record<string, number>> =>
       ipcRenderer.invoke(CH.imagesListSiteCounts),
 
-    listAllTags: (includeAi?: boolean): Promise<ImageTag[]> =>
+    listAllTags: (includeAi?: boolean): Promise<TagWithCount[]> =>
       ipcRenderer.invoke(CH.imagesListAllTags, includeAi),
 
     listTagCounts: (): Promise<Record<string, number>> =>

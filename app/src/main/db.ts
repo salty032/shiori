@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
-import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase, ImageTag } from '../shared/types'
+import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase, ImageTag, TagWithCount } from '../shared/types'
 
 let db: Database.Database
 const MAX_LIST_LIMIT = 200
@@ -424,18 +424,22 @@ export function removeTagFromAllImages(tagName: string): number {
 // 件数順で続ける。同じタグ名で手動画像とAI画像が混在していても、手動が1件でもあれば
 // 「手動タグブロック」に属する扱いにする（MAX(...)で判定）。source も同じ「手動が1件でもあれば
 // manual」ルールで畳んで返し、サイドバー等の集約表示で手動/AIを色分けできるようにする。
-export function listAllTags(includeAi = false): ImageTag[] {
+export function listAllTags(includeAi = false): TagWithCount[] {
   if (!includeAi) {
     return (prepare(
-      'SELECT t.name FROM tags t JOIN image_tags it ON it.tag_id = t.id WHERE it.source = \'manual\' GROUP BY t.id ORDER BY COUNT(*) DESC, t.name'
-    ).all() as { name: string }[]).map((r) => ({ name: r.name, source: 'manual' as const }))
+      'SELECT t.name, COUNT(*) AS cnt FROM tags t JOIN image_tags it ON it.tag_id = t.id WHERE it.source = \'manual\' GROUP BY t.id ORDER BY COUNT(*) DESC, t.name'
+    ).all() as { name: string; cnt: number }[]).map((r) => ({ name: r.name, source: 'manual' as const, count: r.cnt }))
   }
   return (prepare(
-    `SELECT t.name, MAX(CASE WHEN it.source = 'manual' THEN 1 ELSE 0 END) AS hasManual
+    `SELECT t.name, COUNT(*) AS cnt, MAX(CASE WHEN it.source = 'manual' THEN 1 ELSE 0 END) AS hasManual
      FROM tags t JOIN image_tags it ON it.tag_id = t.id
      GROUP BY t.id
      ORDER BY hasManual DESC, COUNT(*) DESC, t.name`
-  ).all() as { name: string; hasManual: number }[]).map((r) => ({ name: r.name, source: r.hasManual ? 'manual' as const : 'ai' as const }))
+  ).all() as { name: string; cnt: number; hasManual: number }[]).map((r) => ({
+    name: r.name,
+    source: r.hasManual ? 'manual' as const : 'ai' as const,
+    count: r.cnt
+  }))
 }
 
 export function listTagCounts(): Record<string, number> {

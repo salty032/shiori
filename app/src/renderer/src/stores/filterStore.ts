@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ImageTag, SortOrder, TagMode } from '../types'
+import type { SortOrder, TagMode, TagWithCount } from '../types'
 
 type Setter<T> = T | ((prev: T) => T)
 function resolve<T>(value: Setter<T>, prev: T): T {
@@ -22,9 +22,12 @@ type FilterState = {
   sites: string[]
   // allTags はオートコンプリート用の「タグ名の配列」（従来どおり）。集約表示での手動/AI
   // 色分け用に、AI専用（手動が1件も無い）タグ名の集合を aiOnlyTags として並行して持つ。
-  // 両者は setAllTags で同一の ImageTag[] から一度に導出するのでズレない。
+  // 三者は setAllTags で同一の TagWithCount[] から一度に導出するのでズレない。
   allTags: string[]
   aiOnlyTags: Set<string>
+  // タグ名 -> そのタグが付いている画像の枚数。サイドバーは順位ではなくこの枚数で
+  // 表示を打ち切る（順位で切ると、画像を足すたびに順位が動いて境界のタグが消える）。
+  tagCounts: Record<string, number>
   // フォルダを開いた直後〜条件を手で触るまでの近似的な「アクティブ」表示用。
   // 厳密な条件一致判定ではない（例えば同じ内容を手動で再現しても付かない）。
   activeSmartFolderId: string | null
@@ -36,7 +39,7 @@ type FilterState = {
   setSortOrder: (v: SortOrder) => void
   setShuffleSeed: (v: number) => void
   setSites: (v: string[]) => void
-  setAllTags: (v: ImageTag[]) => void
+  setAllTags: (v: TagWithCount[]) => void
   applySmartFolder: (id: string, f: CommittedFilters) => void
   clearAll: () => void
 }
@@ -50,6 +53,7 @@ export const useFilterStore = create<FilterState>((set) => ({
   shuffleSeed: Date.now(),
   sites: [],
   allTags: [],
+  tagCounts: {},
   aiOnlyTags: new Set(),
   activeSmartFolderId: null,
 
@@ -63,6 +67,7 @@ export const useFilterStore = create<FilterState>((set) => ({
   setAllTags: (v) => set({
     allTags: v.map((t) => t.name),
     aiOnlyTags: new Set(v.filter((t) => t.source === 'ai').map((t) => t.name)),
+    tagCounts: Object.fromEntries(v.map((t) => [t.name, t.count])),
   }),
 
   applySmartFolder: (id, f) => set({

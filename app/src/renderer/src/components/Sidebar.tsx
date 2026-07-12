@@ -9,7 +9,15 @@ import ShortcutsFlyout from './ShortcutsFlyout'
 import { usePanelResize } from '../hooks/usePanelResize'
 import appIcon from '../../../../build/icon.ico'
 
-const SIDEBAR_TAG_LIMIT = 24
+// サイドバーに出すタグの下限枚数。「上位N件」で切ると、AIタグ付けがキャプチャ1枚につき
+// 十数個のタグを付けるせいで撮影・削除のたびに各タグの件数が動き、境界のタグが順位を
+// 上下して出たり消えたりする（下位ほど同数タグがひしめくため、境界はほぼ常に同数集団の
+// 途中を通る）。枚数で切れば、画像を足しても件数は増える一方なので押し出しが起きない。
+// 表示から消えるのは「削除で枚数がこの値を割ったとき」だけになる。
+const SIDEBAR_TAG_MIN_COUNT = 5
+// 枚数がこの値に届くタグがまだ無い（＝ライブラリが小さい）間だけ、上位N件で代替する。
+// タグ欄が空のままになるのを防ぐための下駄。
+const SIDEBAR_TAG_FALLBACK_LIMIT = 12
 const SIDEBAR_MIN_WIDTH = 210
 const SIDEBAR_MAX_WIDTH = 340
 const SIDEBAR_DEFAULT_WIDTH = 210
@@ -189,15 +197,19 @@ export default function Sidebar({
     window.addEventListener('pointercancel', onCancel)
   }
 
-  // 上限超過時は先頭 N 件＋「現在フィルタ中で N 件外のタグ」を可視に保つ。
+  // 「N枚以上のタグ」だけを出す＋「現在フィルタ中でN枚未満のタグ」も可視に保つ。
   const visibleTags = useMemo(() => {
-    if (showAllTags || filters.allTags.length <= SIDEBAR_TAG_LIMIT) return filters.allTags
-    const base = filters.allTags.slice(0, SIDEBAR_TAG_LIMIT)
+    if (showAllTags) return filters.allTags
+    // allTags は件数の降順なので、しきい値を満たすものは先頭に固まっている。
+    let base = filters.allTags.filter((tag) => (filters.tagCounts[tag] ?? 0) >= SIDEBAR_TAG_MIN_COUNT)
+    // まだどのタグもしきい値に届かない小さなライブラリでは、タグ欄が空になってしまうので上位N件で代替する。
+    if (base.length === 0) base = filters.allTags.slice(0, SIDEBAR_TAG_FALLBACK_LIMIT)
+    const shown = [...base]
     for (const tag of [...filters.tagFilters, ...searchTags]) {
-      if (filters.allTags.includes(tag) && !base.includes(tag)) base.push(tag)
+      if (filters.allTags.includes(tag) && !shown.includes(tag)) shown.push(tag)
     }
-    return base
-  }, [filters.allTags, filters.tagFilters, searchTags, showAllTags])
+    return shown
+  }, [filters.allTags, filters.tagCounts, filters.tagFilters, searchTags, showAllTags])
 
   const hiddenTagCount = Math.max(0, filters.allTags.length - visibleTags.length)
   const canCreateSmartFolder = filters.hasActiveFilter() && !filters.activeSmartFolderId
@@ -360,7 +372,7 @@ export default function Sidebar({
                 )
               })}
             </div>
-            {filters.allTags.length > SIDEBAR_TAG_LIMIT && (
+            {hiddenTagCount > 0 && (
               <button style={s.sidebarMoreBtn} onClick={() => setShowAllTags((v) => !v)}>
                 {showAllTags ? '折りたたむ' : `+${hiddenTagCount} 表示`}
               </button>

@@ -27,6 +27,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   const setShuffleSeed = useFilterStore((s) => s.setShuffleSeed)
   const setSites = useFilterStore((s) => s.setSites)
   const setAllTags = useFilterStore((s) => s.setAllTags)
+  const tagCounts = useFilterStore((s) => s.tagCounts)
   const applySmartFolder = useFilterStore((s) => s.applySmartFolder)
   const clearAll = useFilterStore((s) => s.clearAll)
   const activeSmartFolderId = useFilterStore((s) => s.activeSmartFolderId)
@@ -152,6 +153,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
     tagMode, setTagMode,
     allTags,
     aiOnlyTags,
+    tagCounts,
     sortOrder, setSortOrder,
     shuffleSeed, setShuffleSeed,
     creatingFolder, setCreatingFolder,

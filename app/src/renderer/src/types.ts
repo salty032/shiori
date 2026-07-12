@@ -1,5 +1,5 @@
 export type {
-  TagMode, SortOrder, ImageTagSource, ImageSource, ImageRow, ImageTag,
+  TagMode, SortOrder, ImageTagSource, ImageSource, ImageRow, ImageTag, TagWithCount,
   SmartFolder, Settings, CaptureData, ExtensionTimecode, AppNotice,
   DeleteImageResult,
   ImageQuery, ImageListRequest,
