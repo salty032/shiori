@@ -27,5 +27,8 @@ export function createTray(): void {
   tray = new Tray(trayIcon)
   tray.setToolTip('Shiori')
   tray.setContextMenu(buildTrayMenu())
+  // Windows では左クリック（シングル）でウィンドウを開けるようにする。右クリックは
+  // setContextMenu が握るのでメニュー表示のまま、左クリックだけこちらで拾う。
+  tray.on('click', () => showMainWindow())
   tray.on('double-click', () => showMainWindow())
 }
