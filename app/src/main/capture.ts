@@ -1,4 +1,4 @@
-import { globalShortcut, nativeImage, screen as electronScreen } from 'electron'
+import { globalShortcut, nativeImage, screen as electronScreen, desktopCapturer, type Display, type NativeImage } from 'electron'
 import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
@@ -213,6 +213,27 @@ export function onCaptureDone(handler: CaptureHandler): void {
   handlers.push(handler)
 }
 
+// screenshot-desktop は Windows では撮影のたびに外部プロセスを起動するため 600ms 前後かかり、
+// 「ホットキーを押してからトーストが出るまで」の遅延の大半を占めていた（実測）。
+// desktopCapturer はコンポジタから直接取得するのでプロセス起動が要らない。
+//
+// thumbnailSize には必ず物理解像度（DIP × scaleFactor）を渡す。computeVideoCrop は
+// screenshotDpr = frameW / bounds.width で DPR を割り出す前提なので、ここを縮めると
+// 画像が縮小保存されるうえクロップ位置もズレる。
+async function captureDisplayImage(edisp: Display): Promise<NativeImage | null> {
+  const width = Math.round(edisp.size.width * edisp.scaleFactor)
+  const height = Math.round(edisp.size.height * edisp.scaleFactor)
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width, height }
+  })
+  // display_id は Windows でも Electron の Display.id と同じ空間の文字列が入る。
+  // 取れない環境（空文字）では特定できないので null を返し、呼び出し側で従来経路に落とす。
+  const source = sources.find((s) => s.display_id === String(edisp.id))
+  if (!source || source.thumbnail.isEmpty()) return null
+  return source.thumbnail
+}
+
 export async function writeCaptureFile(dir: string, data: Buffer, ext = '.png'): Promise<string> {
   for (let i = 0; i < 5; i++) {
     const filepath = join(dir, `cap_${Date.now()}_${randomUUID()}${ext}`)
@@ -257,13 +278,19 @@ export async function captureScreen(): Promise<string> {
       throw new Error('No browser video target available')
     }
 
-    const display = await resolveDisplay()
-    if (!display) throw new Error('No browser display target available')
-    // screenshot-desktop と Electron の display を同じウィンドウ中心点で解決し、
-    // computeVideoCrop に渡すことで両者のboundsが必ず同一モニターを指すようにする。
+    // 撮影対象のディスプレイはブラウザウィンドウの中心点で解決する。computeVideoCrop にも
+    // 同じ Display を渡し、撮影画像と bounds が必ず同一モニターを指すようにする。
     const { left: wl, top: wt, width: ww, height: wh } = browserWindow!
     const electronDisplay = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
-    const img: Buffer = await screenshot({ screen: display.id, format: 'png' })
+
+    let native = await captureDisplayImage(electronDisplay)
+    if (!native) {
+      // display_id が取れない環境向けのフォールバック（従来の screenshot-desktop 経路）。
+      const display = await resolveDisplay()
+      if (!display) throw new Error('No browser display target available')
+      const img: Buffer = await screenshot({ screen: display.id, format: 'png' })
+      native = nativeImage.createFromBuffer(img)
+    }
 
     // スクショ取得時点でピクセルは確定済み。ここで即UIを復元し、ブラウザのプレーヤーUIが
     // 隠れている時間を、後続の保存パイプライン（クロップ・サムネ生成・DB挿入・色抽出）ぶん
@@ -271,7 +298,6 @@ export async function captureScreen(): Promise<string> {
     runPostCapture()
 
     if (browserWindow && videoRect) {
-      const native = nativeImage.createFromBuffer(img)
       const { width: ssW, height: ssH } = native.getSize()
       const crop = computeVideoCrop(ssW, ssH, electronDisplay)
       if (crop) {
