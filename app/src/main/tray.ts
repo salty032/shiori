@@ -19,12 +19,25 @@ function buildTrayMenu(): Electron.Menu {
   ])
 }
 
+// トレイ用アイコンを、サイズごとに描き分けた PNG（build/icon16・icon32・icon48）から組み立てる。
+// icon.ico を nativeImage.createFromPath() で読むと最大サイズ（256x256）の 1 枚しか取り出せず、
+// それを 16px 枠へ潰し込むことになって絵が崩れる。小サイズ用に線の太さを調整した専用 PNG を
+// スケールごとに持たせ、表示スケール（100%/150%/200%）に応じた解像度を OS に選ばせる。
+// トレイの論理サイズは 16。各 representation のピクセル数は 16 * scaleFactor になる必要があるため、
+// 1x=16px / 1.5x=24px（48px を縮小）/ 2x=32px を渡す。
+function buildTrayIcon(): Electron.NativeImage {
+  const icon = nativeImage.createEmpty()
+  for (const [scaleFactor, file, px] of [[1, 'icon16.png', 16], [1.5, 'icon48.png', 24], [2, 'icon32.png', 32]] as const) {
+    const rep = nativeImage.createFromPath(join(__dirname, '../../build', file))
+    if (rep.isEmpty()) continue
+    const sized = rep.getSize().width === px ? rep : rep.resize({ width: px, height: px, quality: 'best' })
+    icon.addRepresentation({ scaleFactor, buffer: sized.toPNG() })
+  }
+  return icon
+}
+
 export function createTray(): void {
-  // 16px 単一の埋め込み PNG だと HiDPI（150%/200%スケーリング）でぼやける。ウィンドウの
-  // タイトルバーアイコンと同じ build/icon.ico（16/24/32/48/64/128/256 の複数解像度入り）を
-  // 読み込むことで、OS が表示スケールに応じた解像度を自動選択できるようにする。
-  const trayIcon = nativeImage.createFromPath(join(__dirname, '../../build/icon.ico'))
-  tray = new Tray(trayIcon)
+  tray = new Tray(buildTrayIcon())
   tray.setToolTip('Shiori')
   tray.setContextMenu(buildTrayMenu())
   // Windows では左クリック（シングル）でウィンドウを開けるようにする。右クリックは

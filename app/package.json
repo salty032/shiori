@@ -1,6 +1,6 @@
 {
   "name": "Shiori",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "アニメキャプチャ専用画像管理ツール",
   "author": "salty032",
   "license": "UNLICENSED",
@@ -27,6 +27,9 @@
     "files": [
       "out/**/*",
       "build/icon.ico",
+      "build/icon16.png",
+      "build/icon32.png",
+      "build/icon48.png",
       "node_modules/**/*",
       "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",

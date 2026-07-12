@@ -175,7 +175,9 @@ export const s: Record<string, CSSProperties> = {
   taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(232,236,248,0.08)', border: '1px solid rgba(232,236,248,0.16)', borderRadius: 4, color: '#f7f9ff', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
   // DetailPanel はレイアウト上そもそもこの外側にあるので、ビューア表示中も隠れず操作できる（P1）。
-  viewer: { position: 'absolute' as const, inset: 0, background: 'rgba(0,0,0,0.93)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default' },
+  // overflow:hidden 必須: ズーム時の scale() で拡大された画像は箱をはみ出すが、ビューアは
+  // zIndex 5000 なので、クリップしないと右隣の DetailPanel の上に画像が描画されてしまう。
+  viewer: { position: 'absolute' as const, inset: 0, overflow: 'hidden', background: 'rgba(0,0,0,0.93)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default' },
   viewerTopBar: { position: 'absolute' as const, top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, minHeight: 46, padding: '8px 14px 8px 24px', boxSizing: 'border-box' as const, background: 'linear-gradient(rgba(0,0,0,0.74), rgba(0,0,0,0))' },
   // 100vw/100vh ではなく自身の箱（= viewerHost の実サイズ）基準にする。ビューアはもはや
   // フルビューポート幅ではない（DetailPanel 分だけ狭い）ため、100vw を使うとはみ出す。
