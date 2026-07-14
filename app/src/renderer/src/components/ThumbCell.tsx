@@ -22,6 +22,7 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
   const [hovered, setHovered] = useState(false)
   const [thumbFailed, setThumbFailed] = useState(false)
   const [thumbLoaded, setThumbLoaded] = useState(false)
+  const [vertical, setVertical] = useState(false)
   const [newExiting, setNewExiting] = useState(false)
   const wasNewRef = useRef(isNew)
   useEffect(() => {
@@ -42,13 +43,15 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onDoubleClick={() => onOpen(index)}>
-      <div style={{ ...s.thumbImgWrap, height: cellHeight }}>
+      <div style={{ ...s.thumbImgWrap, height: cellHeight, ...(vertical ? s.thumbImgWrapVertical : {}) }}>
         {/* サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
             フォールバックのプレースホルダに切り替える */}
         {thumbFailed
           ? <div style={s.thumbFallback} />
-          : <img src={thumbSrc(img)} style={{ ...s.thumbImg, opacity: thumbLoaded ? 1 : 0 }} alt="" draggable={false}
-              decoding="async" loading="lazy" onLoad={() => setThumbLoaded(true)} onError={() => setThumbFailed(true)} />}
+          : <img src={thumbSrc(img)} style={{ ...s.thumbImg, ...(vertical ? s.thumbImgVertical : {}), opacity: thumbLoaded ? 1 : 0 }} alt="" draggable={false}
+              decoding="async" loading="lazy"
+              onLoad={(e) => { setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight); setThumbLoaded(true) }}
+              onError={() => setThumbFailed(true)} />}
         {showNew && <div style={isNew ? s.thumbNewBadge : s.thumbNewBadgeExit}>NEW</div>}
       </div>
       <div style={s.thumbLabel} title={titleLabel || undefined}>

@@ -9,9 +9,16 @@ import { font, s as appStyles } from '../styles'
 // ThumbCell / フィルムストリップと同様に onError でプレースホルダへ切り替える。
 const TimelineThumbImg = memo(function TimelineThumbImg({ img, cellHeight }: { img: ImageRow; cellHeight: number }) {
   const [failed, setFailed] = useState(false)
+  const [vertical, setVertical] = useState(false)
   if (failed) return <div style={{ ...appStyles.thumbFallback, height: cellHeight }} />
-  return <img src={thumbSrc(img)} style={{ ...s.thumbImg, height: cellHeight }} alt="" draggable={false}
-    decoding="async" loading="lazy" onError={() => setFailed(true)} />
+  return (
+    <div style={{ width: '100%', height: cellHeight, ...(vertical ? appStyles.thumbImgWrapVertical : {}) }}>
+      <img src={thumbSrc(img)} style={{ ...s.thumbImg, height: cellHeight, ...(vertical ? appStyles.thumbImgVertical : {}) }} alt="" draggable={false}
+        decoding="async" loading="lazy"
+        onLoad={(e) => setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight)}
+        onError={() => setFailed(true)} />
+    </div>
+  )
 })
 
 // レイアウト定数。グループ内は「見出し(固定高) + 画像グリッド」。

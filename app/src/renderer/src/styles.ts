@@ -80,6 +80,9 @@ export const s: Record<string, CSSProperties> = {
   selectionBox: { position: 'absolute' as const, border: '1px solid var(--accent)', background: 'rgba(var(--accent-rgb), 0.12)', pointerEvents: 'none' as const, zIndex: 20, boxSizing: 'border-box' as const },
   thumb: { position: 'relative' as const, display: 'flex', flexDirection: 'column' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 4, width: '100%', cursor: 'pointer', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
   thumbImgWrap: { position: 'relative', width: '100%', aspectRatio: '16/9', overflow: 'hidden', flexShrink: 0 },
+  // 縦長画像（Shorts等）は16:9セルからはみ出るため cover→contain に切り替え、
+  // 余白は viewer と同様に画像鑑賞用途として意図的に非テーマの暗色で埋める
+  thumbImgWrapVertical: { background: '#0d0f14' },
   thumbHovered: { border: '1px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
   thumbSelected: { outline: '1.5px solid var(--accent)', outlineOffset: '-1.5px', boxShadow: '0 0 0 2px rgba(var(--accent-rgb), 0.22)' },
   // 新着 NEW（ウィンドウ表示後の数秒だけ）。選択（インディゴ）と区別できる緑系アクセント。
@@ -98,6 +101,7 @@ export const s: Record<string, CSSProperties> = {
   // 色は surface に対して確実にコントラストが立つ text-bright を使う（テーマが変わっても機能する）。
   thumbFocusFrame: { position: 'absolute', inset: -3, zIndex: 6, border: '1px solid var(--text-bright)', borderRadius: 6, pointerEvents: 'none' },
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'opacity 0.15s ease' },
+  thumbImgVertical: { objectFit: 'contain' as const },
   thumbFallback: { width: '100%', height: '100%', display: 'block', background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
   thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-secondary)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: 2, padding: '0 1px' },

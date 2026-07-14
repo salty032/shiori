@@ -218,6 +218,12 @@ const SERVICE_PLAYER_UI = {
     '.html5-video-player .ytp-fullscreen-grid-buttons-container',
     '.html5-video-player .ytp-chrome-top-buttons',
     '.html5-video-player .ytp-playlist-menu-button',
+    // Shorts（ytd-reel-video-renderer 配下）: 通常プレーヤーの ytp-* とは別系統の要素。
+    // ytd-reel-player-overlay-renderer がタイトル・チャンネル名・ハッシュタグ・
+    // いいね/コメント/共有/リミックス列をまとめて内包している。
+    'ytd-reel-video-renderer .player-controls',
+    'desktop-shorts-player-controls',
+    'ytd-reel-player-overlay-renderer',
   ],
   'tv.dmm.com': [
     '[class*="top-controller-overlay"]',
@@ -637,8 +643,15 @@ function getPageTitle() {
   const host = location.hostname.replace(/^www\./, '')
 
   // YouTube: 末尾の " - YouTube" を除去
+  // Shorts はさらに末尾に "#shorts"（全角/半角）が付くことが多く、内容と無関係な
+  // 装飾なので除去する（それ以外のハッシュタグは投稿者が意図した内容の一部として残す）
   if (host === 'youtube.com') {
-    return document.title.replace(/ - YouTube$/, '').trim() || document.title
+    const base = document.title.replace(/ - YouTube$/, '').trim() || document.title
+    if (location.pathname.startsWith('/shorts/')) {
+      const stripped = base.replace(/[#＃]shorts\s*$/i, '').trim()
+      if (stripped) return stripped
+    }
+    return base
   }
 
   // niconico: 末尾の " - ニコニコ動画" を除去
