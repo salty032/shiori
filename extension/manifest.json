@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Shiori Link",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkWPNckbV7PigWJ0DjC1FyWKuLjWIcFP1sQdyefsrSDYHrvX4OF66MGSH7ClqtgeyWDucxG7G7St3Vba6mpihXBSs9Z7riAQeMweyklG1IOVYDlmxMSc5K8/9cRyzoCJ1K1YKVg+SkkrIdbMYVdqcHYqrEtonAR5BcJF9R+2LXGg/+RwjeWjCCwtaDEV7lc85ba7S0gg/qZmNTX2ISdR0pU5+H4r6QWxOmTBlFkUfXfZ44LYn/om6KwJ8evYb8IjcokWyrnLIepgqOQpITqY9LyVhn20i4+e7Azuqt5sXHrPnUYxM1KVdqk6tYNGNNE5ODlgkhk0uqkpiMfhUArH7xwIDAQAB",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shioriアプリと連携してコマ送り・タイムコード送信を行う",
   "icons": {
     "16": "icon16.png",
