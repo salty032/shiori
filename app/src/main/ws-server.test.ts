@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { parseExtensionMessage, isAllowedHttpOrigin, isAllowedWsOrigin, _resetWsStateForTest } from './ws-server'
+import { createServer } from 'http'
+import { parseExtensionMessage, isAllowedHttpOrigin, isAllowedWsOrigin, _resetWsStateForTest, onPortInUse, startWsServer, stopWsServer, PORT } from './ws-server'
 
 // 有効な timecode メッセージの最小構成
 const VALID_TIMECODE = {
@@ -149,5 +150,31 @@ describe('parseExtensionMessage — 不正ペイロード', () => {
     // 16384 バイトは制限内だが不正 JSON なので null
     const edge = 'a'.repeat(16 * 1024)
     expect(parseExtensionMessage(edge)).toBeNull()
+  })
+})
+
+describe('onPortInUse — ポート占有の通知', () => {
+  beforeEach(() => _resetWsStateForTest())
+
+  it('EADDRINUSE を購読者へ通知し、検知後に登録した購読者にも即時通知する', async () => {
+    // EADDRINUSE は listen 後の非同期 error イベントで初めて分かる。旧実装のように
+    // startWsServer 直後に同期でフラグを見る方式だと、この通知を必ず取りこぼしていた。
+    const blocker = createServer()
+    const boundHere = await new Promise<boolean>((resolve) => {
+      blocker.once('error', () => resolve(false)) // 既に他プロセスが占有 → それでも占有状態は同じ
+      blocker.listen(PORT, '127.0.0.1', () => resolve(true))
+    })
+    try {
+      const notified = new Promise<void>((resolve) => onPortInUse(resolve))
+      startWsServer({ allowedExtensionIds: [] })
+      await notified
+
+      let lateSubscriberNotified = false
+      onPortInUse(() => { lateSubscriberNotified = true })
+      expect(lateSubscriberNotified).toBe(true)
+    } finally {
+      stopWsServer()
+      if (boundHere) await new Promise<void>((resolve) => blocker.close(() => resolve()))
+    }
   })
 })

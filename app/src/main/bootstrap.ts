@@ -3,7 +3,7 @@ import { extname, join } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { Readable } from 'stream'
-import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, consumePortInUseNotice, PORT as WS_PORT } from './ws-server'
+import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './ws-server'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo,
@@ -38,6 +38,16 @@ import { optionalPositiveInteger } from './ipc-validation'
 import { sendBrowserNotice } from './browser-notice'
 import { CH } from '../shared/api'
 import { waitForPreferredTimecode, type CaptureTimecode } from './timecode-request'
+
+// sendNotice は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
+// 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
+// ように到着タイミングが読めない通知は、once() だけに頼ると取りこぼす）。
+function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', message: string): void {
+  const wc = getMainWindow()?.webContents
+  if (!wc) return
+  if (wc.isLoading()) wc.once('did-finish-load', () => sendNotice(level, message))
+  else sendNotice(level, message)
+}
 
 export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
@@ -347,18 +357,14 @@ export function bootstrap(): void {
     createTray()
     createWindow(reclaimHotkeysIfFree)
     if (consumeCorruptSettingsNotice()) {
-      // sendNotice は mainWindow 生成前だと無言で消えるため、初回描画後に送る
-      getMainWindow()?.webContents.once('did-finish-load', () => {
-        sendNotice('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
-      })
+      sendNoticeWhenRendererReady('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
     }
-    if (consumePortInUseNotice()) {
-      // 他プロセスが WS ポートを LISTEN していると拡張と接続できない。原因が分からないまま
-      // 「キャプチャ対象を検出できませんでした」に化けるのを防ぐため、明示的に案内する。
-      getMainWindow()?.webContents.once('did-finish-load', () => {
-        sendNotice('error', `ポート${WS_PORT}が他のアプリに使用されているため、ブラウザ拡張と接続できません。`)
-      })
-    }
+    // 他プロセスが WS ポートを LISTEN していると拡張と接続できない。原因が分からないまま
+    // 「キャプチャ対象を検出できませんでした」に化けるのを防ぐため、明示的に案内する。
+    // EADDRINUSE は listen 後の非同期イベントで初めて分かるため、ここで購読しておく。
+    onPortInUse(() => {
+      sendNoticeWhenRendererReady('error', `ポート${WS_PORT}が他のアプリに使用されているため、ブラウザ拡張と接続できません。`)
+    })
     registerHotkey(loadSettings().captureHotkey, (message) => {
       sendBrowserNotice('error', message)
     })

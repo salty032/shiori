@@ -47,7 +47,14 @@ export interface ParsedShareEntry {
 export function parseShareEntry(line: string, now: number): ParsedShareEntry | { error: string } | null {
   let entry: RawShareEntry
   try {
-    entry = JSON.parse(line)
+    const parsed: unknown = JSON.parse(line)
+    // JSON.parse は "null" / "123" / "[]" のような非オブジェクトでも成功する。素通しすると
+    // 直後の entry.file 参照が null で TypeError になり、ipc-share の取り込みループには
+    // catch が無いため（finally のみ）、1行の破損でインポート全体が reject される。
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return { error: `invalid entry: ${line.slice(0, 50)}` }
+    }
+    entry = parsed as RawShareEntry
   } catch {
     return { error: `invalid JSON: ${line.slice(0, 50)}` }
   }

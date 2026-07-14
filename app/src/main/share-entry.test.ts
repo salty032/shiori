@@ -12,6 +12,14 @@ describe('parseShareEntry', () => {
     expect(result).toEqual({ error: expect.stringContaining('invalid JSON') })
   })
 
+  it('オブジェクト以外の JSON 行（null / 数値 / 配列）は throw せずエラーを返す', () => {
+    // "null" は valid な JSON なので JSON.parse は成功する。ここで throw すると
+    // ipc-share の取り込みループ（catch 無し）を突き抜けてインポート全体が reject される。
+    expect(parseShareEntry('null', NOW)).toEqual({ error: expect.stringContaining('invalid entry') })
+    expect(parseShareEntry('123', NOW)).toEqual({ error: expect.stringContaining('invalid entry') })
+    expect(parseShareEntry('[]', NOW)).toEqual({ error: expect.stringContaining('invalid entry') })
+  })
+
   it('file フィールドが無い行はエラー報告なしで null（旧バージョン等）', () => {
     expect(parseShareEntry(JSON.stringify({ version: 1 }), NOW)).toBeNull()
     expect(parseShareEntry(JSON.stringify({ file: '' }), NOW)).toBeNull()

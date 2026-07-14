@@ -29,15 +29,23 @@ type ConnectCallback = (send: (msg: object) => void) => void
 
 let httpServer: ReturnType<typeof createServer> | null = null
 let wss: WebSocketServer | null = null
-// ポート占有で listen に失敗した場合、呼び出し側（bootstrap）へ伝える一回限りのフラグ。
-// startWsServer はウィンドウ生成前に呼ばれるため sendNotice は無言で消える。他の破損設定通知
-// （consumeCorruptSettingsNotice）と同じパターンで、ウィンドウ準備後に拾わせる。
-let _portInUseNotice = false
+// ポート占有で listen に失敗した場合、呼び出し側（bootstrap）へ伝える。
+// フラグ + ポーリング（consume 方式）だと、EADDRINUSE は listen 後の非同期 'error' イベントで
+// 初めて立つのに対し、bootstrap の確認は startWsServer と同じ同期ブロック内で走るため、
+// 通知を必ず取りこぼす。検知した時点で push する購読型にして順序依存をなくす。
+let portInUseDetected = false
+const portInUseCallbacks: Array<() => void> = []
 
-export function consumePortInUseNotice(): boolean {
-  const v = _portInUseNotice
-  _portInUseNotice = false
-  return v
+// startWsServer の前後どちらで登録しても届く（検知済みなら即時実行）。
+export function onPortInUse(cb: () => void): void {
+  if (portInUseDetected) cb()
+  else portInUseCallbacks.push(cb)
+}
+
+function notifyPortInUse(): void {
+  if (portInUseDetected) return
+  portInUseDetected = true
+  portInUseCallbacks.splice(0).forEach((cb) => cb())
 }
 // 設定で明示された許可拡張 ID。normalizeSettings が常に非空（未設定時は既定拡張IDへフォールバック）を保証する。
 let allowedExtensionIds: string[] = []
@@ -245,7 +253,7 @@ export function startWsServer(options?: { allowedExtensionIds?: string[] }): voi
 
   httpServer.on('error', (err) => {
     console.error('[WS] http server error', err)
-    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') _portInUseNotice = true
+    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') notifyPortInUse()
   })
 }
 
@@ -278,4 +286,6 @@ export function stopWsServer(): void {
 
 export function _resetWsStateForTest(opts?: { allowedIds?: string[] }): void {
   allowedExtensionIds = opts?.allowedIds ?? []
+  portInUseDetected = false
+  portInUseCallbacks.length = 0
 }
