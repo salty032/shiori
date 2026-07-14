@@ -11,3 +11,5 @@ Thumbs.db
 # 開発用ハンドオフ/レビューメモ（公開リポジトリ・配布物には不要）
 FIREFOX-SUPPORT.md
 *-REVIEW.md
+SPEC.md
+TASKS.md
