@@ -1,5 +1,4 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { RELEASES_URL } from '../../shared/constants'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { buildTimeline, cleanTitle, computeGridLayout } from './utils'
 import { s } from './styles'
@@ -456,8 +455,8 @@ export default function App() {
       {settings.updateVersion && !updateBannerDismissed && (
         <div style={s.updateBanner}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span>v{settings.updateVersion} が利用可能です</span>
-            <button style={s.updateBtn} onClick={() => window.api.openUrl(RELEASES_URL)}>リリースページを開く</button>
+            <span>v{settings.updateVersion} の準備ができました</span>
+            <button style={s.updateBtn} onClick={() => settings.quitAndInstallUpdate()}>再起動して更新</button>
           </div>
           <button style={s.sidebarXBtn} onClick={() => setUpdateBannerDismissed(true)} title="今は更新しない"><XIcon size={13} /></button>
         </div>

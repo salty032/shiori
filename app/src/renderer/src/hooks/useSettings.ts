@@ -24,7 +24,7 @@ export function useSettings(showToast?: ShowToast) {
   }, [init])
 
   useEffect(() => window.api.onOpenSettings(() => setShowSettings(true)), [])
-  useEffect(() => window.api.onUpdateAvailable((v) => setUpdateVersion(v)), [])
+  useEffect(() => window.api.onUpdateDownloaded((v) => setUpdateVersion(v)), [])
   useEffect(() => window.api.onExtensionTimecode((data) => setExtensionStatus({ lastSeenAt: Date.now(), data })), [])
 
   async function toggleStartup(): Promise<void> {
@@ -47,6 +47,7 @@ export function useSettings(showToast?: ShowToast) {
     updateVersion,
     extensionStatus,
     toggleStartup,
+    quitAndInstallUpdate: () => window.api.updaterQuitAndInstall(),
     updateThumbnailSize: (v: number) => update('thumbnailSize', v, showToast),
     updateFrameFps: (v: number) => update('frameFps', v, showToast),
     updateFrameFpsAuto: (v: boolean) => update('frameFpsAuto', v, showToast),

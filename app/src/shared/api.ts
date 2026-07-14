@@ -43,7 +43,8 @@ export interface ShioriApi {
   getStartup: () => Promise<boolean>
   setStartup: (enabled: boolean) => Promise<void>
   getExtensionPath: () => Promise<string>
-  onUpdateAvailable: (cb: (version: string) => void) => () => void
+  onUpdateDownloaded: (cb: (version: string) => void) => () => void
+  updaterQuitAndInstall: () => Promise<void>
   taggerEnsure: () => Promise<void>
   taggerCancelDownload: () => Promise<void>
   taggerDelete: () => Promise<{ removedTags: number }>
@@ -149,5 +150,6 @@ export const CH = {
   captureDone: 'capture:done',
   openSettings: 'open-settings',
   appNotice: 'app:notice',
-  updaterAvailable: 'updater:available',
+  updaterDownloaded: 'updater:downloaded',
+  updaterQuitAndInstall: 'updater:quitAndInstall',
 } as const

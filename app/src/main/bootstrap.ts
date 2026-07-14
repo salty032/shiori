@@ -14,7 +14,7 @@ import { registerCapturedMedia } from './captured-media'
 import { loadSettings, saveSettings, consumeCorruptSettingsNotice, type Settings } from './settings'
 import { checkExtensionUpdate, installedExtensionPath } from './extension-updater'
 import { migrateThumbnailsToOwnDir } from './migrate-thumbnails'
-import { initAutoUpdater } from './updater'
+import { initAutoUpdater, quitAndInstallUpdate } from './updater'
 import { ensureModel, isModelDownloaded } from './tagger'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './hotkey'
@@ -364,6 +364,7 @@ export function bootstrap(): void {
     })
 
     initAutoUpdater(getMainWindow)
+    handleTrusted(CH.updaterQuitAndInstall, () => quitAndInstallUpdate())
 
     isModelDownloaded().then(async (downloaded) => {
       if (!downloaded) return

@@ -92,7 +92,9 @@ export function buildCoreApi(): ShioriApi {
     getExtensionPath: (): Promise<string> =>
       ipcRenderer.invoke(CH.extensionGetPath),
 
-    onUpdateAvailable: (cb: (version: string) => void) => listen<string>(CH.updaterAvailable, cb),
+    onUpdateDownloaded: (cb: (version: string) => void) => listen<string>(CH.updaterDownloaded, cb),
+
+    updaterQuitAndInstall: (): Promise<void> => ipcRenderer.invoke(CH.updaterQuitAndInstall),
 
     taggerEnsure: (): Promise<void> => ipcRenderer.invoke(CH.taggerEnsure),
     taggerCancelDownload: (): Promise<void> => ipcRenderer.invoke(CH.taggerCancelDownload),
