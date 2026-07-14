@@ -89,7 +89,7 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
     <div style={styles.tagSection}>
       <div style={{ ...styles.tagLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>タグ</span>
-        <span style={styles.tagLegend}><span style={{ color: '#7cb87c' }}>●</span> 手動　<span style={{ color: '#9ea5ff' }}>●</span> AI</span>
+        <span style={styles.tagLegend}><span style={{ color: 'var(--success)' }}>●</span> 手動　<span style={{ color: 'var(--accent-text)' }}>●</span> AI</span>
       </div>
       <div className="shiori-tag-list" style={styles.tagList}>
         {[...tags].sort((a, b) => a.source === b.source ? 0 : a.source === 'manual' ? -1 : 1).map(tag => (
@@ -135,8 +135,8 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
 // ここに残すのはこのコンポーネント固有のレイアウト・AIタグ配色のみ。
 const styles: Record<string, React.CSSProperties> = {
   tagSection: { display: 'flex', flexDirection: 'column', gap: 8 },
-  tagLabel: { color: '#7d879d', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
-  tagLegend: { fontSize: font.xs, color: '#7f899f', fontWeight: 400, letterSpacing: 0 },
+  tagLabel: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
+  tagLegend: { fontSize: font.xs, color: 'var(--text-secondary)', fontWeight: 400, letterSpacing: 0 },
   tagList: { display: 'flex', flexWrap: 'wrap', gap: 7, minHeight: 4, maxHeight: TAG_LIST_COLLAPSED_MAX_HEIGHT, overflowY: 'auto' as const, overflowX: 'hidden' as const },
   tagControlRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, minHeight: 28 },
   tagError: { color: color.danger, fontSize: font.sm },

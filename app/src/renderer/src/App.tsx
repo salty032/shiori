@@ -541,7 +541,7 @@ export default function App() {
                     <div style={s.emptySteps}>
                       <div>1. 拡張機能フォルダを Chrome に読み込みます</div>
                       <div>2. 対応サイトで動画を開きます</div>
-                      <div>3. 取りたい場面で <strong style={{ color: '#9ea5ff' }}>{settings.settings.captureHotkey}</strong> を押します</div>
+                      <div>3. 取りたい場面で <strong style={{ color: 'var(--accent-text)' }}>{settings.settings.captureHotkey}</strong> を押します</div>
                     </div>
                     <div style={s.emptyActions}>
                       <button style={s.emptyBtn} onClick={() => window.api.showExtensionFolder()}>拡張機能フォルダを開く</button>
@@ -651,6 +651,7 @@ export default function App() {
             onUpdateCaptureHotkey={settings.updateCaptureHotkey}
             onUpdateCaptureNotify={settings.updateCaptureNotify}
             onUpdateShowAiTags={settings.updateShowAiTags}
+            onUpdateTheme={settings.updateTheme}
             onTaggerDownload={tagger.handleTaggerDownload}
             onTaggerCancelDownload={tagger.handleTaggerCancelDownload}
             onTaggerDelete={confirmTaggerDelete}

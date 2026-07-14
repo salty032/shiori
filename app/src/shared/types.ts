@@ -36,6 +36,8 @@ export type SmartFolder = {
   search: string
 }
 
+export type Theme = 'system' | 'dark' | 'light'
+
 export type Settings = {
   titleStrip: string[]
   thumbnailSize: number
@@ -47,6 +49,7 @@ export type Settings = {
   allowedExtensionIds: string[]
   serviceOrder: string[]
   showAiTags: boolean
+  theme: Theme
 }
 
 // 一覧のフィルタ条件。renderer が組み立て、main が検証し、SQL に落とすまでの

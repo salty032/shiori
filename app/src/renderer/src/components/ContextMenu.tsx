@@ -92,9 +92,9 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  menu: { position: 'fixed' as const, width: 'max-content' as const, minWidth: 84, maxWidth: 280, background: '#171a23', border: '1px solid #2b3243', borderRadius: radius.sm, padding: '4px', boxShadow: '0 18px 40px rgba(0,0,0,0.42)', zIndex: 4000 },
-  item: { display: 'block', width: '100%', boxSizing: 'border-box' as const, padding: '6px 10px', background: 'none', border: 'none', borderRadius: 2, color: '#dce3f2', fontSize: font.base, fontWeight: 700, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
+  menu: { position: 'fixed' as const, width: 'max-content' as const, minWidth: 84, maxWidth: 280, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, padding: '4px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', zIndex: 4000 },
+  item: { display: 'block', width: '100%', boxSizing: 'border-box' as const, padding: '6px 10px', background: 'none', border: 'none', borderRadius: 2, color: 'var(--text-primary)', fontSize: font.base, fontWeight: 700, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
   danger: { color: color.danger },
-  itemHighlighted: { background: 'rgba(255,255,255,0.08)' },
-  separator: { height: 1, margin: '5px 4px', background: 'rgba(255,255,255,0.08)' },
+  itemHighlighted: { background: 'rgba(var(--text-rgb), 0.08)' },
+  separator: { height: 1, margin: '5px 4px', background: 'rgba(var(--text-rgb), 0.08)' },
 }

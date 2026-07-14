@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ExtensionTimecode } from '../types'
+import type { ExtensionTimecode, Settings } from '../types'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { ShowToast } from './useToast'
 
@@ -26,6 +26,22 @@ export function useSettings(showToast?: ShowToast) {
   useEffect(() => window.api.onOpenSettings(() => setShowSettings(true)), [])
   useEffect(() => window.api.onUpdateDownloaded((v) => setUpdateVersion(v)), [])
   useEffect(() => window.api.onExtensionTimecode((data) => setExtensionStatus({ lastSeenAt: Date.now(), data })), [])
+
+  // <html data-theme> を settings.theme に追従させる。'system' は OS 設定を購読し、
+  // 変化にもリアルタイムで追従する（settings.json 上は 'system' のまま、実際の
+  // 明暗判定だけを都度差し替える）。
+  useEffect(() => {
+    const root = document.documentElement
+    if (settings.theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const apply = (): void => { root.dataset.theme = mq.matches ? 'dark' : 'light' }
+      apply()
+      mq.addEventListener('change', apply)
+      return () => mq.removeEventListener('change', apply)
+    }
+    root.dataset.theme = settings.theme
+    return undefined
+  }, [settings.theme])
 
   async function toggleStartup(): Promise<void> {
     // 楽観更新（R-2）: レジストリ書き込み（Windows）の完了を待たず即座にスイッチを反映する。
@@ -54,5 +70,6 @@ export function useSettings(showToast?: ShowToast) {
     updateCaptureHotkey: applyCaptureHotkey,
     updateCaptureNotify: (v: boolean) => update('captureNotify', v, showToast),
     updateShowAiTags: (v: boolean) => update('showAiTags', v, showToast),
+    updateTheme: (v: Settings['theme']) => update('theme', v, showToast),
   }
 }

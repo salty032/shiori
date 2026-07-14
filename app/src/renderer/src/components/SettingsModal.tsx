@@ -22,6 +22,7 @@ type Props = {
   onUpdateCaptureHotkey: (hotkey: string) => Promise<boolean>
   onUpdateCaptureNotify: (enabled: boolean) => void
   onUpdateShowAiTags: (enabled: boolean) => void
+  onUpdateTheme: (theme: Settings['theme']) => void
   onTaggerDownload: () => void
   onTaggerCancelDownload: () => void
   onTaggerDelete: () => void
@@ -176,6 +177,23 @@ export default function SettingsModal(p: Props) {
             {activeTab === 'general' && (
               <>
                 <div style={s.group}>
+                  <div style={s.section}>外観</div>
+                  <div style={s.row}>
+                    <span style={s.label}>テーマ</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {([['system', 'システム'], ['dark', 'ダーク'], ['light', 'ライト']] as const).map(([value, label]) => {
+                        const active = p.settings.theme === value
+                        return (
+                          <button key={value} onClick={() => p.onUpdateTheme(value)}
+                            style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div style={s.group}>
                   <div style={s.section}>起動</div>
                   <div style={s.toggleRow}>
                     <span style={s.label}>ログイン時に自動起動</span>
@@ -187,7 +205,7 @@ export default function SettingsModal(p: Props) {
                   <div style={s.row}>
                     <span style={s.label}>FPS</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#888', fontSize: font.base }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--text-secondary)', fontSize: font.base }}>
                         <ToggleSwitch checked={p.settings.frameFpsAuto} onChange={p.onUpdateFrameFpsAuto} />
                         自動検出
                       </div>
@@ -196,7 +214,7 @@ export default function SettingsModal(p: Props) {
                           const active = p.settings.frameFps === fps
                           return (
                             <button key={fps} onClick={() => p.onUpdateFrameFps(fps)}
-                              style={{ ...s.sizeBtn, background: active ? '#1e2a3a' : 'transparent', color: active ? '#9ea5ff' : '#7f899f', borderColor: active ? '#33445e' : '#272c3a' }}>
+                              style={{ ...s.sizeBtn, background: active ? 'rgba(var(--accent-rgb), 0.16)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border-default)' }}>
                               {fps}
                             </button>
                           )
@@ -225,7 +243,7 @@ export default function SettingsModal(p: Props) {
                             else setFpsInputDraft(String(p.settings.frameFps))
                           }}
                           style={{ ...s.input, width: 52, textAlign: 'center' as const, padding: '6px 4px' }} />
-                        <span style={{ color: '#7f899f', fontSize: font.base }}>fps</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: font.base }}>fps</span>
                       </div>
                     </div>
                   </div>
@@ -452,56 +470,56 @@ export default function SettingsModal(p: Props) {
 
 // 各種設定スロットが見た目を揃えるために再利用する共通スタイル。
 export const s: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(3,5,10,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
-  panel: { background: '#0d0f14', border: '1px solid #20242f', borderRadius: 4, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,0.62)', overflow: 'hidden' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid #20242f' },
-  sidebar: { width: 124, padding: '8px 10px', gap: 2, flexShrink: 0, background: '#090c12', borderRight: '1px solid #1e2230', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
-  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: '#8791a8', padding: '7px 10px', borderRadius: 3, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
-  tabBtnActive: { color: '#c8cff7', background: '#1a1f35', fontWeight: 700 },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(var(--scrim-rgb), 0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
+  panel: { background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: 4, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
+  sidebar: { width: 124, padding: '8px 10px', gap: 2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
+  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: 3, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
+  tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: 700 },
   tabContent: { overflowY: 'auto' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
-  title: { fontSize: font.xxl, fontWeight: 800, color: '#f7f9ff' },
-  close: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(23,26,35,0.5)', border: '1px solid transparent', borderRadius: 4, color: '#8791a8', cursor: 'pointer', padding: 0 },
-  group: { borderTop: '1px solid #293142', paddingTop: 22, paddingBottom: 22, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 620 },
-  section: { fontSize: font.xs, color: '#7f899f', letterSpacing: 0.4, fontWeight: 800 },
+  title: { fontSize: font.xxl, fontWeight: 800, color: 'var(--text-bright)' },
+  close: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
+  group: { borderTop: '1px solid var(--border-strong)', paddingTop: 22, paddingBottom: 22, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 620 },
+  section: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
   toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  label: { fontSize: font.lg, color: '#dce3f2', fontWeight: 700 },
-  sizeBtn: { padding: '6px 18px', background: '#171a23', borderRadius: 3, border: '1px solid #2b3243', color: '#dce3f2', cursor: 'pointer', fontSize: font.base, transition: 'all 0.1s' },
-  hint: { fontSize: font.sm, color: '#8791a8', lineHeight: 1.7 },
-  hotkeyBadge: { padding: '4px 10px', background: '#171a23', border: '1px solid #272c3a', borderRadius: 3, color: '#dce3f2', fontSize: font.base, fontFamily: 'monospace' },
-  hotkeyCapture: { padding: '4px 10px', background: '#171a23', border: '1px solid #3b4355', borderRadius: 3, color: '#9ea5ff', fontSize: font.base, fontFamily: 'monospace', minWidth: 140, outline: 'none', cursor: 'text' },
-  toggleSwitch: { width: 44, height: 28, padding: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: '#171a23', border: '1px solid #343b4c', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
-  toggleSwitchOn: { background: 'rgba(111,111,242,0.24)', borderColor: 'rgba(126,138,255,0.6)' },
-  toggleKnob: { width: 20, height: 20, borderRadius: 999, background: '#8a94aa', boxShadow: '0 1px 3px rgba(0,0,0,0.45)', transition: 'transform 0.16s cubic-bezier(.22,1,.36,1), background 0.16s ease' },
-  toggleKnobOn: { background: '#c5cbff' },
+  label: { fontSize: font.lg, color: 'var(--text-primary)', fontWeight: 700 },
+  sizeBtn: { padding: '6px 18px', background: 'var(--bg-surface)', borderRadius: 3, border: '1px solid var(--border-strong)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.base, transition: 'all 0.1s' },
+  hint: { fontSize: font.sm, color: 'var(--text-secondary)', lineHeight: 1.7 },
+  hotkeyBadge: { padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 3, color: 'var(--text-primary)', fontSize: font.base, fontFamily: 'monospace' },
+  hotkeyCapture: { padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--accent-text)', fontSize: font.base, fontFamily: 'monospace', minWidth: 140, outline: 'none', cursor: 'text' },
+  toggleSwitch: { width: 44, height: 28, padding: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
+  toggleSwitchOn: { background: 'rgba(var(--accent-rgb), 0.24)', borderColor: 'rgba(var(--accent-rgb), 0.6)' },
+  toggleKnob: { width: 20, height: 20, borderRadius: 999, background: 'var(--text-secondary)', boxShadow: '0 1px 3px rgba(var(--scrim-rgb), 0.45)', transition: 'transform 0.16s cubic-bezier(.22,1,.36,1), background 0.16s ease' },
+  toggleKnobOn: { background: 'var(--accent-text)' },
   statusBadge: { display: 'inline-flex', alignItems: 'center', height: 22, padding: '0 8px', borderRadius: 999, fontSize: font.xs, fontWeight: 800, border: '1px solid', whiteSpace: 'nowrap' as const },
-  statusOk: { color: '#7cb87c', background: 'rgba(45,130,70,0.12)', borderColor: 'rgba(90,170,105,0.35)' },
-  statusMuted: { color: '#7f899f', background: 'rgba(127,137,159,0.08)', borderColor: 'rgba(127,137,159,0.22)' },
+  statusOk: { color: 'var(--success)', background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.35)' },
+  statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'rgba(var(--border-rgb), 0.6)' },
   inputRow: { display: 'flex', gap: 8 },
-  input: { flex: 1, background: '#171a23', border: '1px solid #2b3243', borderRadius: 3, color: '#e7ebf5', padding: '7px 10px', fontSize: font.base, outline: 'none' },
+  input: { flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-primary)', padding: '7px 10px', fontSize: font.base, outline: 'none' },
   actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  addBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '7px 14px', background: '#1d2b40', border: '1px solid #38506d', borderRadius: 3, color: '#aeb8ff', cursor: 'pointer', fontSize: font.base, whiteSpace: 'nowrap' as const, fontWeight: 700 },
-  patternEmpty: { color: '#7f899f', fontSize: font.base },
+  addBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), 0.45)', borderRadius: 3, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, whiteSpace: 'nowrap' as const, fontWeight: 700 },
+  patternEmpty: { color: 'var(--text-secondary)', fontSize: font.base },
   patternList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
-  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#171a23', border: '1px solid #272c3a', borderRadius: 3, padding: '6px 10px' },
-  code: { fontFamily: 'monospace', fontSize: font.sm, color: '#b9c2d6', flex: 1 },
-  removeBtn: { background: 'none', border: 'none', color: '#6f778b', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 },
+  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 3, padding: '6px 10px' },
+  code: { fontFamily: 'monospace', fontSize: font.sm, color: 'var(--text-secondary)', flex: 1 },
+  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 },
   deleteBtn: { padding: '5px 12px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: 3, color: color.danger, cursor: 'pointer', fontSize: font.sm, fontWeight: 700 },
-  cancelBtn: { padding: '5px 10px', background: 'transparent', border: '1px solid #3b4255', borderRadius: 3, color: '#b6bed2', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, flexShrink: 0 },
+  cancelBtn: { padding: '5px 10px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, flexShrink: 0 },
   progressWrap: { display: 'flex', alignItems: 'center', gap: 8 },
-  progressBar: { flex: 1, height: 6, background: '#20242f', borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', background: '#7b7bf6', borderRadius: 2, transition: 'width 0.3s' },
-  progressLabel: { color: '#8791a8', fontSize: font.sm, width: 36, textAlign: 'right' as const },
-  dataBlock: { display: 'flex', flexDirection: 'column' as const, gap: 12, width: '100%', padding: '14px 16px', background: '#11141c', border: '1px solid #293142', borderRadius: 4, boxSizing: 'border-box' as const },
+  progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: '100%', background: 'var(--accent)', borderRadius: 2, transition: 'width 0.3s' },
+  progressLabel: { color: 'var(--text-secondary)', fontSize: font.sm, width: 36, textAlign: 'right' as const },
+  dataBlock: { display: 'flex', flexDirection: 'column' as const, gap: 12, width: '100%', padding: '14px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, boxSizing: 'border-box' as const },
   dataHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  dataTitle: { color: '#dce3f2', fontSize: font.base, fontWeight: 800 },
+  dataTitle: { color: 'var(--text-primary)', fontSize: font.base, fontWeight: 800 },
   statusLine: { fontSize: font.sm, fontWeight: 700 },
-  statusLineOk: { color: '#7cb87c' },
+  statusLineOk: { color: 'var(--success)' },
   statusLineError: { color: color.danger },
   serviceGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(168px, 1fr))', gap: 8, width: '100%' },
   serviceItem: { minHeight: 42, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid', borderRadius: 4, boxSizing: 'border-box' as const },
-  serviceDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, boxShadow: '0 0 0 3px rgba(255,255,255,0.04)' },
+  serviceDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, boxShadow: '0 0 0 3px rgba(var(--text-rgb), 0.04)' },
   serviceText: { minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 2 },
-  serviceName: { color: '#dce3f2', fontSize: font.base, fontWeight: 800, lineHeight: 1.2 },
-  serviceHost: { color: '#8791a8', fontSize: font.xs, lineHeight: 1.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+  serviceName: { color: 'var(--text-primary)', fontSize: font.base, fontWeight: 800, lineHeight: 1.2 },
+  serviceHost: { color: 'var(--text-secondary)', fontSize: font.xs, lineHeight: 1.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
 }

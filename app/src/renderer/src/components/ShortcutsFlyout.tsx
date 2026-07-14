@@ -58,13 +58,13 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  flyout: { position: 'fixed' as const, width: 260, maxHeight: '70vh', overflowY: 'auto' as const, background: '#171a23', border: '1px solid #2b3243', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(0,0,0,0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const },
-  heading: { fontSize: font.sm, fontWeight: 800, color: '#c8cff7' },
+  flyout: { position: 'fixed' as const, width: 260, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const },
+  heading: { fontSize: font.sm, fontWeight: 800, color: 'var(--accent-text)' },
   group: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
-  groupTitle: { fontSize: font.xs, color: '#7f899f', letterSpacing: 0.4, fontWeight: 800 },
+  groupTitle: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
   list: { display: 'flex', flexDirection: 'column' as const, gap: 7, width: '100%' },
   row: { display: 'flex', flexDirection: 'column' as const, gap: 2 },
-  desc: { fontSize: font.xs, color: '#8791a8', lineHeight: 1.4 },
-  key: { fontFamily: 'monospace', fontSize: font.xs, color: '#9ea5ff', background: '#11141c', border: '1px solid #272c3a', borderRadius: 3, padding: '1px 7px', display: 'inline-block', width: 'fit-content', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
-  hint: { fontSize: 10, color: '#5f6779', lineHeight: 1.5 },
+  desc: { fontSize: font.xs, color: 'var(--text-secondary)', lineHeight: 1.4 },
+  key: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--accent-text)', background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 3, padding: '1px 7px', display: 'inline-block', width: 'fit-content', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  hint: { fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 },
 }

@@ -1,38 +1,133 @@
+/* テーマトークン（C-1拡張）。ライト/ダークどちらでも styles.ts 等の inline style から
+   var(--...) で参照する唯一の色定義。data-theme は settingsStore が起動時・変更時・
+   OS設定変化時（system選択時）に <html> へ付与する。属性が付く前（初回描画）は
+   :root の既定値＝ダークが使われる（旧デフォルトと同じ見た目を維持しFOUCを避ける）。
+   低透明度で使う色は rgba(var(--*-rgb), x) で任意の濃さを取れるよう RGB 成分も併記する。 */
+:root {
+  --bg-page: #0d0f14;
+  --bg-content: #101218;
+  --bg-well: #0b0d12;
+  --bg-surface: #171a23;
+  --bg-surface-hover: #1c2030;
+  --surface-rgb: 23, 26, 35;
+  --scrim-rgb: 3, 5, 10;
+  /* サイドバー下部のユーティリティ帯など「一段沈んだ」領域。ダークは暗く沈め、
+     ライトでは濃いグレー帯として浮かないようごく薄いグレーにする。 */
+  --bg-inset: rgba(8, 10, 15, 0.36);
+  --bg-inset-strong: rgba(12, 14, 20, 0.4);
+
+  --text-primary: #dce3f2;
+  --text-bright: #f7f9ff;
+  --text-secondary: #8791a8;
+  --text-muted: #5c6480;
+  --text-rgb: 255, 255, 255;
+
+  --border-default: #20242f;
+  --border-strong: #2b3243;
+  --border-rgb: 40, 44, 58;
+  /* 入力欄・検索バーなど、translucent surface の上でもう少し視認性が要る境界線用
+     （--border-rgb より明るい中間トーン）。 */
+  --hairline-rgb: 73, 82, 108;
+
+  --accent: #8b8cff;
+  --accent-text: #aeb8ff;
+  --accent-rgb: 101, 111, 245;
+
+  --success: #54d6a8;
+  --success-rgb: 34, 197, 145;
+
+  --warning: #d2ad62;
+  --warning-rgb: 210, 173, 98;
+
+  --danger: #ff7f89;
+  --danger-border: #713039;
+  --danger-rgb: 255, 111, 122;
+
+  --scrollbar-track: #111;
+  --scrollbar-thumb: #3a3a3a;
+  --scrollbar-thumb-hover: #555;
+  --hover-brightness: 1.13;
+}
+
+:root[data-theme='light'] {
+  --bg-page: #f2f3f8;
+  --bg-content: #ffffff;
+  --bg-well: #eceef4;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #eef0f7;
+  --surface-rgb: 255, 255, 255;
+  --scrim-rgb: 40, 44, 58;
+  --bg-inset: rgba(40, 44, 58, 0.05);
+  --bg-inset-strong: rgba(40, 44, 58, 0.08);
+
+  --text-primary: #1b2030;
+  --text-bright: #05070d;
+  --text-secondary: #5b6278;
+  --text-muted: #7d84a0;
+  --text-rgb: 20, 23, 35;
+
+  --border-default: #dfe2ea;
+  --border-strong: #c9cedc;
+  --border-rgb: 195, 200, 216;
+  --hairline-rgb: 165, 171, 190;
+
+  --accent: #4b4fd0;
+  --accent-text: #4649c4;
+  --accent-rgb: 91, 98, 232;
+
+  --success: #167a56;
+  --success-rgb: 22, 163, 113;
+
+  --warning: #8a5b12;
+  --warning-rgb: 158, 111, 30;
+
+  --danger: #c22a3e;
+  --danger-border: #f3c4cb;
+  --danger-rgb: 214, 42, 63;
+
+  --scrollbar-track: #eceef4;
+  --scrollbar-thumb: #c3c8d6;
+  --scrollbar-thumb-hover: #a5abbd;
+  --hover-brightness: 0.95;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3a3a3a #111;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-track {
-  background: #111;
+  background: var(--scrollbar-track);
 }
 *::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
-  border: 2px solid #111;
+  background: var(--scrollbar-thumb);
+  border: 2px solid var(--scrollbar-track);
   border-radius: 999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--scrollbar-thumb-hover);
 }
-body { background: #111; color: #eee; font-family: system-ui, sans-serif; }
+body { background: var(--bg-page); color: var(--text-primary); font-family: system-ui, sans-serif; }
 input::placeholder,
-textarea::placeholder { color: #7a8499; }
-button:not(:disabled):hover { filter: brightness(1.13); }
+textarea::placeholder { color: var(--text-muted); }
+/* ライトはボタン濃色地に white ではなく黒寄りテキストのため、hover は明るくすると
+   逆にコントラストが落ちる。ダーク(明るくする)/ライト(暗くする)で係数を反転する。 */
+button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
 
 /* メニュー/サジェスト項目（透明背景でボタンの brightness hover が効かないもの）用の共通ホバー。
    キーボード選択中のハイライトと同系色にして、マウス操作とキー操作の見た目を揃える。 */
 /* 各項目は React 側で background をインライン style（none/transparent 等）に
    明示指定しているため、通常優先度の hover では上書きできない。!important で強制する。 */
-.shiori-menu-item:hover { background: #262b39 !important; }
-.shiori-menu-item-danger:hover { background: #302027 !important; }
+.shiori-menu-item:hover { background: rgba(var(--surface-rgb), 0.5) !important; }
+.shiori-menu-item-danger:hover { background: rgba(var(--danger-rgb), 0.12) !important; }
 
 .shiori-tag-list {
   scrollbar-width: thin;
-  scrollbar-color: #343844 transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 .shiori-tag-list::-webkit-scrollbar {
   width: 6px;
@@ -41,8 +136,8 @@ button:not(:disabled):hover { filter: brightness(1.13); }
   background: transparent;
 }
 .shiori-tag-list::-webkit-scrollbar-thumb {
-  background: #343844;
-  border: 1px solid #0d0f14;
+  background: var(--border-strong);
+  border: 1px solid var(--bg-page);
   border-radius: 999px;
 }
 

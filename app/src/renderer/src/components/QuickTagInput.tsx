@@ -115,13 +115,13 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed' as const, inset: 0, zIndex: 6100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '18vh', background: 'rgba(3,5,10,0.18)' },
-  panel: { width: 360, maxWidth: 'calc(100vw - 40px)', background: '#11141c', border: '1px solid #2b3243', borderRadius: radius.md, boxShadow: '0 22px 60px rgba(0,0,0,0.58)', padding: 10 },
+  overlay: { position: 'fixed' as const, inset: 0, zIndex: 6100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '18vh', background: 'rgba(var(--scrim-rgb), 0.18)' },
+  panel: { width: 360, maxWidth: 'calc(100vw - 40px)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, boxShadow: '0 22px 60px rgba(var(--scrim-rgb), 0.58)', padding: 10 },
   header: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '2px 2px 8px' },
-  title: { color: '#e7ebf5', fontSize: font.sm, fontWeight: 800 },
-  target: { minWidth: 0, color: '#7d879d', fontSize: font.xs, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  input: { width: '100%', height: 36, boxSizing: 'border-box' as const, background: '#171a23', border: '1px solid #3b4355', borderRadius: radius.md, color: '#e7ebf5', padding: '0 11px', fontSize: font.base, outline: 'none' },
+  title: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800 },
+  target: { minWidth: 0, color: 'var(--text-muted)', fontSize: font.xs, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  input: { width: '100%', height: 36, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 11px', fontSize: font.base, outline: 'none' },
   suggestions: { marginTop: 6, maxHeight: 220, overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const, gap: 2 },
-  suggestion: { width: '100%', minHeight: 28, padding: '5px 9px', border: 'none', borderRadius: radius.sm, background: 'transparent', color: '#c4ccdc', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
-  suggestionActive: { background: 'rgba(91,112,255,0.18)', color: '#aeb8ff' },
+  suggestion: { width: '100%', minHeight: 28, padding: '5px 9px', border: 'none', borderRadius: radius.sm, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
+  suggestionActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
 }

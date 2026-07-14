@@ -17,6 +17,7 @@ const DEFAULTS = {
   allowedExtensionIds: [DEFAULT_EXTENSION_ID],
   serviceOrder: [],
   showAiTags: false,
+  theme: 'dark',
 }
 
 describe('normalizeSettings', () => {
@@ -124,5 +125,12 @@ describe('normalizeSettings', () => {
     it('配列でない → 空配列', () => {
       expect(normalizeSettings({ smartFolders: 'not-array' }).smartFolders).toEqual([])
     })
+  })
+
+  describe('theme', () => {
+    it('有効な値: light', () => expect(normalizeSettings({ theme: 'light' }).theme).toBe('light'))
+    it('有効な値: system', () => expect(normalizeSettings({ theme: 'system' }).theme).toBe('system'))
+    it('無効な値 → デフォルト dark', () => expect(normalizeSettings({ theme: 'invalid' }).theme).toBe('dark'))
+    it('値なし → デフォルト dark', () => expect(normalizeSettings({}).theme).toBe('dark'))
   })
 })

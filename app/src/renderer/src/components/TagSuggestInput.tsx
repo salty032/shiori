@@ -54,7 +54,7 @@ export default function TagSuggestInput({ value, onChange, suggestions, placehol
       {suggestions.length > 0 && (
         <div style={s.suggestions}>
           {suggestions.map((t, i) => (
-            <div key={t} className="shiori-menu-item" style={{ ...s.suggestion, background: i === highlightedIndex ? '#272c3a' : 'transparent' }}
+            <div key={t} className="shiori-menu-item" style={{ ...s.suggestion, background: i === highlightedIndex ? 'var(--bg-surface-hover)' : 'transparent' }}
               onMouseDown={(e) => { e.preventDefault(); onConfirm(t) }}>
               {t}
             </div>
@@ -67,8 +67,8 @@ export default function TagSuggestInput({ value, onChange, suggestions, placehol
 
 const s: Record<string, React.CSSProperties> = {
   tagInputRow: { height: 32, display: 'inline-flex', alignItems: 'center', gap: 6, flex: '1 1 180px', minWidth: 160, maxWidth: '100%' },
-  tagInput: { flex: 1, minWidth: 0, height: 32, background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, color: '#dce3f2', padding: '0 10px', fontSize: font.base, outline: 'none', boxSizing: 'border-box' as const },
-  tagAddBtn: { width: 34, height: 32, padding: 0, background: 'rgba(34,197,145,0.12)', border: '1px solid rgba(34,197,145,0.42)', borderRadius: 4, color: '#54d6a8', cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0 },
-  suggestions: { position: 'absolute' as const, top: '100%', left: 0, right: 28, background: '#171a23', border: '1px solid #2b3243', borderRadius: radius.sm, zIndex: 100, marginTop: 4, maxHeight: 180, overflowY: 'auto' as const, boxShadow: '0 18px 40px rgba(0,0,0,0.42)', padding: 4 },
-  suggestion: { padding: '6px 8px', fontSize: font.sm, color: '#dce3f2', cursor: 'pointer', borderRadius: 2 },
+  tagInput: { flex: 1, minWidth: 0, height: 32, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none', boxSizing: 'border-box' as const },
+  tagAddBtn: { width: 34, height: 32, padding: 0, background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: 4, color: 'var(--success)', cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0 },
+  suggestions: { position: 'absolute' as const, top: '100%', left: 0, right: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, zIndex: 100, marginTop: 4, maxHeight: 180, overflowY: 'auto' as const, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', padding: 4 },
+  suggestion: { padding: '6px 8px', fontSize: font.sm, color: 'var(--text-primary)', cursor: 'pointer', borderRadius: 2 },
 }

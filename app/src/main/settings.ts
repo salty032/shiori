@@ -58,6 +58,10 @@ function hotkeyText(value: unknown, fallback: string): string {
   return normalizeCaptureHotkey(value) ?? fallback
 }
 
+function themeValue(value: unknown): Settings['theme'] {
+  return value === 'dark' || value === 'light' || value === 'system' ? value : 'dark'
+}
+
 function extensionIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value
@@ -81,6 +85,7 @@ export function normalizeSettings(value: unknown): Settings {
     allowedExtensionIds: allowedIds.length > 0 ? allowedIds : [EXTENSION_ID],
     serviceOrder: stringList(data.serviceOrder),
     showAiTags: data.showAiTags === true,
+    theme: themeValue(data.theme),
   }
 }
 

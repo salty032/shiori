@@ -14,4 +14,5 @@ export const SETTINGS_DEFAULTS: Settings = {
   allowedExtensionIds: [],
   serviceOrder: [],
   showAiTags: false,
+  theme: 'dark',
 }

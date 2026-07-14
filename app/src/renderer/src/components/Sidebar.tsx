@@ -325,7 +325,7 @@ export default function Sidebar({
                     適用するので、クエリロジック側の変更は不要。 */}
                 {[...new Set([...filters.tagFilters, ...searchTags])].length >= 2 && (
                   <button onClick={() => filters.setTagMode((m) => m === 'and' ? 'or' : 'and')}
-                    style={{ ...s.tagModeBtn, color: filters.tagMode === 'and' ? '#66a86f' : '#b5965c' }}>
+                    style={{ ...s.tagModeBtn, color: filters.tagMode === 'and' ? 'var(--success)' : 'var(--warning)' }}>
                     {filters.tagMode === 'and' ? 'AND' : 'OR'}
                   </button>
                 )}
@@ -415,12 +415,12 @@ export default function Sidebar({
           </div>
         </div>
         <div style={s.sidebarBottom}>
-          <button style={{ ...s.gearBtn, color: settingsActive ? '#9ea5ff' : '#888' }}
+          <button style={{ ...s.gearBtn, color: settingsActive ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={onToggleSettings}>
             <SettingsIcon size={16} />
             <span style={{ fontSize: font.base, fontWeight: 800 }}>設定</span>
           </button>
-          <button ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? '#9ea5ff' : '#888' }}
+          <button ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={() => setShowShortcuts((v) => !v)} title="ショートカット一覧">
             <HelpCircleIcon size={16} />
           </button>
