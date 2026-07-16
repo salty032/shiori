@@ -1,6 +1,6 @@
 {
   "name": "Shiori",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "アニメキャプチャ専用画像管理ツール",
   "author": "salty032",
   "license": "UNLICENSED",
@@ -13,6 +13,8 @@
     "verify": "npm run typecheck && npm test",
     "build": "npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
+    "ext:lint": "npx --yes web-ext@10 lint --source-dir=../extension",
+    "ext:sign": "npx --yes web-ext@10 sign --source-dir=../extension --artifacts-dir=../web-ext-artifacts --channel=unlisted",
     "package": "npm run verify && electron-vite build && electron-builder --win --x64",
     "release": "npm run verify && electron-vite build && electron-builder --win --x64 --publish always",
     "postinstall": "electron-rebuild -f -w better-sqlite3 -w onnxruntime-node"
@@ -33,7 +35,11 @@
       "node_modules/**/*",
       "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**",
+      "!node_modules/better-sqlite3/deps/**",
+      "!node_modules/better-sqlite3/src/**",
+      "!node_modules/**/*.map",
+      "!node_modules/**/*.d.ts"
     ],
     "afterPack": "./build/afterPack.js",
     "extraResources": [

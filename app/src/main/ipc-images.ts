@@ -2,10 +2,11 @@
 import { dialog, shell } from 'electron'
 import { access, stat, copyFile } from 'fs/promises'
 import { basename, extname } from 'path'
-import { handleTrusted, sendToRenderer } from './windows'
+import { getMainWindow, handleTrusted, sendToRenderer } from './windows'
 import {
   listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts,
-  getImage, deleteImage, deleteImagesBulk, updateImageTitle, updateImageMemo, listImagesForThumbCheck, setThumbPath
+  getImage, deleteImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
+  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath
 } from './db'
 import {
   MAX_EXPORT_IDS,
@@ -19,6 +20,7 @@ import type { DeleteImageResult } from '../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { createImageThumb } from './image-thumb'
 import { createProgressThrottle } from './progress-throttle'
+import { beginTask, endTask } from './busy'
 // ゴミ箱への移動を並列投入しすぎると Windows のシェル操作が一時的に失敗するため絞る
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
 const DELETE_TRASH_CONCURRENCY = 4
@@ -27,37 +29,66 @@ let isThumbGen = false
 let isImagesExporting = false
 let isImagesExportCanceled = false
 
-// サムネイルが欠けている画像にサムネを補完する。移行直後の旧データや、
-// 生成に失敗したまま登録されたエントリを対象に起動時（bootstrap.ts）から自動で呼ぶ。
+// 1 枚分のサムネを生成して DB に記録する。成功したら true。
+async function generateThumb(id: number, filepath: string): Promise<boolean> {
+  try {
+    const resolved = await resolveRealCapturePath(filepath)
+    if (!resolved) throw new Error('path not resolvable')
+    const thumbPath = thumbPathFor(resolved)
+    await createImageThumb(resolved, thumbPath)
+    setThumbPath(id, thumbPath)
+    return true
+  } catch (err) {
+    console.error(`[thumbgen] skip id=${id}`, err)
+    return false
+  }
+}
+
+// サムネ未生成の画像にサムネを補完する。移行直後の旧データや、生成に失敗したまま
+// 登録されたエントリを対象に起動時（bootstrap.ts）から自動で呼ぶ。
+// 記録済みサムネの実ファイル確認はここでは行わない（S4-2）。全件の存在確認は起動を
+// 重くするだけで、通常は 1 件も直すものがないため、repairThumbnails() の手動実行に回す。
 export async function backfillThumbnails(): Promise<void> {
   if (isThumbGen) return
   isThumbGen = true
   try {
-    const targets = listImagesForThumbCheck()
-    for (const { id, filepath, thumb_path } of targets) {
-      try {
-        if (thumb_path) {
-          const existingThumb = await resolveRealCapturePath(thumb_path)
-          if (existingThumb) {
-            try {
-              await access(existingThumb)
-              continue
-            } catch {
-              // サムネファイルが見つからない → 再生成へ進む
-            }
-          }
-        }
-        const resolved = await resolveRealCapturePath(filepath)
-        if (!resolved) throw new Error('path not resolvable')
-        const thumbPath = thumbPathFor(resolved)
-        await createImageThumb(resolved, thumbPath)
-        setThumbPath(id, thumbPath)
-      } catch (err) {
-        console.error(`[thumbgen] skip id=${id}`, err)
-      }
+    for (const { id, filepath } of listImagesMissingThumb()) {
+      await generateThumb(id, filepath)
     }
   } finally {
     isThumbGen = false
+  }
+}
+
+// 手動の「サムネイル修復」。全画像を走査し、サムネ未生成のものと、thumb_path は記録済みだが
+// 実ファイルが消えているものを再生成する。ディスクアクセスが件数に比例するため自動では呼ばない。
+export async function repairThumbnails(): Promise<{ repaired: number; failed: number }> {
+  if (isThumbGen) return { repaired: 0, failed: 0 }
+  isThumbGen = true
+  beginTask('thumb-repair')
+  try {
+    const targets = listImagesForThumbCheck()
+    let repaired = 0
+    let failed = 0
+    for (const { id, filepath, thumb_path } of targets) {
+      if (thumb_path) {
+        const existingThumb = await resolveRealCapturePath(thumb_path)
+        if (existingThumb) {
+          try {
+            await access(existingThumb)
+            continue
+          } catch {
+            // サムネファイルが見つからない → 再生成へ進む
+          }
+        }
+      }
+      if (await generateThumb(id, filepath)) repaired++
+      else failed++
+    }
+    return { repaired, failed }
+  } finally {
+    isThumbGen = false
+    endTask('thumb-repair')
   }
 }
 
@@ -79,6 +110,7 @@ export function registerImageHandlers(): void {
     // フラグなので、並行実行されると片方の中止操作がもう片方も止め、進捗表示も混線する（R-5）。
     if (isImagesExporting) return { canceled: true }
     isImagesExporting = true
+    beginTask('export')
     try {
       const uniqueIds = Array.isArray(imageIds)
         ? [...new Set(imageIds.map(optionalPositiveInteger).filter((id): id is number => id != null))]
@@ -86,10 +118,13 @@ export function registerImageHandlers(): void {
       const truncated = uniqueIds.length > MAX_EXPORT_IDS
       const ids = uniqueIds.slice(0, MAX_EXPORT_IDS)
 
-      const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: 'エクスポート先フォルダを選択',
-        properties: ['openDirectory']
-      })
+      // 親ウィンドウを渡さないとダイアログがモーダル化されず、他ウィンドウの操作で
+      // 背面に隠れると「押したのに何も起きない」ように見える（BUG-3）。
+      const win = getMainWindow()
+      const dialogOptions: Electron.OpenDialogOptions = { title: 'エクスポート先フォルダを選択', properties: ['openDirectory'] }
+      const { canceled, filePaths } = win
+        ? await dialog.showOpenDialog(win, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions)
       if (canceled || !filePaths[0]) return { canceled: true }
       isImagesExportCanceled = false
       const dest = filePaths[0]
@@ -129,10 +164,13 @@ export function registerImageHandlers(): void {
       return { canceled: isImagesExportCanceled, count, truncated }
     } finally {
       isImagesExporting = false
+      endTask('export')
     }
   })
 
   handleTrusted(CH.imagesExportCancel, () => { isImagesExportCanceled = true })
+
+  handleTrusted(CH.imagesRepairThumbs, () => repairThumbnails())
 
   handleTrusted(CH.imagesGet, (_event, id: number) => {
     const imageId = optionalPositiveInteger(id)

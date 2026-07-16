@@ -7,6 +7,35 @@ import { ensureCaptureSubDir } from './paths'
 
 export type CropRect = { x: number; y: number; w: number; h: number }
 
+// ブラウザのハードウェアアクセラレーションが有効なままだとキャプチャ映像部分が
+// 真っ黒になる（README にも注意書きあり）。新規ユーザーが気付かず「保存しました」と
+// 成功扱いのまま黒画像だけ溜まっていく事故を防ぐため、切り出した画像を軽くサンプリングして
+// ほぼ純粋な黒かどうかを判定する（UX-1）。判定コストを抑えるため極小にリサイズしてから
+// 全画素を見る。閾値は「ほぼ純粋な黒」だけを拾うよう保守的に取り、アニメの夜間シーン等の
+// 暗い正当なキャプチャを誤検出しないようにする。
+const BLACK_FRAME_SAMPLE_WIDTH = 32
+const BLACK_FRAME_SAMPLE_HEIGHT = 18
+const BLACK_FRAME_MAX_CHANNEL = 6
+
+function isLikelyBlackFrame(image: NativeImage): boolean {
+  const sample = image.resize({ width: BLACK_FRAME_SAMPLE_WIDTH, height: BLACK_FRAME_SAMPLE_HEIGHT })
+  if (sample.isEmpty()) return false
+  const buf = sample.toBitmap()  // BGRA
+  if (buf.length < 4) return false
+  for (let i = 0; i < buf.length; i += 4) {
+    if (buf[i] > BLACK_FRAME_MAX_CHANNEL || buf[i + 1] > BLACK_FRAME_MAX_CHANNEL || buf[i + 2] > BLACK_FRAME_MAX_CHANNEL) {
+      return false
+    }
+  }
+  return true
+}
+
+type BlackFrameHook = () => void
+let blackFrameHook: BlackFrameHook | null = null
+export function setBlackFrameHook(fn: BlackFrameHook): void {
+  blackFrameHook = fn
+}
+
 // 通知不要な中断（フォーカス中・多重実行・動画未検出など）を表す。
 // registerHotkey の catch はこのクラスかどうかだけを見るため、
 // 中断理由が増えてもコアはその文言を知らなくてよい。
@@ -302,6 +331,7 @@ export async function captureScreen(): Promise<string> {
       const crop = computeVideoCrop(ssW, ssH, electronDisplay)
       if (crop) {
         const cropped = native.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h })
+        if (isLikelyBlackFrame(cropped)) blackFrameHook?.()
         // 有効なクロップが確定してから保存先サブフォルダを作る。前面/動画未検出/クロップ不正で
         // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
         const dir = await ensureCaptureSubDir(Date.now())

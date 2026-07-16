@@ -20,6 +20,8 @@ export interface ShioriApi {
   // count が届いている exportImages の戻り値と canceled: true の組み合わせで
   // 「途中まで書き出し済み」を判別する（フォルダ選択自体のキャンセルは count なし）。
   imagesExportCancel: () => Promise<void>
+  // 全画像のサムネを検査し、欠けているものを再生成する（設定 > データ の手動操作）。
+  imagesRepairThumbs: () => Promise<{ repaired: number; failed: number }>
   onExportProgress: (cb: (data: { current: number; total: number }) => void) => () => void
   getImage: (id: number) => Promise<ImageRow | null>
   onCapture: (cb: (data: CaptureData) => void) => () => void
@@ -32,6 +34,14 @@ export interface ShioriApi {
   // DB 削除は main 側で 1 トランザクションにまとめる（B-7）。ゴミ箱移動はサーバ側で
   // 逐次ベストエフォート実行し、id ごとの成否を deleteImage と同じ形で返す。
   deleteImagesBulk: (ids: number[]) => Promise<DeleteImageResult[]>
+  // 画像を他アプリへドラッグ&ドロップで渡す（main が OS のドラッグを開始する）。
+  // 唯一の送りっぱなし IPC。Promise を待つとドラッグ開始に間に合わないため戻り値を持たない
+  // （理由の詳細は main/ipc-drag.ts の先頭コメント）。
+  startImageDrag: (ids: number[]) => void
+  // 枚数上限（50枚）・累積バイト上限・個別コピー失敗のいずれかで、ドラッグしたつもりの
+  // 枚数より実際に渡った枚数が少なかったとき main から通知される（UX-6）。OSドラッグ中は
+  // ダイアログ/トーストを出せないため、ドロップ完了後にまとめて届く。
+  onImagesDragTruncated: (cb: (data: { requested: number; copied: number }) => void) => () => void
   openUrl: (url: string) => Promise<void>
   showInFolder: (imageId: number) => Promise<void>
   showExtensionFolder: () => Promise<void>
@@ -48,7 +58,6 @@ export interface ShioriApi {
   taggerEnsure: () => Promise<void>
   taggerCancelDownload: () => Promise<void>
   taggerDelete: () => Promise<{ removedTags: number }>
-  taggerIsLoaded: () => Promise<boolean>
   taggerIsDownloaded: () => Promise<boolean>
   taggerAddTag: (imageId: number, tagName: string, source?: ImageTagSource) => Promise<void>
   taggerRemoveTag: (imageId: number, tagName: string) => Promise<void>
@@ -61,7 +70,6 @@ export interface ShioriApi {
   taggerRemoveTagFromAll: (tagName: string) => Promise<number>
   onTaggerDone: (cb: (data: { imageId: number }) => void) => () => void
   onTaggerDownloadProgress: (cb: (progress: number) => void) => () => void
-  onTaggerReady: (cb: () => void) => () => void
   onTaggerError: (cb: (msg: string) => void) => () => void
   taggerRetagAll: () => Promise<void>
   taggerRetagCancel: () => Promise<void>
@@ -92,11 +100,14 @@ export const CH = {
   imagesListTagCounts: 'images:listTagCounts',
   imagesExport: 'images:export',
   imagesExportCancel: 'images:exportCancel',
+  imagesRepairThumbs: 'images:repairThumbs',
   imagesGet: 'images:get',
   imagesUpdateTitle: 'images:updateTitle',
   imagesUpdateMemo: 'images:updateMemo',
   imagesDelete: 'images:delete',
   imagesDeleteBulk: 'images:deleteBulk',
+  imagesStartDrag: 'images:startDrag',
+  imagesDragTruncated: 'images:dragTruncated',
   // shell
   shellOpenUrl: 'shell:openUrl',
   shellShowInFolder: 'shell:showInFolder',
@@ -116,7 +127,6 @@ export const CH = {
   taggerEnsure: 'tagger:ensure',
   taggerCancelDownload: 'tagger:cancelDownload',
   taggerDelete: 'tagger:delete',
-  taggerIsLoaded: 'tagger:isLoaded',
   taggerIsDownloaded: 'tagger:isDownloaded',
   taggerAddTag: 'tagger:addTag',
   taggerRemoveTag: 'tagger:removeTag',
@@ -129,7 +139,6 @@ export const CH = {
   taggerRetagCancel: 'tagger:retagCancel',
   taggerDone: 'tagger:done',
   taggerDownloadProgress: 'tagger:download-progress',
-  taggerReady: 'tagger:ready',
   taggerError: 'tagger:error',
   taggerRetagProgress: 'tagger:retag-progress',
   taggerRetagDone: 'tagger:retag-done',

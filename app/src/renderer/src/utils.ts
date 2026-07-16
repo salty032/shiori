@@ -10,6 +10,14 @@ export function normalizeTag(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, '_').slice(0, MAX_TAG_LENGTH)
 }
 
+// タグ入力欄向け: 正規化（小文字化・空白→_）で確定後の見た目が入力値と変わる場合だけ、
+// その見た目をプレビューとして返す（変わらないなら null）。入力中に「打ったものと
+// 違うタグが付いた」と感じさせないよう、確定前に予告する（UX-4）。
+export function tagNormalizePreview(input: string): string | null {
+  const normalized = normalizeTag(input)
+  return normalized && normalized !== input ? normalized : null
+}
+
 // taggerGetTagsBulk/taggerAddTagBulk/taggerRemoveTagBulk は main 側で MAX_BULK_IDS 件に
 // 打ち切られるため、renderer 側で MAX_BULK_IDS 件ずつに分割して逐次呼び出し、全件を処理する。
 export function chunkIds(ids: number[], size = MAX_BULK_IDS): number[][] {

@@ -129,6 +129,35 @@ describe('origin allowlist', () => {
   })
 })
 
+// Firefox の moz-extension UUID はインストールごとに変わり allowlist に載せられないため、
+// UUID 形式の検証のみで通す（形式が不正なものは従来どおり拒否）。
+describe('origin — moz-extension (Firefox)', () => {
+  const MOZ = 'moz-extension://a1b2c3d4-1234-4abc-89de-0123456789ab'
+
+  beforeEach(() => _resetWsStateForTest())
+
+  it('allowlist に無くても UUID 形式なら許可', () => {
+    _resetWsStateForTest({ allowedIds: ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'] })
+    expect(isAllowedWsOrigin(MOZ)).toBe(true)
+    expect(isAllowedHttpOrigin(MOZ)).toBe(true)
+  })
+
+  it('allowlist が空でも許可（Chromium 用 allowlist に依存しない）', () => {
+    expect(isAllowedWsOrigin(MOZ)).toBe(true)
+  })
+
+  it('UUID 形式でないホストは拒否', () => {
+    expect(isAllowedWsOrigin('moz-extension://not-a-uuid')).toBe(false)
+    expect(isAllowedWsOrigin('moz-extension://A1B2C3D4-1234-4ABC-89DE-0123456789AB')).toBe(false)
+    expect(isAllowedWsOrigin('moz-extension://')).toBe(false)
+    expect(isAllowedHttpOrigin('moz-extension://not-a-uuid')).toBe(false)
+  })
+
+  it('拡張スキーム以外は UUID 風でも拒否', () => {
+    expect(isAllowedWsOrigin('https://a1b2c3d4-1234-4abc-89de-0123456789ab')).toBe(false)
+  })
+})
+
 describe('parseExtensionMessage — 不正ペイロード', () => {
   it('不正 JSON → null', () => {
     expect(parseExtensionMessage('{ not json')).toBeNull()

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ImageRow, DeleteImageResult } from '../types'
 import type { DismissToast, ShowToast, UpdateToast } from './useToast'
 import type { RemovedImagesSnapshot } from '../stores/imageStore'
+import { markPendingDelete, unmarkPendingDelete } from '../stores/imageStore'
 import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterStore'
 import { buildImageQuery } from '../stores/imageQuery'
 import { useExportStore } from '../stores/exportStore'
@@ -177,6 +178,18 @@ export function useSelection({
   const selectionRedoHistory = useRef<Set<number>[]>([])
   const rubberAnchor = useRef<{ clientX: number; clientY: number; localX: number; localY: number } | null>(null)
   const rubberStartedFromThumb = useRef(false)
+  // サムネから始まったドラッグの起点となった画像 id（他アプリへのドラッグ&ドロップ用）。
+  // 選択状態（selectedIds）は mousedown 直後だと latestRef にまだ反映されていないことが
+  // あるため、この id を単独ドラッグのフォールバックとして使う。
+  const dragThumbId = useRef<number | null>(null)
+  // 自分のウィンドウから始めた画像ドラッグが進行中か。落とし返されたときにドロップ枠を
+  // 出さないための表示用フラグ（App.tsx）。二重取り込みを防ぐ本体は main 側のパス判定
+  // （ipc-drag.ts の isDragTempPath）で、こちらが取りこぼしても取り込みは起きない。
+  const selfDragRef = useRef(false)
+  // 複数選択中のサムネを修飾キーなしで押したとき、「この1枚だけの選択に畳む」処理を
+  // mouseup まで保留するための index。押した瞬間に畳んでしまうと、複数選択をまとめて
+  // 掴みたいだけなのに 1 枚に減ってから始まってしまう（エクスプローラ等は離すまで畳まない）。
+  const collapseOnMouseUp = useRef<number | null>(null)
   const rubberCurrent = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const rubberCtrl = useRef(false)
   const autoScrollFrame = useRef<number | null>(null)
@@ -199,6 +212,10 @@ export function useSelection({
     snapshot: RemovedImagesSnapshot
     selectedBefore: Set<number>
     timer: number
+    // 「元に戻す」付きトーストの id。Undo（クリック／Ctrl+Z どちらでも）が成立したら
+    // このトーストを即座に消す。放置すると Undo 後も「元に戻す」ボタンが残り、
+    // 押しても何も起きない（既に戻し済み）状態になる（BUG-8）。
+    toastId?: number
     // ビューア内削除（deleteViewerImage）由来のときだけ、削除した画像の id を持つ。
     // この削除が Undo されたとき、ビューアが開いていればその画像へ戻すために使う。
     viewerRestoreId?: number
@@ -293,11 +310,19 @@ export function useSelection({
       showToast,
       updateToast,
       dismissToast,
-      (failedIds) => restoreImages(pending.snapshot, failedIds),
+      (failedIds) => {
+        restoreImages(pending.snapshot, failedIds)
+        unmarkPendingDelete(failedIds)
+      },
       showProgress,
-    ).catch((err) => {
+    ).then(() => {
+      // 成功した分・既に onFailed で解除済みの分を含め、保留マークを確実に外す
+      // （Set.delete は存在しない id に対しても安全）。
+      unmarkPendingDelete(pending.ids)
+    }).catch((err) => {
       console.error('[delete] failed', err)
       restoreImages(pending.snapshot)
+      unmarkPendingDelete(pending.ids)
       showToast('画像をゴミ箱へ移動できませんでした。ファイルの状態を確認してください。', 'error')
     })
   }
@@ -307,6 +332,8 @@ export function useSelection({
     if (!pending) return false
     pendingDeleteRef.current = null
     window.clearTimeout(pending.timer)
+    unmarkPendingDelete(pending.ids)
+    if (pending.toastId != null) dismissToast(pending.toastId)
     if (pending.viewerRestoreId != null) viewerRestoreFollowIdRef.current = pending.viewerRestoreId
     restoreImages(pending.snapshot)
     restoreSelectionAfterUndo(pending.selectedBefore)
@@ -327,11 +354,15 @@ export function useSelection({
     const previous = pendingDeleteRef.current
     if (previous) {
       pendingDeleteRef.current = null
+      // 前回分はもう Undo 対象ではなくなる（早期確定）ので、出しっぱなしの
+      // 「元に戻す」トーストも一緒に消す（放置すると押しても無反応のまま残る）。
+      if (previous.toastId != null) dismissToast(previous.toastId)
       commitPendingDelete(previous, false)
     }
     const selectedBefore = new Set(latestRef.current.selectedIds)
     const snapshot = selectAfterDelete(ids)
-    const pending = {
+    markPendingDelete(ids)
+    const pending: NonNullable<typeof pendingDeleteRef.current> = {
       ids,
       snapshot,
       selectedBefore,
@@ -344,7 +375,7 @@ export function useSelection({
     pendingDeleteRef.current = pending
     // ms はここだけ既定値（トーンごとの自動値）に任せず DELETE_UNDO_MS を明示する。
     // トーストの表示時間と「まだ元に戻せる」実際の猶予（上の setTimeout）を必ず一致させるため。
-    showToast(
+    pending.toastId = showToast(
       ids.size === 1 ? '画像をゴミ箱へ移動しました' : `${ids.size}枚をゴミ箱へ移動しました`,
       'success',
       DELETE_UNDO_MS,
@@ -664,18 +695,53 @@ export function useSelection({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  // サムネを掴んで動かしたときに、選択中の画像を他アプリへドラッグ&ドロップで渡す。
+  // main 側が OS のドラッグを開始した時点でマウスは OS のドラッグループに奪われ、以降
+  // renderer には mousemove/mouseup が届かない。矩形選択の途中状態をここで畳んでおかないと
+  // 選択枠が出しっぱなしのまま固まる。
+  function startFileDrag(): void {
+    const { selectedIds } = latestRef.current
+    const originId = dragThumbId.current
+    const ids = originId !== null && !selectedIds.has(originId) ? [originId] : [...selectedIds]
+
+    rubberAnchor.current = null
+    rubberStartedFromThumb.current = false
+    dragThumbId.current = null
+    selfDragRef.current = true
+    // 掴んで動かした = 選択を畳む意思はない。保留を破棄して複数選択のまま渡す。
+    collapseOnMouseUp.current = null
+    cancelScheduledRubberHit()
+    stopAutoScroll()
+    setPendingIds(new Set())
+    setSelBox(null)
+
+    if (ids.length > 0) window.api.startImageDrag(ids)
+  }
+
   useEffect(() => {
     function onMouseMove(e: MouseEvent): void {
+      // OS のドラッグ中は renderer に mousemove が届かない。ボタンを離した状態で再び
+      // 届いた = ドラッグが終わった、なのでここで下ろす。下ろし忘れると、この後に
+      // エクスプローラから本物のファイルをドラッグしてきてもドロップ枠が出なくなる。
+      if (selfDragRef.current && e.buttons === 0) selfDragRef.current = false
       if (!rubberAnchor.current) return
       rubberCurrent.current = { x: e.clientX, y: e.clientY }
+      // サムネ上で押して動かした = 画像そのものを掴んだ、と解釈して他アプリへのドラッグに入る
+      // （エクスプローラ等と同じ挙動）。矩形選択は何もない場所からの開始に限る。
       if (rubberStartedFromThumb.current && Math.abs(e.clientX - rubberAnchor.current.clientX) + Math.abs(e.clientY - rubberAnchor.current.clientY) > 4) {
-        if (!rubberCtrl.current) clearSelection()
-        rubberStartedFromThumb.current = false
+        startFileDrag()
+        return
       }
       scheduleRubberHit()
       updateAutoScroll(e.clientY)
     }
     function onMouseUp(): void {
+      selfDragRef.current = false
+      // ドラッグせずに離した = ただのクリック。ここで初めて選択をその1枚に畳む。
+      if (collapseOnMouseUp.current !== null) {
+        selectIndex(collapseOnMouseUp.current)
+        collapseOnMouseUp.current = null
+      }
       cancelScheduledRubberHit()
       if (rubberAnchor.current) {
         const { x: cx, y: cy } = rubberCurrent.current
@@ -724,14 +790,25 @@ export function useSelection({
       e.preventDefault()
       if (!rubberCtrl.current) clearSelection()
       rubberStartedFromThumb.current = false
+      dragThumbId.current = null
       return
     }
     e.preventDefault()
     const id = Number(thumbEl.dataset.imgId)
     const idx = latestRef.current.images.findIndex((img) => img.id === id)
 
-    selectIndex(idx, { shift: e.shiftKey, ctrl: e.ctrlKey, meta: e.metaKey })
+    // 修飾キーなしで「既に選択済みの1枚」を押した場合だけ、選択の畳み込みを mouseup へ回す。
+    // そのまま動かせば複数選択のドラッグ、動かさず離せばその1枚を選び直したことになる。
+    const plainClick = !e.shiftKey && !e.ctrlKey && !e.metaKey
+    const { selectedIds } = latestRef.current
+    if (plainClick && selectedIds.size > 1 && selectedIds.has(id)) {
+      collapseOnMouseUp.current = idx
+    } else {
+      collapseOnMouseUp.current = null
+      selectIndex(idx, { shift: e.shiftKey, ctrl: e.ctrlKey, meta: e.metaKey })
+    }
     rubberStartedFromThumb.current = true
+    dragThumbId.current = Number.isFinite(id) ? id : null
   }
 
   async function deleteSelected(): Promise<void> {
@@ -789,5 +866,5 @@ export function useSelection({
     }
   }, [])
 
-  return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, openIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce }
+  return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, openIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce, selfDragRef }
 }

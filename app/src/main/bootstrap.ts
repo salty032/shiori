@@ -6,16 +6,16 @@ import { Readable } from 'stream'
 import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './ws-server'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
-  setPreCaptureHook, setPostCaptureHook, canCaptureVideo,
+  setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, shouldSuppressBrowserTargetUpdate, SilentCaptureAbort
 } from './capture'
 import { initDb, getImage } from './db'
 import { registerCapturedMedia } from './captured-media'
-import { loadSettings, saveSettings, consumeCorruptSettingsNotice, type Settings } from './settings'
-import { checkExtensionUpdate, installedExtensionPath } from './extension-updater'
+import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './settings'
+import { activeTaskLabels } from './busy'
+import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion, compareVersions } from './extension-updater'
 import { migrateThumbnailsToOwnDir } from './migrate-thumbnails'
 import { initAutoUpdater, quitAndInstallUpdate } from './updater'
-import { ensureModel, isModelDownloaded } from './tagger'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './hotkey'
 import { createImageThumb } from './image-thumb'
@@ -26,11 +26,13 @@ import {
   createWindow
 } from './windows'
 import { createTray } from './tray'
+import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './startup'
 import {
   getLastTimecode, getLastTimecodeAt, setLastTimecode,
   getLastFocusedTimecodeAt, markFocusedTimecodeNow
 } from './timecode'
 import { registerImageHandlers, backfillThumbnails } from './ipc-images'
+import { registerDragHandlers, cleanupDragTempDir } from './ipc-drag'
 import { registerTaggerHandlers } from './ipc-tagger'
 import { registerShareHandlers } from './ipc-share'
 import { registerImportHandlers } from './ipc-import'
@@ -47,6 +49,30 @@ function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', messag
   if (!wc) return
   if (wc.isLoading()) wc.once('did-finish-load', () => sendNotice(level, message))
   else sendNotice(level, message)
+}
+
+// 更新を適用するとプロセスが終了するため、取り込み・書き出し・AIタグ付け等が
+// 走っていると途中で止まる（DB は書けたところまで残るので破損はしないが、
+// 「取り込み途中」「書き出し途中」の状態にはなる）。バナーは進行中でも押せるので、
+// ここで引き止める。renderer に busy 状態を配らずに済むよう main 側で確認する。
+async function confirmUpdateWhileBusy(): Promise<boolean> {
+  const labels = activeTaskLabels()
+  if (labels.length === 0) return true
+
+  const options = {
+    type: 'warning' as const,
+    buttons: ['中止して更新', 'キャンセル'],
+    defaultId: 1,
+    cancelId: 1,
+    title: '更新の確認',
+    message: `${labels.join('・')}が進行中です`,
+    detail: '更新するとアプリが再起動し、進行中の処理は中断されます。'
+  }
+  const win = getMainWindow()
+  const { response } = win
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options)
+  return response === 0
 }
 
 export function bootstrap(): void {
@@ -178,6 +204,10 @@ export function bootstrap(): void {
     })
 
     checkExtensionUpdate()
+    // OS通知（checkExtensionUpdate）は起動直後の1回しか出ず見逃しやすいため、以後は
+    // 拡張から届く timecode の version と比較し続け、設定画面に「再読み込みが必要」の
+    // バッジを出せるようにする（UX-9）。
+    const bundledExtVersion = readVersion(bundledExtPath())
     try {
       initDb()
     } catch (err) {
@@ -217,11 +247,14 @@ export function bootstrap(): void {
           setVideoRect(msg.videoRect)
           setBrowserFullscreen(msg.fullscreen)
         }
-        sendToRenderer(CH.extensionTimecode, msg)
+        // バンドル版の方が新しければ「拡張の再読み込みが必要」（UX-9）。
+        const versionMismatch = !!bundledExtVersion && !!msg.version && compareVersions(bundledExtVersion, msg.version) > 0
+        sendToRenderer(CH.extensionTimecode, { ...msg, versionMismatch })
       }
     })
 
     registerImageHandlers()
+    registerDragHandlers()
     registerTaggerHandlers()
     registerShareHandlers()
     registerImportHandlers()
@@ -272,9 +305,9 @@ export function bootstrap(): void {
       return ok
     })
 
-    handleTrusted(CH.startupGet, () => app.getLoginItemSettings().openAtLogin)
+    handleTrusted(CH.startupGet, () => isOpenAtLogin())
     handleTrusted(CH.startupSet, (_event, enabled: boolean) => {
-      app.setLoginItemSettings({ openAtLogin: enabled === true })
+      setOpenAtLogin(enabled === true)
     })
 
     handleTrusted(CH.extensionGetPath, () => installedExtensionPath())
@@ -316,6 +349,18 @@ export function bootstrap(): void {
       broadcastMessage({ type: 'post-capture' })
     })
 
+    // 真っ黒キャプチャの警告（UX-1）。保存自体は成功のまま続行し、原因（ブラウザの
+    // ハードウェアアクセラレーション）に気付けるよう警告だけ添える。ブラウザのHWアクセラ
+    // 設定が変わらない限り以後のキャプチャも黒のままになりうるため、連打を防ぐクールダウンを設ける。
+    let lastBlackFrameNoticeAt = 0
+    const BLACK_FRAME_RENOTIFY_MS = 5 * 60 * 1000
+    setBlackFrameHook(() => {
+      const now = Date.now()
+      if (now - lastBlackFrameNoticeAt < BLACK_FRAME_RENOTIFY_MS) return
+      lastBlackFrameNoticeAt = now
+      sendBrowserNotice('warning', '映像が真っ黒に写っています。ブラウザの設定でハードウェアアクセラレーションをOFFにしてください。')
+    })
+
     onCaptureDone(async (imagePath, context) => {
       const timecode = (context as { title: string; currentTime: number | null; url: string | null } | null) ?? getLastTimecode()
 
@@ -354,8 +399,9 @@ export function bootstrap(): void {
     })
 
     Menu.setApplicationMenu(null)
+    migrateStartupArgs()
     createTray()
-    createWindow(reclaimHotkeysIfFree)
+    createWindow(reclaimHotkeysIfFree, isStartupLaunch())
     if (consumeCorruptSettingsNotice()) {
       sendNoticeWhenRendererReady('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
     }
@@ -370,16 +416,9 @@ export function bootstrap(): void {
     })
 
     initAutoUpdater(getMainWindow)
-    handleTrusted(CH.updaterQuitAndInstall, () => quitAndInstallUpdate())
-
-    isModelDownloaded().then(async (downloaded) => {
-      if (!downloaded) return
-      try {
-        await ensureModel()
-        sendToRenderer(CH.taggerReady)
-      } catch (err) {
-        console.error('[tagger] auto-load failed', err)
-      }
+    handleTrusted(CH.updaterQuitAndInstall, async () => {
+      if (!(await confirmUpdateWhileBusy())) return
+      await quitAndInstallUpdate()
     })
 
     app.on('activate', () => {
@@ -393,9 +432,27 @@ export function bootstrap(): void {
     // トレイに残す
   })
 
-  app.on('before-quit', () => {
+  let teardownDone = false
+
+  app.on('before-quit', (event) => {
     setQuitting(true)
+    // preventDefault → flush → app.quit() で再入するため、後片付けは初回だけ。
+    if (teardownDone) return
+
     globalShortcut.unregisterAll()
     stopWsServer()
+    // ドラッグ用の複製は次回ドラッグ時にも作り直されるが、終了時に残すと temp が
+    // 溜まり続けるため掃除する（失敗しても致命的ではない）。
+    cleanupDragTempDir()
+
+    // saveSettings は永続化を待たずに返るので、キューが残ったまま終了すると最後の
+    // 設定変更が巻き戻る。before-quit は非同期を待ってくれないため、一度 quit を
+    // 止めてフラッシュしてから quit し直す。トレイ終了・ウィンドウ終了・アップデート
+    // 適用のすべてがこの経路を通るので、ここ1箇所で全終了経路をカバーできる。
+    event.preventDefault()
+    flushSettings().finally(() => {
+      teardownDone = true
+      app.quit()
+    })
   })
 }

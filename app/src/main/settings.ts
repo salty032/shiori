@@ -174,3 +174,15 @@ export function saveSettings(s: unknown): void {
     .then(() => persistToDisk(normalized))
     .catch((err) => { console.error('[settings] unexpected persist error:', err) })
 }
+
+// saveSettings はディスク反映を待たずに返るため、直後にプロセスが終了すると
+// 最後の変更だけ書き込まれずに巻き戻る（テーマ変更 → 即終了、など）。終了経路では
+// これを await してキューを空にしてから終わること（bootstrap の before-quit）。
+// アップデート適用も app.quit() 経由で before-quit を通るので、同じ経路で守られる。
+//
+// _persistChain は catch 済みで reject しない。await 中に新しい saveSettings が
+// 来た場合は積まれた側を取り逃すが、終了直前にそこまで面倒を見る必要はない
+// （before-quit 時点でウィンドウは閉じており、新規の設定変更はもう来ない）。
+export function flushSettings(): Promise<void> {
+  return _persistChain
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { font, radius } from '../styles'
-import { normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, MAX_TAG_LENGTH } from '../utils'
+import { normalizeTag, tagSuggestions, tagNormalizePreview, fetchBulkTagFrequency, addTagToImages, MAX_TAG_LENGTH } from '../utils'
 import { useTagSuggest } from '../hooks/useTagSuggest'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
@@ -40,6 +40,9 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
   const suggestions = useMemo(() => {
     return tagSuggestions(input, allTags, (tag) => !tagsOnAll.has(tag))
   }, [allTags, input, tagsOnAll])
+  // 既存タグの候補がある間はそちらを優先させたいので、候補が無い（＝新規タグを
+  // 作ろうとしている）ときだけ正規化後の見た目を予告する（UX-4）。
+  const normalizePreview = suggestions.length === 0 ? tagNormalizePreview(input) : null
 
   const { highlightedIndex: suggestionIdx, moveHighlight, resolveConfirmValue } = useTagSuggest(suggestions)
 
@@ -95,7 +98,7 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        {suggestions.length > 0 && (
+        {suggestions.length > 0 ? (
           <div style={s.suggestions}>
             {suggestions.map((tag, i) => (
               <button
@@ -108,7 +111,9 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
               </button>
             ))}
           </div>
-        )}
+        ) : normalizePreview ? (
+          <div style={s.normalizePreview}>→ {normalizePreview} として追加されます</div>
+        ) : null}
       </div>
     </div>
   )
@@ -124,4 +129,5 @@ const s: Record<string, React.CSSProperties> = {
   suggestions: { marginTop: 6, maxHeight: 220, overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const, gap: 2 },
   suggestion: { width: '100%', minHeight: 28, padding: '5px 9px', border: 'none', borderRadius: radius.sm, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
   suggestionActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
+  normalizePreview: { marginTop: 6, padding: '2px 2px 0', fontSize: font.xs, color: 'var(--text-muted)' },
 }

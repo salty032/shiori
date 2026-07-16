@@ -43,7 +43,9 @@ export const s: Record<string, CSSProperties> = {
   sidebarBrandName: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, letterSpacing: 0 },
   count: { color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700 },
   main: { flex: 1, overflowY: 'scroll', scrollbarGutter: 'stable' as const, padding: '0 20px 18px', position: 'relative', display: 'flex', flexDirection: 'column' as const, gap: 16, background: 'var(--bg-content)' },
-  dropOverlay: { position: 'absolute' as const, inset: 8, zIndex: 400, pointerEvents: 'none' as const, background: 'rgba(var(--accent-rgb), 0.12)', border: '2px dashed rgba(var(--accent-rgb), 0.65)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  // ドロップ受け口はウィンドウ全体なので、枠も端まで詰める（inset/角丸を入れると
+  // 「枠の外側は受け付けない」ように見えてしまうが、実際はそこも受け付ける）。
+  dropOverlay: { position: 'absolute' as const, inset: 0, zIndex: 400, pointerEvents: 'none' as const, background: 'rgba(var(--accent-rgb), 0.12)', border: '2px dashed rgba(var(--accent-rgb), 0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   dropOverlayText: { fontSize: font.lg, fontWeight: 800, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: 6 },
   stickyHeader: { position: 'sticky' as const, top: 0, zIndex: 200, background: 'var(--bg-content)', borderBottom: '1px solid rgba(var(--border-rgb), 0.62)', margin: '0 -20px', padding: '12px 20px 9px', display: 'flex', flexDirection: 'column' as const, gap: 8 },
   searchBar: { display: 'flex', alignItems: 'center', gap: 8 },

@@ -21,8 +21,12 @@ export const MAX_DEVICE_PIXEL_RATIO = 8
 export type VideoRect = { left: number; top: number; width: number; height: number }
 
 export type ExtensionMessage =
-  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean }
+  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; version?: string }
   | { type: 'ping' }
+
+// バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
+// セキュリティ上重要な値ではなく、拡張側とのパリティ対象にもしない（UX-9）。
+const MAX_VERSION_LENGTH = 32
 
 type MessageHandler = (msg: ExtensionMessage) => void
 type ConnectCallback = (send: (msg: object) => void) => void
@@ -56,33 +60,51 @@ export function onWsClientConnect(cb: ConnectCallback): void {
   connectCallbacks.push(cb)
 }
 
-function extensionOrigin(origin: string | undefined): string | null {
+const MOZ_EXTENSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+type ExtensionOrigin = { origin: string; id: string; requiresAllowlist: boolean }
+
+function extensionOrigin(origin: string | undefined): ExtensionOrigin | null {
   if (typeof origin !== 'string') return null
   try {
     const url = new URL(origin)
-    if (url.protocol !== 'chrome-extension:') return null
-    // url.origin は chrome-extension: スキームで Node.js が "null" (文字列) を返すため手動構築
-    return /^[a-p]{32}$/.test(url.hostname) ? `chrome-extension://${url.hostname}` : null
+    // url.origin は拡張スキームで Node.js が "null" (文字列) を返すため手動構築
+    if (url.protocol === 'chrome-extension:') {
+      if (!/^[a-p]{32}$/.test(url.hostname)) return null
+      return { origin: `chrome-extension://${url.hostname}`, id: url.hostname, requiresAllowlist: true }
+    }
+    // Firefox の moz-extension UUID はプロファイル/インストールごとに再生成され固定できないため、
+    // allowlist 照合はできない。UUID 形式のみ検証して通す（接続元は 127.0.0.1 限定、
+    // 受け取れるのは parseExtensionMessage を通過する限定メッセージのみ）。
+    if (url.protocol === 'moz-extension:') {
+      if (!MOZ_EXTENSION_UUID.test(url.hostname)) return null
+      return { origin: `moz-extension://${url.hostname}`, id: url.hostname, requiresAllowlist: false }
+    }
+    return null
   } catch {
     return null
   }
 }
 
-function extensionIdOf(normalizedOrigin: string): string {
-  return new URL(normalizedOrigin).hostname
+function isAllowedExtension(ext: ExtensionOrigin): boolean {
+  return !ext.requiresAllowlist || allowedExtensionIds.includes(ext.id)
 }
 
 export function isAllowedHttpOrigin(origin: string | undefined): boolean {
-  const normalized = extensionOrigin(origin)
-  if (!normalized) return false
-  return allowedExtensionIds.includes(extensionIdOf(normalized))
+  const ext = extensionOrigin(origin)
+  return ext ? isAllowedExtension(ext) : false
 }
 
 export function isAllowedWsOrigin(origin: string | undefined): boolean {
-  const normalized = extensionOrigin(origin)
-  if (!normalized) return false
-  const ok = allowedExtensionIds.includes(extensionIdOf(normalized))
-  if (!ok) console.warn(`[WS] rejected extension not in allowlist: ${normalized}`)
+  const ext = extensionOrigin(origin)
+  // 拡張スキームとして解釈できない origin も理由を残す。無言で落とすと
+  // 接続できない拡張の切り分け（origin 未送出・想定外スキーム）が不可能になる。
+  if (!ext) {
+    console.warn(`[WS] rejected connection with unrecognized origin: ${origin ?? '(no origin header)'}`)
+    return false
+  }
+  const ok = isAllowedExtension(ext)
+  if (!ok) console.warn(`[WS] rejected extension not in allowlist: ${ext.origin}`)
   return ok
 }
 
@@ -177,7 +199,8 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
     innerHeight,
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
-    fullscreen: msg.fullscreen === true
+    fullscreen: msg.fullscreen === true,
+    version: typeof msg.version === 'string' ? msg.version.slice(0, MAX_VERSION_LENGTH) : undefined
   }
 }
 

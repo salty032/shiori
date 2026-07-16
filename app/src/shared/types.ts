@@ -74,5 +74,12 @@ export type ImageListRequest = ImageQuery & {
 
 export type CaptureData = { id: number | null; imagePath: string }
 export type DeleteImageResult = { ok: true; id: number } | { ok: false; id: number; error: string }
-export type ExtensionTimecode = { title: string; currentTime: number | null; url: string | null }
+export type ExtensionTimecode = {
+  title: string
+  currentTime: number | null
+  url: string | null
+  // インストール済み拡張が、アプリにバンドルされた最新版と食い違っているかどうか
+  // （main 側で version と bundled 版を比較して算出。UX-9）。
+  versionMismatch?: boolean
+}
 export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string }

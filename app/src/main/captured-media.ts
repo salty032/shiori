@@ -51,7 +51,7 @@ export async function registerCapturedMedia(
 
   if (broadcastCaptureDone) sendToRenderer(CH.captureDone, { id, imagePath: filePath })
 
-  if (autoTag && canAutoTag()) {
+  if (autoTag && await canAutoTag()) {
     ensureModel().then(() => runTagger(autoTag.path)).then((tags) => {
       // タグ付けは非同期。完了前に画像が削除されていたら、存在しない image_id への
       // insert（FK違反）を試みてログを汚さないよう黙って捨てる。

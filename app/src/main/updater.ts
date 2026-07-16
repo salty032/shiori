@@ -3,6 +3,7 @@ import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { CH } from '../shared/api'
 import { setQuitting } from './windows'
+import { flushSettings } from './settings'
 
 export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
   if (!app.isPackaged) return
@@ -38,7 +39,11 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
 
 // トレイ常駐のため、close イベントが quitAndInstall の再起動を隠さないよう
 // isQuitting を先に立ててから適用する（windows.ts の close ハンドラ参照）。
-export function quitAndInstallUpdate(): void {
+export async function quitAndInstallUpdate(): Promise<void> {
   setQuitting(true)
+  // before-quit でもフラッシュしているが、quitAndInstall は先に NSIS インストーラを
+  // 起動してから app.quit() する。インストーラを走らせる前に設定を書き終えておく方が
+  // 待ち合わせの都合が良いので、ここでも待つ（済んでいれば即 resolve）。
+  await flushSettings()
   autoUpdater.quitAndInstall()
 }

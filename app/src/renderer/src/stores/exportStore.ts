@@ -15,6 +15,13 @@ type ExportState = {
   setExportProgress: (p: ExportProgress) => void
   startExport: (kind: ExportKind) => void
   clearExport: () => void
+  // 共有インポート（share:import）の進捗。専用の IPC チャンネル（shareImportProgress）を
+  // 使うため exportProgress とは別枠だが、「モーダルを閉じても見える進捗」を App.tsx の
+  // activeTask バーへ一元化する置き場所としてこのストアに同居させる（UX-3）。
+  // 旧実装は SettingsModal のローカル state のみで持っており、モーダルを閉じると
+  // 進捗も中止ボタンも見えなくなっていた。
+  shareImportProgress: ExportProgress
+  setShareImportProgress: (p: ExportProgress) => void
 }
 
 export const useExportStore = create<ExportState>((set) => ({
@@ -23,4 +30,6 @@ export const useExportStore = create<ExportState>((set) => ({
   setExportProgress: (p) => set({ exportProgress: p }),
   startExport: (kind) => set({ exportKind: kind }),
   clearExport: () => set({ exportProgress: null, exportKind: null }),
+  shareImportProgress: null,
+  setShareImportProgress: (p) => set({ shareImportProgress: p }),
 }))

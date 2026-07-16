@@ -63,5 +63,5 @@ npm run verify
 
 | 症状 | 原因 | 対処 |
 |---|---|---|
-| Electron 起動時に `electron.app` が undefined でクラッシュ | `electron-rebuild` 実行後にセッションへ `ELECTRON_RUN_AS_NODE=1` が残る | `dev.bat` に `set ELECTRON_RUN_AS_NODE=` を追加済み。直接 `npm run dev` する場合は事前に変数をクリアする |
+| Electron 起動時に `electron.app` が undefined でクラッシュ | 実行環境で `ELECTRON_RUN_AS_NODE=1` が設定されている | `dev.bat` は起動前に変数をクリアする。直接 `npm run dev` する場合も、事前に `Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue` を実行する |
 | Electron バイナリが見つからないエラー | クローン直後は `npm install` が未実行でバイナリ未ダウンロード | `npm install` を実行する（`node node_modules/electron/install.js` でバイナリのみ再取得も可） |

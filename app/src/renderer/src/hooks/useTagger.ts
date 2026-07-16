@@ -7,8 +7,9 @@ export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
   const [taggerProgress, setTaggerProgress] = useState<number | null>(null)
   const [retagProgress, setRetagProgress] = useState<{ current: number; total: number } | null>(null)
 
-  useEffect(() => { window.api.taggerIsLoaded().then(setTaggerReady) }, [])
-  useEffect(() => window.api.onTaggerReady(() => setTaggerReady(true)), [])
+  // モデルは初回タグ付けまでロードしない（S4-1）ため、「準備完了」はメモリ上のセッションではなく
+  // モデルがダウンロード済みかどうかで判定する。
+  useEffect(() => { window.api.taggerIsDownloaded().then(setTaggerReady) }, [])
   useEffect(() => window.api.onTaggerDownloadProgress((p) => {
     setTaggerProgress(p)
     if (p >= 1) { setTaggerProgress(null); setTaggerReady(true) }

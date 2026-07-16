@@ -14,5 +14,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   allowedExtensionIds: [],
   serviceOrder: [],
   showAiTags: false,
-  theme: 'dark',
+  // UX-7: OSのライト/ダーク設定に自動追従する 'system' を新規インストール時の初期値にする。
+  // 無効値・破損設定からの復旧時のフォールバック（settings.ts の themeValue）は
+  // 従来通り 'dark' のまま変更しない（挙動が変わるのは初回起動時のみ）。
+  theme: 'system',
 }

@@ -2,7 +2,7 @@ import { app, Notification } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync } from 'fs'
 
-function bundledExtPath(): string {
+export function bundledExtPath(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'extension')
     : join(app.getAppPath(), '..', 'extension')
@@ -12,7 +12,7 @@ export function installedExtensionPath(): string {
   return join(app.getPath('userData'), 'extension')
 }
 
-function readVersion(dir: string): string | null {
+export function readVersion(dir: string): string | null {
   try {
     const raw = readFileSync(join(dir, 'manifest.json'), 'utf-8')
     return (JSON.parse(raw) as { version?: string }).version ?? null
@@ -21,7 +21,7 @@ function readVersion(dir: string): string | null {
   }
 }
 
-function compareVersions(a: string, b: string): number {
+export function compareVersions(a: string, b: string): number {
   // "0.4.0-beta" のような非数値セグメントは Number() で NaN になり、NaN の引き算が
   // 常に false 側（更新なし判定）に倒れる。NaN は 0 扱いにフォールバックする。
   const toParts = (v: string): number[] => v.split('.').map((seg) => {

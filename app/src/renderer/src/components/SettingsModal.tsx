@@ -58,12 +58,12 @@ export default function SettingsModal(p: Props) {
   const [shareExportStatus, setShareExportStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [shareImportStatus, setShareImportStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [shareExporting, setShareExporting] = useState(false)
+  const [repairStatus, setRepairStatus] = useState<{ text: string; error?: boolean } | null>(null)
+  const [repairing, setRepairing] = useState(false)
   const [shareImporting, setShareImporting] = useState(false)
-  // D-2: エクスポートの export:progress と対称に、共有インポートも件数進捗と中止手段を持つ。
-  const [shareImportProgress, setShareImportProgress] = useState<{ current: number; total: number } | null>(null)
-  useEffect(() => window.api.onShareImportProgress((data) => {
-    setShareImportProgress(data.current >= data.total ? null : data)
-  }), [])
+  // D-2/UX-3: 進捗の購読自体は App.tsx が全体で行い exportStore に一元化している
+  // （モーダルを閉じても進捗・中止ボタンが見え続けるようにするため）。ここではそれを読むだけ。
+  const shareImportProgress = useExportStore((st) => st.shareImportProgress)
   // export:progress・中止ボタンは images/share の1系統しか持たないため、選択エクスポートが
   // 進行中は共有書き出しを disabled にして混線を防ぐ（B-6）。
   const otherExportActive = useExportStore((st) => st.exportKind === 'images')
@@ -85,6 +85,9 @@ export default function SettingsModal(p: Props) {
     return () => clearInterval(timer)
   }, [])
   const extensionConnected = p.extensionStatus !== null && now - p.extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
+  // 拡張の更新案内は起動直後のOS通知1回だけで見逃しやすいため、受信中の拡張バージョンが
+  // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
+  const extensionVersionMismatch = extensionConnected && p.extensionStatus?.data.versionMismatch === true
 
   // モーダル表示中はすべてのキーイベントの window 伝搬を遮断する
   useEffect(() => {
@@ -201,64 +204,19 @@ export default function SettingsModal(p: Props) {
                   </div>
                 </div>
                 <div style={s.group}>
-                  <div style={s.section}>コマ送り (Shift+←/→)</div>
-                  <div style={s.row}>
-                    <span style={s.label}>FPS</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--text-secondary)', fontSize: font.base }}>
-                        <ToggleSwitch checked={p.settings.frameFpsAuto} onChange={p.onUpdateFrameFpsAuto} />
-                        自動検出
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: p.settings.frameFpsAuto ? 0.35 : 1, pointerEvents: p.settings.frameFpsAuto ? 'none' : 'auto' }}>
-                        {[24, 30, 60].map((fps) => {
-                          const active = p.settings.frameFps === fps
-                          return (
-                            <button key={fps} onClick={() => p.onUpdateFrameFps(fps)}
-                              style={{ ...s.sizeBtn, background: active ? 'rgba(var(--accent-rgb), 0.16)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border-default)' }}>
-                              {fps}
-                            </button>
-                          )
-                        })}
-                        <input type="number" min={1} max={60} value={fpsInputDraft}
-                          onChange={(e) => {
-                             const raw = e.target.value
-                             setFpsInputDraft(raw)
-                             fpsInputDraftRef.current = raw
-                             if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current)
-                             fpsDebounceRef.current = null
-                             const v = Number(raw)
-                             if (!raw || !(v >= 1 && v <= 60)) return
-                             fpsDebounceRef.current = setTimeout(() => {
-                               fpsDebounceRef.current = null
-                               p.onUpdateFrameFps(v)
-                             }, FPS_INPUT_DEBOUNCE_MS)
-                          }}
-                          onBlur={() => {
-                            if (!fpsDebounceRef.current) return
-                            clearTimeout(fpsDebounceRef.current)
-                            fpsDebounceRef.current = null
-                            const raw = fpsInputDraftRef.current
-                            const v = Number(raw)
-                            if (raw && v >= 1 && v <= 60) p.onUpdateFrameFps(v)
-                            else setFpsInputDraft(String(p.settings.frameFps))
-                          }}
-                          style={{ ...s.input, width: 52, textAlign: 'center' as const, padding: '6px 4px' }} />
-                        <span style={{ color: 'var(--text-secondary)', fontSize: font.base }}>fps</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={s.hint}>自動検出ON: 動画から計測。OFF: 固定fps（アニメ ≈ 24、実写 ≈ 30）</div>
-                </div>
-                <div style={s.group}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={s.section}>拡張機能</div>
-                    <span style={{ ...s.statusBadge, ...(extensionConnected ? s.statusOk : s.statusMuted) }}>
-                      {extensionConnected ? '受信中' : '未受信'}
+                    <span style={{ ...s.statusBadge, ...(extensionVersionMismatch ? s.statusWarn : extensionConnected ? s.statusOk : s.statusMuted) }}>
+                      {extensionVersionMismatch ? '再読み込みが必要' : extensionConnected ? '受信中' : '未受信'}
                     </span>
                   </div>
                   <div style={s.actionRow}>
-                    <div style={s.hint}>対応サイトの動画ページから Shiori に情報が届いているかを表示します。</div>
-                    {!extensionConnected && (
+                    <div style={s.hint}>
+                      {extensionVersionMismatch
+                        ? 'ブラウザの拡張機能ページで再読み込みすると最新版が反映されます。'
+                        : '対応サイトの動画ページから Shiori に情報が届いているかを表示します。'}
+                    </div>
+                    {(!extensionConnected || extensionVersionMismatch) && (
                       <button style={s.addBtn} onClick={() => window.api.showExtensionFolder()}>
                         拡張機能フォルダを開く
                       </button>
@@ -312,6 +270,56 @@ export default function SettingsModal(p: Props) {
                     )}
                   </div>
                   {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
+                </div>
+                {/* UX-8: コマ送り(Shift+←/→)もキャプチャ体験の設定のため「基本」タブから移動 */}
+                <div style={s.group}>
+                  <div style={s.section}>コマ送り (Shift+←/→)</div>
+                  <div style={s.row}>
+                    <span style={s.label}>FPS</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--text-secondary)', fontSize: font.base }}>
+                        <ToggleSwitch checked={p.settings.frameFpsAuto} onChange={p.onUpdateFrameFpsAuto} />
+                        自動検出
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: p.settings.frameFpsAuto ? 0.35 : 1, pointerEvents: p.settings.frameFpsAuto ? 'none' : 'auto' }}>
+                        {[24, 30, 60].map((fps) => {
+                          const active = p.settings.frameFps === fps
+                          return (
+                            <button key={fps} onClick={() => p.onUpdateFrameFps(fps)}
+                              style={{ ...s.sizeBtn, background: active ? 'rgba(var(--accent-rgb), 0.16)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border-default)' }}>
+                              {fps}
+                            </button>
+                          )
+                        })}
+                        <input type="number" min={1} max={60} value={fpsInputDraft}
+                          onChange={(e) => {
+                             const raw = e.target.value
+                             setFpsInputDraft(raw)
+                             fpsInputDraftRef.current = raw
+                             if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current)
+                             fpsDebounceRef.current = null
+                             const v = Number(raw)
+                             if (!raw || !(v >= 1 && v <= 60)) return
+                             fpsDebounceRef.current = setTimeout(() => {
+                               fpsDebounceRef.current = null
+                               p.onUpdateFrameFps(v)
+                             }, FPS_INPUT_DEBOUNCE_MS)
+                          }}
+                          onBlur={() => {
+                            if (!fpsDebounceRef.current) return
+                            clearTimeout(fpsDebounceRef.current)
+                            fpsDebounceRef.current = null
+                            const raw = fpsInputDraftRef.current
+                            const v = Number(raw)
+                            if (raw && v >= 1 && v <= 60) p.onUpdateFrameFps(v)
+                            else setFpsInputDraft(String(p.settings.frameFps))
+                          }}
+                          style={{ ...s.input, width: 52, textAlign: 'center' as const, padding: '6px 4px' }} />
+                        <span style={{ color: 'var(--text-secondary)', fontSize: font.base }}>fps</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={s.hint}>自動検出ON: 動画から計測。OFF: 固定fps（アニメ ≈ 24、実写 ≈ 30）</div>
                 </div>
                 <div style={s.group}>
                   <div style={s.section}>通知</div>
@@ -449,7 +457,7 @@ export default function SettingsModal(p: Props) {
                           setShareImporting(false)
                           // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
                           // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
-                          setShareImportProgress(null)
+                          useExportStore.getState().setShareImportProgress(null)
                         }
                       }}>
                         {shareImporting ? '読み込み中...' : 'ライブラリを読み込む...'}
@@ -457,6 +465,33 @@ export default function SettingsModal(p: Props) {
                     )}
                   </div>
                   {shareImportStatus && <div style={{ ...s.statusLine, ...(shareImportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareImportStatus.text}</div>}
+                </div>
+                <div style={s.dataBlock}>
+                  <div style={s.dataHeader}>
+                    <div>
+                      <div style={s.dataTitle}>サムネイルの修復</div>
+                      <div style={s.hint}>一覧のサムネイルが表示されない画像がある場合に実行します。全画像を検査するため、枚数が多いと時間がかかります。</div>
+                    </div>
+                    <button style={s.addBtn} disabled={repairing} onClick={async () => {
+                      setRepairing(true)
+                      setRepairStatus(null)
+                      try {
+                        const { repaired, failed } = await window.api.imagesRepairThumbs()
+                        const failMsg = failed > 0 ? `（${failed} 枚は失敗）` : ''
+                        setRepairStatus({
+                          text: repaired > 0 ? `${repaired} 枚のサムネイルを再生成しました${failMsg}` : `問題は見つかりませんでした${failMsg}`,
+                        })
+                      } catch (err) {
+                        console.error('[settings] thumbnail repair failed', err)
+                        setRepairStatus({ text: '修復に失敗しました', error: true })
+                      } finally {
+                        setRepairing(false)
+                      }
+                    }}>
+                      {repairing ? '検査中...' : 'サムネイルを修復...'}
+                    </button>
+                  </div>
+                  {repairStatus && <div style={{ ...s.statusLine, ...(repairStatus.error ? s.statusLineError : s.statusLineOk) }}>{repairStatus.text}</div>}
                 </div>
               </div>
             )}
@@ -495,6 +530,7 @@ export const s: Record<string, React.CSSProperties> = {
   statusBadge: { display: 'inline-flex', alignItems: 'center', height: 22, padding: '0 8px', borderRadius: 999, fontSize: font.xs, fontWeight: 800, border: '1px solid', whiteSpace: 'nowrap' as const },
   statusOk: { color: 'var(--success)', background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.35)' },
   statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'rgba(var(--border-rgb), 0.6)' },
+  statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
   inputRow: { display: 'flex', gap: 8 },
   input: { flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-primary)', padding: '7px 10px', fontSize: font.base, outline: 'none' },
   actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },

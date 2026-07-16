@@ -50,6 +50,7 @@ function makeApi() {
       ids.map((id) => ({ ok: true, id }))),
     listAllImages: vi.fn(async (): Promise<ImageRow[]> => []),
     countImages: vi.fn(async (): Promise<number> => 0),
+    startImageDrag: vi.fn((_ids: number[]): void => {}),
   }
 }
 
@@ -319,5 +320,85 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
     expect(restoreImages).toHaveBeenCalled()
     const lastCall = restoreImages.mock.calls[restoreImages.mock.calls.length - 1]
     expect(lastCall[1]).toEqual(new Set([images[0].id, images[1].id]))
+  })
+})
+
+// 他アプリへのドラッグ&ドロップ。「押した瞬間に選択を1枚へ畳まない」ことが要で、
+// 畳んでしまうと複数選択をまとめて掴めず、最後に押した1枚しか渡らない。
+describe('サムネからの他アプリへのドラッグ', () => {
+  // handleGridMouseDown は選択領域の判定に gridRef/scrollRef の矩形を使う。jsdom の
+  // getBoundingClientRect は全て 0 を返すため、座標 0 で押せば領域内と判定される。
+  function setupDrag() {
+    const images = makeImages(6)
+    const gridRef = { current: document.createElement('div') }
+    const scrollRef = { current: document.createElement('div') }
+    const env = setup({ images, gridLayout: makeGridLayout({ gridRef, scrollRef }) })
+    return { ...env, images }
+  }
+
+  function mouseDownOnThumb(
+    result: ReturnType<typeof setupDrag>['result'],
+    id: number,
+    modifiers: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {},
+  ): void {
+    const thumb = document.createElement('div')
+    thumb.setAttribute('data-img-id', String(id))
+    document.body.appendChild(thumb)
+    act(() => result.current.handleGridMouseDown({
+      button: 0, clientX: 0, clientY: 0, target: thumb,
+      shiftKey: false, ctrlKey: false, metaKey: false, ...modifiers,
+      preventDefault: () => {},
+    } as unknown as React.MouseEvent<HTMLDivElement>))
+  }
+
+  it('複数選択したサムネを押しただけでは選択が畳まれない', () => {
+    const { result } = setupDrag()
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOnThumb(result, 2)
+
+    expect(result.current.selectedIds).toEqual(new Set([1, 2, 3]))
+  })
+
+  it('掴んで動かすと選択中の全件が渡る（最後に押した1枚だけにならない）', () => {
+    const { result } = setupDrag()
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOnThumb(result, 2)
+    act(() => window.dispatchEvent(new MouseEvent('mousemove', { clientX: 20, clientY: 0, buttons: 1 })))
+
+    expect(mockApi().startImageDrag).toHaveBeenCalledWith([1, 2, 3])
+    // ドラッグ後も選択は維持される（渡した後に選択が減ると次の操作で戸惑う）
+    expect(result.current.selectedIds).toEqual(new Set([1, 2, 3]))
+  })
+
+  it('動かさずに離せば従来どおりその1枚の選択に畳まれる', () => {
+    const { result } = setupDrag()
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOnThumb(result, 2)
+    act(() => window.dispatchEvent(new MouseEvent('mouseup')))
+
+    expect(result.current.selectedIds).toEqual(new Set([2]))
+    expect(mockApi().startImageDrag).not.toHaveBeenCalled()
+  })
+
+  it('未選択のサムネを掴んだらその1枚だけが渡る', () => {
+    const { result } = setupDrag()
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOnThumb(result, 5)
+    act(() => window.dispatchEvent(new MouseEvent('mousemove', { clientX: 20, clientY: 0, buttons: 1 })))
+
+    expect(mockApi().startImageDrag).toHaveBeenCalledWith([5])
+  })
+
+  it('Ctrl 押しでの選択解除は保留されず即座に効く', () => {
+    const { result } = setupDrag()
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOnThumb(result, 2, { ctrlKey: true })
+
+    expect(result.current.selectedIds).toEqual(new Set([1, 3]))
   })
 })

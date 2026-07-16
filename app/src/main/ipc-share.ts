@@ -3,7 +3,7 @@ import { dialog } from 'electron'
 import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
 import { join, basename } from 'path'
 import { randomUUID } from 'crypto'
-import { handleTrusted, sendToRenderer, safeExternalUrl } from './windows'
+import { getMainWindow, handleTrusted, sendToRenderer, safeExternalUrl } from './windows'
 import { listImagesForExport } from './db'
 import { loadSettings, saveSettings, smartFolders } from './settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from './paths'
@@ -12,6 +12,7 @@ import { CH } from '../shared/api'
 import { parseShareEntry } from './share-entry'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
+import { beginTask, endTask } from './busy'
 
 let isShareExporting = false
 let isShareExportCanceled = false
@@ -41,11 +42,14 @@ export function registerShareHandlers(): void {
     // isShareExportCanceled が単一フラグなので混線しうる。
     if (isShareExporting) return { canceled: true }
     isShareExporting = true
+    beginTask('export')
     try {
-      const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: '書き出し先フォルダを選択',
-        properties: ['openDirectory']
-      })
+      // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
+      const exportWin = getMainWindow()
+      const exportDialogOptions: Electron.OpenDialogOptions = { title: '書き出し先フォルダを選択', properties: ['openDirectory'] }
+      const { canceled, filePaths } = exportWin
+        ? await dialog.showOpenDialog(exportWin, exportDialogOptions)
+        : await dialog.showOpenDialog(exportDialogOptions)
       if (canceled || !filePaths[0]) return { canceled: true }
       isShareExportCanceled = false
 
@@ -120,6 +124,7 @@ export function registerShareHandlers(): void {
       return { canceled: isShareExportCanceled, count, path: destDir }
     } finally {
       isShareExporting = false
+      endTask('export')
     }
   })
 
@@ -131,11 +136,14 @@ export function registerShareHandlers(): void {
     // ないため、スマートフォルダと違って静かに重複が積み上がる）（D-1）。
     if (isShareImporting) return { canceled: true }
     isShareImporting = true
+    beginTask('import')
     try {
-      const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: '読み込むフォルダを選択',
-        properties: ['openDirectory']
-      })
+      // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
+      const importWin = getMainWindow()
+      const importDialogOptions: Electron.OpenDialogOptions = { title: '読み込むフォルダを選択', properties: ['openDirectory'] }
+      const { canceled, filePaths } = importWin
+        ? await dialog.showOpenDialog(importWin, importDialogOptions)
+        : await dialog.showOpenDialog(importDialogOptions)
       if (canceled || !filePaths[0]) return { canceled: true }
       isShareImportCanceled = false
 
@@ -262,6 +270,7 @@ export function registerShareHandlers(): void {
       return { canceled: isShareImportCanceled, count, errors, importedFolders }
     } finally {
       isShareImporting = false
+      endTask('import')
     }
   })
 

@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { mkdir, realpath } from 'fs/promises'
+import { realpathSync } from 'fs'
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'path'
 
 export function captureDir(): string {
@@ -74,6 +75,36 @@ async function resolveRealBase(dir: string): Promise<string | null> {
     const real = resolve(await realpath(dir))
     realBaseCache.set(dir, real)
     return real
+  } catch {
+    return null
+  }
+}
+
+function resolveRealBaseSync(dir: string): string | null {
+  const cached = realBaseCache.get(dir)
+  if (cached) return cached
+  try {
+    const real = resolve(realpathSync(dir))
+    realBaseCache.set(dir, real)
+    return real
+  } catch {
+    return null
+  }
+}
+
+// resolveRealCapturePath の同期版。ドラッグ開始（webContents.startDrag）は dragstart の
+// 同期的な流れの中で呼ばないと OS のドラッグループに入れず、await を1つでも挟むと
+// ドラッグが始まらないため、その経路でだけ使う（ipc-drag.ts）。それ以外は非同期版を使うこと。
+export function resolveRealCapturePathSync(candidate: unknown): string | null {
+  const target = resolveCapturePath(candidate)
+  if (!target) return null
+
+  try {
+    const realTarget = resolve(realpathSync(target))
+    const bases = [captureDir(), thumbnailDir()].map(resolveRealBaseSync)
+    if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
+    if (!ALLOWED_EXTENSIONS.has(extname(realTarget).toLowerCase())) return null
+    return realTarget
   } catch {
     return null
   }

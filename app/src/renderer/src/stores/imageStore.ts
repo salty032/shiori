@@ -28,6 +28,19 @@ let timelineGeneration = 0
 // 「上限に当たった」→「一旦下回った」の遷移でのみ再通知するようフラグで一回性を保つ。
 let timelineTruncatedNotified = false
 
+// 削除保留中（Undo 猶予中）の画像 id 集合。queueDelete は選択直後に UI から画像を消すが、
+// DB からは Undo 猶予（DELETE_UNDO_MS）が明けるまで実際には消えていない。この間にフィルタ変更・
+// 新規キャプチャ等で一覧の再取得（loadMoreGrid/reloadTimeline）が走ると、消したはずの行が
+// サーバーからそのまま返ってきて復活してしまい、猶予明けの実削除後にサムネ欠損の
+// ゴースト行として残り続ける。再取得結果からこの集合の id を除外することでそれを防ぐ。
+const pendingDeleteIds = new Set<number>()
+export function markPendingDelete(ids: Iterable<number>): void {
+  for (const id of ids) pendingDeleteIds.add(id)
+}
+export function unmarkPendingDelete(ids: Iterable<number>): void {
+  for (const id of ids) pendingDeleteIds.delete(id)
+}
+
 // 新着キャプチャの NEW 表示。キャプチャは裏画面（Shiori 非フォーカス）でも受信時に即バッジを
 // 付ける。ただし「消えるカウント」は Shiori が前面に表示されている間だけ進める。背面では
 // タイマーを止めて NEW を保持し、戻ってきてから数秒で自然に消す。これにより「席に戻って
@@ -111,7 +124,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
     try {
       // 現在のフィルタ値はストアから命令的に読む
       const st = useFilterStore.getState()
-      const next = await window.api.listImages({
+      const fetched = await window.api.listImages({
         ...buildImageQuery(getCommitted(st)),
         limit: PAGE_SIZE,
         before: grid.lastCapturedAt ?? undefined,
@@ -119,12 +132,16 @@ export const useImageStore = create<ImageState>((set, get) => ({
         sortOrder: st.sortOrder,
       })
       if (generation !== grid.listGeneration) return
+      // カーソル（次ページの起点）は削除保留中の行も含めた「実際に返ってきた最後の行」を
+      // 基準にする。表示用配列だけ保留中の行を除外すると、ページングの連続性を保ったまま
+      // 削除待ちの行だけを一覧から隠せる（imageStore.ts 冒頭の pendingDeleteIds 参照）。
+      const next = pendingDeleteIds.size > 0 ? fetched.filter((img) => !pendingDeleteIds.has(img.id)) : fetched
       set((s) => ({ gridImages: isFirstPage ? next : [...s.gridImages, ...next] }))
-      if (next.length > 0) {
-        grid.lastCapturedAt = next[next.length - 1].captured_at
-        grid.lastId = next[next.length - 1].id
+      if (fetched.length > 0) {
+        grid.lastCapturedAt = fetched[fetched.length - 1].captured_at
+        grid.lastId = fetched[fetched.length - 1].id
       }
-      if (next.length < PAGE_SIZE || st.sortOrder === 'random') {
+      if (fetched.length < PAGE_SIZE || st.sortOrder === 'random') {
         grid.hasMore = false
         set({ gridHasMore: false })
       }
@@ -166,7 +183,10 @@ export const useImageStore = create<ImageState>((set, get) => ({
       const query = buildImageQuery(getCommitted(useFilterStore.getState()))
       const [rows, count] = await Promise.all([window.api.listAllImages(query), window.api.countImages(query)])
       if (generation !== timelineGeneration) return
-      set({ timelineImages: rows, timelineTotalCount: count })
+      // truncated 判定（下）は MAX_TIMELINE_LIMIT の上限到達を見るものなので、削除保留中の
+      // 除外前（rows.length）で行う。表示にだけ pendingDeleteIds を反映する。
+      const filteredRows = pendingDeleteIds.size > 0 ? rows.filter((img) => !pendingDeleteIds.has(img.id)) : rows
+      set({ timelineImages: filteredRows, timelineTotalCount: count })
       if (count > rows.length) {
         if (!timelineTruncatedNotified) {
           timelineTruncatedNotified = true

@@ -154,6 +154,9 @@ export default function App() {
 
   function handleDragEnter(e: React.DragEvent): void {
     if (!e.dataTransfer.types.includes('Files')) return
+    // 自分が始めた画像ドラッグが戻ってきただけ。取り込みは main 側で弾かれる（何も起きない）ので、
+    // 「ドロップで取り込む」枠を出すと嘘になる。
+    if (selection.selfDragRef.current) return
     dragCounterRef.current += 1
     setFileDragging(true)
   }
@@ -241,6 +244,13 @@ export default function App() {
     useExportStore.getState().setExportProgress(p.current >= p.total ? null : p)
   ), [])
 
+  // 共有インポートの進捗も他の進捗（モデルDL・retag・export）と同じ下部の帯に出す（UX-3）。
+  // ここで購読しておくことで、設定モーダルを閉じても進捗・中止ボタンが見える状態を保つ。
+  const shareImportProgress = useExportStore((st) => st.shareImportProgress)
+  useEffect(() => window.api.onShareImportProgress((p) =>
+    useExportStore.getState().setShareImportProgress(p.current >= p.total ? null : p)
+  ), [])
+
   function removeSearchTag(tag: string): void {
     const stripped = filters.search
         .replace(/(^|\s)tag:(\S+)/gi, (match, prefix: string, value: string) =>
@@ -298,6 +308,13 @@ export default function App() {
   useEffect(() => {
     return window.api.onAppNotice(({ level, message }) => toast.showToast(message, level))
   }, [])
+
+  // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
+  // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、
+  // ドロップ完了後にまとめて届く。
+  useEffect(() => window.api.onImagesDragTruncated(({ requested, copied }) =>
+    toast.showToast(`${requested}枚中${copied}枚のみドラッグしました（上限のため一部は対象外です）`, 'warning')
+  ), [])
 
   // ResizeObserver: measure grid wrapper width + offsetTop for virtualizer
   // useLayoutEffect + 初回同期測定で、起動直後に ResizeObserver の初回発火を
@@ -437,6 +454,15 @@ export default function App() {
         onCancel: tagger.handleTaggerRetagCancel,
       }
     }
+    if (shareImportProgress) {
+      const { current, total } = shareImportProgress
+      return {
+        label: 'ライブラリを読み込み中',
+        detail: `${current}/${total}`,
+        progress: total > 0 ? clamp01(current / total) : 0,
+        onCancel: () => window.api.shareImportCancel(),
+      }
+    }
     if (!exportProgress) return null
 
     const { current, total } = exportProgress
@@ -447,10 +473,28 @@ export default function App() {
       progress: total > 0 ? clamp01(current / total) : 0,
       onCancel: exportKind === 'share' ? () => window.api.shareExportCancel() : () => window.api.imagesExportCancel(),
     }
-  }, [tagger.handleTaggerCancelDownload, tagger.handleTaggerRetagCancel, tagger.retagProgress, tagger.taggerProgress, exportProgress, exportKind])
+  }, [tagger.handleTaggerCancelDownload, tagger.handleTaggerRetagCancel, tagger.retagProgress, tagger.taggerProgress, shareImportProgress, exportProgress, exportKind])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    // ファイルのドロップ受け口はウィンドウ全体。サイドバーや詳細パネルの上に落としても
+    // 取り込めた方が自然で、狙いを外したときに黙って無視される方が事故に近い。
+    // position: relative はドロップ枠（dropOverlay）をこの範囲に収めるため。
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative' }}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={(e) => {
+        e.preventDefault()
+        // 自分から出した画像を自分に戻しても取り込まない。カーソルを 'none' にして
+        // 「ここには落とせない」と手に伝える（落としても黙って無視されるだけなので、
+        // copy カーソルのままだと取り込まれたと誤解させる）。
+        e.dataTransfer.dropEffect = selection.selfDragRef.current ? 'none' : 'copy'
+      }}
+      onDrop={handleFileDrop}>
+      {fileDragging && (
+        <div style={s.dropOverlay}>
+          <div style={s.dropOverlayText}>ドロップして取り込み</div>
+        </div>
+      )}
 
       {settings.updateVersion && !updateBannerDismissed && (
         <div style={s.updateBanner}>
@@ -483,16 +527,7 @@ export default function App() {
           onDeleteTag={confirmDeleteTagGlobally}
         />
 
-        <main ref={mainRef} style={s.main} onMouseDown={selection.handleGridMouseDown}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
-          onDrop={handleFileDrop}>
-          {fileDragging && (
-            <div style={s.dropOverlay}>
-              <div style={s.dropOverlayText}>ドロップして取り込み</div>
-            </div>
-          )}
+        <main ref={mainRef} style={s.main} onMouseDown={selection.handleGridMouseDown}>
           <Toolbar
             ref={toolbarWrapRef}
             filters={filters}
@@ -689,7 +724,6 @@ export default function App() {
           settings={settings.settings}
           taggerDoneKey={tagRefreshKey}
           allTags={filters.allTags}
-          onShowInFolder={() => single && window.api.showInFolder(single.id)}
           onTagsChanged={handleTagsChanged}
           onTitleChanged={(id, title) => patchImage(id, { title })}
           onMemoChanged={(id, memo) => patchImage(id, { memo })}

@@ -36,6 +36,7 @@ export function buildCoreApi(): ShioriApi {
       ipcRenderer.invoke(CH.imagesExport, imageIds),
 
     imagesExportCancel: (): Promise<void> => ipcRenderer.invoke(CH.imagesExportCancel),
+    imagesRepairThumbs: (): Promise<{ repaired: number; failed: number }> => ipcRenderer.invoke(CH.imagesRepairThumbs),
 
     onExportProgress: (cb: (data: { current: number; total: number }) => void) =>
       listen<{ current: number; total: number }>(CH.exportProgress, cb),
@@ -64,6 +65,12 @@ export function buildCoreApi(): ShioriApi {
 
     deleteImagesBulk: (ids: number[]) =>
       ipcRenderer.invoke(CH.imagesDeleteBulk, ids),
+
+    startImageDrag: (ids: number[]): void =>
+      ipcRenderer.send(CH.imagesStartDrag, ids),
+
+    onImagesDragTruncated: (cb: (data: { requested: number; copied: number }) => void) =>
+      listen<{ requested: number; copied: number }>(CH.imagesDragTruncated, cb),
 
     openUrl: (url: string): Promise<void> =>
       ipcRenderer.invoke(CH.shellOpenUrl, url),
@@ -99,7 +106,6 @@ export function buildCoreApi(): ShioriApi {
     taggerEnsure: (): Promise<void> => ipcRenderer.invoke(CH.taggerEnsure),
     taggerCancelDownload: (): Promise<void> => ipcRenderer.invoke(CH.taggerCancelDownload),
     taggerDelete: (): Promise<{ removedTags: number }> => ipcRenderer.invoke(CH.taggerDelete),
-    taggerIsLoaded: (): Promise<boolean> => ipcRenderer.invoke(CH.taggerIsLoaded),
     taggerIsDownloaded: (): Promise<boolean> => ipcRenderer.invoke(CH.taggerIsDownloaded),
     taggerAddTag: (imageId: number, tagName: string, source?: 'manual' | 'ai'): Promise<void> => ipcRenderer.invoke(CH.taggerAddTag, imageId, tagName, source),
     taggerRemoveTag: (imageId: number, tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTag, imageId, tagName),
@@ -110,7 +116,6 @@ export function buildCoreApi(): ShioriApi {
     taggerRemoveTagFromAll: (tagName: string): Promise<number> => ipcRenderer.invoke(CH.taggerRemoveTagFromAll, tagName),
     onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
     onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),
-    onTaggerReady: (cb: () => void) => listen<void>(CH.taggerReady, cb),
     onTaggerError: (cb: (msg: string) => void) => listen<string>(CH.taggerError, cb),
 
     taggerRetagAll: (): Promise<void> => ipcRenderer.invoke(CH.taggerRetagAll),

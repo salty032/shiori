@@ -646,7 +646,9 @@ function getPageTitle() {
   // Shorts はさらに末尾に "#shorts"（全角/半角）が付くことが多く、内容と無関係な
   // 装飾なので除去する（それ以外のハッシュタグは投稿者が意図した内容の一部として残す）
   if (host === 'youtube.com') {
-    const base = document.title.replace(/ - YouTube$/, '').trim() || document.title
+    // 未読通知があると document.title の先頭に "(3) " 等の件数が付く。内容と無関係な
+    // 装飾なので、タイムライン等のグルーピングキーに使われるタイトルからは除去する。
+    const base = document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '').trim() || document.title
     if (location.pathname.startsWith('/shorts/')) {
       const stripped = base.replace(/[#＃]shorts\s*$/i, '').trim()
       if (stripped) return stripped
@@ -818,6 +820,8 @@ function buildPayload() {
   observeVideo(target.video)
   return {
     type: 'timecode',
+    // アプリ側でバンドル済み拡張のバージョンと比較し、再読み込み待ちを検出する（UX-9）。
+    version: chrome.runtime.getManifest().version,
     currentTime: target.currentTime,
     title: getPageTitleCached().slice(0, MAX_TITLE_LENGTH),
     url: window.location.href.slice(0, MAX_URL_LENGTH),

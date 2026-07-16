@@ -374,7 +374,8 @@ export default function Sidebar({
             </div>
             {hiddenTagCount > 0 && (
               <button style={s.sidebarMoreBtn} onClick={() => setShowAllTags((v) => !v)}>
-                {showAllTags ? '折りたたむ' : `+${hiddenTagCount} 表示`}
+                {/* UX-5: 「付けたタグが出てこない」を防ぐため、隠れている理由（枚数しきい値未満）を明示する */}
+                {showAllTags ? '折りたたむ' : `+${hiddenTagCount}（${SIDEBAR_TAG_MIN_COUNT}枚未満）表示`}
               </button>
             )}
           </div>

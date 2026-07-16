@@ -241,7 +241,11 @@ export function buildImageFilter(f: ImageFilter): { where: string; params: unkno
     }
   }
   if (f.toDate != null) { conds.push('captured_at < ?'); params.push(f.toDate) }
-  if (f.site) { conds.push("host LIKE ? ESCAPE '\\'"); params.push(`%${escapeLike(f.site)}%`) }
+  // renderer 側（Toolbar の site: チップ）は「実在ホストと完全一致」のときだけ絞り込み中
+  // として表示するため、クエリも完全一致に揃える。部分一致だと入力途中の断片（例:
+  // "site:a"）が複数ホスト（abema.tv・amazon.co.jp 等）に同時ヒットし、チップは
+  // 出ないのに結果だけ絞り込まれる中途半端な状態になっていた（BUG-6）。
+  if (f.site) { conds.push('host = ?'); params.push(f.site) }
   if (f.tags && f.tags.length > 0) {
     const ph = f.tags.map(() => '?').join(', ')
     if (f.tagMode === 'or') {
@@ -406,8 +410,15 @@ export function removeTagBulk(imageIds: number[], tagName: string): void {
 
 // AIタグ付けモデル削除時に、AI由来のタグ（source='ai'）をライブラリ全体から一括削除する。
 // 手動タグ（source='manual'）は対象外。Undo不可のため呼び出し元で確認を取ってから呼ぶこと。
+// 削除後にどの image_tags からも参照されなくなった tags 行（孤児）も併せて掃除する。
+// image_tags は CASCADE で消えても tags 自体は残る仕様のため、ここで放置すると
+// AIタグ削除を繰り返すたびに tags テーブルが肥大化する。
 export function deleteAllAiTags(): number {
-  return prepare("DELETE FROM image_tags WHERE source = 'ai'").run().changes
+  return db.transaction(() => {
+    const changes = prepare("DELETE FROM image_tags WHERE source = 'ai'").run().changes
+    prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM image_tags)').run()
+    return changes
+  })()
 }
 
 // タグ名から該当する image_tags 行を全件削除する（対象画像を listImagesAll 等で列挙してから
@@ -416,7 +427,12 @@ export function deleteAllAiTags(): number {
 export function removeTagFromAllImages(tagName: string): number {
   const tag = prepare('SELECT id FROM tags WHERE name = ?').get(tagName) as { id: number } | undefined
   if (!tag) return 0
-  return prepare('DELETE FROM image_tags WHERE tag_id = ?').run(tag.id).changes
+  // 対象タグが誰からも参照されなくなったら tags 行自体も消す（孤児防止。deleteAllAiTags と同じ理由）。
+  return db.transaction(() => {
+    const changes = prepare('DELETE FROM image_tags WHERE tag_id = ?').run(tag.id).changes
+    prepare('DELETE FROM tags WHERE id = ? AND id NOT IN (SELECT DISTINCT tag_id FROM image_tags)').run(tag.id)
+    return changes
+  })()
 }
 
 // includeAi=false（既定）: 手動タグのみ、件数の多い順。
@@ -463,6 +479,19 @@ export function updateImageMemo(id: number, memo: string): void {
   prepare('UPDATE images SET memo = ? WHERE id = ?').run(memo || null, id)
 }
 
+// 起動時の補完用（S4-2）。サムネ未生成の行だけを返す。全件返して 1 枚ずつ実ファイルの
+// 有無を確認すると、数万枚のライブラリでは起動のたびに同数のディスクアクセスが発生するため、
+// 通常起動では DB だけで判定できるこの条件に絞る。記録済みサムネの実在確認は
+// listImagesForThumbCheck()（手動修復）の担当。
+export function listImagesMissingThumb(): { id: number; filepath: string }[] {
+  return prepare(
+    `SELECT id, filepath FROM images
+     WHERE thumb_path IS NULL
+     ORDER BY captured_at DESC`
+  ).all() as { id: number; filepath: string }[]
+}
+
+// 手動修復用。thumb_path が記録済みでも実ファイルが消えている場合を拾うため全件返す。
 export function listImagesForThumbCheck(): { id: number; filepath: string; thumb_path: string | null }[] {
   return prepare(
     `SELECT id, filepath, thumb_path FROM images

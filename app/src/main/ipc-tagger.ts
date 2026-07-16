@@ -1,12 +1,13 @@
 // WD Tagger 関連の IPC ハンドラ（モデル DL・手動タグ CRUD・一括再タグ付け）。
 import { handleTrusted, sendToRenderer } from './windows'
-import { ensureModel, runTagger, isModelLoaded, isModelDownloaded, deleteModel, cancelModelDownload } from './tagger'
+import { ensureModel, runTagger, isModelDownloaded, deleteModel, cancelModelDownload } from './tagger'
 import { addTag, getImageTags, removeImageTag, addTagsBulk, listImagesForRetag, getImageTagsBulk, addTagBulk, removeTagBulk, removeTagFromAllImages, deleteAllAiTags } from './db'
 import { optionalPositiveInteger, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from './ipc-validation'
 import { resolveRealCapturePath } from './paths'
 import { CH } from '../shared/api'
 import { MAX_BULK_IDS } from '../shared/constants'
 import { createProgressThrottle } from './progress-throttle'
+import { beginTask, endTask } from './busy'
 
 let isRetagging = false
 let isRetagCanceled = false
@@ -18,12 +19,16 @@ function validImageIds(imageIds: unknown): number[] {
 
 export function registerTaggerHandlers(): void {
   handleTrusted(CH.taggerEnsure, async () => {
-    await ensureModel((progress) => {
-      sendToRenderer(CH.taggerDownloadProgress, progress)
-    })
+    beginTask('model-download')
+    try {
+      await ensureModel((progress) => {
+        sendToRenderer(CH.taggerDownloadProgress, progress)
+      })
+    } finally {
+      endTask('model-download')
+    }
   })
   handleTrusted(CH.taggerCancelDownload, () => cancelModelDownload())
-  handleTrusted(CH.taggerIsLoaded, () => isModelLoaded())
   handleTrusted(CH.taggerIsDownloaded, () => isModelDownloaded())
   handleTrusted(CH.taggerDelete, async () => {
     await deleteModel()
@@ -70,6 +75,7 @@ export function registerTaggerHandlers(): void {
     if (isRetagging) return
     isRetagging = true
     isRetagCanceled = false
+    beginTask('retag')
     try {
       const targets = listImagesForRetag()
       const total = targets.length
@@ -99,6 +105,7 @@ export function registerTaggerHandlers(): void {
       sendToRenderer(CH.taggerRetagDone, { tagged, canceled: isRetagCanceled })
     } finally {
       isRetagging = false
+      endTask('retag')
     }
   })
   handleTrusted(CH.taggerRetagCancel, () => { isRetagCanceled = true })

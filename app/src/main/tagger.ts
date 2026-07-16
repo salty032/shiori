@@ -40,16 +40,15 @@ let session: any = null
 let tagList: TagEntry[] = []
 let ensureModelPromise: Promise<void> | null = null
 let activeDownloadController: AbortController | null = null
-// 一度オートロードされたかどうか。アイドル解放後もキャプチャ時に再ロードして
-// 自動タグ付けを続けるかどうかの判定に使う（session の有無とは別軸）。
-let wasLoadedOnce = false
 
 // この時間タグ付けが呼ばれなければ、推論セッションをメモリから解放する
 // （600MB級モデルなので、使っていない間は常駐させない）。
-// 短めに設定し「使った直後にはもう解放されている」状態を優先する。
 // retagAll 等の連続処理はジョブ完了ごとにタイマーがリセットされるため、
 // 1 枚あたりの処理時間がこの値を超えない限りバッチ中に解放されることはない。
-const IDLE_UNLOAD_MS = 3 * 1000
+// 視聴中はキャプチャ間隔が数分空くのが普通で、旧来の3秒だと実質「毎キャプチャ」で
+// 600MBモデルの再ロードが走っていた（PERF-1）。視聴セッション中は載せっぱなしにし、
+// 本当に使わなくなってから解放する方針に寄せ、90秒へ延長する。
+const IDLE_UNLOAD_MS = 90 * 1000
 let idleTimer: ReturnType<typeof setTimeout> | null = null
 
 function scheduleIdleUnload(): void {
@@ -226,7 +225,6 @@ async function loadModel(onProgress?: ProgressCallback, options: DownloadSignal 
   tagList = parseTagsCSV(csv)
   if (tagList.length === 0) throw new Error('selected_tags.csv is empty or invalid')
   session = await ort.InferenceSession.create(mp)
-  wasLoadedOnce = true
   scheduleIdleUnload()
 }
 
@@ -336,7 +334,6 @@ export async function deleteModel(): Promise<void> {
   // 実行中/待機中の推論ジョブと競合しないよう、アイドル解放と同じチェーンに乗せる
   taggerChain = taggerChain.then(() => unloadModel()).catch(() => {})
   await taggerChain
-  wasLoadedOnce = false
   tagList = []
   verifiedPaths.delete(modelPath())
   verifiedPaths.delete(tagsPath())
@@ -344,11 +341,11 @@ export async function deleteModel(): Promise<void> {
   try { await unlink(tagsPath()) } catch {}
 }
 
-// 起動時オートロード等で一度でもロードに成功していれば true。
-// アイドル解放でメモリ上から消えていても、次回キャプチャ時に再ロードして
-// 自動タグ付けを続けるかどうかの判定に使う。
-export function canAutoTag(): boolean {
-  return wasLoadedOnce
+// 自動タグ付けを行ってよいか。モデルが手元にあれば true。
+// 起動時オートロードを廃止したため（S4-1）、判定はメモリ上のセッション有無ではなく
+// ファイルの有無で行う。呼び出し側は ensureModel() で必要になった時点でロードする。
+export function canAutoTag(): Promise<boolean> {
+  return isModelDownloaded()
 }
 
 export async function isModelDownloaded(): Promise<boolean> {
@@ -361,14 +358,12 @@ export function _resetTaggerStateForTest(opts?: {
   session?: unknown
   ortModule?: unknown
   tagList?: TagEntry[]
-  wasLoadedOnce?: boolean
   verifiedPaths?: string[]
 }): void {
   if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
   session = opts?.session ?? null
   ortModule = opts?.ortModule ?? null
   tagList = opts?.tagList ?? []
-  wasLoadedOnce = opts?.wasLoadedOnce ?? false
   verifiedPaths.clear()
   for (const p of opts?.verifiedPaths ?? []) verifiedPaths.add(p)
   taggerChain = Promise.resolve()

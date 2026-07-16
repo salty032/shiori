@@ -1,3 +1,6 @@
+// 平文 ws:// のまま繋ぐ。Firefox の MV3 既定 CSP は upgrade-insecure-requests を含むため、
+// manifest.json の content_security_policy.extension_pages でそれを外した CSP を明示している。
+// この指定を消すと Firefox だけ wss:// に格上げされ、TLS 非対応のローカルサーバーに繋がらなくなる。
 const WS_URL = 'ws://127.0.0.1:39821'
 let ws = null
 let reconnectTimer = null

@@ -14,7 +14,6 @@ type Props = {
   settings: Settings
   taggerDoneKey: number
   allTags: string[]
-  onShowInFolder: () => void
   onTagsChanged: () => void
   onTitleChanged: (id: number, title: string) => void
   onMemoChanged: (id: number, memo: string) => void
@@ -50,7 +49,7 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
   el.style.height = (el.scrollHeight + borderHeight) + 'px'
 }
 
-export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, onShowInFolder, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
+export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
     min: 300,
@@ -382,10 +381,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
           </div>
           </div>
           <div style={s.actions}>
-            <div style={s.actionRow}>
-              <button style={{ ...s.showInFolderBtn, width: 'auto', flex: 1 }} onClick={onShowInFolder}>Explorerで開く</button>
-              <button style={{ ...s.showInFolderBtn, width: 'auto', flex: 1 }} onClick={onExport}>エクスポート</button>
-            </div>
+            <button style={s.showInFolderBtn} onClick={onExport}>エクスポート</button>
             <button style={s.deleteActionBtn} onClick={onDelete}>ゴミ箱へ移動</button>
           </div>
         </>
@@ -466,7 +462,6 @@ const s: Record<string, React.CSSProperties> = {
   panelContent: { flex: 1, overflowY: 'auto' as const },
   searchTile: { padding: '8px 16px 16px', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: 16 },
   actions: { padding: '16px 12px', borderTop: '1px solid var(--border-default)', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: 10, flexShrink: 0 },
-  actionRow: { display: 'flex', gap: 10, minWidth: 0 },
   empty: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, padding: '0 20px', textAlign: 'center' as const },
   emptyTitle: { color: 'var(--text-secondary)', fontSize: font.base, fontWeight: 700 },
   emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import { font, radius } from '../styles'
 import { useTagSuggest } from '../hooks/useTagSuggest'
-import { MAX_TAG_LENGTH } from '../utils'
+import { MAX_TAG_LENGTH, tagNormalizePreview } from '../utils'
 
 type Props = {
   value: string
@@ -21,6 +21,10 @@ type Props = {
 // （初期ハイライト=先頭、↑↓ループ、Enter=ハイライト確定/なければ入力値）。
 export default function TagSuggestInput({ value, onChange, suggestions, placeholder, onConfirm, onCancel, inputRef, autoFocus }: Props) {
   const { highlightedIndex, setHighlightedIndex, moveHighlight, resolveConfirmValue } = useTagSuggest(suggestions)
+  // 候補（既存タグ）がある間はそちらを優先させたいので、候補が無いとき（＝新規タグを
+  // 作ろうとしているとき）だけ正規化後の見た目を予告する。候補ボックスと同じ absolute
+  // 位置を使うため、両方を同時に出すと重なる（UX-4）。
+  const normalizePreview = suggestions.length === 0 ? tagNormalizePreview(value) : null
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
     if (e.key === 'Escape') { onCancel(); return }
@@ -61,6 +65,9 @@ export default function TagSuggestInput({ value, onChange, suggestions, placehol
           ))}
         </div>
       )}
+      {normalizePreview && (
+        <div style={s.normalizePreview}>→ {normalizePreview} として追加されます</div>
+      )}
     </span>
   )
 }
@@ -71,4 +78,5 @@ const s: Record<string, React.CSSProperties> = {
   tagAddBtn: { width: 34, height: 32, padding: 0, background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: 4, color: 'var(--success)', cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0 },
   suggestions: { position: 'absolute' as const, top: '100%', left: 0, right: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, zIndex: 100, marginTop: 4, maxHeight: 180, overflowY: 'auto' as const, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', padding: 4 },
   suggestion: { padding: '6px 8px', fontSize: font.sm, color: 'var(--text-primary)', cursor: 'pointer', borderRadius: 2 },
+  normalizePreview: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, fontSize: font.xs, color: 'var(--text-muted)', whiteSpace: 'nowrap' as const, pointerEvents: 'none' as const },
 }

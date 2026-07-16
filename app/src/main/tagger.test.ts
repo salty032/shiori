@@ -147,7 +147,6 @@ describe('runTagger: アイドル解放レースからの自己修復', () => {
     _resetTaggerStateForTest({
       session: null,
       ortModule: fakeOrt,
-      wasLoadedOnce: true,
       verifiedPaths: [model, tags],
     })
 
@@ -184,7 +183,6 @@ describe('deleteModel: taggerChain 上のジョブと競合しない (S3-9)', ()
       session: fakeSession,
       ortModule: { Tensor: class { constructor() {} } },
       tagList: [{ name: 'test_tag', category: 0 }],
-      wasLoadedOnce: true,
     })
 
     const jobPromise = runTagger('/mock/thumb.jpg')
