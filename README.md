@@ -26,7 +26,7 @@
 ## インストール
 
 > ⚠️ Shiori は **デスクトップアプリ** と **ブラウザ拡張** の 2 つで動作します。両方のセットアップが必要です。
-> 拡張は Chrome / Edge / Vivaldi / Brave / Opera などの Chromium 系ブラウザと Firefox 128 以降に対応します。
+> 拡張は Chrome / Edge / Vivaldi / Brave / Opera などの Chromium 系ブラウザと Firefox 142 以降に対応します。
 
 ### 1. アプリ本体
 
