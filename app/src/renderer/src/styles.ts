@@ -85,6 +85,8 @@ export const s: Record<string, CSSProperties> = {
   // 縦長画像（Shorts等）は16:9セルからはみ出るため cover→contain に切り替え、
   // 余白は viewer と同様に画像鑑賞用途として意図的に非テーマの暗色で埋める
   thumbImgWrapVertical: { background: '#0d0f14' },
+  thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
+  thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   thumbHovered: { border: '1px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
   thumbSelected: { outline: '1.5px solid var(--accent)', outlineOffset: '-1.5px', boxShadow: '0 0 0 2px rgba(var(--accent-rgb), 0.22)' },
   // 新着 NEW（ウィンドウ表示後の数秒だけ）。選択（インディゴ）と区別できる緑系アクセント。

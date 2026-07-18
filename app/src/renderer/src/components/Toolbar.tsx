@@ -14,13 +14,14 @@ const SEARCH_PREFIXES = [
   { prefix: 'from:', label: '開始日を指定' },
   { prefix: 'to:', label: '終了日を指定' },
   { prefix: 'site:', label: 'サービスで絞り込み' },
+  { prefix: 'type:', label: '種類で絞り込み' },
 ] as const
 
 type ActiveFilter = {
   onRemove: () => void
 }
 
-type ActivePrefix = 'tag' | 'site' | null
+type ActivePrefix = 'tag' | 'site' | 'type' | null
 type SuggestionPrefix = Exclude<ActivePrefix, null>
 type ForcedSuggestion = { prefix: SuggestionPrefix; search: string }
 
@@ -30,9 +31,10 @@ const SEARCH_COMMIT_DEBOUNCE_MS = 200
 
 const TAG_PREFIX_RE = /(?:^|\s)tag:(\S*)$/i
 const SITE_PREFIX_RE = /(?:^|\s)site:(\S*)$/i
+const TYPE_PREFIX_RE = /(?:^|\s)type:(\S*)$/i
 const FROM_PREFIX_RE = /(?:^|\s)from:(\S*)$/i
 const TO_PREFIX_RE = /(?:^|\s)to:(\S*)$/i
-const PREFIX_HINT_RE = /(?:^|\s)(tag|ta|t|from|fro|fr|f|to|site|sit|si|s):?$/i
+const PREFIX_HINT_RE = /(?:^|\s)(tag|ta|t|from|fro|fr|f|to|site|sit|si|s|type|typ|ty):?$/i
 
 type Props = {
   filters: Filters
@@ -83,6 +85,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     if (!searchInteractionActive) return null
     if (filters.search.match(TAG_PREFIX_RE)) return 'tag'
     if (filters.search.match(SITE_PREFIX_RE)) return 'site'
+    if (filters.search.match(TYPE_PREFIX_RE)) return 'type'
     return null
   }, [filters.search, forcedSuggestion, searchInteractionActive])
 
@@ -96,8 +99,20 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
       .slice(0, 8)
   }, [suggestionSearch, filters.sites, searchInteractionActive])
 
+  const typeSuggestions = useMemo(() => {
+    if (!searchInteractionActive) return []
+    const match = suggestionSearch.match(TYPE_PREFIX_RE)
+    if (!match) return []
+    const partial = match[1].toLowerCase()
+    if (partial === 'image' || partial === 'video' || partial === '画像' || partial === '動画') return []
+    return ([
+      { value: 'image', label: '画像' },
+      { value: 'video', label: '動画' },
+    ] as const).filter(({ value, label }) => value.startsWith(partial) || label.includes(partial))
+  }, [suggestionSearch, searchInteractionActive])
+
   const prefixSuggestions = useMemo(() => {
-    if (!searchFocused || filters.search.match(TAG_PREFIX_RE) || filters.search.match(SITE_PREFIX_RE) || filters.search.match(FROM_PREFIX_RE) || filters.search.match(TO_PREFIX_RE)) return []
+    if (!searchFocused || filters.search.match(TAG_PREFIX_RE) || filters.search.match(SITE_PREFIX_RE) || filters.search.match(TYPE_PREFIX_RE) || filters.search.match(FROM_PREFIX_RE) || filters.search.match(TO_PREFIX_RE)) return []
     if (!filters.search.trim()) return SEARCH_PREFIXES
     const match = filters.search.match(PREFIX_HINT_RE)
     if (!match) return []
@@ -128,13 +143,14 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   const activeSuggestions = useMemo(() => {
     if (activePrefix === 'tag') return tagSuggestions.map((tag) => ({ key: tag, onConfirm: () => confirmTag(tag) }))
     if (activePrefix === 'site') return siteSuggestions.map((host) => ({ key: host, onConfirm: () => confirmSite(host) }))
+    if (activePrefix === 'type') return typeSuggestions.map(({ value }) => ({ key: value, onConfirm: () => replaceSearchSuffix(TYPE_PREFIX_RE, `type:${value}`, true) }))
     if (activePrefix === null) return [
       ...prefixSuggestions.map(({ prefix }) => ({ key: prefix, onConfirm: () => confirmPrefix(prefix) })),
       ...historySuggestions.map((h) => ({ key: `history:${h}`, onConfirm: () => setSearchImmediate(h) })),
     ]
     return []
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePrefix, tagSuggestions, siteSuggestions, historySuggestions, prefixSuggestions])
+  }, [activePrefix, tagSuggestions, siteSuggestions, typeSuggestions, historySuggestions, prefixSuggestions])
 
   useEffect(() => { setHighlightedIndex(-1) }, [activeSuggestions])
   useEffect(() => {
@@ -152,12 +168,12 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     filters.commitSearch(next)
   }
 
-  // tag:/site:/from:/to: の演算子トークンを含まない、素のキーワード検索（空欄も含む）
+  // tag:/site:/type:/from:/to: の演算子トークンを含まない、素のキーワード検索（空欄も含む）
   // かどうか。演算子は候補選択やサジェスト確定を経て意図した値になるまで反映を待ちたいが、
   // 素のキーワードはリアルタイムに反映してよい。
   function isPureKeywordSearch(value: string): boolean {
-    const { tags, site, fromDate, toDate } = parseSearchQuery(value)
-    return tags.length === 0 && site === null && fromDate === null && toDate === null
+    const { tags, site, mediaType, fromDate, toDate } = parseSearchQuery(value)
+    return tags.length === 0 && site === null && mediaType === null && fromDate === null && toDate === null
   }
 
   function updateSearchImmediate(updater: (prev: string) => string): string {
@@ -372,6 +388,24 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
               )) : (
                 <div style={s.searchSuggestionEmpty}>候補がありません</div>
               )}
+            </div>
+          )}
+          {searchInteractionActive && suggestionsVisible && activePrefix === 'type' && typeSuggestions.length > 0 && (
+            <div ref={suggestionsRef} style={s.searchSuggestions}>
+              {typeSuggestions.map(({ value, label }, i) => (
+                <button
+                  key={value}
+                  className="shiori-menu-item"
+                  style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    replaceSearchSuffix(TYPE_PREFIX_RE, `type:${value}`, true)
+                  }}
+                >
+                  <span style={s.searchSuggestionValue}>{value}</span>
+                  <span style={s.searchSuggestionMeta}>{label}</span>
+                </button>
+              ))}
             </div>
           )}
           {searchFocused && suggestionsVisible && activePrefix === null && (historySuggestions.length > 0 || prefixSuggestions.length > 0) && (

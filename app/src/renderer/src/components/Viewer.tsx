@@ -3,6 +3,8 @@ import type { ImageRow } from '../types'
 import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
 import { s } from '../styles'
 import { XIcon } from './Icon'
+import VideoPlayer, { type VideoPlayerHandle } from './VideoPlayer'
+import { getMediaActions } from '../features/registry'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -37,6 +39,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
+  const videoPlayerRef = useRef<VideoPlayerHandle>(null)
   // まずサムネを表示し、原本のデコードが終わったら差し替える（DetailPanel の R-7 と同じ方針）。
   // 矢印キーで連続移動したときにフル解像度デコード待ちで白フラッシュするのを防ぐ。
   const [fullSrc, setFullSrc] = useState<string | null>(null)
@@ -77,11 +80,12 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
       if (isEditing) return
       if (e.code === 'Space') {
         e.preventDefault()
-        // 画像は Quick Look 的に Space で閉じる（開くのと対称）。
-        close()
+        // 動画は再生/停止、それ以外（画像）は Quick Look 的に Space で閉じる（開くのと対称）。
+        if (images[index].media_type === 'video') videoPlayerRef.current?.togglePlay()
+        else close()
         return
       }
-      if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') {
+      if (images[index].media_type !== 'video' && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0')) {
         e.preventDefault()
         if (e.key === '0') { setZoom(1); setPan({ x: 0, y: 0 }); return }
         zoomByKeyboard(e.key === '-' ? 0.8 : 1.25)
@@ -168,6 +172,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
     if (!el) return
     const onWheelNative = (e: WheelEvent): void => {
       e.preventDefault()
+      if (images[index]?.media_type === 'video') return
       const factor = e.deltaY < 0 ? 1.25 : 0.8
       const nextZoom = Math.max(1, Math.min(8, zoom * factor))
       if (nextZoom === zoom) return
@@ -181,7 +186,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
     }
     el.addEventListener('wheel', onWheelNative, { passive: false })
     return () => el.removeEventListener('wheel', onWheelNative)
-  }, [zoom, pan])
+  }, [zoom, pan, images, index])
 
   function toggleZoomAt(clientX: number, clientY: number): void {
     if (zoom > 1) {
@@ -260,6 +265,14 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
     }
   }
 
+  function handleVideoClick(e: React.MouseEvent<HTMLVideoElement>): boolean {
+    if (isInsideContainedMedia(e.currentTarget, e.clientX, e.clientY, e.currentTarget.videoWidth, e.currentTarget.videoHeight)) {
+      return true
+    }
+    close()
+    return false
+  }
+
   const img = images[index]
   const filmSlots = Array.from({ length: 9 }, (_, i) => index - 4 + i)
   const title = img.title ? cleanTitle(img.title, titleStrip) : ''
@@ -272,26 +285,31 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
           {/* U-6: End は読み込み済み分の末尾（images.length-1）までしか移動しないため、
               未読み込みが残る間はカウンタと End の到達点がズレる。実害は小さい
               （後続ロードで辿れる）ため、挙動は変えずツールチップで補足するに留める。 */}
+          {getMediaActions(img, { close })}
           <span style={s.viewerCounter} title={images.length < total ? 'End は読み込み済みの最後へ移動します' : undefined}>{index + 1} / {Math.max(total, images.length)}</span>
           <button style={s.viewerClose} onClick={close} title="閉じる (Esc)"><XIcon size={15} /></button>
         </div>
       </div>
       <div style={s.viewerMediaStack}>
-        <img
-          ref={imgRef}
-          src={fullSrc ?? thumbSrc(img)}
-          style={{
-            ...s.viewerImg,
-            transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
-            cursor: zoom > 1 ? 'grab' : 'default',
-          }}
-          onPointerDown={handleImagePointerDown}
-          onClick={handleImageClick}
-          alt=""
-          draggable={false}
-        />
+        {img.media_type === 'video' ? (
+          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay onVideoClick={handleVideoClick} />
+        ) : (
+          <img
+            ref={imgRef}
+            src={fullSrc ?? thumbSrc(img)}
+            style={{
+              ...s.viewerImg,
+              transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
+              cursor: zoom > 1 ? 'grab' : 'default',
+            }}
+            onPointerDown={handleImagePointerDown}
+            onClick={handleImageClick}
+            alt=""
+            draggable={false}
+          />
+        )}
       </div>
-      {zoom > 1 && (
+      {img.media_type !== 'video' && zoom > 1 && (
         <div style={s.viewerZoomHud} onClick={(e) => e.stopPropagation()}>
           <span style={s.viewerZoomValue}>{Math.round(zoom * 100)}%</span>
         </div>

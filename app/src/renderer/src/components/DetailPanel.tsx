@@ -7,6 +7,8 @@ import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
 import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { usePanelResize } from '../hooks/usePanelResize'
+import VideoPlayer from './VideoPlayer'
+import { getMediaActions } from '../features/registry'
 
 type Props = {
   selectedIds: Set<number>
@@ -14,6 +16,9 @@ type Props = {
   settings: Settings
   taggerDoneKey: number
   allTags: string[]
+  // ビューア表示中は DetailPanel の VideoPlayer を一時停止する（同じクリップがビューア側でも
+  // 再生され、音声が二重に鳴るのを防ぐ）。
+  viewerOpen: boolean
   onTagsChanged: () => void
   onTitleChanged: (id: number, title: string) => void
   onMemoChanged: (id: number, memo: string) => void
@@ -49,7 +54,7 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
   el.style.height = (el.scrollHeight + borderHeight) + 'px'
 }
 
-export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
+export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
     min: 300,
@@ -83,14 +88,14 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const [fullImageSrc, setFullImageSrc] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!single) return
+    if (!single || single.media_type === 'video') return
     setFullImageSrc(null)
     let canceled = false
     const preload = new Image()
     preload.onload = () => { if (!canceled) setFullImageSrc(mediaUrl(single.id)) }
     preload.src = mediaUrl(single.id)
     return () => { canceled = true }
-  }, [single?.id])
+  }, [single?.id, single?.media_type])
 
   const bulkSuggestions = useMemo(() => {
     return tagSuggestions(bulkTagInput, allTags, (tag) => bulkTagMap.get(tag)?.coverage !== 'all')
@@ -270,7 +275,11 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       {single ? (
         <>
           <div style={s.panelContent}>
-          <img src={fullImageSrc ?? thumbSrc(single)} style={s.img} alt="" />
+          {single.media_type === 'video' ? (
+            <VideoPlayer id={single.id} wrapperStyle={s.videoWrap} videoStyle={s.videoEl} pauseWhen={viewerOpen} />
+          ) : (
+            <img src={fullImageSrc ?? thumbSrc(single)} style={s.img} alt="" />
+          )}
           <div style={s.meta}>
             <div style={s.titleRow}>
               {editingTitle ? (
@@ -305,12 +314,18 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 </div>
               )}
             </div>
-            {single.current_time != null && (
+            {(single.current_time != null || single.media_type === 'video') && (
               <div style={s.metaHalf}>
                 <div style={s.metaRow}>
                   <span style={s.label}>動画時刻</span>
-                  <span style={s.value}>{formatTime(single.current_time)}</span>
+                  <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
                 </div>
+                {single.media_type === 'video' && (
+                  <div style={s.metaRow}>
+                    <span style={s.label}>長さ</span>
+                    <span style={s.value}>{single.duration != null ? formatTime(single.duration) : '—'}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -381,6 +396,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
           </div>
           </div>
           <div style={s.actions}>
+            {getMediaActions(single)}
             <button style={s.showInFolderBtn} onClick={onExport}>エクスポート</button>
             <button style={s.deleteActionBtn} onClick={onDelete}>ゴミ箱へ移動</button>
           </div>
@@ -466,6 +482,8 @@ const s: Record<string, React.CSSProperties> = {
   emptyTitle: { color: 'var(--text-secondary)', fontSize: font.base, fontWeight: 700 },
   emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },
   img: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'block', flexShrink: 0 },
+  videoWrap: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', overflow: 'hidden', display: 'block', flexShrink: 0 },
+  videoEl: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
   meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid var(--border-default)', paddingBottom: 8 },

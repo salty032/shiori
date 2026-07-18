@@ -206,6 +206,12 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                   {img.current_time != null && (
                     <div style={s.timeBadge}>{formatTime(img.current_time)}</div>
                   )}
+                  {img.media_type === 'video' && (
+                    <>
+                      <div style={appStyles.thumbVideoPlay}>▶</div>
+                      {img.duration != null && <div style={appStyles.thumbVideoDuration}>{formatTime(img.duration)}</div>}
+                    </>
+                  )}
                   {flatIndex === p.focusedIndex && !isSelected && <div style={appStyles.thumbFocusFrame} />}
                 </div>
               )

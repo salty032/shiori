@@ -7,6 +7,7 @@ import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { XIcon } from './Icon'
 import { useExportStore } from '../stores/exportStore'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { getSettingsSlots } from '../features/registry'
 
 type Props = {
   settings: Settings
@@ -275,6 +276,9 @@ export default function SettingsModal(p: Props) {
                     )}
                   </div>
                   {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
+                  {getSettingsSlots('キャプチャ').map((Slot, i) => (
+                    <Slot key={i} onCapturingChange={setSlotCapturing} placement="hotkey" />
+                  ))}
                 </div>
                 {/* UX-8: コマ送り(Shift+←/→)もキャプチャ体験の設定のため「基本」タブから移動 */}
                 <div style={s.group}>
@@ -332,6 +336,9 @@ export default function SettingsModal(p: Props) {
                     <span style={s.label}>キャプチャ完了時に通知する</span>
                     <ToggleSwitch checked={p.settings.captureNotify ?? true} onChange={p.onUpdateCaptureNotify} />
                   </div>
+                  {getSettingsSlots('キャプチャ').map((Slot, i) => (
+                    <Slot key={i} onCapturingChange={setSlotCapturing} placement="notification" />
+                  ))}
                 </div>
               </>
             )}

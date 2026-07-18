@@ -27,6 +27,7 @@ import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
 import { useGlobalKeys } from './hooks/useGlobalKeys'
 import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
+import { getExtraContextMenuItems, getModals } from './features/registry'
 
 // サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
 const COL_GAP = 6
@@ -417,7 +418,7 @@ export default function App() {
   const ctxMenuItems = useMemo<MenuItem[]>(() => {
     if (!ctxMenu) return []
     const items: MenuItem[] = []
-    if (single) {
+    if (single && single.media_type !== 'video') {
       items.push({
         label: 'コピー',
         onClick: () => {
@@ -431,6 +432,7 @@ export default function App() {
     if (single) {
       items.push({ label: 'Explorerで開く', onClick: () => window.api.showInFolder(single.id) })
     }
+    if (single) items.push(...getExtraContextMenuItems(single))
     items.push({ label: 'エクスポート', onClick: () => selection.exportSelected() })
     items.push({ label: 'ゴミ箱へ移動', onClick: () => selection.deleteSelected(), danger: true })
     return items
@@ -724,6 +726,7 @@ export default function App() {
           settings={settings.settings}
           taggerDoneKey={tagRefreshKey}
           allTags={filters.allTags}
+          viewerOpen={viewerIdx !== null}
           onTagsChanged={handleTagsChanged}
           onTitleChanged={(id, title) => patchImage(id, { title })}
           onMemoChanged={(id, memo) => patchImage(id, { memo })}
@@ -773,6 +776,8 @@ export default function App() {
           onClose={() => setConfirmDialog(null)}
         />
       )}
+
+      {getModals().map((Modal, i) => <Modal key={i} />)}
     </div>
   )
 }

@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, memo } from 'react'
 import type { ImageRow } from '../types'
-import { cleanTitle, thumbSrc, splitHighlight } from '../utils'
+import { cleanTitle, thumbSrc, splitHighlight, formatTime } from '../utils'
 import { s } from '../styles'
+
+function thumbDurationLabel(img: ImageRow): string | null {
+  if (img.media_type !== 'video' || img.duration == null || !Number.isFinite(img.duration)) return null
+  return formatTime(img.duration)
+}
 
 type Props = {
   img: ImageRow
@@ -34,6 +39,7 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
     }
     wasNewRef.current = isNew
   }, [isNew])
+  const durationLabel = thumbDurationLabel(img)
   const titleLabel = img.title ? cleanTitle(img.title, titleStrip) : ''
   const showNew = isNew || newExiting
   return (
@@ -52,6 +58,8 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
               decoding="async" loading="lazy"
               onLoad={(e) => { setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight); setThumbLoaded(true) }}
               onError={() => setThumbFailed(true)} />}
+        {img.media_type === 'video' && <div style={s.thumbVideoPlay}>▶</div>}
+        {durationLabel && <div style={s.thumbVideoDuration}>{durationLabel}</div>}
         {showNew && <div style={isNew ? s.thumbNewBadge : s.thumbNewBadgeExit}>NEW</div>}
       </div>
       <div style={s.thumbLabel} title={titleLabel || undefined}>
