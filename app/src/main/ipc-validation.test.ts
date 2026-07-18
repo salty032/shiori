@@ -58,6 +58,16 @@ describe('imageQuery', () => {
     expect(q.tagMode).toBe('or')
   })
 
+  it('mediaType: video/image はそのまま通る', () => {
+    expect(imageQuery({ mediaType: 'video' }).mediaType).toBe('video')
+    expect(imageQuery({ mediaType: 'image' }).mediaType).toBe('image')
+  })
+
+  it('mediaType: 不正値は undefined に落ちる', () => {
+    expect(imageQuery({ mediaType: 'audio' }).mediaType).toBeUndefined()
+    expect(imageQuery({}).mediaType).toBeUndefined()
+  })
+
   it('tags: 重複除去', () => {
     const q = imageQuery({ tags: ['a', 'a', 'b'] })
     expect(q.tags).toEqual(['a', 'b'])

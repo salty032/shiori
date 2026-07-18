@@ -35,7 +35,7 @@ export function registerTaggerHandlers(): void {
     const removedTags = deleteAllAiTags()
     return { removedTags }
   })
-  handleTrusted(CH.taggerAddTag, (_event, imageId: number, tagName: string, source: 'manual' | 'ai' = 'ai') => {
+  handleTrusted(CH.taggerAddTag, (_event, imageId: number, tagName: string, source: 'manual' | 'ai' = 'manual') => {
     const id = optionalPositiveInteger(imageId)
     if (!id) return
     const cleaned = normalizeTagName(tagName, MAX_TAG_LENGTH)

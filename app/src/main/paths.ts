@@ -45,8 +45,7 @@ function isChildPath(base: string, target: string): boolean {
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
 }
 
-// 画像専用ビルド。動画(.webm/.mp4)は取り込みも表示も行わないため許可しない。
-const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.webm', '.mp4'])
 
 // 原本（captureDir）と表示用サムネ（thumbnailDir）の両方を許可ベースとする。
 function allowedBases(): string[] {

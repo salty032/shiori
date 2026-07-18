@@ -63,6 +63,10 @@ function sortOrder(value: unknown): SortOrder {
   return value === 'date_asc' ? 'date_asc' : value === 'random' ? 'random' : 'date_desc'
 }
 
+function mediaType(value: unknown): 'image' | 'video' | undefined {
+  return value === 'image' || value === 'video' ? value : undefined
+}
+
 // renderer から届いた未検証のフィルタ条件を、検証済みの ImageQuery に正規化する。
 // 各フィールドは既存のフィールド単位バリデータを再利用する。
 export function imageQuery(raw: unknown): ImageQuery {
@@ -74,6 +78,7 @@ export function imageQuery(raw: unknown): ImageQuery {
     tags: tagsFilter(o.tags),
     tagMode: tagMode(o.tagMode),
     toDate: optionalNumber(o.toDate),
+    mediaType: mediaType(o.mediaType),
   }
 }
 

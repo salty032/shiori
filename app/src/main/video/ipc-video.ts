@@ -75,7 +75,16 @@ export function registerVideoHandlers(): void {
     trimmingIds.add(validId)
     try {
       await trimWebm(realPath, webmOut, inSec, outSec)
-      await extractThumb(webmOut, thumbOut)
+
+      // サムネ生成はベストエフォート。録画保存（recorder-ipc.ts）と同様に、失敗しても
+      // トリム本体（webmOut）は破棄せずサムネなしで登録を続ける。
+      let thumbSaved: string | null = null
+      try {
+        await extractThumb(webmOut, thumbOut)
+        thumbSaved = thumbOut
+      } catch (err) {
+        console.warn('[video:trim] extractThumb failed, proceeding without thumb', err)
+      }
 
       const originalTags = getImageTags(validId)
       const manualTags = originalTags.filter((t) => t.source === 'manual')
@@ -93,13 +102,13 @@ export function registerVideoHandlers(): void {
           memo: null,
           media_type: 'video',
           duration: outSec - inSec,
-          thumb_path: thumbOut,
+          thumb_path: thumbSaved,
           source: image.source
         },
         filePath: webmOut,
-        thumbPath: thumbOut,
+        thumbPath: thumbSaved,
         extraTags: manualTags,
-        autoTag: { path: thumbOut }
+        autoTag: thumbSaved ? { path: thumbSaved } : null
       })
       if (!result.ok) {
         return { ok: false, error: String(result.error instanceof Error ? result.error.message : result.error).slice(0, 200) }

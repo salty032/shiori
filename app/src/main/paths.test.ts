@@ -41,9 +41,11 @@ describe('resolveCapturePath', () => {
     expect(resolveCapturePath(p)).toBeNull()
   })
 
-  it('画像専用ビルドは動画拡張子(webm/mp4)を拒否', () => {
-    expect(resolveCapturePath(join(CAPTURE_DIR, 'clip.webm'))).toBeNull()
-    expect(resolveCapturePath(join(CAPTURE_DIR, 'clip.mp4'))).toBeNull()
+  it('動画拡張子(webm/mp4)は許可する', () => {
+    const webm = join(CAPTURE_DIR, 'clip.webm')
+    const mp4 = join(CAPTURE_DIR, 'clip.mp4')
+    expect(resolveCapturePath(webm)).toBe(webm)
+    expect(resolveCapturePath(mp4)).toBe(mp4)
   })
 
   it('thumbnailDir 配下も許可(サムネと原本の両方が許可ベース)', () => {
