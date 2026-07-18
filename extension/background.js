@@ -113,7 +113,10 @@ function normalizePortMessage(msg) {
     innerHeight,
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
-    fullscreen: msg.fullscreen === true
+    fullscreen: msg.fullscreen === true,
+    // [DIAG] 一時計測 — タイトル欠け／クロップ見切れ調査用。調査後に削除する。
+    // 上限は ws-server.ts の diagJson 上限(2400)と揃える。content 側は 2000 で切るため通常は素通し。
+    diagJson: typeof msg.diagJson === 'string' ? msg.diagJson.slice(0, 2400) : undefined
   }
 }
 

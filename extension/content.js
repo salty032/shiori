@@ -158,8 +158,14 @@ const GENERIC_TITLE_PATTERNS = new Set([
   'disney+', 'dアニメストア', '再生', '動画再生', 'u-next', 'ニコニコ動画'
 ])
 
+// [DIAG] 一時計測フラグ — タイトル欠け／話数欠けの原因切り分け用。調査後に削除する。
+const SHIORI_DIAG = true
+// [DIAG] getPageTitleCached の最新判定を記録し、request-timecode 応答時にまとめてログ出力する
+let lastTitleDiag = null
+
 function getPageTitleCached() {
   const fresh = getPageTitle()
+  const cachedBefore = cachedTitle
   const isGeneric = !fresh || GENERIC_TITLE_PATTERNS.has(fresh.toLowerCase())
   if (fresh && !isGeneric) {
     // キャッシュがより詳細（fresh がキャッシュの先頭部分）なら上書きしない
@@ -168,9 +174,13 @@ function getPageTitleCached() {
       cachedTitle = fresh
     }
   }
-  if (isGeneric && cachedTitle) return cachedTitle
-  if (cachedTitle && cachedTitle.startsWith(fresh) && cachedTitle.length > fresh.length) return cachedTitle
-  return fresh
+  // 元の3分岐と同じ優先順位を保ったまま、どの分岐で確定したか(branch)を記録する
+  let out, branch
+  if (isGeneric && cachedTitle) { out = cachedTitle; branch = 'generic->cache' }
+  else if (cachedTitle && cachedTitle.startsWith(fresh) && cachedTitle.length > fresh.length) { out = cachedTitle; branch = 'prefix->cache' }
+  else { out = fresh; branch = 'fresh' }
+  if (SHIORI_DIAG) lastTitleDiag = { fresh, cachedBefore, cachedAfter: cachedTitle, isGeneric, branch, out }
+  return out
 }
 
 // キャプチャ中にアニメーション起因でUIが再出現するサービスのコンテナセレクター
@@ -902,6 +912,35 @@ function sendTimecodeNow(requestId, immediate) {
   const payload = buildPayload()
   if (requestId != null) {
     payload.requestId = requestId
+    // [DIAG] キャプチャ要求（request-timecode）到達時点のタイトル状態を payload に載せる。
+    // main が userData/title-diag.log に書き出す。fresh=生DOM読み, branch=キャッシュ判定分岐。
+    if (SHIORI_DIAG) {
+      const diag = {
+        host: location.hostname.replace(/^www\./, ''),
+        hasVideo: !!getVideo(),
+        docTitle: document.title,
+        sentTitle: payload.title,
+        ...(lastTitleDiag || {})
+      }
+      // [DIAG] クロップ見切れ調査: このタブの全<video>の実測rect・選択されたvideoRect・
+      // ウィンドウ座標・フォーカス状態を添付する。vids の各要素は
+      // [left, top, width, height, videoWidth, videoHeight, paused] の圧縮表現。
+      diag.geo = {
+        vids: [...document.querySelectorAll('video')].map((v) => {
+          const r = v.getBoundingClientRect()
+          return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height), v.videoWidth, v.videoHeight, v.paused ? 1 : 0]
+        }),
+        sel: payload.videoRect
+          ? [Math.round(payload.videoRect.left), Math.round(payload.videoRect.top), Math.round(payload.videoRect.width), Math.round(payload.videoRect.height)]
+          : null,
+        win: [payload.windowLeft, payload.windowTop, payload.windowWidth, payload.windowHeight, payload.innerWidth, payload.innerHeight],
+        dpr: payload.devicePixelRatio,
+        fs: payload.fullscreen ? 1 : 0,
+        focus: document.hasFocus() ? 1 : 0
+      }
+      payload.diagJson = JSON.stringify(diag).slice(0, 2000)
+      console.log('[Shiori][diag]', JSON.stringify({ reqId: requestId, ...diag }))
+    }
     if (immediate) {
       postTimecode(payload, { force: true, bypassThrottle: true })
     } else {
