@@ -17,7 +17,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/preload/index.ts')
+          index: resolve('src/preload/index.ts'),
+          recorder: resolve('src/preload/recorder.ts')
         }
       }
     },
@@ -27,7 +28,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/renderer/index.html')
+          index: resolve('src/renderer/index.html'),
+          recorder: resolve('src/renderer/recorder.html')
         }
       }
     },

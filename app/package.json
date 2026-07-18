@@ -42,6 +42,9 @@
       "!node_modules/**/*.d.ts"
     ],
     "afterPack": "./build/afterPack.js",
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
     "extraResources": [
       {
         "from": "../extension",
@@ -84,6 +87,8 @@
     "@tanstack/react-virtual": "^3.14.3",
     "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
+    "ffmpeg-static": "^5.3.0",
+    "fix-webm-duration": "^1.0.6",
     "onnxruntime-node": "^1.26.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
