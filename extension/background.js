@@ -273,6 +273,14 @@ chrome.runtime.onConnect.addListener((port) => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     port.postMessage({ type: 'ws-connected' })
     if (cachedSettings) port.postMessage(cachedSettings)
+  } else if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+    // WS 切断中に新しいタブが接続してきたら、バックオフ満了（最大 30 秒）を待たずに即再接続する。
+    // 「アプリを起動し直したのに拡張がしばらく繋がらない」体感を短縮する。
+    // connectWS() は CONNECTING/OPEN のときは何もしないので、多重接続にはならない。
+    reconnectDelay = RECONNECT_DELAY_MIN
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+    connectWS()
   }
 })
 

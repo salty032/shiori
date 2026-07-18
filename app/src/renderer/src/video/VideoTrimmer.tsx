@@ -3,6 +3,7 @@ import type { ImageRow, Settings } from '../types'
 import { font, color } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl } from '../components/videoControls'
 import { videoApi } from './api'
 
 type Props = {
@@ -82,11 +83,6 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const [playing, setPlaying] = useState(false)
   const [vcVolume, setVcVolume] = useState(1)
   const [vcMuted, setVcMuted] = useState(false)
-  const [vcVolVisible, setVcVolVisible] = useState(false)
-  const [vcVolClosing, setVcVolClosing] = useState(false)
-  const volTrackRef = useRef<HTMLDivElement>(null)
-  const vcVolTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (vcVolTimerRef.current) clearTimeout(vcVolTimerRef.current) }, [])
 
   // フレームテーブルが使えるか
   const hasTable = framePts.length > 0
@@ -138,34 +134,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     return () => { mountedRef.current = false }
   }, [])
 
-  useEffect(() => {
-    if (document.getElementById('shiori-vc-styles')) return
-    const style = document.createElement('style')
-    style.id = 'shiori-vc-styles'
-    style.textContent = '@keyframes vcVolSlideUp { from { opacity:0; transform:translateX(-50%) translateY(6px); } to { opacity:1; transform:translateX(-50%) translateY(0); } } @keyframes vcVolSlideDown { from { opacity:1; transform:translateX(-50%) translateY(0); } to { opacity:0; transform:translateX(-50%) translateY(6px); } }'
-    document.head.appendChild(style)
-  }, [])
-
-  function handleVolPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
-    e.preventDefault()
-    e.stopPropagation()
-    const el = volTrackRef.current
-    if (!el) return
-    const update = (clientY: number): void => {
-      const rect = el.getBoundingClientRect()
-      const pct = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height))
-      const v = videoRef.current
-      if (!v) return
-      v.volume = pct
-      v.muted = false
-    }
-    update(e.clientY)
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    const onMove = (ev: PointerEvent): void => update(ev.clientY)
-    const onUp = (): void => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-  }
+  useVcStyles()
 
   function updatePos(t: number): void {
     posRef.current = t
@@ -535,34 +504,11 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             onVolumeChange={() => { setVcVolume(videoRef.current?.volume ?? 1); setVcMuted(videoRef.current?.muted ?? false) }}
           />
           <div style={s.vcBar}>
-            <button style={s.vcBtn} onClick={() => { const v = videoRef.current; if (v) v.paused ? v.play() : v.pause() }}>
-              {playing ? (
-                <svg width="9" height="11" viewBox="0 0 9 11" fill="currentColor"><rect x="0" y="0" width="3" height="11" rx="1"/><rect x="6" y="0" width="3" height="11" rx="1"/></svg>
-              ) : (
-                <svg width="9" height="11" viewBox="0 0 9 11" fill="currentColor"><polygon points="0,0 9,5.5 0,11"/></svg>
-              )}
+            <button style={vcBtnStyle} onClick={() => { const v = videoRef.current; if (v) v.paused ? v.play() : v.pause() }}>
+              <PlayPauseIcon playing={playing} />
             </button>
             <div style={{ flex: 1 }} />
-            <div style={{ position: 'relative', flexShrink: 0 }}
-              onMouseEnter={() => { if (vcVolTimerRef.current) clearTimeout(vcVolTimerRef.current); setVcVolVisible(true); setVcVolClosing(false) }}
-              onMouseLeave={() => { setVcVolClosing(true); vcVolTimerRef.current = setTimeout(() => setVcVolVisible(false), 200) }}
-            >
-              <button style={s.vcBtn} onClick={() => { const v = videoRef.current; if (v) v.muted = !v.muted }}>
-                {vcMuted ? (
-                  <svg width="13" height="11" viewBox="0 0 13 11" fill="currentColor"><path d="M0 3.5v4h2.5L6 11V0L2.5 3.5H0z"/><line x1="8.5" y1="2.5" x2="12.5" y2="8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="12.5" y1="2.5" x2="8.5" y2="8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                ) : (
-                  <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor"><path d="M0 3.5v4h2.5L6 11V0L2.5 3.5H0z"/><path d="M8 3 C9.5 4 9.5 7 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M10 1.5 C13 3 13 8 10 9.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                )}
-              </button>
-              {vcVolVisible && (
-                <div style={{ ...s.vcVolPopup, animation: vcVolClosing ? 'vcVolSlideDown 0.2s ease-out forwards' : 'vcVolSlideUp 0.2s ease-out' }}>
-                  <div ref={volTrackRef} style={s.vcVolTrack} onPointerDown={handleVolPointerDown}>
-                    <div style={{ ...s.vcVolFill, height: `${(vcMuted ? 0 : vcVolume) * 100}%` }} />
-                    <div style={{ ...s.vcVolThumb, bottom: `calc(${(vcMuted ? 0 : vcVolume) * 100}% - 5px)` }} />
-                  </div>
-                </div>
-              )}
-            </div>
+            <VolumeControl videoRef={videoRef} volume={vcVolume} muted={vcMuted} />
           </div>
         </div>
 
@@ -665,12 +611,6 @@ const s: Record<string, React.CSSProperties> = {
   videoWrap: { position: 'relative', flexShrink: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#000' },
   video: { width: '100%', maxHeight: 'calc(96vh - 190px)', aspectRatio: '16/9', background: '#000', display: 'block', objectFit: 'contain' as const, cursor: 'pointer' },
   vcBar: { position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: 'rgba(13,15,20,0.82)', backdropFilter: 'blur(4px)', height: 28, boxSizing: 'border-box' as const },
-  vcBtn: { background: 'none', border: 'none', color: '#94a0b7', cursor: 'pointer', padding: '2px 3px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  vcTimeLabel: { fontSize: font.xs, color: '#7f899f', flexShrink: 0, fontVariantNumeric: 'tabular-nums' as const, letterSpacing: 0 },
-  vcVolPopup: { position: 'absolute' as const, bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcVolTrack: { position: 'relative' as const, width: 3, height: 52, background: '#272c3a', borderRadius: 2, cursor: 'pointer', flexShrink: 0 },
-  vcVolFill: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, background: '#7b7bf6', borderRadius: 2 },
-  vcVolThumb: { position: 'absolute' as const, left: '50%', transform: 'translateX(-50%)', width: 10, height: 10, borderRadius: 999, background: '#9ea5ff', boxShadow: '0 0 0 3px rgba(123,123,246,0.18)', pointerEvents: 'none' as const },
   timeline: { position: 'relative', height: 44, background: '#171a23', border: '1px solid #272c3a', cursor: 'crosshair', margin: '10px 16px 0', borderRadius: 3, flexShrink: 0 },
   timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 2 },
   timelineDim: { position: 'absolute', top: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', pointerEvents: 'none' },

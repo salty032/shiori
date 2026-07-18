@@ -404,7 +404,7 @@ export default function SettingsModal(p: Props) {
                 <div style={s.dataBlock}>
                   <div style={s.dataHeader}>
                     <div>
-                      <div style={s.dataTitle}>書き出し</div>
+                      <div style={s.dataTitle}>エクスポート</div>
                       <div style={s.hint}>キャプチャ、タグ、メモ、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）</div>
                     </div>
                     <button style={s.addBtn} disabled={shareExporting || otherExportActive} onClick={async () => {
@@ -417,11 +417,11 @@ export default function SettingsModal(p: Props) {
                           if (result.count != null) setShareExportStatus({ text: `${result.count} 枚で中止しました` })
                           // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
                         } else {
-                          setShareExportStatus({ text: `${result.count ?? 0} 枚を書き出しました` })
+                          setShareExportStatus({ text: `${result.count ?? 0} 枚をエクスポートしました` })
                         }
                       } catch (err) {
                         console.error('[settings] share export failed', err)
-                        setShareExportStatus({ text: '書き出しに失敗しました', error: true })
+                        setShareExportStatus({ text: 'エクスポートに失敗しました', error: true })
                       } finally {
                         setShareExporting(false)
                         // 通常は onExportProgress 側（current>=total）でクリアされるが、途中キャンセル・
@@ -429,7 +429,7 @@ export default function SettingsModal(p: Props) {
                         useExportStore.getState().clearExport()
                       }
                     }}>
-                      {shareExporting ? '書き出し中...' : 'ライブラリを書き出す...'}
+                      {shareExporting ? 'エクスポート中...' : 'ライブラリをエクスポート...'}
                     </button>
                   </div>
                   {shareExportStatus && <div style={{ ...s.statusLine, ...(shareExportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareExportStatus.text}</div>}
@@ -437,8 +437,8 @@ export default function SettingsModal(p: Props) {
                 <div style={s.dataBlock}>
                   <div style={s.dataHeader}>
                     <div>
-                      <div style={s.dataTitle}>読み込み</div>
-                      <div style={s.hint}>画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。同じフォルダを再度読み込むと重複して追加されるのでご注意ください。</div>
+                      <div style={s.dataTitle}>インポート</div>
+                      <div style={s.hint}>画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。同じフォルダを再度インポートすると重複して追加されるのでご注意ください。</div>
                     </div>
                     {shareImportProgress ? (
                       <div style={{ ...s.progressWrap, flex: '0 0 220px' }}>
@@ -460,11 +460,11 @@ export default function SettingsModal(p: Props) {
                           } else {
                             const errMsg = result.errors && result.errors.length > 0 ? `（エラー ${result.errors.length} 件）` : ''
                             const folderMsg = result.importedFolders ? `、スマートフォルダ ${result.importedFolders} 件` : ''
-                            setShareImportStatus({ text: `${result.count ?? 0} 枚を読み込みました${folderMsg}${errMsg}` })
+                            setShareImportStatus({ text: `${result.count ?? 0} 枚をインポートしました${folderMsg}${errMsg}` })
                           }
                         } catch (err) {
                           console.error('[settings] share import failed', err)
-                          setShareImportStatus({ text: '読み込みに失敗しました', error: true })
+                          setShareImportStatus({ text: 'インポートに失敗しました', error: true })
                         } finally {
                           setShareImporting(false)
                           // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
@@ -472,7 +472,7 @@ export default function SettingsModal(p: Props) {
                           useExportStore.getState().setShareImportProgress(null)
                         }
                       }}>
-                        {shareImporting ? '読み込み中...' : 'ライブラリを読み込む...'}
+                        {shareImporting ? 'インポート中...' : 'ライブラリをインポート...'}
                       </button>
                     )}
                   </div>

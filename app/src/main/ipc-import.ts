@@ -17,6 +17,12 @@ import { beginTask, endTask } from './busy'
 const IMPORT_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 const IMPORT_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 const MAX_IMPORT_FILES = 200
+// インポート動画の尺上限（秒）。録画クリップの上限と同じく著作権対策の割り切りで、
+// 設定でも緩和しない固定値。フルエピソードの取り込みを構造的に防ぐ。長尺トリマーの
+// 全フレームデコード待ち（U-1）もこの上限内なら実用的な時間で収まる。
+const MAX_IMPORT_VIDEO_SECONDS = 60
+// 尺の丸め誤差で 90.0x 秒の動画を弾かないための許容幅。
+const IMPORT_VIDEO_SECONDS_EPS = 0.5
 
 // 上限到達で列挙を打ち切った場合、呼び出し元がユーザーに「一部のみ取り込んだ」と
 // 伝えられるよう truncated を返す（200件超のドロップ・フォルダ展開の両方で判定）。
@@ -146,6 +152,20 @@ export function registerImportHandlers(): void {
         if (!srcStat.isFile()) { errors.push(`not a file: ${basename(rawPath)}`); continue }
         if (srcStat.size > 500 * 1024 * 1024) { errors.push(`too large: ${basename(rawPath)}`); continue }
 
+        // 動画は尺上限を超えるものを取り込まない（著作権対策）。コピー前に元ファイルで判定し、
+        // 超過・判定不能なら無駄なコピーもせず弾く。判定不能を許すと長尺のすり抜け余地が
+        // 残るため、尺を取れなかった動画も弾く（正常な短尺がまれに巻き添えになる割り切り）。
+        let importedDuration: number | null = null
+        if (isVideo) {
+          try { importedDuration = await getVideoThumbProvider().getVideoDuration(rawPath) }
+          catch { importedDuration = null }
+          if (importedDuration == null) { errors.push(`duration unknown: ${basename(rawPath)}`); continue }
+          if (importedDuration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
+            errors.push(`too long (${Math.round(importedDuration)}s > ${MAX_IMPORT_VIDEO_SECONDS}s): ${basename(rawPath)}`)
+            continue
+          }
+        }
+
         const uid = randomUUID()
         const ts = Date.now()
         // 元ファイルの更新日時を撮影日時として扱う（下の insertImage と揃える）ので、
@@ -175,9 +195,8 @@ export function registerImportHandlers(): void {
           try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbFile = tf } catch (err) {
             console.warn('[import] extractThumb failed', err)
           }
-          try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
-            console.warn('[import] getVideoDuration failed', err)
-          }
+          // 尺はコピー前に元ファイルで判定済み（上の尺上限チェック）。再プローブしない。
+          duration = importedDuration
         }
 
         const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image'

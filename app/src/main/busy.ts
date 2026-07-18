@@ -9,7 +9,7 @@ export type BusyTask = 'import' | 'export' | 'retag' | 'model-download' | 'thumb
 
 const LABELS: Record<BusyTask, string> = {
   import: '取り込み',
-  export: '書き出し',
+  export: 'エクスポート',
   retag: 'AIタグ付け',
   'model-download': 'AIモデルのダウンロード',
   'thumb-repair': 'サムネイルの修復'

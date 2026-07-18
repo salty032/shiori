@@ -8,6 +8,10 @@ type Props = {
   y: number
   items: MenuItem[]
   onClose: () => void
+  // キーボード（Shift+F10 / Menu キー）で開いたときは先頭項目を選択済みにして、
+  // 追加の ↓ なしで Enter 即実行できるようにする（ネイティブのメニュー挙動に合わせる）。
+  // 既定 -1 = 未選択（マウスで開いたときはホバーで選ぶ）。
+  initialHighlight?: number
 }
 
 // グリッド／タイムラインのサムネイル右クリックで開く共通コンテキストメニュー。
@@ -16,7 +20,7 @@ type Props = {
 // 閉じる判定はブロッキングオーバーレイではなく document リスナーで行う。
 // オーバーレイで全面を覆うと、メニューを開いたまま別サムネイルを右クリックしても
 // クリックがオーバーレイに吸われて本体に届かず「2回右クリックが必要」になるため。
-export default function ContextMenu({ x, y, items, onClose }: Props) {
+export default function ContextMenu({ x, y, items, onClose, initialHighlight = -1 }: Props) {
   const menuRef = useRef<HTMLDivElement>(null)
   // 幅は項目数によらず内容に合わせる（max-content）ため、事前に確定サイズが分からない。
   // 一旦見えない状態で描画してから実測し、画面端クランプ後の位置が決まってから表示する
@@ -24,7 +28,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
   // 固定幅を仮定すると短いラベルでメニューが不自然に広くなる）。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   // U-7: ↑↓/Enter でのキーボード操作。-1 = 未選択（マウスホバーのみ）。
-  const [highlighted, setHighlighted] = useState(-1)
+  const [highlighted, setHighlighted] = useState(initialHighlight)
 
   useLayoutEffect(() => {
     const el = menuRef.current

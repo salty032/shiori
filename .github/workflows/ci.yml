@@ -25,3 +25,7 @@ jobs:
       - run: npm ci
 
       - run: npm run verify
+
+      # 拡張機能はテストが薄い領域（1,100 行超の JS）なので、manifest / API 誤用を
+      # web-ext lint で機械チェックする。
+      - run: npm run ext:lint

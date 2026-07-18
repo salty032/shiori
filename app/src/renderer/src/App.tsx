@@ -469,8 +469,8 @@ export default function App() {
 
     const { current, total } = exportProgress
     return {
-      // W-4: share 起点の進捗は SettingsModal の「書き出し中...」と表示を揃える
-      label: exportKind === 'share' ? 'ライブラリを書き出し中' : 'エクスポート中',
+      // W-4: share 起点の進捗は SettingsModal の「エクスポート中...」と表示を揃える
+      label: exportKind === 'share' ? 'ライブラリをエクスポート中' : 'エクスポート中',
       detail: `${current}/${total}`,
       progress: total > 0 ? clamp01(current / total) : 0,
       onCancel: exportKind === 'share' ? () => window.api.shareExportCancel() : () => window.api.imagesExportCancel(),
@@ -639,6 +639,11 @@ export default function App() {
               {toast.toasts.map((t) => (
                 <div
                   key={t.id}
+                  // スクリーンリーダー通知。error は割り込み(assertive)、それ以外は polite。
+                  // 拡張のページ内通知（content.js の role="status"）とアプリ側を揃える（U-6）。
+                  role={t.tone === 'error' ? 'alert' : 'status'}
+                  aria-live={t.tone === 'error' ? 'assertive' : 'polite'}
+                  aria-atomic="true"
                   style={{
                     ...s.notificationCard,
                     animation: t.closing ? 'shioriToastOut 0.3s ease-in forwards' : 'shioriToastIn 0.22s ease-out',

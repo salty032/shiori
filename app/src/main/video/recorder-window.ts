@@ -22,7 +22,7 @@ export function isTrustedRecorderSender(
     event.senderFrame.url === trustedRecorderUrl
 }
 
-export function createRecorderWindow(onRenderProcessGone?: () => void): void {
+export function createRecorderWindow(onInterrupted?: () => void): void {
   const preloadPath = join(__dirname, '../preload/recorder.js')
   // show:false の隠し window ではコンポジターが止まり requestVideoFrameCallback が
   // スロットリングされる。1x1px の可視ウィンドウにすることでスロットリングを回避する。
@@ -46,7 +46,14 @@ export function createRecorderWindow(onRenderProcessGone?: () => void): void {
       backgroundThrottling: false,
     }
   })
-  recorderWindow.on('closed', () => { recorderWindow = null })
+  // ウィンドウが破棄されると recorder:done/error が届かず録画状態が固着する
+  // （render-process-gone と同じ症状）。frameless・focusable:false でユーザーが
+  // 閉じる経路はほぼないが、対称化のため closed でも録画状態をリセットする。
+  // finishRecordingState は冪等なので、正常系での多重発火も no-op になる。
+  recorderWindow.on('closed', () => {
+    recorderWindow = null
+    onInterrupted?.()
+  })
 
   // レコーダーは外部 URL を開く正当な理由がないため、全て deny（外部ブラウザへの委譲もしない）
   recorderWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -60,7 +67,7 @@ export function createRecorderWindow(onRenderProcessGone?: () => void): void {
   // クラッシュを検知して録画状態を強制リセットする。
   recorderWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[recorder] render process gone', details.reason)
-    onRenderProcessGone?.()
+    onInterrupted?.()
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']

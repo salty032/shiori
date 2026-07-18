@@ -40,7 +40,7 @@ describe('busy レジストリ', () => {
   it('ラベルは重複しない（同種2件でも1つ）', () => {
     beginTask('export')
     beginTask('export')
-    expect(activeTaskLabels()).toEqual(['書き出し'])
+    expect(activeTaskLabels()).toEqual(['エクスポート'])
   })
 
   // end 漏れの逆（余分な end）でカウンタが負に沈むと、以降 begin しても

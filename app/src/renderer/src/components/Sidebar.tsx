@@ -63,7 +63,7 @@ export default function Sidebar({
   const shortcutsBtnRef = useRef<HTMLButtonElement>(null)
   const [dragFolderId, setDragFolderId] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const [tagCtxMenu, setTagCtxMenu] = useState<{ x: number; y: number; tag: string } | null>(null)
+  const [tagCtxMenu, setTagCtxMenu] = useState<{ x: number; y: number; tag: string; keyboard?: boolean } | null>(null)
   const [dragDeltaY, setDragDeltaY] = useState(0)
   const smartFolderRowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   // ドラッグ中は掴んだ行がポインタに追従する（transform で動かす）ため、離した位置も
@@ -365,8 +365,17 @@ export default function Sidebar({
                       }
                     }}
                     onContextMenu={(e) => { e.preventDefault(); setTagCtxMenu({ x: e.clientX, y: e.clientY, tag }) }}
+                    onKeyDown={(e) => {
+                      // キーボードからもタグ削除メニューを開けるようにする（U-6）。右クリック相当。
+                      // メニューはチップ左下に出し、先頭項目を選択済みにして Enter 即実行できるようにする。
+                      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+                        e.preventDefault()
+                        const r = e.currentTarget.getBoundingClientRect()
+                        setTagCtxMenu({ x: r.left, y: r.bottom, tag, keyboard: true })
+                      }
+                    }}
                     style={{ ...s.sidebarTagChip, ...chipStyle }}
-                    title={`${tag}${aiOnly ? '（AIタグ）' : ''}（右クリックでタグ自体を削除）`}>
+                    title={`${tag}${aiOnly ? '（AIタグ）' : ''}（右クリック / Shift+F10 でタグ自体を削除）`}>
                     <span style={s.sidebarTagChipText}>{tag}</span>
                   </button>
                 )
@@ -386,6 +395,7 @@ export default function Sidebar({
           x={tagCtxMenu.x}
           y={tagCtxMenu.y}
           items={[{ label: `タグ「${tagCtxMenu.tag}」を全画像から削除`, danger: true, onClick: () => onDeleteTag(tagCtxMenu.tag) }]}
+          initialHighlight={tagCtxMenu.keyboard ? 0 : -1}
           onClose={() => setTagCtxMenu(null)}
         />
       )}

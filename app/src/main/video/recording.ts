@@ -158,7 +158,7 @@ export async function startRecording(): Promise<void> {
     }
 
     const settings = loadSettings()
-    const maxSeconds = settings.clipMaxSeconds ?? 30
+    const maxSeconds = settings.clipMaxSeconds ?? 60
     const sessionId = ++currentRecordingSessionId
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,

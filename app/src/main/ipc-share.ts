@@ -47,7 +47,7 @@ export function registerShareHandlers(): void {
     try {
       // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
       const exportWin = getMainWindow()
-      const exportDialogOptions: Electron.OpenDialogOptions = { title: '書き出し先フォルダを選択', properties: ['openDirectory'] }
+      const exportDialogOptions: Electron.OpenDialogOptions = { title: 'エクスポート先フォルダを選択', properties: ['openDirectory'] }
       const { canceled, filePaths } = exportWin
         ? await dialog.showOpenDialog(exportWin, exportDialogOptions)
         : await dialog.showOpenDialog(exportDialogOptions)
@@ -142,7 +142,7 @@ export function registerShareHandlers(): void {
     try {
       // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
       const importWin = getMainWindow()
-      const importDialogOptions: Electron.OpenDialogOptions = { title: '読み込むフォルダを選択', properties: ['openDirectory'] }
+      const importDialogOptions: Electron.OpenDialogOptions = { title: 'インポートするフォルダを選択', properties: ['openDirectory'] }
       const { canceled, filePaths } = importWin
         ? await dialog.showOpenDialog(importWin, importDialogOptions)
         : await dialog.showOpenDialog(importDialogOptions)

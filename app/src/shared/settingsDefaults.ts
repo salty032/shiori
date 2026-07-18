@@ -11,7 +11,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+R',
-  clipMaxSeconds: 30,
+  clipMaxSeconds: 60,
   clipNotify: true,
   captureNotify: true,
   allowedExtensionIds: [],

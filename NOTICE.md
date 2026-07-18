@@ -17,6 +17,27 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 
 ---
 
+## 動画処理エンジン（FFmpeg）
+
+Shiori は動画クリップの録画後トリミング・サムネイル生成・尺の判定に FFmpeg を利用します。
+
+- 取得元: [ffmpeg-static](https://www.npmjs.com/package/ffmpeg-static)（npm ラッパー、GPL-3.0-or-later）が同梱する
+  Windows 向けバイナリ `ffmpeg.exe`
+- 同梱ビルド: **FFmpeg 6.1.1 essentials build（`gyan.dev`）**
+- ライセンス: **GNU General Public License v3（GPL v3）**
+- 用途: ffmpeg / ffprobe 相当機能によるトリミング・サムネイル・尺取得
+- 呼び出し形態: アプリ本体とは**リンクせず、独立した実行ファイルを子プロセスとして起動**して利用します。
+  バイナリは**改変せず**そのまま同梱・再配布します。
+- ライセンス全文: 配布物に同梱される `ffmpeg.exe.LICENSE`（GPL v3 全文）および `ffmpeg.exe.README`（ビルド構成）を参照
+- 対応ソースコード: FFmpeg 6.1.1 のソースは [ffmpeg.org](https://ffmpeg.org/download.html) および
+  [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git)（タグ `n6.1.1`）から入手できます。
+  Windows ビルドの構成は [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) を参照してください。
+
+> GPL v3 は同ライセンスのバイナリを再配布する際、対応するソースコードの提供（または書面による申し出）を求めます。
+> Shiori 本体のライセンスとは独立した義務のため、配布形態の詳細は上記の入手先案内で満たしています。
+
+---
+
 ## 主要な npm 依存パッケージ
 
 | パッケージ | ライセンス | 用途 |
@@ -28,6 +49,7 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 | onnxruntime-node | MIT | ONNX 推論ランタイム |
 | ws | MIT | WebSocket サーバー |
 | screenshot-desktop | MIT | スクリーンショット取得 |
+| fix-webm-duration | MIT | 録画 WebM の尺メタデータ補正 |
 | @tanstack/react-virtual | MIT | 仮想スクロール |
 | electron-updater | MIT | 自動更新 |
 

@@ -46,14 +46,24 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
 
   const { highlightedIndex: suggestionIdx, moveHighlight, resolveConfirmValue } = useTagSuggest(suggestions)
 
-  async function addTag(raw: string): Promise<void> {
+  async function addTag(raw: string, keepOpen = false): Promise<void> {
     const tag = normalizeTag(raw)
     if (!tag || saving || imageIds.length === 0) return
     setSaving(true)
     try {
       await addTagToImages(imageIds, tag)
       onTagged(tag, imageIds.length)
-      onClose()
+      if (keepOpen) {
+        // Shift+Enter の連続追加: パネルは閉じず次のタグ入力へ。追加した tag は全選択画像に
+        // 付いたので tagsOnAll に足すと候補から即座に外れ、二重追加も防げる。
+        setTagsOnAll((prev) => new Set(prev).add(tag))
+        setInput('')
+        setSaving(false)
+        // 保存中は input が disabled でフォーカスが外れるため、再レンダー後に戻す。
+        requestAnimationFrame(() => inputRef.current?.focus())
+      } else {
+        onClose()
+      }
     } catch (err) {
       console.error('[quick-tag] addTag failed', err)
       setSaving(false)
@@ -78,7 +88,8 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
     }
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
     e.preventDefault()
-    addTag(resolveConfirmValue(input))
+    // Shift+Enter は追加してパネルを開いたまま次のタグへ（連続追加）。
+    addTag(resolveConfirmValue(input), e.shiftKey)
   }
 
   return (
@@ -114,6 +125,7 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
         ) : normalizePreview ? (
           <div style={s.normalizePreview}>→ {normalizePreview} として追加されます</div>
         ) : null}
+        <div style={s.hint}>Enter で追加 · Shift+Enter で連続追加 · Esc で閉じる</div>
       </div>
     </div>
   )
@@ -130,4 +142,5 @@ const s: Record<string, React.CSSProperties> = {
   suggestion: { width: '100%', minHeight: 28, padding: '5px 9px', border: 'none', borderRadius: radius.sm, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
   suggestionActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   normalizePreview: { marginTop: 6, padding: '2px 2px 0', fontSize: font.xs, color: 'var(--text-muted)' },
+  hint: { marginTop: 8, padding: '6px 2px 0', borderTop: '1px solid var(--border-default)', fontSize: font.xs, color: 'var(--text-muted)' },
 }

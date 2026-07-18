@@ -30,6 +30,30 @@ let isThumbGen = false
 let isImagesExporting = false
 let isImagesExportCanceled = false
 
+// 削除確定（DB 行削除）後の後始末として、原本とサムネをゴミ箱へ移す。
+// DB 行は既に削除済みなので、ここでの失敗は巻き戻さず孤立ファイルとして残すだけ
+// （逆順で起きうるゴースト行を構造的に避ける設計）。ENOENT（既に無い）は正常系として黙殺する。
+async function trashImageFiles(
+  image: { filepath: string; thumb_path: string | null },
+  id: number,
+  logLabel: string
+): Promise<void> {
+  const trashOne = async (storedPath: string, kind: 'main' | 'thumb'): Promise<void> => {
+    const safe = await resolveRealCapturePath(storedPath)
+    if (!safe) return
+    try {
+      await stat(safe)
+      await shell.trashItem(safe)
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[${logLabel}] ${kind} file trash failed id=${id} (non-fatal, DB row already removed)`, err)
+      }
+    }
+  }
+  await trashOne(image.filepath, 'main')
+  if (image.thumb_path) await trashOne(image.thumb_path, 'thumb')
+}
+
 // 1 枚分のサムネを生成して DB に記録する。成功したら true。動画は video-thumb-provider
 // （動画機能が登録する ffmpeg 経由の抽出）、それ以外は既存の createImageThumb を使う。
 async function generateThumb(id: number, filepath: string, mediaType: 'image' | 'video' | null): Promise<boolean> {
@@ -206,32 +230,8 @@ export function registerImageHandlers(): void {
       //    を構造的に避けられる。孤立ファイルは害がなく後で手動/再生成で掃除できるが、ゴースト
       //    行は一覧上にサムネ等が破損した項目として残り続け、ユーザーには直しようがない。
       deleteImage(imageId)
-      // 2) 原本をゴミ箱へ。失敗しても DB 行は既に削除済みなので戻さない（孤立ファイルとして残る）。
-      const mainSafe = await resolveRealCapturePath(image.filepath)
-      if (mainSafe) {
-        try {
-          await stat(mainSafe)
-          await shell.trashItem(mainSafe)
-        } catch (err) {
-          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-            console.warn(`[images:delete] main file trash failed id=${imageId} (non-fatal, DB row already removed)`, err)
-          }
-        }
-      }
-      // 3) サムネも同様に非クリティカルな後始末。失敗しても DB 削除は巻き戻さない。
-      if (image.thumb_path) {
-        const thumbSafe = await resolveRealCapturePath(image.thumb_path)
-        if (thumbSafe) {
-          try {
-            await stat(thumbSafe)
-            await shell.trashItem(thumbSafe)
-          } catch (err) {
-            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-              console.warn(`[images:delete] thumb trash failed id=${imageId} (non-fatal)`, err)
-            }
-          }
-        }
-      }
+      // 2) 原本・サムネをゴミ箱へ（非クリティカルな後始末。失敗しても DB 削除は巻き戻さない）。
+      await trashImageFiles(image, imageId, 'images:delete')
       return { ok: true, id: imageId }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -262,30 +262,7 @@ export function registerImageHandlers(): void {
     const worker = async (): Promise<void> => {
       while (cursor < found.length) {
         const { id, image } = found[cursor++]
-        const mainSafe = await resolveRealCapturePath(image.filepath)
-        if (mainSafe) {
-          try {
-            await stat(mainSafe)
-            await shell.trashItem(mainSafe)
-          } catch (err) {
-            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-              console.warn(`[images:deleteBulk] main file trash failed id=${id} (non-fatal, DB row already removed)`, err)
-            }
-          }
-        }
-        if (image.thumb_path) {
-          const thumbSafe = await resolveRealCapturePath(image.thumb_path)
-          if (thumbSafe) {
-            try {
-              await stat(thumbSafe)
-              await shell.trashItem(thumbSafe)
-            } catch (err) {
-              if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-                console.warn(`[images:deleteBulk] thumb trash failed id=${id} (non-fatal)`, err)
-              }
-            }
-          }
-        }
+        await trashImageFiles(image, id, 'images:deleteBulk')
         results.push({ ok: true, id })
       }
     }
