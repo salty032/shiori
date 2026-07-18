@@ -11,6 +11,7 @@ import {
 } from './capture'
 import { initDb, getImage } from './db'
 import { registerCapturedMedia } from './captured-media'
+import type { MainFeature } from './feature'
 import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './settings'
 import { activeTaskLabels } from './busy'
 import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion, compareVersions } from './extension-updater'
@@ -107,7 +108,7 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
   return response === 0
 }
 
-export function bootstrap(): void {
+export function bootstrap(features: MainFeature[] = []): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
 
@@ -305,6 +306,7 @@ export function bootstrap(): void {
     registerTaggerHandlers()
     registerShareHandlers()
     registerImportHandlers()
+    for (const feature of features) feature.registerIpc?.()
 
     handleTrusted(CH.shellOpenUrl, (_event, url: string) => {
       const safeUrl = safeExternalUrl(url)
@@ -462,6 +464,7 @@ export function bootstrap(): void {
     migrateStartupArgs()
     createTray()
     createWindow(reclaimHotkeysIfFree, isStartupLaunch())
+    for (const feature of features) await feature.onReady?.()
     if (consumeCorruptSettingsNotice()) {
       sendNoticeWhenRendererReady('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
     }
@@ -510,6 +513,7 @@ export function bootstrap(): void {
     // preventDefault → flush → app.quit() で再入するため、後片付けは初回だけ。
     if (teardownDone) return
 
+    for (const feature of features) feature.onBeforeQuit?.()
     globalShortcut.unregisterAll()
     stopWsServer()
     // ドラッグ用の複製は次回ドラッグ時にも作り直されるが、終了時に残すと temp が
