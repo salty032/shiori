@@ -7,7 +7,7 @@ import { loadSettings } from '../settings'
 import { isMainWindowFocused } from '../windows'
 import { getRecorderWindow, createRecorderWindow } from './recorder-window'
 import { setTrayRecording } from '../tray'
-import { getLastTimecode, setLastTimecode } from '../timecode'
+import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../timecode'
 import { sendBrowserNotice } from '../browser-notice'
 
 export interface RecordingMeta {
@@ -19,6 +19,9 @@ export interface RecordingMeta {
 let isRecording = false
 let isRecordingStarting = false
 let recordingMeta: RecordingMeta | null = null
+// V-1: recorder:done/error のどちらも届かない場合（レコーダーのハング等）に備えた保険。
+// finishRecordingState() のたびにインクリメントし、古いウォッチドッグを無効化する。
+let recordingWatchdogToken = 0
 
 export function isCurrentlyRecording(): boolean {
   return isRecording
@@ -109,6 +112,17 @@ export async function startRecording(): Promise<void> {
       setVideoRect(target.videoRect)
     }
 
+    // V-4: target がタイムアウト（拡張無応答）で null のとき、以前の browserWindow/videoRect
+    // が残っていると canCaptureVideo() を通過してしまい、古い矩形で誤った領域を録画し、
+    // メタデータも getLastTimecode() の古い値のまま付いてしまう。スクショ側の鮮度チェック
+    // （bootstrap.ts の CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS）と同じしきい値で中止する。
+    const CLIP_TIMECODE_MAX_AGE_MS = 1500
+    if (!target && Date.now() - getLastTimecodeAt() > CLIP_TIMECODE_MAX_AGE_MS) {
+      console.warn('[clip] stale timecode after target timeout, aborting recording')
+      sendBrowserNotice('warning', '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。')
+      return
+    }
+
     if (!canCaptureVideo()) {
       console.warn('[clip] canCaptureVideo false', { hasTarget: !!target, videoRect: target?.videoRect ?? null })
       sendBrowserNotice('warning', '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。')
@@ -136,12 +150,25 @@ export async function startRecording(): Promise<void> {
     }
 
     const settings = loadSettings()
+    const maxSeconds = settings.clipMaxSeconds ?? 60
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,
       fps: 30,
-      maxSeconds: settings.clipMaxSeconds ?? 60
+      maxSeconds
     })
     setTrayRecording(true)
+
+    // V-1: レコーダーがクラッシュ以外の形でハングし、recorder:done/error のどちらも
+    // 届かないケース（render-process-gone では拾えない）に備えた保険。maxSeconds 経過後の
+    // 自動停止（recorder.ts の stopTimer）よりさらに 30 秒待っても復帰しなければ強制リセットする。
+    const watchdogToken = ++recordingWatchdogToken
+    setTimeout(() => {
+      if (watchdogToken !== recordingWatchdogToken) return
+      if (!isRecording) return
+      console.error('[clip] watchdog: recorder did not report done/error in time, forcing reset')
+      finishRecordingState()
+      sendBrowserNotice('error', '録画処理がタイムアウトしました。もう一度お試しください。')
+    }, (maxSeconds + 30) * 1000)
   } catch (err) {
     console.error('[clip] startRecording failed', err)
     finishRecordingState()
@@ -156,6 +183,9 @@ export function stopRecording(): void {
 }
 
 export function finishRecordingState(): void {
+  // ウォッチドッグを無効化する（正常終了・エラー・クラッシュ検知のどの経路でも、
+  // 状態が確定した以上ウォッチドッグの出番はない）。
+  recordingWatchdogToken++
   // 録画中（= recording.ts が pre-capture で UI を隠している）だったときだけ復元を送る。
   // done / error / render-process-gone 監視が重複発火しても、2 回目以降は no-op になり
   // post-capture を空打ちしない（スクショ側の preCaptureSent と同じ対称化）。

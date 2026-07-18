@@ -51,6 +51,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
   const token = ++recordingToken
 
   let stream: MediaStream
+  let audioFailed = false
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,18 +62,33 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
       } as any
     })
   } catch (err) {
-    console.error('[recorder] getUserMedia failed', err)
-    window.recorderApi.reportError(
-      err instanceof DOMException && err.name === 'NotAllowedError'
-        ? 'getUserMedia_not_allowed'
-        : 'getUserMedia_failed'
-    )
-    return
+    // V-5: Windows のループバック音声はオーディオデバイス構成によって失敗することがあり、
+    // その場合 audio+video 同時要求だと映像すら録れない。video のみで一度リトライする。
+    console.warn('[recorder] audio+video getUserMedia failed, retrying video only', err)
+    audioFailed = true
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId }
+        } as any
+      })
+    } catch (err2) {
+      console.error('[recorder] video-only getUserMedia also failed', err2)
+      window.recorderApi.reportError(
+        err2 instanceof DOMException && err2.name === 'NotAllowedError'
+          ? 'getUserMedia_not_allowed'
+          : 'getUserMedia_failed'
+      )
+      return
+    }
   }
   if (token !== recordingToken) {
     cleanup(stream, null)
+    window.recorderApi.reportError('aborted')
     return
   }
+  if (audioFailed) window.recorderApi.reportError('audio_unavailable_fallback')
 
   mediaStream = stream
   const track = stream.getVideoTracks()[0]
@@ -84,6 +100,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
   if (token !== recordingToken) {
     cleanup(stream, null)
     resetState()
+    window.recorderApi.reportError('aborted')
     return
   }
   if (!crop) {
@@ -119,6 +136,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
   if (token !== recordingToken) {
     cleanup(stream, null)
     resetState()
+    window.recorderApi.reportError('aborted')
     return
   }
 
@@ -242,7 +260,11 @@ window.recorderApi.onStop(() => {
   if (recorder?.state === 'recording') {
     recorder.stop()
   } else {
+    // V-1: 録画開始処理中（MediaRecorder.start() 到達前）に停止が来たケース。recorder が
+    // まだ無いため onstop も発火せず、ここで main へ aborted を送らないと main 側の
+    // isRecording が固着したままになる。
     cleanup(mediaStream, canvasStream)
     resetState()
+    window.recorderApi.reportError('aborted')
   }
 })

@@ -30,6 +30,18 @@ export function registerRecorderIpc(): void {
 
   ipcMain.on('recorder:error', (event, msg: string) => {
     if (!isTrustedRecorderSender(event)) return
+    // V-1: token不一致・recorder未生成での中断は「録画開始処理中に停止された」だけで
+    // ユーザーへの通知は不要（そもそも録画は始まっていない）。状態リセットだけ行う。
+    if (msg === 'aborted') {
+      finishRecordingState()
+      return
+    }
+    // V-5: audio+video が失敗し video のみで録画を継続しているだけなので、録画状態は
+    // リセットしない（このあと recorder:done / recorder:error が別途届く）。
+    if (msg === 'audio_unavailable_fallback') {
+      sendBrowserNotice('warning', '音声なしで録画しています（音声デバイスの初期化に失敗しました）。')
+      return
+    }
     finishRecordingState()
     if (msg === 'crop_unavailable') {
       sendNotice('warning', '動画領域を特定できませんでした。ページを再読み込みして再試行してください。')
@@ -65,10 +77,10 @@ export function registerRecorderIpc(): void {
     const webm = Buffer.from(webmAB)
 
     const capturedAt = Date.now()
-    const dir = await ensureCaptureSubDir(capturedAt)
     let webmPath: string | null = null
     let thumbPath: string | null = null
     try {
+      const dir = await ensureCaptureSubDir(capturedAt)
       webmPath = await writeCaptureFile(dir, webm, '.webm')
       const thumbOut = thumbPathFor(webmPath, '.png')
       try {
