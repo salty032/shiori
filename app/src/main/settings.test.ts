@@ -14,7 +14,7 @@ const DEFAULTS = {
   smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+R',
-  clipMaxSeconds: 60,
+  clipMaxSeconds: 30,
   clipNotify: true,
   captureNotify: true,
   allowedExtensionIds: [DEFAULT_EXTENSION_ID],
@@ -47,6 +47,14 @@ describe('normalizeSettings', () => {
     it('NaN → デフォルト 160', () => expect(normalizeSettings({ thumbnailSize: NaN }).thumbnailSize).toBe(160))
     it('Infinity → デフォルト 160', () => expect(normalizeSettings({ thumbnailSize: Infinity }).thumbnailSize).toBe(160))
     it('浮動小数点は切り捨て: 180.9 → 180', () => expect(normalizeSettings({ thumbnailSize: 180.9 }).thumbnailSize).toBe(180))
+  })
+
+  describe('clipMaxSeconds', () => {
+    it('有効値: 20', () => expect(normalizeSettings({ clipMaxSeconds: 20 }).clipMaxSeconds).toBe(20))
+    it('下限 5 未満 → 5', () => expect(normalizeSettings({ clipMaxSeconds: 1 }).clipMaxSeconds).toBe(5))
+    // 著作権対策として録画時間を厳格に上限30秒とする（設定でもこれ以上には出来ない）
+    it('上限 30 超 → 30', () => expect(normalizeSettings({ clipMaxSeconds: 300 }).clipMaxSeconds).toBe(30))
+    it('NaN → デフォルト 30', () => expect(normalizeSettings({ clipMaxSeconds: NaN }).clipMaxSeconds).toBe(30))
   })
 
   describe('captureHotkey', () => {

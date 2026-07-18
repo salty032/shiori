@@ -82,7 +82,8 @@ export function normalizeSettings(value: unknown): Settings {
     smartFolders: smartFolders(data.smartFolders),
     captureHotkey: hotkeyText(data.captureHotkey, DEFAULTS.captureHotkey),
     clipHotkey: hotkeyText(data.clipHotkey, DEFAULTS.clipHotkey),
-    clipMaxSeconds: boundedNumber(data.clipMaxSeconds, DEFAULTS.clipMaxSeconds, 5, 300),
+    // 著作権対策として録画時間を厳格に上限30秒とする（設定でもこれ以上には出来ない）
+    clipMaxSeconds: boundedNumber(data.clipMaxSeconds, DEFAULTS.clipMaxSeconds, 5, 30),
     clipNotify: data.clipNotify !== false,
     captureNotify: data.captureNotify !== false,
     allowedExtensionIds: allowedIds.length > 0 ? allowedIds : [EXTENSION_ID],

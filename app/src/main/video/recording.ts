@@ -150,7 +150,7 @@ export async function startRecording(): Promise<void> {
     }
 
     const settings = loadSettings()
-    const maxSeconds = settings.clipMaxSeconds ?? 60
+    const maxSeconds = settings.clipMaxSeconds ?? 30
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,
       fps: 30,
