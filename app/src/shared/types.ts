@@ -16,6 +16,8 @@ export type ImageRow = {
   url: string | null
   colors: string | null
   memo: string | null
+  media_type: 'image' | 'video' | null
+  duration: number | null
   thumb_path: string | null
   source: ImageSource
 }
@@ -45,6 +47,9 @@ export type Settings = {
   frameFpsAuto: boolean
   smartFolders: SmartFolder[]
   captureHotkey: string
+  clipHotkey: string
+  clipMaxSeconds: number
+  clipNotify: boolean
   captureNotify: boolean
   allowedExtensionIds: string[]
   serviceOrder: string[]
@@ -61,6 +66,7 @@ export type ImageQuery = {
   search?: string
   after?: number
   site?: string
+  mediaType?: 'image' | 'video'
   tags?: string[]
   tagMode?: TagMode
   toDate?: number

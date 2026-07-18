@@ -17,6 +17,8 @@ function makeImages(n: number, startId = 1): ImageRow[] {
     url: null,
     colors: null,
     memo: null,
+    media_type: null,
+    duration: null,
     thumb_path: null,
     source: 'capture' as const,
   }))

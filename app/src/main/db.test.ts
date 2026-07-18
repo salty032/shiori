@@ -66,6 +66,18 @@ describe('buildImageFilter', () => {
     expect(buildImageFilter({ tags: [] }).where).toBe('')
   })
 
+  it('mediaType=video は media_type カラムの完全一致', () => {
+    const result = buildImageFilter({ mediaType: 'video' })
+    expect(result.where).toBe('WHERE media_type = ?')
+    expect(result.params).toEqual(['video'])
+  })
+
+  it('mediaType=image は media_type IS NULL も含む（既存の画像行は media_type 未設定のため）', () => {
+    const result = buildImageFilter({ mediaType: 'image' })
+    expect(result.where).toBe("WHERE (media_type IS NULL OR media_type = 'image')")
+    expect(result.params).toEqual([])
+  })
+
   it('複数条件は AND で連結される（宣言順: search, after/before系, toDate, site, tags）', () => {
     const result = buildImageFilter({ search: 'cat', site: 'example.com' })
     expect(result.where).toBe(

@@ -75,7 +75,9 @@ export function initDb(): void {
       height       INTEGER,
       colors       TEXT,
       memo         TEXT,
-      thumb_path   TEXT
+      thumb_path   TEXT,
+      media_type   TEXT,
+      duration     REAL
     );
     CREATE TABLE IF NOT EXISTS tags (
       id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,6 +100,8 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN colors TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN memo TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN thumb_path TEXT')
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN media_type TEXT')
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN duration REAL')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN host TEXT')
   addColumnIfMissing("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'capture'")
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_host ON images(host)')
@@ -187,6 +191,8 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"url"',
   '"colors"',
   '"memo"',
+  '"media_type"',
+  '"duration"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -196,8 +202,8 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   try { if (params.url) host = new URL(params.url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
   const source = params.source ?? 'capture'
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, thumb_path, host, source)
-     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @thumb_path, @host, @source)`
+    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, thumb_path, host, source)
+     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @thumb_path, @host, @source)`
   )
   const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source })
   return Number(result.lastInsertRowid)
@@ -246,6 +252,14 @@ export function buildImageFilter(f: ImageFilter): { where: string; params: unkno
   // "site:a"）が複数ホスト（abema.tv・amazon.co.jp 等）に同時ヒットし、チップは
   // 出ないのに結果だけ絞り込まれる中途半端な状態になっていた（BUG-6）。
   if (f.site) { conds.push('host = ?'); params.push(f.site) }
+  if (f.mediaType) {
+    if (f.mediaType === 'image') {
+      conds.push("(media_type IS NULL OR media_type = 'image')")
+    } else {
+      conds.push('media_type = ?')
+      params.push(f.mediaType)
+    }
+  }
   if (f.tags && f.tags.length > 0) {
     const ph = f.tags.map(() => '?').join(', ')
     if (f.tagMode === 'or') {

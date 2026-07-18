@@ -443,6 +443,8 @@ export function bootstrap(features: MainFeature[] = []): void {
           height: null,
           colors: null,
           memo: null,
+          media_type: null,
+          duration: null,
           thumb_path: thumbOk ? thumbPath : null
         },
         filePath: imagePath,

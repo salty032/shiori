@@ -12,6 +12,8 @@ function img(id: number, over: Partial<ImageRow> = {}): ImageRow {
     url: null,
     colors: null,
     memo: null,
+    media_type: null,
+    duration: null,
     thumb_path: null,
     source: 'capture',
     ...over,

@@ -218,6 +218,8 @@ export function registerShareHandlers(): void {
               height: null,
               colors: null,
               memo: parsed.memo,
+              media_type: null,
+              duration: null,
               thumb_path: thumbDest,
               source: 'import',
             },
