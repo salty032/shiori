@@ -10,6 +10,7 @@ import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../shared/api'
 import { parseShareEntry } from './share-entry'
+import { getVideoThumbProvider } from './video-thumb-provider'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 import { beginTask, endTask } from './busy'
@@ -94,6 +95,7 @@ export function registerShareHandlers(): void {
           tags: item.manualTags,
           memo: item.memo,
           captured_at: item.captured_at,
+          ...(item.media_type === 'video' ? { media_type: 'video', duration: item.duration } : {}),
         })
       }
       const lines: string[] = []
@@ -207,6 +209,22 @@ export function registerShareHandlers(): void {
             continue
           }
 
+          let duration: number | null = null
+          if (parsed.mediaType === 'video') {
+            // サムネがバンドルに含まれていなければここで生成する。duration は
+            // metadata.jsonl の値を信頼せず実体から取り直す（手編集・旧バージョンの
+            // エクスポートで欠けている/不正な場合の保険）。
+            if (!thumbDest) {
+              const tf = thumbPathFor(destFile, '.png')
+              try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbDest = tf } catch (err) {
+                console.warn('[share:import] extractThumb failed', err)
+              }
+            }
+            try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
+              console.warn('[share:import] getVideoDuration failed', err)
+            }
+          }
+
           const result = await registerCapturedMedia({
             insert: {
               filepath: destFile,
@@ -218,8 +236,8 @@ export function registerShareHandlers(): void {
               height: null,
               colors: null,
               memo: parsed.memo,
-              media_type: null,
-              duration: null,
+              media_type: parsed.mediaType,
+              duration,
               thumb_path: thumbDest,
               source: 'import',
             },

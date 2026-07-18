@@ -180,15 +180,16 @@ export function bootstrap(features: MainFeature[] = []): void {
         return new Response('Not found', { status: 404 })
       }
 
-      // 画像専用ビルド。動画(video/webm・video/mp4)は扱わない。
+      // 動画(webm)を含む capfile プロトコル。
       const EXT_CONTENT_TYPE: Record<string, string> = {
         '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.webp': 'image/webp', '.gif': 'image/gif'
+        '.webp': 'image/webp', '.gif': 'image/gif',
+        '.webm': 'video/webm', '.mp4': 'video/mp4'
       }
       const contentType = EXT_CONTENT_TYPE[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
 
-      // 画像専用ビルドでは Range を送るクライアントは基本無いが、HTTP レスポンスとしての
-      // 正しさのため Range リクエストには 206/416 で応答できるようにしておく（画像でも無害）。
+      // 動画の <video> シークで Range リクエストが飛んでくるため 206/416 に対応する
+      // （画像に対して送られても無害）。
       const rangeHeader = request.headers.get('Range')
       if (rangeHeader) {
         const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
@@ -443,7 +444,7 @@ export function bootstrap(features: MainFeature[] = []): void {
           height: null,
           colors: null,
           memo: null,
-          media_type: null,
+          media_type: 'image',
           duration: null,
           thumb_path: thumbOk ? thumbPath : null
         },

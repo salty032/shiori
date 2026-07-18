@@ -9,11 +9,13 @@ import { ensureCaptureSubDir, thumbPathFor, resolveRealCapturePath } from './pat
 import { MAX_TEXT_LENGTH } from './ipc-validation'
 import { isDragTempPath } from './ipc-drag'
 import { createImageThumb } from './image-thumb'
+import { getVideoThumbProvider } from './video-thumb-provider'
 import { CH } from '../shared/api'
 import { registerCapturedMedia } from './captured-media'
 import { beginTask, endTask } from './busy'
 
 const IMPORT_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+const IMPORT_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 const MAX_IMPORT_FILES = 200
 
 // 上限到達で列挙を打ち切った場合、呼び出し元がユーザーに「一部のみ取り込んだ」と
@@ -40,10 +42,11 @@ async function collectImportFiles(inputPaths: string[]): Promise<{ files: string
       }
     } else if (info.isFile()) {
       // フォルダ展開由来（depth>0）は拡張子未対応ファイル（サイドカーの .txt/.json 等）を数に
-      // 入れない。数に入れると名前順で先に並ぶ非画像ファイルが MAX_IMPORT_FILES の枠を食い潰し、
-      // 画像がほとんど取り込まれなくなるため。直接ドロップされた単体ファイル（depth===0）は
-      // 従来どおり通し、後段のループで「unsupported extension」エラーとして案内する。
-      if (depth === 0 || IMPORT_IMAGE_EXTS.has(extname(p).toLowerCase())) result.push(p)
+      // 入れない。数に入れると名前順で先に並ぶ画像/動画以外のファイルが MAX_IMPORT_FILES の枠を
+      // 食い潰し、対応ファイルがほとんど取り込まれなくなるため。直接ドロップされた単体ファイル
+      // （depth===0）は従来どおり通し、後段のループで「unsupported extension」エラーとして案内する。
+      const ext = extname(p).toLowerCase()
+      if (depth === 0 || IMPORT_IMAGE_EXTS.has(ext) || IMPORT_VIDEO_EXTS.has(ext)) result.push(p)
     }
   }
   for (const p of inputPaths) {
@@ -82,7 +85,7 @@ export function registerImportHandlers(): void {
         height: size.height || null,
         colors: null,
         memo: null,
-        media_type: null,
+        media_type: 'image',
         duration: null,
         thumb_path: thumbOk ? thumbFile : null,
         source: 'import',
@@ -99,7 +102,7 @@ export function registerImportHandlers(): void {
   handleTrusted(CH.clipboardCopyImage, async (_event, id: number) => {
     if (!Number.isInteger(id) || id <= 0) return false
     const image = getImage(id)
-    if (!image) return false
+    if (!image || image.media_type === 'video') return false
     const filePath = await resolveRealCapturePath(image.filepath)
     if (!filePath) return false
     const img = nativeImage.createFromPath(filePath)
@@ -134,8 +137,9 @@ export function registerImportHandlers(): void {
         if (typeof rawPath !== 'string' || !rawPath) continue
 
         const ext = extname(rawPath).toLowerCase()
-        // 本ビルドは画像専用。画像以外（動画含む）は取り込まない。
-        if (!IMPORT_IMAGE_EXTS.has(ext)) { errors.push(`unsupported: ${basename(rawPath)}`); continue }
+        const isImage = IMPORT_IMAGE_EXTS.has(ext)
+        const isVideo = IMPORT_VIDEO_EXTS.has(ext)
+        if (!isImage && !isVideo) { errors.push(`unsupported: ${basename(rawPath)}`); continue }
 
         let srcStat: Awaited<ReturnType<typeof stat>>
         try { srcStat = await stat(rawPath) } catch { errors.push(`not found: ${basename(rawPath)}`); continue }
@@ -156,15 +160,27 @@ export function registerImportHandlers(): void {
         let width: number | null = null
         let height: number | null = null
         let thumbFile: string | null = null
-        try {
-          const size = nativeImage.createFromPath(destFile).getSize()
-          if (size.width > 0 && size.height > 0) { width = size.width; height = size.height }
-        } catch { /* best effort */ }
-        const tf = thumbPathFor(destFile)
-        try { await createImageThumb(destFile, tf); thumbFile = tf } catch (err) {
-          console.warn('[import] createImageThumb failed', err)
+        let duration: number | null = null
+        if (isImage) {
+          try {
+            const size = nativeImage.createFromPath(destFile).getSize()
+            if (size.width > 0 && size.height > 0) { width = size.width; height = size.height }
+          } catch { /* best effort */ }
+          const tf = thumbPathFor(destFile)
+          try { await createImageThumb(destFile, tf); thumbFile = tf } catch (err) {
+            console.warn('[import] createImageThumb failed', err)
+          }
+        } else {
+          const tf = thumbPathFor(destFile, '.png')
+          try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbFile = tf } catch (err) {
+            console.warn('[import] extractThumb failed', err)
+          }
+          try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
+            console.warn('[import] getVideoDuration failed', err)
+          }
         }
 
+        const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image'
         const rawName = basename(rawPath, ext)
         const title = rawName.length > 0 ? rawName.slice(0, MAX_TEXT_LENGTH) : null
 
@@ -179,14 +195,14 @@ export function registerImportHandlers(): void {
             height,
             colors: null,
             memo: null,
-            media_type: null,
-            duration: null,
+            media_type: mediaType,
+            duration,
             thumb_path: thumbFile,
             source: 'import',
           },
           filePath: destFile,
           thumbPath: thumbFile,
-          autoTag: { path: thumbFile ?? destFile }
+          autoTag: isImage ? { path: thumbFile ?? destFile } : null
         })
         if (!result.ok) {
           errors.push(`insert failed: ${basename(rawPath)}`)

@@ -8,6 +8,7 @@ import { MAX_TAG_LENGTH, MAX_TEXT_LENGTH, normalizeTagName } from './ipc-validat
 import { MAX_MEMO_LENGTH } from '../shared/constants'
 
 export const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+export const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 
 // 手編集・破損した metadata.jsonl の captured_at で異常値（負値・極端な未来値等）を受け入れると、
 // ensureCaptureSubDir が "NaN-NaN" 等の壊れたフォルダ名を作ったり、一覧の並び順が恒久的に
@@ -27,6 +28,8 @@ interface RawShareEntry {
   tags?: unknown
   memo?: unknown
   captured_at?: unknown
+  media_type?: unknown
+  duration?: unknown
 }
 
 export interface ParsedShareEntry {
@@ -40,6 +43,8 @@ export interface ParsedShareEntry {
   url: string | null
   tags: string[]
   memo: string | null
+  mediaType: 'image' | 'video'
+  duration: number | null
 }
 
 // 戻り値: 成功時は ParsedShareEntry、検証エラー時は { error }、file フィールドが
@@ -64,8 +69,8 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
   if (!safeFile || safeFile !== entry.file) return { error: `unsafe filename: ${entry.file}` }
 
   const ext = extname(safeFile).toLowerCase()
-  // 本ビルドは画像専用。動画エントリを含む共有バンドルを読み込んでも動画は取り込まない。
-  if (!SHARE_IMAGE_EXTS.has(ext)) return { error: `unsupported extension: ${safeFile}` }
+  const isVideo = SHARE_VIDEO_EXTS.has(ext)
+  if (!SHARE_IMAGE_EXTS.has(ext) && !isVideo) return { error: `unsupported extension: ${safeFile}` }
 
   let thumbFile: string | null = null
   let thumbExt: string | null = null
@@ -73,6 +78,7 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     const safeThumb = basename(entry.thumb)
     if (safeThumb && safeThumb === entry.thumb) {
       const candidateExt = extname(safeThumb).toLowerCase() || '.png'
+      // サムネは常に画像（動画クリップのサムネも .png で保存される。video/ffmpeg.ts 参照）。
       if (SHARE_IMAGE_EXTS.has(candidateExt)) {
         thumbFile = safeThumb
         thumbExt = candidateExt
@@ -97,5 +103,9 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     url: typeof entry.url === 'string' ? entry.url : null,
     tags,
     memo: typeof entry.memo === 'string' ? entry.memo.slice(0, MAX_MEMO_LENGTH) || null : null,
+    mediaType: isVideo ? 'video' : 'image',
+    duration: isVideo && typeof entry.duration === 'number' && Number.isFinite(entry.duration) && entry.duration > 0
+      ? entry.duration
+      : null,
   }
 }

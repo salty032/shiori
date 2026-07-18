@@ -1,9 +1,12 @@
 import { app, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
+import { deflateSync } from 'zlib'
 import { sendToRenderer, showMainWindow } from './windows'
 import { CH } from '../shared/api'
 
 let tray: Tray | null = null
+let trayNormalIcon: Electron.NativeImage | null = null
+let trayRecordingIcon: Electron.NativeImage | null = null
 
 function buildTrayMenu(): Electron.Menu {
   return Menu.buildFromTemplate([
@@ -36,12 +39,75 @@ function buildTrayIcon(): Electron.NativeImage {
   return icon
 }
 
+const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, n) => {
+  let c = n
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+  return c
+})
+
+// 録画中トレイアイコン用の赤丸 PNG をその場で生成する（外部アセット不要。dev 版と同じ手法）。
+function buildRedCirclePng(size: number): Buffer {
+  const center = (size - 1) / 2
+  const radius = size / 2 - 1.5
+  const rows: Buffer[] = []
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 4)
+    row[0] = 0
+    for (let x = 0; x < size; x++) {
+      if (Math.hypot(x - center, y - center) < radius) {
+        const i = 1 + x * 4
+        row[i] = 220; row[i + 1] = 38; row[i + 2] = 38; row[i + 3] = 255
+      }
+    }
+    rows.push(row)
+  }
+  const idat = deflateSync(Buffer.concat(rows))
+  const crc32 = (buf: Buffer): number => {
+    let crc = 0xffffffff
+    for (const b of buf) crc = (CRC_TABLE[(crc ^ b) & 0xff] ?? 0) ^ (crc >>> 8)
+    return (crc ^ 0xffffffff) >>> 0
+  }
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const t = Buffer.from(type, 'ascii')
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])))
+    return Buffer.concat([len, t, data, crc])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4)
+  ihdr[8] = 8; ihdr[9] = 6
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', idat),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
 export function createTray(): void {
-  tray = new Tray(buildTrayIcon())
+  trayNormalIcon = buildTrayIcon()
+  try {
+    trayRecordingIcon = nativeImage.createFromBuffer(buildRedCirclePng(16))
+  } catch (err) {
+    console.error('[tray] failed to create recording icon', err)
+  }
+  tray = new Tray(trayNormalIcon)
   tray.setToolTip('Shiori')
   tray.setContextMenu(buildTrayMenu())
   // Windows では左クリック（シングル）でウィンドウを開けるようにする。右クリックは
   // setContextMenu が握るのでメニュー表示のまま、左クリックだけこちらで拾う。
   tray.on('click', () => showMainWindow())
   tray.on('double-click', () => showMainWindow())
+}
+
+// 録画状態に応じてトレイアイコン・ツールチップを切り替える。
+export function setTrayRecording(recording: boolean): void {
+  if (!tray) return
+  if (recording) {
+    if (trayRecordingIcon) tray.setImage(trayRecordingIcon)
+    tray.setToolTip('Shiori — 録画中')
+  } else {
+    if (trayNormalIcon) tray.setImage(trayNormalIcon)
+    tray.setToolTip('Shiori')
+  }
 }

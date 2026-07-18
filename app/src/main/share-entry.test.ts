@@ -2,7 +2,7 @@ import { vi, describe, expect, it } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { parseShareEntry, isValidCapturedAt, SHARE_IMAGE_EXTS } from './share-entry'
+import { parseShareEntry, isValidCapturedAt, SHARE_IMAGE_EXTS, SHARE_VIDEO_EXTS } from './share-entry'
 
 const NOW = 1700000000000
 
@@ -32,16 +32,35 @@ describe('parseShareEntry', () => {
   })
 
   it('未対応の拡張子はエラー', () => {
-    const result = parseShareEntry(JSON.stringify({ file: 'video.mp4' }), NOW)
+    const result = parseShareEntry(JSON.stringify({ file: 'note.txt' }), NOW)
     expect(result).toEqual({ error: expect.stringContaining('unsupported extension') })
   })
 
-  it('対応拡張子はすべて通る', () => {
+  it('対応する画像拡張子はすべて通り mediaType=image になる', () => {
     for (const ext of SHARE_IMAGE_EXTS) {
       const result = parseShareEntry(JSON.stringify({ file: `a${ext}` }), NOW)
       expect(result).not.toBeNull()
       expect(result).not.toHaveProperty('error')
+      expect((result as { mediaType: string }).mediaType).toBe('image')
     }
+  })
+
+  it('対応する動画拡張子はすべて通り mediaType=video になる', () => {
+    for (const ext of SHARE_VIDEO_EXTS) {
+      const result = parseShareEntry(JSON.stringify({ file: `a${ext}` }), NOW)
+      expect(result).not.toBeNull()
+      expect(result).not.toHaveProperty('error')
+      expect((result as { mediaType: string }).mediaType).toBe('video')
+    }
+  })
+
+  it('動画エントリの duration は正の有限値のみ受け付ける', () => {
+    const ok = parseShareEntry(JSON.stringify({ file: 'a.webm', duration: 12.5 }), NOW)
+    expect((ok as { duration: number | null }).duration).toBe(12.5)
+    const bad = parseShareEntry(JSON.stringify({ file: 'a.webm', duration: -1 }), NOW)
+    expect((bad as { duration: number | null }).duration).toBeNull()
+    const missing = parseShareEntry(JSON.stringify({ file: 'a.webm' }), NOW)
+    expect((missing as { duration: number | null }).duration).toBeNull()
   })
 
   it('正常な最小エントリを正しく正規化する', () => {

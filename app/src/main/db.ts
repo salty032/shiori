@@ -497,20 +497,20 @@ export function updateImageMemo(id: number, memo: string): void {
 // 有無を確認すると、数万枚のライブラリでは起動のたびに同数のディスクアクセスが発生するため、
 // 通常起動では DB だけで判定できるこの条件に絞る。記録済みサムネの実在確認は
 // listImagesForThumbCheck()（手動修復）の担当。
-export function listImagesMissingThumb(): { id: number; filepath: string }[] {
+export function listImagesMissingThumb(): { id: number; filepath: string; media_type: 'image' | 'video' | null }[] {
   return prepare(
-    `SELECT id, filepath FROM images
+    `SELECT id, filepath, media_type FROM images
      WHERE thumb_path IS NULL
      ORDER BY captured_at DESC`
-  ).all() as { id: number; filepath: string }[]
+  ).all() as { id: number; filepath: string; media_type: 'image' | 'video' | null }[]
 }
 
 // 手動修復用。thumb_path が記録済みでも実ファイルが消えている場合を拾うため全件返す。
-export function listImagesForThumbCheck(): { id: number; filepath: string; thumb_path: string | null }[] {
+export function listImagesForThumbCheck(): { id: number; filepath: string; thumb_path: string | null; media_type: 'image' | 'video' | null }[] {
   return prepare(
-    `SELECT id, filepath, thumb_path FROM images
+    `SELECT id, filepath, thumb_path, media_type FROM images
      ORDER BY captured_at DESC`
-  ).all() as { id: number; filepath: string; thumb_path: string | null }[]
+  ).all() as { id: number; filepath: string; thumb_path: string | null; media_type: 'image' | 'video' | null }[]
 }
 
 export function setThumbPath(id: number, thumbPath: string): void {

@@ -19,6 +19,7 @@ import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../shared/constants'
 import type { DeleteImageResult } from '../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { createImageThumb } from './image-thumb'
+import { getVideoThumbProvider } from './video-thumb-provider'
 import { createProgressThrottle } from './progress-throttle'
 import { beginTask, endTask } from './busy'
 // ゴミ箱への移動を並列投入しすぎると Windows のシェル操作が一時的に失敗するため絞る
@@ -29,14 +30,21 @@ let isThumbGen = false
 let isImagesExporting = false
 let isImagesExportCanceled = false
 
-// 1 枚分のサムネを生成して DB に記録する。成功したら true。
-async function generateThumb(id: number, filepath: string): Promise<boolean> {
+// 1 枚分のサムネを生成して DB に記録する。成功したら true。動画は video-thumb-provider
+// （動画機能が登録する ffmpeg 経由の抽出）、それ以外は既存の createImageThumb を使う。
+async function generateThumb(id: number, filepath: string, mediaType: 'image' | 'video' | null): Promise<boolean> {
   try {
     const resolved = await resolveRealCapturePath(filepath)
     if (!resolved) throw new Error('path not resolvable')
-    const thumbPath = thumbPathFor(resolved)
-    await createImageThumb(resolved, thumbPath)
-    setThumbPath(id, thumbPath)
+    if (mediaType === 'video') {
+      const thumbPath = thumbPathFor(resolved, '.png')
+      await getVideoThumbProvider().extractThumb(resolved, thumbPath)
+      setThumbPath(id, thumbPath)
+    } else {
+      const thumbPath = thumbPathFor(resolved)
+      await createImageThumb(resolved, thumbPath)
+      setThumbPath(id, thumbPath)
+    }
     return true
   } catch (err) {
     console.error(`[thumbgen] skip id=${id}`, err)
@@ -44,7 +52,7 @@ async function generateThumb(id: number, filepath: string): Promise<boolean> {
   }
 }
 
-// サムネ未生成の画像にサムネを補完する。移行直後の旧データや、生成に失敗したまま
+// サムネ未生成の画像・動画にサムネを補完する。移行直後の旧データや、生成に失敗したまま
 // 登録されたエントリを対象に起動時（bootstrap.ts）から自動で呼ぶ。
 // 記録済みサムネの実ファイル確認はここでは行わない（S4-2）。全件の存在確認は起動を
 // 重くするだけで、通常は 1 件も直すものがないため、repairThumbnails() の手動実行に回す。
@@ -52,8 +60,8 @@ export async function backfillThumbnails(): Promise<void> {
   if (isThumbGen) return
   isThumbGen = true
   try {
-    for (const { id, filepath } of listImagesMissingThumb()) {
-      await generateThumb(id, filepath)
+    for (const { id, filepath, media_type } of listImagesMissingThumb()) {
+      await generateThumb(id, filepath, media_type)
     }
   } finally {
     isThumbGen = false
@@ -70,7 +78,7 @@ export async function repairThumbnails(): Promise<{ repaired: number; failed: nu
     const targets = listImagesForThumbCheck()
     let repaired = 0
     let failed = 0
-    for (const { id, filepath, thumb_path } of targets) {
+    for (const { id, filepath, thumb_path, media_type } of targets) {
       if (thumb_path) {
         const existingThumb = await resolveRealCapturePath(thumb_path)
         if (existingThumb) {
@@ -82,7 +90,7 @@ export async function repairThumbnails(): Promise<{ repaired: number; failed: nu
           }
         }
       }
-      if (await generateThumb(id, filepath)) repaired++
+      if (await generateThumb(id, filepath, media_type)) repaired++
       else failed++
     }
     return { repaired, failed }
