@@ -18,4 +18,5 @@ export const SETTINGS_DEFAULTS: Settings = {
   // 無効値・破損設定からの復旧時のフォールバック（settings.ts の themeValue）は
   // 従来通り 'dark' のまま変更しない（挙動が変わるのは初回起動時のみ）。
   theme: 'system',
+  lastRunVersion: null,
 }

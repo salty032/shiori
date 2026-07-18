@@ -99,6 +99,9 @@ export function buildCoreApi(): ShioriApi {
     getExtensionPath: (): Promise<string> =>
       ipcRenderer.invoke(CH.extensionGetPath),
 
+    getAppVersion: (): Promise<string> =>
+      ipcRenderer.invoke(CH.appGetVersion),
+
     onUpdateDownloaded: (cb: (version: string) => void) => listen<string>(CH.updaterDownloaded, cb),
 
     updaterQuitAndInstall: (): Promise<void> => ipcRenderer.invoke(CH.updaterQuitAndInstall),

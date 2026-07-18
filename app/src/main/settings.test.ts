@@ -18,6 +18,7 @@ const DEFAULTS = {
   serviceOrder: [],
   showAiTags: false,
   theme: 'dark',
+  lastRunVersion: null,
 }
 
 describe('normalizeSettings', () => {
@@ -73,6 +74,21 @@ describe('normalizeSettings', () => {
     it('100件超は切り捨て', () => {
       const many = Array.from({ length: 150 }, (_, i) => `item${i}`)
       expect(normalizeSettings({ titleStrip: many }).titleStrip).toHaveLength(100)
+    })
+  })
+
+  describe('lastRunVersion', () => {
+    it('有効な文字列を保持', () => {
+      expect(normalizeSettings({ lastRunVersion: '1.1.2' }).lastRunVersion).toBe('1.1.2')
+    })
+    it('未指定 → null（初回起動）', () => {
+      expect(normalizeSettings({}).lastRunVersion).toBeNull()
+    })
+    it('文字列以外 → null', () => {
+      expect(normalizeSettings({ lastRunVersion: 42 }).lastRunVersion).toBeNull()
+    })
+    it('空白のみ → null', () => {
+      expect(normalizeSettings({ lastRunVersion: '   ' }).lastRunVersion).toBeNull()
     })
   })
 

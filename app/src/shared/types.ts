@@ -50,6 +50,9 @@ export type Settings = {
   serviceOrder: string[]
   showAiTags: boolean
   theme: Theme
+  // 前回起動時のアプリバージョン。起動時に現行バージョンと比較し、自動アップデートが
+  // （サイレント適用も含め）行われたことを一度だけ通知するために使う。初回起動は null。
+  lastRunVersion: string | null
 }
 
 // 一覧のフィルタ条件。renderer が組み立て、main が検証し、SQL に落とすまでの

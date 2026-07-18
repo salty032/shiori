@@ -86,6 +86,7 @@ export function normalizeSettings(value: unknown): Settings {
     serviceOrder: stringList(data.serviceOrder),
     showAiTags: data.showAiTags === true,
     theme: themeValue(data.theme),
+    lastRunVersion: nullableText(data.lastRunVersion),
   }
 }
 

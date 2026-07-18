@@ -53,6 +53,8 @@ export interface ShioriApi {
   getStartup: () => Promise<boolean>
   setStartup: (enabled: boolean) => Promise<void>
   getExtensionPath: () => Promise<string>
+  // 設定画面のバージョン表示用（自動アップデートが適用されたかを確認できる逃げ道）。
+  getAppVersion: () => Promise<string>
   onUpdateDownloaded: (cb: (version: string) => void) => () => void
   updaterQuitAndInstall: () => Promise<void>
   taggerEnsure: () => Promise<void>
@@ -123,6 +125,8 @@ export const CH = {
   // extension
   extensionGetPath: 'extension:getPath',
   extensionTimecode: 'extension:timecode',
+  // app
+  appGetVersion: 'app:getVersion',
   // tagger
   taggerEnsure: 'tagger:ensure',
   taggerCancelDownload: 'tagger:cancelDownload',

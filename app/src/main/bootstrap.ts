@@ -358,6 +358,7 @@ export function bootstrap(): void {
     })
 
     handleTrusted(CH.extensionGetPath, () => installedExtensionPath())
+    handleTrusted(CH.appGetVersion, () => app.getVersion())
 
     setPreCaptureHook(async () => {
       if (isMainWindowFocused()) throw new SilentCaptureAbort('Shiori window is focused')
@@ -463,6 +464,17 @@ export function bootstrap(): void {
     createWindow(reclaimHotkeysIfFree, isStartupLaunch())
     if (consumeCorruptSettingsNotice()) {
       sendNoticeWhenRendererReady('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
+    }
+    // 自動アップデートはサイレント適用（終了時インストール）だと再起動後に何の表示もなく、
+    // 更新されたのか判別できない。前回起動時のバージョンを設定に記録しておき、変わっていたら
+    // 一度だけ知らせる。初回起動（lastRunVersion なし）は記録のみで通知しない。
+    const currentVersion = app.getVersion()
+    const previousRunVersion = loadSettings().lastRunVersion
+    if (previousRunVersion !== currentVersion) {
+      if (previousRunVersion) {
+        sendNoticeWhenRendererReady('info', `Shiori を v${currentVersion} に更新しました`)
+      }
+      saveSettings({ ...loadSettings(), lastRunVersion: currentVersion })
     }
     // 他プロセスが WS ポートを LISTEN していると拡張と接続できない。原因が分からないまま
     // 「キャプチャ対象を検出できませんでした」に化けるのを防ぐため、明示的に案内する。

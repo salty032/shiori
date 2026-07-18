@@ -84,6 +84,11 @@ export default function SettingsModal(p: Props) {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
+  // 自動アップデートが適用されたかをいつでも確認できるよう、データタブにバージョンを表示する
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  useEffect(() => {
+    window.api.getAppVersion().then(setAppVersion).catch(() => {})
+  }, [])
   const extensionConnected = p.extensionStatus !== null && now - p.extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
   // 拡張の更新案内は起動直後のOS通知1回だけで見逃しやすいため、受信中の拡張バージョンが
   // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
@@ -492,6 +497,14 @@ export default function SettingsModal(p: Props) {
                     </button>
                   </div>
                   {repairStatus && <div style={{ ...s.statusLine, ...(repairStatus.error ? s.statusLineError : s.statusLineOk) }}>{repairStatus.text}</div>}
+                </div>
+                <div style={s.dataBlock}>
+                  <div style={s.dataHeader}>
+                    <div>
+                      <div style={s.dataTitle}>バージョン</div>
+                      <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
