@@ -22,9 +22,17 @@ let recordingMeta: RecordingMeta | null = null
 // V-1: recorder:done/error のどちらも届かない場合（レコーダーのハング等）に備えた保険。
 // finishRecordingState() のたびにインクリメントし、古いウォッチドッグを無効化する。
 let recordingWatchdogToken = 0
+// recorder:start のたびに発行し、recorder:done/error に載せて送り返させるセッションID。
+// レコーダーウィンドウ側のレースで旧セッションの完了/エラー通知が遅延して届いても、
+// 現在のセッションと一致しない限り recorder-ipc.ts 側で無視し、新しい録画状態を壊さない。
+let currentRecordingSessionId = 0
 
 export function isCurrentlyRecording(): boolean {
   return isRecording
+}
+
+export function isCurrentRecordingSession(sessionId: number): boolean {
+  return sessionId === currentRecordingSessionId
 }
 
 export function getRecordingMeta(): RecordingMeta | null {
@@ -151,10 +159,12 @@ export async function startRecording(): Promise<void> {
 
     const settings = loadSettings()
     const maxSeconds = settings.clipMaxSeconds ?? 30
+    const sessionId = ++currentRecordingSessionId
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,
       fps: 30,
-      maxSeconds
+      maxSeconds,
+      sessionId
     })
     setTrayRecording(true)
 

@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 // recorder:* はレコーダーウィンドウ専用の別契約（RecorderApi）で、ShioriApi の CH 定数の
 // 対象外（main 側の検証も isTrustedRecorderSender と別方式）。意図的に生文字列のまま。
 contextBridge.exposeInMainWorld('recorderApi', {
-  onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number }) => void) => {
+  onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number; sessionId: number }) => void) => {
     ipcRenderer.on('recorder:start', (_e, data) => cb(data))
   },
   onStop: (cb: () => void) => {
@@ -11,10 +11,10 @@ contextBridge.exposeInMainWorld('recorderApi', {
   },
   getCrop: (streamW: number, streamH: number) =>
     ipcRenderer.invoke('recorder:getCrop', streamW, streamH),
-  sendDone: (webm: ArrayBuffer, duration: number) => {
-    ipcRenderer.send('recorder:done', webm, duration)
+  sendDone: (webm: ArrayBuffer, duration: number, sessionId: number) => {
+    ipcRenderer.send('recorder:done', webm, duration, sessionId)
   },
-  reportError: (msg: string) => {
-    ipcRenderer.send('recorder:error', msg)
+  reportError: (msg: string, sessionId: number) => {
+    ipcRenderer.send('recorder:error', msg, sessionId)
   }
 })

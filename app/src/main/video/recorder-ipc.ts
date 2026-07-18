@@ -10,7 +10,7 @@ import { sendBrowserNotice } from '../browser-notice'
 import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
-import { finishRecordingState, getRecordingMeta } from './recording'
+import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
 import { registerCapturedMedia } from '../captured-media'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
@@ -28,8 +28,12 @@ export function registerRecorderIpc(): void {
     return computeVideoCrop(streamW, streamH)
   })
 
-  ipcMain.on('recorder:error', (event, msg: string) => {
+  ipcMain.on('recorder:error', (event, msg: string, sessionId: number) => {
     if (!isTrustedRecorderSender(event)) return
+    // レコーダーウィンドウ側のレース（新しい録画が始まった後に旧セッションの通知が
+    // 遅延して届く）で、新しい録画状態を巻き込んで壊さないよう、現在のセッションと
+    // 一致しない通知は黙って無視する。
+    if (!isCurrentRecordingSession(sessionId)) return
     // V-1: token不一致・recorder未生成での中断は「録画開始処理中に停止された」だけで
     // ユーザーへの通知は不要（そもそも録画は始まっていない）。状態リセットだけ行う。
     if (msg === 'aborted') {
@@ -54,8 +58,11 @@ export function registerRecorderIpc(): void {
     }
   })
 
-  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number) => {
+  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, sessionId: number) => {
     if (!isTrustedRecorderSender(event)) return
+    // recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、現在のセッションと
+    // 一致しない完了通知は無視する。新しい録画を誤って確定・保存させない。
+    if (!isCurrentRecordingSession(sessionId)) return
 
     // renderer 側が壊れた場合に備えた入力検証（メモリ DoS / 不正データ対策）
     if (!(webmAB instanceof ArrayBuffer) || webmAB.byteLength === 0 || webmAB.byteLength > MAX_WEBM_BYTES) {

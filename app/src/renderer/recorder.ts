@@ -5,11 +5,11 @@ export {}
 type CropRect = { x: number; y: number; w: number; h: number }
 
 interface RecorderApi {
-  onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number }) => void) => void
+  onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number; sessionId: number }) => void) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
-  sendDone: (webm: ArrayBuffer, duration: number) => void
-  reportError: (msg: string) => void
+  sendDone: (webm: ArrayBuffer, duration: number, sessionId: number) => void
+  reportError: (msg: string, sessionId: number) => void
 }
 
 declare global {
@@ -25,16 +25,27 @@ let canvasStream: MediaStream | null = null
 let stopTimer: ReturnType<typeof setTimeout> | null = null
 let frameTimer: ReturnType<typeof setInterval> | null = null
 let recordingToken = 0
+// main（recording.ts）が recorder:start ごとに発行する sessionId。renderer 内部の
+// recordingToken とは別の値空間（main 側のセッション識別用）なので、reportError/sendDone に
+// 載せて送り返す用に直近の値を保持しておく。
+let currentSessionId = 0
 
-function cleanup(stream: MediaStream | null, cs: MediaStream | null): void {
-  rVfcRunning = false
-  if (frameTimer) {
-    clearInterval(frameTimer)
-    frameTimer = null
-  }
-  if (stopTimer) {
-    clearTimeout(stopTimer)
-    stopTimer = null
+// frameTimer/stopTimer/rVfcRunning はモジュール変数だが、常に「最新の recordingToken を
+// 持つセッション」だけが所有する。呼び出し元セッションの token が現在の recordingToken と
+// 一致しないとき（＝自分より新しいセッションが既に走り出しているとき）はこれらを
+// 一切触らない。それをせずに一律クリアすると、旧セッションの中断処理が新セッションの
+// 描画ループ・自動停止タイマーを巻き込んで止めてしまうレースになる。
+function cleanup(stream: MediaStream | null, cs: MediaStream | null, token: number): void {
+  if (token === recordingToken) {
+    rVfcRunning = false
+    if (frameTimer) {
+      clearInterval(frameTimer)
+      frameTimer = null
+    }
+    if (stopTimer) {
+      clearTimeout(stopTimer)
+      stopTimer = null
+    }
   }
   cs?.getTracks().forEach((t) => t.stop())
   stream?.getTracks().forEach((t) => t.stop())
@@ -46,9 +57,10 @@ function resetState(): void {
   recorder = null
 }
 
-window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
+window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   if (recorder && recorder.state !== 'inactive') return
   const token = ++recordingToken
+  currentSessionId = sessionId
 
   let stream: MediaStream
   let audioFailed = false
@@ -78,17 +90,18 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
       window.recorderApi.reportError(
         err2 instanceof DOMException && err2.name === 'NotAllowedError'
           ? 'getUserMedia_not_allowed'
-          : 'getUserMedia_failed'
+          : 'getUserMedia_failed',
+        sessionId
       )
       return
     }
   }
   if (token !== recordingToken) {
-    cleanup(stream, null)
-    window.recorderApi.reportError('aborted')
+    cleanup(stream, null, token)
+    window.recorderApi.reportError('aborted', sessionId)
     return
   }
-  if (audioFailed) window.recorderApi.reportError('audio_unavailable_fallback')
+  if (audioFailed) window.recorderApi.reportError('audio_unavailable_fallback', sessionId)
 
   mediaStream = stream
   const track = stream.getVideoTracks()[0]
@@ -98,15 +111,15 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
 
   const crop = await window.recorderApi.getCrop(streamW, streamH)
   if (token !== recordingToken) {
-    cleanup(stream, null)
+    cleanup(stream, null, token)
     resetState()
-    window.recorderApi.reportError('aborted')
+    window.recorderApi.reportError('aborted', sessionId)
     return
   }
   if (!crop) {
-    cleanup(stream, null)
+    cleanup(stream, null, token)
     resetState()
-    window.recorderApi.reportError('crop_unavailable')
+    window.recorderApi.reportError('crop_unavailable', sessionId)
     return
   }
 
@@ -115,9 +128,9 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
   canvas.height = crop.h
   const ctx = canvas.getContext('2d')
   if (!ctx) {
-    cleanup(stream, null)
+    cleanup(stream, null, token)
     resetState()
-    window.recorderApi.reportError('canvas_unavailable')
+    window.recorderApi.reportError('canvas_unavailable', sessionId)
     return
   }
 
@@ -128,15 +141,15 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
     await video.play()
   } catch (err) {
     console.error('[recorder] video play failed', err)
-    cleanup(stream, null)
+    cleanup(stream, null, token)
     resetState()
-    window.recorderApi.reportError('video_play_failed')
+    window.recorderApi.reportError('video_play_failed', sessionId)
     return
   }
   if (token !== recordingToken) {
-    cleanup(stream, null)
+    cleanup(stream, null, token)
     resetState()
-    window.recorderApi.reportError('aborted')
+    window.recorderApi.reportError('aborted', sessionId)
     return
   }
 
@@ -183,9 +196,9 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
     rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: 8_000_000 })
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
-    cleanup(stream, cs)
+    cleanup(stream, cs, token)
     resetState()
-    window.recorderApi.reportError('media_recorder_failed')
+    window.recorderApi.reportError('media_recorder_failed', sessionId)
     return
   }
 
@@ -204,13 +217,13 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
   rec.onerror = (event) => {
     recorderFailed = true
     console.error('[recorder] MediaRecorder error', event)
-    window.recorderApi.reportError('media_recorder_error')
+    window.recorderApi.reportError('media_recorder_error', sessionId)
     if (rec.state === 'recording') rec.stop()
   }
 
   rec.onstop = async () => {
     const duration = (Date.now() - sessionStartedAt) / 1000
-    cleanup(stream, cs)
+    cleanup(stream, cs, token)
     // resetState はモジュール変数（recorder/mediaStream/canvasStream）を消す。
     // 既に次のセッションが始まっていて recorder が入れ替わっていたら、
     // 新セッションの状態を消してしまわないよう何もしない。
@@ -219,7 +232,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
     if (recorderFailed) return
 
     if (localChunks.length === 0) {
-      window.recorderApi.reportError('no_data')
+      window.recorderApi.reportError('no_data', sessionId)
       return
     }
 
@@ -230,10 +243,10 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
       const blob = await fixWebmDuration(rawBlob, duration * 1000)
 
       const webmBuf = await blob.arrayBuffer()
-      window.recorderApi.sendDone(webmBuf, duration)
+      window.recorderApi.sendDone(webmBuf, duration, sessionId)
     } catch (err) {
       console.error('[recorder] finalize failed', err)
-      window.recorderApi.reportError('finalize_failed')
+      window.recorderApi.reportError('finalize_failed', sessionId)
     }
   }
 
@@ -241,9 +254,9 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds }) => {
     rec.start(100)
   } catch (err) {
     console.error('[recorder] start failed', err)
-    cleanup(stream, cs)
+    cleanup(stream, cs, token)
     resetState()
-    window.recorderApi.reportError('recorder_start_failed')
+    window.recorderApi.reportError('recorder_start_failed', sessionId)
     return
   }
 
@@ -262,9 +275,10 @@ window.recorderApi.onStop(() => {
   } else {
     // V-1: 録画開始処理中（MediaRecorder.start() 到達前）に停止が来たケース。recorder が
     // まだ無いため onstop も発火せず、ここで main へ aborted を送らないと main 側の
-    // isRecording が固着したままになる。
-    cleanup(mediaStream, canvasStream)
+    // isRecording が固着したままになる。この時点で自分がまさに最新セッションなので、
+    // 直前でインクリメントした recordingToken を渡してタイマー類も確実にクリアする。
+    cleanup(mediaStream, canvasStream, recordingToken)
     resetState()
-    window.recorderApi.reportError('aborted')
+    window.recorderApi.reportError('aborted', currentSessionId)
   }
 })
