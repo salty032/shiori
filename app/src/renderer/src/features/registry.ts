@@ -1,0 +1,59 @@
+// レンダラーのコア（App/DetailPanel/Viewer 等）が参照する拡張点。
+// full 版のみが読み込む video/init 等がここへ登録する。コア側はこのファイル以外、
+// video/ を一切 import しない（capture ソースドロップで video/ を消しても core はそのまま動く）。
+import type { ReactNode } from 'react'
+import type { ImageRow } from '../types'
+import type { MenuItem } from '../components/ContextMenu'
+
+// close: 呼び出し元がフルスクリーンのオーバーレイ（Viewer 等）で、そのアクションが
+// 別のオーバーレイ（VideoTrimmer 等）を開く場合に、キー入力の二重発火を避けるため
+// 先に自身を閉じたいときに渡す。DetailPanel のような非オーバーレイからは渡されない。
+type MediaActionSlot = (img: ImageRow, ctx?: { close?: () => void }) => ReactNode | null
+type ContextMenuSlot = (img: ImageRow) => MenuItem[]
+type ModalSlot = () => ReactNode
+
+// SettingsModal のタブ名。タブ自体はコアが定義するので、ここでは文字列リテラルで持つ
+// （video 側から見たときの依存先を registry だけに留めるため、SettingsModal 型は import しない）。
+export type SettingsTab = '基本' | 'キャプチャ' | 'タグ' | 'データ'
+// onCapturingChange: スロットが独自にキー入力キャプチャ UI（ホットキー変更など）を
+// 開いている間 true を報告する。SettingsModal はこれを見て Escape での自動クローズを
+// 一時停止する（スロット側の状態は SettingsModal から見えないため、明示的に橋渡しする）。
+export type SettingsSlotPlacement = 'hotkey' | 'notification'
+type SettingsSlot = (props: { onCapturingChange: (capturing: boolean) => void; placement?: SettingsSlotPlacement }) => ReactNode
+
+const mediaActionSlots: MediaActionSlot[] = []
+const contextMenuSlots: ContextMenuSlot[] = []
+const modalSlots: ModalSlot[] = []
+const settingsSlots: Record<SettingsTab, SettingsSlot[]> = { '基本': [], 'キャプチャ': [], 'タグ': [], 'データ': [] }
+
+export function registerMediaAction(fn: MediaActionSlot): void {
+  mediaActionSlots.push(fn)
+}
+
+export function registerContextMenuItems(fn: ContextMenuSlot): void {
+  contextMenuSlots.push(fn)
+}
+
+export function registerModal(fn: ModalSlot): void {
+  modalSlots.push(fn)
+}
+
+export function registerSettingsSlot(tab: SettingsTab, fn: SettingsSlot): void {
+  settingsSlots[tab].push(fn)
+}
+
+export function getMediaActions(img: ImageRow, ctx?: { close?: () => void }): ReactNode[] {
+  return mediaActionSlots.map((fn) => fn(img, ctx)).filter((node): node is ReactNode => node != null)
+}
+
+export function getExtraContextMenuItems(img: ImageRow): MenuItem[] {
+  return contextMenuSlots.flatMap((fn) => fn(img))
+}
+
+export function getModals(): ModalSlot[] {
+  return modalSlots
+}
+
+export function getSettingsSlots(tab: SettingsTab): SettingsSlot[] {
+  return settingsSlots[tab]
+}
