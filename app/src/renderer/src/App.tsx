@@ -4,6 +4,7 @@ import { buildTimeline, cleanTitle, computeGridLayout } from './utils'
 import { s } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
+import WhatsNewModal from './components/WhatsNewModal'
 import DetailPanel from './components/DetailPanel'
 import Viewer from './components/Viewer'
 import QuickTagInput from './components/QuickTagInput'
@@ -53,6 +54,7 @@ export default function App() {
   const [manualTagVersion, setManualTagVersion] = useState(0)
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
+  const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string[] } | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const mainRef = useRef<HTMLDivElement>(null)
@@ -309,6 +311,10 @@ export default function App() {
   useEffect(() => {
     return window.api.onAppNotice(({ level, message }) => toast.showToast(message, level))
   }, [])
+
+  // 更新後の初回起動時、RELEASE_NOTES にそのバージョンの文面があれば「変更点」モーダルを出す
+  // （文面が無いバージョンでは main 側が上の app:notice トーストにフォールバックする）。
+  useEffect(() => window.api.onWhatsNew(setWhatsNew), [])
 
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
   // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、
@@ -779,6 +785,14 @@ export default function App() {
         <ConfirmDialog
           {...confirmDialog}
           onClose={() => setConfirmDialog(null)}
+        />
+      )}
+
+      {whatsNew && (
+        <WhatsNewModal
+          version={whatsNew.version}
+          notes={whatsNew.notes}
+          onClose={() => setWhatsNew(null)}
         />
       )}
 

@@ -92,3 +92,4 @@ export type ExtensionTimecode = {
   versionMismatch?: boolean
 }
 export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string }
+export type WhatsNewData = { version: string; notes: string[] }

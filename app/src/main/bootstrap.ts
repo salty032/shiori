@@ -39,6 +39,8 @@ import { registerShareHandlers } from './ipc-share'
 import { registerImportHandlers } from './ipc-import'
 import { optionalPositiveInteger } from './ipc-validation'
 import { sendBrowserNotice } from './browser-notice'
+import { decideVersionNotice } from './version-notice'
+import { RELEASE_NOTES } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
 import { waitForPreferredTimecode, type CaptureTimecode } from './timecode-request'
 
@@ -74,14 +76,18 @@ function writeTitleDiag(record: unknown): void {
   }
 }
 
-// sendNotice は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
+// renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
 // 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
 // ように到着タイミングが読めない通知は、once() だけに頼ると取りこぼす）。
-function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', message: string): void {
+function whenRendererReady(fn: () => void): void {
   const wc = getMainWindow()?.webContents
   if (!wc) return
-  if (wc.isLoading()) wc.once('did-finish-load', () => sendNotice(level, message))
-  else sendNotice(level, message)
+  if (wc.isLoading()) wc.once('did-finish-load', fn)
+  else fn()
+}
+
+function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', message: string): void {
+  whenRendererReady(() => sendNotice(level, message))
 }
 
 // 更新を適用するとプロセスが終了するため、取り込み・書き出し・AIタグ付け等が
@@ -473,12 +479,16 @@ export function bootstrap(features: MainFeature[] = []): void {
     }
     // 自動アップデートはサイレント適用（終了時インストール）だと再起動後に何の表示もなく、
     // 更新されたのか判別できない。前回起動時のバージョンを設定に記録しておき、変わっていたら
-    // 一度だけ知らせる。初回起動（lastRunVersion なし）は記録のみで通知しない。
+    // 一度だけ知らせる（RELEASE_NOTES にそのバージョンの文面があればお知らせモーダル、
+    // 無ければ従来通りのトースト。初回起動＝previousRunVersion なしは記録のみで通知しない）。
     const currentVersion = app.getVersion()
     const previousRunVersion = loadSettings().lastRunVersion
     if (previousRunVersion !== currentVersion) {
-      if (previousRunVersion) {
-        sendNoticeWhenRendererReady('info', `Shiori を v${currentVersion} に更新しました`)
+      const notice = decideVersionNotice(previousRunVersion, currentVersion, RELEASE_NOTES[currentVersion])
+      if (notice.kind === 'whatsNew') {
+        whenRendererReady(() => sendToRenderer(CH.whatsNew, { version: notice.version, notes: notice.notes }))
+      } else if (notice.kind === 'toast') {
+        sendNoticeWhenRendererReady('info', notice.message)
       }
       saveSettings({ ...loadSettings(), lastRunVersion: currentVersion })
     }

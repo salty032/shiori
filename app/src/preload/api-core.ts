@@ -1,5 +1,5 @@
 ﻿import { ipcRenderer, webUtils } from 'electron'
-import type { ImageRow, ImageTag, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, ImageQuery, ImageListRequest } from '../shared/types'
+import type { ImageRow, ImageTag, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest } from '../shared/types'
 import type { ShioriApi } from '../shared/api'
 import { CH } from '../shared/api'
 
@@ -50,6 +50,8 @@ export function buildCoreApi(): ShioriApi {
     onOpenSettings: (cb: () => void) => listen<void>(CH.openSettings, cb),
 
     onAppNotice: (cb: (data: AppNotice) => void) => listen<AppNotice>(CH.appNotice, cb),
+
+    onWhatsNew: (cb: (data: WhatsNewData) => void) => listen<WhatsNewData>(CH.whatsNew, cb),
 
     onExtensionTimecode: (cb: (data: ExtensionTimecode) => void) =>
       listen<ExtensionTimecode>(CH.extensionTimecode, cb),

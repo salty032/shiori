@@ -3,7 +3,7 @@
 // 片方だけ変更すると型エラーになるため、両者がズレることはない。
 import type {
   ImageRow, ImageTag, TagWithCount, ImageTagSource, Settings,
-  CaptureData, ExtensionTimecode, AppNotice,
+  CaptureData, ExtensionTimecode, AppNotice, WhatsNewData,
   ImageQuery, ImageListRequest, DeleteImageResult,
 } from './types'
 
@@ -27,6 +27,7 @@ export interface ShioriApi {
   onCapture: (cb: (data: CaptureData) => void) => () => void
   onOpenSettings: (cb: () => void) => () => void
   onAppNotice: (cb: (data: AppNotice) => void) => () => void
+  onWhatsNew: (cb: (data: WhatsNewData) => void) => () => void
   onExtensionTimecode: (cb: (data: ExtensionTimecode) => void) => () => void
   updateImageTitle: (id: number, title: string) => Promise<void>
   updateImageMemo: (id: number, memo: string) => Promise<void>
@@ -163,6 +164,7 @@ export const CH = {
   captureDone: 'capture:done',
   openSettings: 'open-settings',
   appNotice: 'app:notice',
+  whatsNew: 'app:whatsNew',
   updaterDownloaded: 'updater:downloaded',
   updaterQuitAndInstall: 'updater:quitAndInstall',
 } as const
