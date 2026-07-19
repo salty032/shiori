@@ -9,9 +9,8 @@ extension/.amo-upload-uuid
 .DS_Store
 Thumbs.db
 .claude/
+.superpowers/
 
-# 開発用ハンドオフ/レビューメモ（公開リポジトリ・配布物には不要）
-FIREFOX-SUPPORT.md
-*-REVIEW.md
-SPEC.md
-TASKS.md
+# 開発用ハンドオフ/レビューメモ・ローカル専用ドキュメント（公開リポジトリ・配布物には不要）
+# SPEC.md / SERVICES.md / superpowers プラン等はここに置いてローカル限定にする
+docs/
