@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
-import { font, color } from '../styles'
+import { font, color, radius } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl } from '../components/videoControls'
@@ -529,8 +529,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
           {dur > 0 && (
             <>
               <div ref={selBorderRef} style={{ ...s.selectionBorder, left: pct(inSec), width: `calc(${pct(outSec)} - ${pct(inSec)})` }} />
-              <div ref={inTabRef} style={{ ...s.handleTab, background: '#4caf50', left: pct(inSec) }} />
-              <div ref={outTabRef} style={{ ...s.handleTab, background: '#f44336', left: pct(outSec) }} />
+              <div ref={inTabRef} style={{ ...s.handleTab, background: 'var(--success)', left: pct(inSec) }} />
+              <div ref={outTabRef} style={{ ...s.handleTab, background: 'var(--danger)', left: pct(outSec) }} />
               <div ref={inHandleRef} style={{ ...s.dragHandle, left: pct(inSec) }} onMouseDown={(e) => startDrag('in', e)} />
               <div ref={outHandleRef} style={{ ...s.dragHandle, left: pct(outSec) }} onMouseDown={(e) => startDrag('out', e)} />
               <div ref={playheadRef} style={{ ...s.playhead, left: pct(posRef.current) }} />
@@ -542,7 +542,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
           <div style={s.boundaryGrid}>
             <div style={s.row}>
               <div style={s.boundaryValue}>
-                <span style={{ ...s.badge, background: '#4caf50' }}>IN</span>
+                <span style={{ ...s.badge, background: 'var(--success)' }}>IN</span>
                 <span ref={inTimeRef} style={s.time}>{fmtTime(inSec)}</span>
                 {hasTable && <span ref={inFrameRef} style={s.frameNum}>f{inIdx}</span>}
               </div>
@@ -554,7 +554,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             </div>
             <div style={s.row}>
               <div style={s.boundaryValue}>
-                <span style={{ ...s.badge, background: '#f44336' }}>OUT</span>
+                <span style={{ ...s.badge, background: 'var(--danger)' }}>OUT</span>
                 <span ref={outTimeRef} style={s.time}>{fmtTime(outSec)}</span>
                 {hasTable && <span ref={outFrameRef} style={s.frameNum}>f{outIdx}</span>}
               </div>
@@ -603,18 +603,18 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(3,5,10,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000 },
-  modal: { background: '#0d0f14', border: '1px solid #20242f', borderRadius: 4, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '10px 16px', borderBottom: '1px solid #20242f', flexShrink: 0 },
-  fileTitle: { minWidth: 0, color: '#dce3f2', fontSize: font.lg, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  closeBtn: { background: 'none', border: 'none', color: '#6f778b', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(var(--scrim-rgb), 0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000 },
+  modal: { background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: radius.md, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '10px 16px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 },
+  fileTitle: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.lg, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 },
   videoWrap: { position: 'relative', flexShrink: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#000' },
   video: { width: '100%', maxHeight: 'calc(96vh - 190px)', aspectRatio: '16/9', background: '#000', display: 'block', objectFit: 'contain' as const, cursor: 'pointer' },
   vcBar: { position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: 'rgba(13,15,20,0.82)', backdropFilter: 'blur(4px)', height: 28, boxSizing: 'border-box' as const },
   timeline: { position: 'relative', height: 44, background: '#171a23', border: '1px solid #272c3a', cursor: 'crosshair', margin: '10px 16px 0', borderRadius: 3, flexShrink: 0 },
   timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 2 },
   timelineDim: { position: 'absolute', top: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', pointerEvents: 'none' },
-  selectionBorder: { position: 'absolute', top: 0, bottom: 0, borderTop: '2px solid rgba(123,123,246,0.7)', borderBottom: '2px solid rgba(123,123,246,0.7)', pointerEvents: 'none', zIndex: 1 },
+  selectionBorder: { position: 'absolute', top: 0, bottom: 0, borderTop: '2px solid rgba(var(--accent-rgb), 0.7)', borderBottom: '2px solid rgba(var(--accent-rgb), 0.7)', pointerEvents: 'none', zIndex: 1 },
   handleTab: { position: 'absolute', top: 0, bottom: 0, width: 7, borderRadius: 3, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2 },
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 18, marginLeft: -9, cursor: 'ew-resize', zIndex: 3 },
   playhead: { position: 'absolute', top: 0, bottom: 0, width: 2, background: '#fff', transform: 'translateX(-50%)', pointerEvents: 'none', opacity: 0.8 },
@@ -622,20 +622,20 @@ const s: Record<string, React.CSSProperties> = {
   boundaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 8 },
   row: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
   boundaryValue: { display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 146, flexShrink: 0 },
-  boundaryActions: { display: 'inline-flex', alignItems: 'center', gap: 4, paddingLeft: 6, borderLeft: '1px solid #272c3a', flexShrink: 0 },
-  badge: { color: '#fff', borderRadius: 3, padding: '1px 5px', fontSize: font.xs, fontWeight: 800, width: 30, textAlign: 'center', flexShrink: 0 },
-  time: { fontFamily: 'monospace', fontSize: font.base, color: '#e3e8f6', width: 68, flexShrink: 0 },
-  frameNum: { fontFamily: 'monospace', fontSize: font.xs, color: '#7f899f', width: 40, flexShrink: 0 },
-  frameBtn: { padding: '2px 7px', background: '#171a23', border: '1px solid #272c3a', borderRadius: 3, color: '#b9c2d6', cursor: 'pointer', fontSize: font.sm, whiteSpace: 'nowrap' as const },
-  setBtn: { padding: '2px 7px', background: '#1e2a3a', border: '1px solid #33445e', borderRadius: 3, color: '#9ea5ff', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, whiteSpace: 'nowrap' as const },
+  boundaryActions: { display: 'inline-flex', alignItems: 'center', gap: 4, paddingLeft: 6, borderLeft: '1px solid var(--border-strong)', flexShrink: 0 },
+  badge: { color: '#fff', borderRadius: radius.sm, padding: '1px 5px', fontSize: font.xs, fontWeight: 800, width: 30, textAlign: 'center', flexShrink: 0 },
+  time: { fontFamily: 'monospace', fontSize: font.base, color: 'var(--text-primary)', width: 68, flexShrink: 0 },
+  frameNum: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--text-secondary)', width: 40, flexShrink: 0 },
+  frameBtn: { padding: '2px 7px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, whiteSpace: 'nowrap' as const },
+  setBtn: { padding: '2px 7px', background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: radius.sm, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, whiteSpace: 'nowrap' as const },
   infoRow: { display: 'flex', alignItems: 'center', gap: 12, marginTop: -1, minHeight: 16 },
-  duration: { color: '#9ea5ff', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
-  ptsStatus: { color: '#6f778b', fontSize: font.xs, fontStyle: 'italic' },
-  ptsWarn: { color: '#e67e22', fontSize: font.xs, fontStyle: 'italic' },
+  duration: { color: 'var(--accent-text)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
+  ptsStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontStyle: 'italic' },
+  ptsWarn: { color: 'var(--warning)', fontSize: font.xs, fontStyle: 'italic' },
   errorMsg: { color: color.danger, fontSize: font.sm },
-  shortcutHint: { color: '#58627f', fontSize: font.xs, letterSpacing: 0.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
-  footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '9px 16px', borderTop: '1px solid #20242f', flexShrink: 0 },
-  cancelBtn: { padding: '6px 16px', background: 'transparent', border: '1px solid #272c3a', borderRadius: 3, color: '#8a94aa', cursor: 'pointer', fontSize: font.base },
-  trimBtn: { padding: '6px 20px', background: '#6f6ff2', border: '1px solid #8585ff', borderRadius: 3, color: '#fff', cursor: 'pointer', fontSize: font.base, fontWeight: 800, boxShadow: '0 6px 18px rgba(111,111,242,0.26)' },
+  shortcutHint: { color: 'var(--text-muted)', fontSize: font.xs, letterSpacing: 0.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+  footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '9px 16px', borderTop: '1px solid var(--border-default)', flexShrink: 0 },
+  cancelBtn: { padding: '6px 16px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.base },
+  trimBtn: { padding: '6px 20px', background: 'var(--accent)', border: '1px solid rgba(var(--accent-rgb), 0.7)', borderRadius: radius.sm, color: '#fff', cursor: 'pointer', fontSize: font.base, fontWeight: 800, boxShadow: '0 6px 18px rgba(var(--accent-rgb), 0.26)' },
   trimDisabled: { opacity: 0.4, cursor: 'not-allowed' },
 }
