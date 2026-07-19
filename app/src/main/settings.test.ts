@@ -13,7 +13,7 @@ const DEFAULTS = {
   frameFpsAuto: true,
   smartFolders: [],
   captureHotkey: 'Alt+S',
-  clipHotkey: 'Alt+R',
+  clipHotkey: 'Alt+D',
   clipMaxSeconds: 60,
   clipNotify: true,
   captureNotify: true,
