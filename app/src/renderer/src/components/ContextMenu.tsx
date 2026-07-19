@@ -48,6 +48,10 @@ export default function ContextMenu({ x, y, items, onClose, initialHighlight = -
       if (!menuRef.current?.contains(e.target as Node)) onClose()
     }
     const onKey = (e: KeyboardEvent): void => {
+      // メニュー表示中は背後のグリッド（useSelection の window keydown ハンドラ）へ
+      // キーを流さない。素通りさせると ↑↓ で裏のフォーカスも動いたり、Enter で裏の
+      // ビューアも開いたり、Escape で裏の選択まで解除されたりしてしまう。
+      e.stopPropagation()
       if (e.key === 'Escape') { onClose(); return }
       if (e.key === 'ArrowDown') {
         e.preventDefault()

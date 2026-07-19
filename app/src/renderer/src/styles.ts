@@ -163,7 +163,10 @@ export const s: Record<string, CSSProperties> = {
   sidebarXBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   // 通知と進捗タスクを同じ下中央スタックにまとめる。完了通知と進行中タスクが
   // 別デザインで重なる状態を避けつつ、視線移動が少ない位置に出す。
-  toastStack: { position: 'fixed' as const, left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 5300, width: 'max-content', maxWidth: 'calc(100vw - 36px)', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 8, pointerEvents: 'none' as const },
+  // zIndex はアプリ内の最前面（モーダル/フライアウト/ビューアより上）に固定する。
+  // 動画トリミング(6000)やタグ入力(6100)、確認ダイアログ(7000)の裏で通知が
+  // 見えなくなるのを防ぐため。
+  toastStack: { position: 'fixed' as const, left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 8000, width: 'max-content', maxWidth: 'calc(100vw - 36px)', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 8, pointerEvents: 'none' as const },
   // トースト/タスクカードは常に濃色地に明色文字の「エレベーテッド」な見た目で、
   // ライトモードでも意図的にダーク寄りに統一する（背景に溶け込ませず通知として即座に視認させるため）。
   notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'rgba(18,21,30,0.97)', border: 'none', borderRadius: 5, boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 2px 8px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.045)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: '#eef2ff' },

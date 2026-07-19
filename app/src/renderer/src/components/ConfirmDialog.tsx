@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { font, color } from '../styles'
 import { XIcon } from './Icon'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   title: string
@@ -22,6 +23,15 @@ export default function ConfirmDialog({
   onClose,
 }: Props) {
   const [busy, setBusy] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const cancelBtnRef = useRef<HTMLButtonElement>(null)
+  useFocusTrap(panelRef, true)
+
+  useEffect(() => {
+    // Enter連打による誤確定を避けるため、危険操作を伴うダイアログでは既定フォーカスを
+    // 確定側ではなくキャンセル側に置く。
+    cancelBtnRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
@@ -58,14 +68,14 @@ export default function ConfirmDialog({
 
   return (
     <div style={s.overlay} onMouseDown={() => { if (!busy) onClose() }}>
-      <div style={s.panel} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
         <div style={s.header}>
           <div id="confirm-dialog-title" style={s.title}>{title}</div>
           <button style={s.closeBtn} onClick={onClose} disabled={busy} title="閉じる"><XIcon size={16} /></button>
         </div>
         <div style={s.body}>{message}</div>
         <div style={s.actions}>
-          <button style={s.cancelBtn} onClick={onClose} disabled={busy}>{cancelLabel}</button>
+          <button ref={cancelBtnRef} style={s.cancelBtn} onClick={onClose} disabled={busy}>{cancelLabel}</button>
           <button
             style={{ ...s.confirmBtn, ...(danger ? s.confirmDanger : s.confirmPrimary), opacity: busy ? 0.65 : 1 }}
             onClick={handleConfirm}

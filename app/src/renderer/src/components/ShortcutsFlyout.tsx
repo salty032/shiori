@@ -27,7 +27,11 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
       if (anchorEl?.contains(target)) return
       onClose()
     }
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
+    // 表示中は背後のグリッドへキーを流さない（Escape で裏の選択まで解除されるのを防ぐ）。
+    const onKey = (e: KeyboardEvent): void => {
+      e.stopPropagation()
+      if (e.key === 'Escape') onClose()
+    }
     window.addEventListener('mousedown', onPointerDown, true)
     window.addEventListener('keydown', onKey, true)
     return () => {

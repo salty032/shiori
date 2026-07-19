@@ -114,6 +114,15 @@
 body { background: var(--bg-page); color: var(--text-primary); font-family: system-ui, sans-serif; }
 input::placeholder,
 textarea::placeholder { color: var(--text-muted); }
+
+/* キーボード操作時のフォーカス位置を常に視認できるようにする共通リング。
+   マウス/タッチでのフォーカス（:focus だが :focus-visible ではない）には出さない。
+   input/textarea 等は個別に outline:'none' をインラインで指定しているため、
+   フォーカス表示自体が消えてしまっていた。ここで !important により上書きする。 */
+:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 1px;
+}
 /* ライトはボタン濃色地に white ではなく黒寄りテキストのため、hover は明るくすると
    逆にコントラストが落ちる。ダーク(明るくする)/ライト(暗くする)で係数を反転する。 */
 button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }

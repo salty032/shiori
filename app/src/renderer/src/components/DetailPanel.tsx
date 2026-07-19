@@ -415,7 +415,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
         <div style={s.panelContent}>
         <div style={s.multi}>
           <div style={s.multiHeader}>
-            <div style={s.multiCount}>{selectedIds.size} 枚選択中</div>
+            <div style={s.multiCount}>{selectedIds.size}枚選択中</div>
             <button style={s.multiClearBtn} onClick={onClearSelection}>解除</button>
           </div>
           <div style={s.tagSection}>

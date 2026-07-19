@@ -161,8 +161,8 @@ export default function SettingsModal(p: Props) {
   useFocusTrap(panelRef, true)
 
   return (
-    <div style={s.overlay} onClick={closeSettings}>
-      <div style={s.panel} ref={panelRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div style={s.overlay} onMouseDown={closeSettings}>
+      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div style={s.header}>
           <span id="settings-modal-title" style={s.title}>設定</span>
           <button style={s.close} onClick={closeSettings} title="閉じる"><XIcon size={17} /></button>
@@ -414,10 +414,10 @@ export default function SettingsModal(p: Props) {
                       try {
                         const result = await p.onShareExport()
                         if (result.canceled) {
-                          if (result.count != null) setShareExportStatus({ text: `${result.count} 枚で中止しました` })
+                          if (result.count != null) setShareExportStatus({ text: `${result.count}枚で中止しました` })
                           // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
                         } else {
-                          setShareExportStatus({ text: `${result.count ?? 0} 枚をエクスポートしました` })
+                          setShareExportStatus({ text: `${result.count ?? 0}枚をエクスポートしました` })
                         }
                       } catch (err) {
                         console.error('[settings] share export failed', err)
@@ -455,12 +455,12 @@ export default function SettingsModal(p: Props) {
                         try {
                           const result = await p.onShareImport()
                           if (result.canceled) {
-                            if (result.count != null) setShareImportStatus({ text: `${result.count} 枚で中止しました` })
+                            if (result.count != null) setShareImportStatus({ text: `${result.count}枚で中止しました` })
                             // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
                           } else {
-                            const errMsg = result.errors && result.errors.length > 0 ? `（エラー ${result.errors.length} 件）` : ''
-                            const folderMsg = result.importedFolders ? `、スマートフォルダ ${result.importedFolders} 件` : ''
-                            setShareImportStatus({ text: `${result.count ?? 0} 枚をインポートしました${folderMsg}${errMsg}` })
+                            const errMsg = result.errors && result.errors.length > 0 ? `（エラー${result.errors.length}件）` : ''
+                            const folderMsg = result.importedFolders ? `、スマートフォルダ${result.importedFolders}件` : ''
+                            setShareImportStatus({ text: `${result.count ?? 0}枚をインポートしました${folderMsg}${errMsg}` })
                           }
                         } catch (err) {
                           console.error('[settings] share import failed', err)
@@ -489,9 +489,9 @@ export default function SettingsModal(p: Props) {
                       setRepairStatus(null)
                       try {
                         const { repaired, failed } = await window.api.imagesRepairThumbs()
-                        const failMsg = failed > 0 ? `（${failed} 枚は失敗）` : ''
+                        const failMsg = failed > 0 ? `（${failed}枚は失敗）` : ''
                         setRepairStatus({
-                          text: repaired > 0 ? `${repaired} 枚のサムネイルを再生成しました${failMsg}` : `問題は見つかりませんでした${failMsg}`,
+                          text: repaired > 0 ? `${repaired}枚のサムネイルを再生成しました${failMsg}` : `問題は見つかりませんでした${failMsg}`,
                         })
                       } catch (err) {
                         console.error('[settings] thumbnail repair failed', err)

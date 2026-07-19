@@ -382,9 +382,9 @@ export default function App() {
   }, [filters])
 
   const quickTagTargetLabel = useMemo(() => {
-    if (!quickTagTargetIds || quickTagTargetIds.length !== 1) return `${quickTagTargetIds?.length ?? 0} 枚`
+    if (!quickTagTargetIds || quickTagTargetIds.length !== 1) return `${quickTagTargetIds?.length ?? 0}枚`
     const img = activeImages.find((x) => x.id === quickTagTargetIds[0])
-    return img?.title ? cleanTitle(img.title, settings.settings.titleStrip) : '1 枚'
+    return img?.title ? cleanTitle(img.title, settings.settings.titleStrip) : '1枚'
   }, [activeImages, quickTagTargetIds, settings.settings.titleStrip])
 
   // サムネイル右クリック: 未選択の画像なら単一選択に切り替えてからメニューを開く。

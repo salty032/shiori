@@ -63,11 +63,11 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
         img = await window.api.getImage(id)
       } catch (err) {
         console.error('[capture] getImage failed', err)
-        showToast('キャプチャ画像を一覧に追加できませんでした。', 'error')
+        showToast('キャプチャ画像を一覧に追加できませんでした', 'error')
         return
       }
       if (!img) {
-        showToast('キャプチャ画像を一覧に追加できませんでした。', 'error')
+        showToast('キャプチャ画像を一覧に追加できませんでした', 'error')
         return
       }
       const store = useImageStore.getState()

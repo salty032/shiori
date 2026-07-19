@@ -234,7 +234,7 @@ export default function Sidebar({
             <img src={appIcon} width={16} height={16} alt="" style={s.sidebarIcon} />
             <span style={s.sidebarBrandName}>Shiori</span>
           </div>
-          <span style={s.count}>{count} 枚</span>
+          <span style={s.count}>{count}枚</span>
         </div>
 
         <div style={s.siteGroup}>
