@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo } from 'react'
 import { mediaUrl } from '../utils'
-import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl } from './videoControls'
+import {
+  useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl,
+  vcBarStyle, vcSeekTrackStyle, vcSeekBarStyle, vcSeekFillStyle, vcSeekThumbStyle
+} from './videoControls'
 
 export type VideoPlayerHandle = { togglePlay: () => void }
 
@@ -49,7 +52,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     vcTimeRef.current = t
     const pct = `${(t / (vcDuration || 1)) * 100}%`
     if (seekFillRef.current) seekFillRef.current.style.width = pct
-    if (seekThumbRef.current) seekThumbRef.current.style.left = `calc(${pct} - 4px)`
+    if (seekThumbRef.current) seekThumbRef.current.style.left = `calc(${pct} - 6px)`
     if (vcTimeLabelRef.current) vcTimeLabelRef.current.textContent = `${fmtDur(t)} / ${fmtDur(vcDuration)}`
   }
 
@@ -125,13 +128,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           setVcVolume(vol); setVcMuted(muted)
         }}
       />
-      <div style={s.vcBar} onClick={(e) => e.stopPropagation()}>
+      <div style={vcBarStyle} onClick={(e) => e.stopPropagation()}>
         <button style={vcBtnStyle} onClick={() => { const v = videoRef.current; if (!v) return; playing ? v.pause() : v.play() }}>
           <PlayPauseIcon playing={playing} />
         </button>
-        <div style={s.vcSeekTrack} onPointerDown={handleSeekPointerDown}>
-          <div ref={seekFillRef} style={{ ...s.vcSeekFill, width: `${(vcTimeRef.current / (vcDuration || 1)) * 100}%` }} />
-          <div ref={seekThumbRef} style={{ ...s.vcSeekThumb, left: `calc(${(vcTimeRef.current / (vcDuration || 1)) * 100}% - 4px)` }} />
+        <div style={vcSeekTrackStyle} onPointerDown={handleSeekPointerDown}>
+          <div style={vcSeekBarStyle} />
+          <div ref={seekFillRef} style={{ ...vcSeekFillStyle, width: `${(vcTimeRef.current / (vcDuration || 1)) * 100}%` }} />
+          <div ref={seekThumbRef} style={{ ...vcSeekThumbStyle, left: `calc(${(vcTimeRef.current / (vcDuration || 1)) * 100}% - 6px)` }} />
         </div>
         <span ref={vcTimeLabelRef} style={vcTimeLabelStyle}>{fmtDur(vcTimeRef.current)} / {fmtDur(vcDuration)}</span>
         <VolumeControl videoRef={videoRef} volume={vcVolume} muted={vcMuted} />
@@ -141,10 +145,3 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
 })
 
 export default memo(VideoPlayer)
-
-const s: Record<string, React.CSSProperties> = {
-  vcBar: { position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: 'rgba(13,15,20,0.82)', backdropFilter: 'blur(4px)', height: 28, boxSizing: 'border-box' },
-  vcSeekTrack: { position: 'relative', flex: 1, height: 3, background: '#272c3a', borderRadius: 2, cursor: 'pointer' },
-  vcSeekFill: { position: 'absolute', left: 0, top: 0, bottom: 0, background: '#7b7bf6', borderRadius: 2, pointerEvents: 'none' },
-  vcSeekThumb: { position: 'absolute', top: '50%', marginTop: -4, width: 8, height: 8, borderRadius: 999, background: '#9ea5ff', boxShadow: '0 0 0 3px rgba(123,123,246,0.18)', pointerEvents: 'none' },
-}
