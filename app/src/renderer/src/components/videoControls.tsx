@@ -20,7 +20,34 @@ export function useVcStyles(): void {
 // コントロールバーのアイコンボタン共通スタイル（再生/ミュート）。
 export const vcBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', color: '#94a0b7', cursor: 'pointer',
-  padding: '2px 3px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+  minWidth: 30, minHeight: 30, padding: 4,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+}
+
+// コントロールバー本体（映像に重なる A層＝意図的な非テーマ暗色）。
+// VideoPlayer と VideoTrimmer の両方から参照する単一定義（片方だけ直す食い違いを防ぐ、V-20/U-7 と同方針）。
+export const vcBarStyle: React.CSSProperties = {
+  position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center',
+  gap: 6, padding: '4px 8px', background: 'rgba(13,15,20,0.82)', backdropFilter: 'blur(4px)',
+  height: 34, boxSizing: 'border-box'
+}
+
+// シークバー: 可視はスリム(高さ6)のまま、掴める判定を実効16pxへ広げる。
+// 透明トラック(高さ16)の中に、可視バー・フィル・つまみを縦中央配置する。
+export const vcSeekTrackStyle: React.CSSProperties = {
+  position: 'relative', flex: 1, height: 16, cursor: 'pointer', display: 'flex', alignItems: 'center'
+}
+export const vcSeekBarStyle: React.CSSProperties = {
+  position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
+  height: 6, background: '#272c3a', borderRadius: 3, pointerEvents: 'none'
+}
+export const vcSeekFillStyle: React.CSSProperties = {
+  position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+  height: 6, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 3, pointerEvents: 'none'
+}
+export const vcSeekThumbStyle: React.CSSProperties = {
+  position: 'absolute', top: '50%', marginTop: -6, width: 12, height: 12, borderRadius: 999,
+  background: 'var(--accent-text)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none'
 }
 
 export function PlayPauseIcon({ playing }: { playing: boolean }): React.JSX.Element {
@@ -102,7 +129,7 @@ export function VolumeControl({ videoRef, volume, muted }: VolumeControlProps): 
         <div style={{ ...s.vcVolPopup, animation: closing ? 'vcVolSlideDown 0.2s ease-out forwards' : 'vcVolSlideUp 0.2s ease-out' }}>
           <div ref={trackRef} style={s.vcVolTrack} onPointerDown={handleVolPointerDown}>
             <div style={{ ...s.vcVolFill, height: `${volPct * 100}%` }} />
-            <div style={{ ...s.vcVolThumb, bottom: `calc(${volPct * 100}% - 5px)` }} />
+            <div style={{ ...s.vcVolThumb, bottom: `calc(${volPct * 100}% - 6px)` }} />
           </div>
         </div>
       )}
@@ -117,7 +144,7 @@ export const vcTimeLabelStyle: React.CSSProperties = {
 
 const s: Record<string, React.CSSProperties> = {
   vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcVolTrack: { position: 'relative', width: 3, height: 52, background: '#272c3a', borderRadius: 2, cursor: 'pointer', flexShrink: 0 },
-  vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: '#7b7bf6', borderRadius: 2 },
-  vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 10, height: 10, borderRadius: 999, background: '#9ea5ff', boxShadow: '0 0 0 3px rgba(123,123,246,0.18)', pointerEvents: 'none' },
+  vcVolTrack: { position: 'relative', width: 6, height: 60, background: '#272c3a', borderRadius: 3, cursor: 'pointer', flexShrink: 0 },
+  vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 3 },
+  vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: 999, background: 'var(--accent-text)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
 }
