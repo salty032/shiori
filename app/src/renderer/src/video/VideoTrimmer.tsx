@@ -3,7 +3,7 @@ import type { ImageRow, Settings } from '../types'
 import { font, color, radius } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl } from '../components/videoControls'
+import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from '../components/videoControls'
 import { videoApi } from './api'
 
 type Props = {
@@ -503,7 +503,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             onPause={() => setPlaying(false)}
             onVolumeChange={() => { setVcVolume(videoRef.current?.volume ?? 1); setVcMuted(videoRef.current?.muted ?? false) }}
           />
-          <div style={s.vcBar}>
+          <div style={vcBarStyle}>
             <button style={vcBtnStyle} onClick={() => { const v = videoRef.current; if (v) v.paused ? v.play() : v.pause() }}>
               <PlayPauseIcon playing={playing} />
             </button>
@@ -607,16 +607,15 @@ const s: Record<string, React.CSSProperties> = {
   modal: { background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: radius.md, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '10px 16px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 },
   fileTitle: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.lg, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 },
+  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0, minWidth: 28, minHeight: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   videoWrap: { position: 'relative', flexShrink: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#000' },
   video: { width: '100%', maxHeight: 'calc(96vh - 190px)', aspectRatio: '16/9', background: '#000', display: 'block', objectFit: 'contain' as const, cursor: 'pointer' },
-  vcBar: { position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: 'rgba(13,15,20,0.82)', backdropFilter: 'blur(4px)', height: 28, boxSizing: 'border-box' as const },
   timeline: { position: 'relative', height: 44, background: '#171a23', border: '1px solid #272c3a', cursor: 'crosshair', margin: '10px 16px 0', borderRadius: 3, flexShrink: 0 },
   timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 2 },
   timelineDim: { position: 'absolute', top: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', pointerEvents: 'none' },
   selectionBorder: { position: 'absolute', top: 0, bottom: 0, borderTop: '2px solid rgba(var(--accent-rgb), 0.7)', borderBottom: '2px solid rgba(var(--accent-rgb), 0.7)', pointerEvents: 'none', zIndex: 1 },
   handleTab: { position: 'absolute', top: 0, bottom: 0, width: 7, borderRadius: 3, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2 },
-  dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 18, marginLeft: -9, cursor: 'ew-resize', zIndex: 3 },
+  dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
   playhead: { position: 'absolute', top: 0, bottom: 0, width: 2, background: '#fff', transform: 'translateX(-50%)', pointerEvents: 'none', opacity: 0.8 },
   controls: { padding: '8px 16px 7px', display: 'flex', flexDirection: 'column', gap: 7, flexShrink: 0 },
   boundaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 8 },
@@ -626,8 +625,8 @@ const s: Record<string, React.CSSProperties> = {
   badge: { color: '#fff', borderRadius: radius.sm, padding: '1px 5px', fontSize: font.xs, fontWeight: 800, width: 30, textAlign: 'center', flexShrink: 0 },
   time: { fontFamily: 'monospace', fontSize: font.base, color: 'var(--text-primary)', width: 68, flexShrink: 0 },
   frameNum: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--text-secondary)', width: 40, flexShrink: 0 },
-  frameBtn: { padding: '2px 7px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, whiteSpace: 'nowrap' as const },
-  setBtn: { padding: '2px 7px', background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: radius.sm, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, whiteSpace: 'nowrap' as const },
+  frameBtn: { padding: '5px 10px', minHeight: 28, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.base, whiteSpace: 'nowrap' as const },
+  setBtn: { padding: '5px 10px', minHeight: 28, boxSizing: 'border-box' as const, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: radius.sm, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: 700, whiteSpace: 'nowrap' as const },
   infoRow: { display: 'flex', alignItems: 'center', gap: 12, marginTop: -1, minHeight: 16 },
   duration: { color: 'var(--accent-text)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
   ptsStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontStyle: 'italic' },
