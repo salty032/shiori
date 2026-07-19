@@ -45,6 +45,36 @@ export const RELEASE_NOTES: Record<string, string[]> = {
       No  → 従来通りのトースト「Shiori を vX.X.X に更新しました」
 ```
 
+### 判断ロジックの純粋関数への切り出し（テスト容易性のため）
+
+`bootstrap.ts` の該当分岐は巨大な `app.whenReady()` ハンドラの内側にあり、テストファイルも無い
+（Electron の `app`・ウィンドウ等のモックが大量に必要でそのままでは単体テストが書けない）。
+そこで**判断部分だけ**を副作用のない純粋関数として新規ファイル `app/src/main/version-notice.ts` に切り出し、
+`bootstrap.ts` は戻り値を見て配線するだけにする。
+
+```ts
+export type VersionNotice =
+  | { kind: 'whatsNew'; version: string; notes: string[] }
+  | { kind: 'toast'; message: string }
+  | { kind: 'none' }
+
+// previousRunVersion: 前回起動時のバージョン（初回起動は null）
+// currentVersion:     今回のバージョン（app.getVersion()）
+// notes:              RELEASE_NOTES[currentVersion]（未定義もありうる）
+export function decideVersionNotice(
+  previousRunVersion: string | null,
+  currentVersion: string,
+  notes: string[] | undefined,
+): VersionNotice
+```
+
+判定規則:
+- `previousRunVersion === currentVersion` → `{ kind: 'none' }`（同一バージョン。通常起動）
+- `previousRunVersion === null` → `{ kind: 'none' }`（初回インストール。記録のみで通知しない）
+- 上記以外（更新された）:
+  - `notes` が存在し空配列でない → `{ kind: 'whatsNew', version, notes }`
+  - それ以外 → `{ kind: 'toast', message: 'Shiori を v<currentVersion> に更新しました' }`
+
 配線の変更点:
 - `app/src/shared/api.ts`
   - `CH.whatsNew = 'app:whatsNew'` を追加
@@ -52,10 +82,14 @@ export const RELEASE_NOTES: Record<string, string[]> = {
 - `app/src/shared/types.ts` に `WhatsNewData = { version: string; notes: string[] }` を追加
   （`AppNotice` 型の並びに置く）
 - `app/src/preload/api-core.ts` に `onWhatsNew` の `listen()` 実装を追加
+- `app/src/main/version-notice.ts`（新規）に `decideVersionNotice` を実装
 - `app/src/main/bootstrap.ts`
   - `sendNoticeWhenRendererReady` と同じ「renderer 描画待ち」パターンを再利用する
     汎用ヘルパー（`whenRendererReady(fn)`）を切り出し、両方から使う
-  - 分岐ロジックを追加し、`RELEASE_NOTES` を import
+  - 既存の分岐（[bootstrap.ts:477-484](../../../app/src/main/bootstrap.ts#L477-L484)）を
+    `decideVersionNotice` の呼び出しに置き換え、`kind` に応じて
+    「whatsNew 送信」／「トースト」／「何もしない」を配線する。
+    `lastRunVersion` の保存は従来通り更新時に行う（判定とは独立）
 
 既存の「更新ダウンロード完了バナー」（`updater:downloaded` → 再起動を促すバナー、
 [App.tsx:501-509](../../../app/src/renderer/src/App.tsx#L501-L509)）とは独立した別チャンネルで、
@@ -87,7 +121,8 @@ export const RELEASE_NOTES: Record<string, string[]> = {
 
 ## テスト方針
 
-- `app/src/main/bootstrap.ts` の分岐ロジック（ノートあり/なし/初回起動）を検証する単体テストを追加
-  （既存の `*.test.ts` の並びに準拠、`vitest`）
+- `app/src/main/version-notice.test.ts`（新規）で `decideVersionNotice` の分岐を検証する。
+  最低限の4ケース: 同一バージョン → none / 初回起動（previous=null）→ none /
+  更新かつノートあり → whatsNew / 更新かつノートなし → toast。`vitest`、既存 `*.test.ts` の並びに準拠。
 - `WhatsNewModal` の Esc/クリックで閉じる挙動は `ConfirmDialog` 相当のテストがあれば同様に追加、
-  無ければ既存コンポーネントの慣習に合わせる
+  無ければ既存コンポーネントの慣習に合わせる（純粋関数側でロジックを担保しているので必須ではない）
