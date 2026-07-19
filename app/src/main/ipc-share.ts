@@ -11,6 +11,7 @@ import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../shared/api'
 import { parseShareEntry } from './share-entry'
 import { getVideoThumbProvider } from './video-thumb-provider'
+import { MAX_IMPORT_VIDEO_SECONDS, IMPORT_VIDEO_SECONDS_EPS } from './ipc-import'
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 import { beginTask, endTask } from './busy'
@@ -222,6 +223,16 @@ export function registerShareHandlers(): void {
             }
             try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
               console.warn('[share:import] getVideoDuration failed', err)
+            }
+            // 通常のファイル取り込み（ipc-import.ts）と同じ尺上限を適用する。ここを素通りさせると
+            // metadata.jsonl を手編集した共有バンドル経由で著作権対策の60秒上限を回避できてしまう。
+            if (duration == null || duration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
+              errors.push(duration == null
+                ? `duration unknown: ${parsed.file}`
+                : `too long (${Math.round(duration)}s > ${MAX_IMPORT_VIDEO_SECONDS}s): ${parsed.file}`)
+              try { await unlink(destFile) } catch {}
+              if (thumbDest) try { await unlink(thumbDest) } catch {}
+              continue
             }
           }
 

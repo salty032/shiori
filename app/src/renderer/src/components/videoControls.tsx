@@ -111,9 +111,16 @@ export function VolumeControl({ videoRef, volume, muted }: VolumeControlProps): 
     update(e.clientY)
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     const onMove = (ev: PointerEvent): void => update(ev.clientY)
-    const onUp = (): void => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
+    // pointerup 以外に、タッチ操作の中断等で発火する pointercancel でも確実に解除する
+    // （片方だけだと、キャンセル経路でリスナーが残ったまま次のドラッグと二重に動く恐れがある）。
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
   }
 
   const volPct = muted ? 0 : volume

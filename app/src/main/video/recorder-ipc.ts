@@ -15,7 +15,10 @@ import { registerCapturedMedia } from '../captured-media'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
 const MAX_WEBM_BYTES = 1024 * 1024 * 1024 // 1GB
-const MAX_CLIP_DURATION_SEC = 3600 // 1時間
+// 著作権対策の録画上限（settings.ts の clipMaxSeconds、最大60秒）に停止タイマーの
+// 遅延分だけ余裕を持たせた値。renderer が改ざん・誤動作しても、この値を超える尺の
+// クリップを保存させない（多層防御。settings.ts 側が一次の上限）。
+const MAX_CLIP_DURATION_SEC = 70
 
 function formatClipDuration(seconds: number): string {
   const s = Math.round(seconds)

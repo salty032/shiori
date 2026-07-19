@@ -108,3 +108,30 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
     expect(registerCapturedMedia).toHaveBeenCalled()
   })
 })
+
+describe('recorder:done - duration 上限（多層防御）', () => {
+  beforeEach(() => {
+    handlers.clear()
+    finishRecordingState.mockClear()
+    isCurrentRecordingSession.mockClear()
+    isCurrentRecordingSession.mockReturnValue(true)
+    sendNotice.mockClear()
+    registerCapturedMedia.mockClear()
+    registerRecorderIpc()
+  })
+
+  it('上限(70秒)ちょうどは保存する', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 70, 1)
+    expect(registerCapturedMedia).toHaveBeenCalled()
+    expect(sendNotice).not.toHaveBeenCalled()
+  })
+
+  it('上限(70秒)超は拒否し保存しない', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 70.1, 1)
+    expect(registerCapturedMedia).not.toHaveBeenCalled()
+    expect(finishRecordingState).toHaveBeenCalled()
+    expect(sendNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
+  })
+})

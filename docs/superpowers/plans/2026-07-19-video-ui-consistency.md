@@ -1,4 +1,4 @@
-# 動画UIのデザイン統一・操作領域拡大 Implementation Plan
+﻿# 動画UIのデザイン統一・操作領域拡大 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -45,7 +45,7 @@
   - `vcSeekThumbStyle: React.CSSProperties` — つまみ（left は呼び出し側が ref で設定）
   - 既存 `vcBtnStyle` — 当たり判定を最小30×30pxへ拡大（シグネチャ変更なし）
 
-- [ ] **Step 1: `vcBtnStyle` を拡大**
+- [x] **Step 1: `vcBtnStyle` を拡大**
 
 `vcBtnStyle` を以下に置換（`color` は A層の据え置き明るいグレー、当たり判定のみ拡大）:
 
@@ -57,7 +57,7 @@ export const vcBtnStyle: React.CSSProperties = {
 }
 ```
 
-- [ ] **Step 2: 共有バー／シークスタイルを追加**
+- [x] **Step 2: 共有バー／シークスタイルを追加**
 
 `vcBtnStyle` の下に、以下の export を追加する（VideoPlayer から移設・拡大する定義。VideoTrimmer も vcBar を参照する）:
 
@@ -89,7 +89,7 @@ export const vcSeekThumbStyle: React.CSSProperties = {
 }
 ```
 
-- [ ] **Step 3: 音量スライダーのアクセント統一・拡大**
+- [x] **Step 3: 音量スライダーのアクセント統一・拡大**
 
 ファイル末尾の `s` オブジェクト内 `vcVolTrack` / `vcVolFill` / `vcVolThumb` を置換（`vcVolPopup` は A層暗色のため据え置き）:
 
@@ -99,7 +99,7 @@ export const vcSeekThumbStyle: React.CSSProperties = {
   vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: 999, background: 'var(--accent-text)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
 ```
 
-- [ ] **Step 4: 音量つまみの位置補正**
+- [x] **Step 4: 音量つまみの位置補正**
 
 `VolumeControl` 内、つまみの `bottom` 計算をつまみ半径（5→6px）に合わせる。以下の行を探す:
 
@@ -113,12 +113,12 @@ export const vcSeekThumbStyle: React.CSSProperties = {
             <div style={{ ...s.vcVolThumb, bottom: `calc(${volPct * 100}% - 6px)` }} />
 ```
 
-- [ ] **Step 5: 無回帰ゲート**
+- [x] **Step 5: 無回帰ゲート**
 
 Run: `cd app && npm run verify`
 Expected: typecheck エラーなし、全 vitest PASS（343 tests green）。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/renderer/src/components/videoControls.tsx
@@ -135,7 +135,7 @@ git commit -m "refactor: 動画コントロールの共有スタイルを集約�
 **Interfaces:**
 - Consumes（Task 1 から）: `vcBarStyle`, `vcSeekTrackStyle`, `vcSeekBarStyle`, `vcSeekFillStyle`, `vcSeekThumbStyle`（および既存 `vcBtnStyle`, `vcTimeLabelStyle`, `PlayPauseIcon`, `VolumeControl`, `useVcStyles`）
 
-- [ ] **Step 1: import を差し替え**
+- [x] **Step 1: import を差し替え**
 
 先頭付近の import 行:
 
@@ -152,7 +152,7 @@ import {
 } from './videoControls'
 ```
 
-- [ ] **Step 2: シークバー JSX を透明トラック構造へ更新**
+- [x] **Step 2: シークバー JSX を透明トラック構造へ更新**
 
 現在の vcBar ブロック（`<div style={s.vcBar} ...>` 〜 対応する閉じ `</div>`）を以下に置換。可視バー背景 `vcSeekBarStyle` を1枚追加し、つまみ left の補正を `- 4px` → `- 6px` にする:
 
@@ -171,7 +171,7 @@ import {
       </div>
 ```
 
-- [ ] **Step 3: つまみ位置更新関数の補正**
+- [x] **Step 3: つまみ位置更新関数の補正**
 
 `updateVcTime` 内、つまみ left を設定する行:
 
@@ -185,7 +185,7 @@ import {
     if (seekThumbRef.current) seekThumbRef.current.style.left = `calc(${pct} - 6px)`
 ```
 
-- [ ] **Step 4: ローカル重複スタイルを削除**
+- [x] **Step 4: ローカル重複スタイルを削除**
 
 ファイル末尾のローカル `s` 定義（`vcBar` / `vcSeekTrack` / `vcSeekFill` / `vcSeekThumb` を持つブロック）を丸ごと削除する:
 
@@ -200,12 +200,12 @@ const s: Record<string, React.CSSProperties> = {
 
 削除後、`s.` への参照が残っていないことを確認する（Step 2 で `vcBar` 参照は撤去済み。他に `s.` は無い）。
 
-- [ ] **Step 5: 無回帰ゲート**
+- [x] **Step 5: 無回帰ゲート**
 
 Run: `cd app && npm run verify`
 Expected: typecheck エラーなし（未使用 `s` 参照が残っていれば tsc/lint が検知）、全 vitest PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/renderer/src/components/VideoPlayer.tsx
@@ -222,7 +222,7 @@ git commit -m "refactor: VideoPlayer を共有シークバースタイルに寄�
 **Interfaces:**
 - Consumes: `radius`（[styles.ts](../../../app/src/renderer/src/styles.ts#L14)）を新たに import。
 
-- [ ] **Step 1: `radius` を import に追加**
+- [x] **Step 1: `radius` を import に追加**
 
 ```tsx
 import { font, color } from '../styles'
@@ -234,7 +234,7 @@ import { font, color } from '../styles'
 import { font, color, radius } from '../styles'
 ```
 
-- [ ] **Step 2: JSX 内インライン色（IN/OUT）をトークン化**
+- [x] **Step 2: JSX 内インライン色（IN/OUT）をトークン化**
 
 タイムラインのタブ（`handleTab`）とバッジ（`badge`）の inline `background` を置換する。
 
@@ -276,7 +276,7 @@ IN/OUT バッジ（現在）:
                 <span style={{ ...s.badge, background: 'var(--danger)' }}>OUT</span>
 ```
 
-- [ ] **Step 3: `s` オブジェクトの B層色をトークン化**
+- [x] **Step 3: `s` オブジェクトの B層色をトークン化**
 
 ファイル末尾の `s` 定義のうち、以下のキーを置換する（A層の `videoWrap`/`video`/`vcBar`/`timeline`/`timelineStrip`/`timelineDim`/`handleTab`/`dragHandle`/`playhead` の暗色ベタ値は据え置き。`selectionBorder` はアクセントのみ統一）。
 
@@ -314,12 +314,12 @@ IN/OUT バッジ（現在）:
 
 > 注: `frameBtn`/`setBtn` の `padding`・`fontSize` は Task 4 で拡大する。ここでは色のみ変更し、寸法は現状維持。
 
-- [ ] **Step 4: 無回帰ゲート**
+- [x] **Step 4: 無回帰ゲート**
 
 Run: `cd app && npm run verify`
 Expected: typecheck エラーなし、全 vitest PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/renderer/src/video/VideoTrimmer.tsx
@@ -336,7 +336,7 @@ git commit -m "refactor: VideoTrimmer のクロームをテーマトークンへ
 **Interfaces:**
 - Consumes（Task 1 から）: `vcBarStyle`（既存の `useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl` に追加 import）
 
-- [ ] **Step 1: `vcBarStyle` を import に追加**
+- [x] **Step 1: `vcBarStyle` を import に追加**
 
 現在:
 
@@ -350,7 +350,7 @@ import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl } from '../compon
 import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from '../components/videoControls'
 ```
 
-- [ ] **Step 2: vcBar を共有スタイルへ差し替え**
+- [x] **Step 2: vcBar を共有スタイルへ差し替え**
 
 映像下のコントロールバー:
 
@@ -370,7 +370,7 @@ import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl, vcBarStyle } fro
   vcBar: { position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: 'rgba(13,15,20,0.82)', backdropFilter: 'blur(4px)', height: 28, boxSizing: 'border-box' as const },
 ```
 
-- [ ] **Step 3: ボタン／ドラッグ掴みの寸法拡大**
+- [x] **Step 3: ボタン／ドラッグ掴みの寸法拡大**
 
 `s` 定義内の該当キーを置換する。
 
@@ -398,12 +398,12 @@ import { useVcStyles, vcBtnStyle, PlayPauseIcon, VolumeControl, vcBarStyle } fro
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
 ```
 
-- [ ] **Step 4: 無回帰ゲート**
+- [x] **Step 4: 無回帰ゲート**
 
 Run: `cd app && npm run verify`
 Expected: typecheck エラーなし（削除した `s.vcBar` への参照が残れば tsc が検知）、全 vitest PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/renderer/src/video/VideoTrimmer.tsx
