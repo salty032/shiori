@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo } from 'react'
 import { mediaUrl } from '../utils'
+import { findFrameIdx, frameSeekTarget } from '../frameTable'
+import { getFramePtsResolver } from '../features/registry'
 import {
   useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, RateControl, LoopButton,
   vcBarStyle, vcBarOverlayStyle, vcSeekTrackStyle, vcSeekBarStyle, vcSeekFillStyle, vcSeekThumbStyle
@@ -34,8 +36,13 @@ type Props = {
   autoPlay?: boolean
   pauseWhen?: boolean
   onVideoClick?: (e: React.MouseEvent<HTMLVideoElement>) => boolean
-  /** コマ送りの刻み幅に使う素材の fps（settings.frameFps）。省略時は 24。 */
+  /** 実フレーム表が使えないときのコマ送りの刻み幅（settings.frameFps）。省略時は 24。 */
   fps?: number
+  /** 実フレーム時刻（PTS）を先読みし、コマ送りを実フレームへ吸着させる。
+   *  解析は main 側でキャッシュされるとはいえ初回は ffmpeg が走るため、実際にコマを
+   *  数えるビューアでだけ有効にする（サムネの隣で内容を確かめるだけの詳細パネルでは、
+   *  クリップを選び替えるたびに解析が走る方が損になる）。 */
+  preloadFrameTable?: boolean
   // 再生速度・ループをコントロールバーに出す。腰を据えて 1 本を見るビューア専用で、
   // 詳細パネル（サムネの隣で内容を確かめるだけの小さい枠）には出さない。
   // 狭いバーにボタンが増えるほど、そこでの用途である「どのクリップか確認する」が
@@ -43,21 +50,65 @@ type Props = {
   showRateLoop?: boolean
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop }, ref) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
+  // このクリップの実フレーム時刻。取得できるまで（および capture 版）は空のまま。
+  const framePtsRef = useRef<number[]>([])
+  // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
+  //
+  // 時刻で持って毎回シーク結果を実測し直すと、連打したときに前のシークの実測（非同期で
+  // 返る）が後から古い位置を書き戻し、複数のコールバックが順不同で効くため、送り先が
+  // 前後に飛んでコマ順が崩れる。添字を自分で ±1 していけば何回連打しても単調に動く。
+  // null = まだ確定していない（外部の再生位置から引き直す）。
+  const frameIdxRef = useRef<number | null>(null)
+  // 自分のコマ送りによるシークかどうか。自分で動かした直後に外部同期（onSeeked）が
+  // 添字を引き直すと、上と同じ書き戻しが起きるため 1 回だけ読み飛ばす。
+  const selfSeekRef = useRef(false)
+
+  useEffect(() => {
+    framePtsRef.current = []
+    frameIdxRef.current = null
+    selfSeekRef.current = false
+    if (!preloadFrameTable) return
+    const resolve = getFramePtsResolver()
+    if (!resolve) return
+    let canceled = false
+    resolve(id)
+      .then((pts) => { if (!canceled) framePtsRef.current = pts })
+      .catch((err) => { console.warn('[video] frame pts unavailable', err) })
+    return () => { canceled = true }
+  }, [id, preloadFrameTable])
+
+  // シークバー操作・再生・読み込み直後など、コマ送り以外の理由で位置が動いたときに
+  // 添字を実際の再生位置から引き直す。
+  function syncFrameIdx(): void {
+    if (selfSeekRef.current) { selfSeekRef.current = false; return }
+    const v = videoRef.current
+    const pts = framePtsRef.current
+    if (!v || pts.length === 0) return
+    frameIdxRef.current = findFrameIdx(pts, v.currentTime)
+  }
 
   // 1 コマ進む / 戻る。
-  // 前後 1 コマちょうど（±stepSec）を足し引きすると、現在位置が既にフレーム境界の
-  // 直後にある場合に同じフレーム内へ着地して「動かない」ことがある。境界を必ず跨ぐよう
-  // 進む側は 1.5 コマ、戻る側は 0.5 コマ分ずらしてからシークする（ブラウザはシーク先の
-  // 直前のフレームを表示するので、結果として実フレームに吸着する）。
-  // VideoTrimmer の stepBoundaryRvfc と同じ考え方。
+  // 実フレーム表があるときは隣のフレームへ直接移る（ブラウザ側のコマ送りと同じく、
+  // 実フレームに吸着させる）。表がないとき（capture 版・解析失敗）だけ従来の fps 換算に
+  // 落ちる。その場合は境界を必ず跨ぐよう進む側 1.5 コマ・戻る側 0.5 コマずらす。
   function stepFrame(dir: number): void {
     const v = videoRef.current
     if (!v) return
     v.pause()
     const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
+    const pts = framePtsRef.current
+    if (pts.length > 0) {
+      const cur = frameIdxRef.current ?? findFrameIdx(pts, v.currentTime)
+      const next = Math.max(0, Math.min(cur + dir, pts.length - 1))
+      if (next === cur) return   // 端まで来ている
+      frameIdxRef.current = next
+      selfSeekRef.current = true
+      v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec), limit))
+      return
+    }
     const from = v.currentTime
     const target = dir > 0 ? from + stepSec * 1.5 : from - stepSec * 0.5
     v.currentTime = Math.max(0, Math.min(target, limit))
@@ -144,6 +195,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     let alive = true
     const tick = (_now: number, meta: { mediaTime: number }): void => {
       if (!alive) return
+      // 再生を止めた位置からそのままコマ送りを続けられるよう、添字も追い続ける。
+      // 再生中は自分のシークと競合しないので、ここは実測をそのまま反映してよい。
+      const pts = framePtsRef.current
+      if (pts.length > 0) frameIdxRef.current = findFrameIdx(pts, meta.mediaTime)
       updateVcTime(meta.mediaTime)
       handle = rv.requestVideoFrameCallback!(tick)
     }
@@ -206,6 +261,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
+          // シークバー操作など、コマ送り以外で位置が動いたときに添字を引き直す。
+          onSeeked={syncFrameIdx}
+          onLoadedData={syncFrameIdx}
           onEnded={() => { setPlaying(false); updateVcTime(0); if (videoRef.current) videoRef.current.currentTime = 0 }}
           onTimeUpdate={() => updateVcTime(videoRef.current?.currentTime ?? 0)}
           onDurationChange={() => setVcDuration(videoRef.current?.duration ?? 0)}

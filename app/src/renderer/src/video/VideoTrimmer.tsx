@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { font, color, radius } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
+import { FRAME_EPS, findFrameIdx } from '../frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from '../components/videoControls'
 import { videoApi } from './api'
@@ -27,23 +28,6 @@ function safeDur(d: number | null | undefined): number {
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path
-}
-
-const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
-
-// pts[i] <= t + EPS を満たす最大の i を返す（表示中フレームのインデックス）
-function findFrameIdx(pts: number[], t: number): number {
-  if (pts.length === 0) return 0
-  if (t <= pts[0]) return 0
-  const last = pts.length - 1
-  if (t >= pts[last]) return last
-  let lo = 0, hi = last
-  while (lo < hi - 1) {
-    const mid = (lo + hi) >> 1
-    if (pts[mid] <= t + FRAME_EPS) lo = mid
-    else hi = mid
-  }
-  return lo
 }
 
 export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Props) {
@@ -361,6 +345,26 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     else onClose()
   }
 
+  // 再生位置のコマ送り。フレームテーブルがあれば実 PTS を辿り、無ければ fps 換算で動かす。
+  function stepPlayhead(dir: number): void {
+    const v = videoRef.current
+    if (!v) return
+    v.pause()
+    if (hasTable) {
+      const curIdx = findFrameIdx(framePts, displayedSecRef.current)
+      const targetIdx = Math.max(0, Math.min(curIdx + dir, framePts.length - 1))
+      const targetSec = framePts[targetIdx]
+      seekSeqRef.current += 1
+      v.currentTime = Math.max(0, Math.min(dur, targetSec))
+      displayedSecRef.current = targetSec
+      updatePos(targetSec)
+    } else {
+      const target = Math.max(0, Math.min((v.currentTime || 0) + dir * step, dur))
+      v.currentTime = target
+      updatePos(target)
+    }
+  }
+
   // キーボードショートカット — document で処理し window への伝搬を遮断する
   // ref-delegation: ハンドラ本体は毎レンダー更新、addEventListener は初回のみ
   const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {})
@@ -368,26 +372,21 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     e.stopPropagation()
     if (e.key === 'Escape') { if (!trimming) requestClose(); return }
     if (trimming) return
-    // Shift+←/→: コマ送り（拡張と統一）
+    // コマ送りは 2 系統とも受ける。Shift+←/→ は拡張のプレーヤー操作と、, / . は
+    // ビューア（Viewer）および動画編集ソフトの慣習と揃えたもの。どちらの手で来ても
+    // 同じ結果になるよう、画面ごとに片方だけ効く状態を作らない。
     if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       e.preventDefault()
-      const dir = e.key === 'ArrowRight' ? 1 : -1
-      const v = videoRef.current
-      if (!v) return
-      v.pause()
-      if (hasTable) {
-        const curIdx = findFrameIdx(framePts, displayedSecRef.current)
-        const targetIdx = Math.max(0, Math.min(curIdx + dir, framePts.length - 1))
-        const targetSec = framePts[targetIdx]
-        seekSeqRef.current += 1
-        v.currentTime = Math.max(0, Math.min(dur, targetSec))
-        displayedSecRef.current = targetSec
-        updatePos(targetSec)
-      } else {
-        const target = Math.max(0, Math.min((v.currentTime || 0) + dir * step, dur))
-        v.currentTime = target
-        updatePos(target)
-      }
+      stepPlayhead(e.key === 'ArrowRight' ? 1 : -1)
+      return
+    }
+    // , / . は文字入力なので入力欄では通さない。ボタンは除外しない
+    // （−1f 等を押した直後にフォーカスが残っていてもコマ送りが死なないようにする）。
+    const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+      || (e.target instanceof HTMLElement && e.target.isContentEditable)
+    if (!typing && (e.key === ',' || e.key === '.')) {
+      e.preventDefault()
+      stepPlayhead(e.key === '.' ? 1 : -1)
       return
     }
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLButtonElement) return

@@ -283,7 +283,7 @@ export const en: Record<keyof typeof ja, string> = {
   'trim.setOut': 'Set out',
   'trim.analyzing': 'Analyzing frames…',
   'trim.analyzeFailed': 'Frame analysis failed (lower frame precision)',
-  'trim.shortcutHint': 'Shift+←→ step a frame · I/O set in/out · Space play/pause',
+  'trim.shortcutHint': ', . / Shift+←→ step a frame · I/O set in/out · Space play/pause',
   'trim.error': 'Error: {message}',
   'trim.working': 'Trimming…',
   'trim.save': 'Trim and save',

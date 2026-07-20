@@ -83,6 +83,11 @@ async function getDesktopSourceId(): Promise<string | null> {
 
 const RECORDER_LOAD_TIMEOUT_MS = 4000
 
+// プレーヤー UI を隠したままにする時間に、録画の長さへ上乗せするマージン（秒）。
+// 自動停止から post-capture が届くまでの停止処理ぶん。正常に届けばその時点で復元されるので、
+// この値が実際に効くのは post-capture を取りこぼした異常時だけ。
+const UI_HOLD_MARGIN_SEC = 10
+
 // レコーダーウィンドウを生成し、ロード完了まで待つ。
 // 既存ウィンドウ（起動時生成）がまだロード中でも待つことで、起動直後の初回録画で
 // recorder:start が未ロードのページに送られて取りこぼされるのを防ぐ。
@@ -152,8 +157,15 @@ export async function startRecording(): Promise<void> {
       return
     }
 
+    const settings = loadSettings()
+    const maxSeconds = settings.clipMaxSeconds ?? 30
+
     isRecording = true
-    broadcastMessage({ type: 'pre-capture' })
+    // 録画中はプレーヤー UI を隠したままにする。content.js は「post-capture が届かないまま
+    // UI が固着する」のを防ぐ強制復元タイマーを持っており、その既定値（8秒）はスクショ
+    // 前提の長さなので、録画では途中で UI が戻ってしまう。録画の長さ＋停止処理のぶんを
+    // 明示して渡し、正常に撮り切るまで隠したままにする。
+    broadcastMessage({ type: 'pre-capture', holdMs: (maxSeconds + UI_HOLD_MARGIN_SEC) * 1000 })
     shell.beep()
     const tc = getLastTimecode()
     recordingMeta = {
@@ -162,8 +174,6 @@ export async function startRecording(): Promise<void> {
       url: tc?.url ?? null
     }
 
-    const settings = loadSettings()
-    const maxSeconds = settings.clipMaxSeconds ?? 30
     const sessionId = ++currentRecordingSessionId
     // getDisplayMedia 側はソースをレンダラーではなく main のハンドラが決めるため、
     // ここで解決済みの画面を預けてから開始させる（sourceId は従来方式の退避用に送り続ける）。

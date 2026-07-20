@@ -19,6 +19,9 @@ const MIN_SCREEN_SIZE = 1
 const MAX_SCREEN_SIZE = 20000
 const MIN_DEVICE_PIXEL_RATIO = 0.25
 const MAX_DEVICE_PIXEL_RATIO = 8
+// プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理のマージンを
+// 十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。
+const MAX_UI_HOLD_MS = 120000
 // shared/hotkey.ts の NAMED_KEYS と対になる、captureKey として許容する名前付きメインキー。
 const NAMED_CAPTURE_KEYS = new Set([
   'Space', 'Tab', 'Enter', 'Return', 'Escape', 'Backspace', 'Delete', 'Insert',
@@ -36,6 +39,13 @@ let lastFocusedTabId = null    // 直近にフォーカス状態でタイムコ�
 
 function byteLength(value) {
   return new TextEncoder().encode(value).length
+}
+
+// 不正・過大な値は落として content.js 側の既定にフォールバックさせる
+function clampHoldMs(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return Math.min(Math.round(n), MAX_UI_HOLD_MS)
 }
 
 function finiteNumber(value) {
@@ -113,10 +123,7 @@ function normalizePortMessage(msg) {
     innerHeight,
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
-    fullscreen: msg.fullscreen === true,
-    // [DIAG] 一時計測 — タイトル欠け／クロップ見切れ調査用。調査後に削除する。
-    // 上限は ws-server.ts の diagJson 上限(2400)と揃える。content 側は 2000 で切るため通常は素通し。
-    diagJson: typeof msg.diagJson === 'string' ? msg.diagJson.slice(0, 2400) : undefined
+    fullscreen: msg.fullscreen === true
   }
 }
 
@@ -132,7 +139,9 @@ function normalizeServerMessage(data) {
 
   if (!msg || typeof msg !== 'object') return null
   if (msg.type === 'connected') return { type: 'connected' }
-  if (msg.type === 'pre-capture') return { type: 'pre-capture' }
+  // holdMs: プレーヤー UI を隠したままにする上限（録画では録画の長さぶん伸ばす）。
+  // 省略時は content.js 側の既定にフォールバックする。
+  if (msg.type === 'pre-capture') return { type: 'pre-capture', holdMs: clampHoldMs(msg.holdMs) }
   if (msg.type === 'post-capture') return { type: 'post-capture' }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'

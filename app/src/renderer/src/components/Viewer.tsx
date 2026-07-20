@@ -22,8 +22,8 @@ function FilmstripThumb({ img, active, onClick }: { img: ImageRow; active: boole
 type Props = {
   images: ImageRow[]
   index: number
-  // ビューアの開閉・前後移動を担うインデックス。null で閉じる。
-  setIndex: React.Dispatch<React.SetStateAction<number | null>>
+  // 表示位置の指示。null で閉じる。呼び出し元（App）がこれを画像 id に読み替えて保持する。
+  setIndex: (index: number | null) => void
   // 全体の総数（無限スクロールで未読み込みの分も含む）。カウンタ表示に使う。
   total: number
   titleStrip: string[]
@@ -303,7 +303,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       </div>
       <div style={s.viewerMediaStack}>
         {img.media_type === 'video' ? (
-          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={frameFps} showRateLoop onVideoClick={handleVideoClick} />
+          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={frameFps} showRateLoop preloadFrameTable onVideoClick={handleVideoClick} />
         ) : (
           <img
             ref={imgRef}
@@ -328,14 +328,14 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
 
       {index > 0 && (
         <button style={{ ...s.viewerArrow, left: 16 }}
-          onClick={(e) => { e.stopPropagation(); setIndex((v) => v! - 1) }}
+          onClick={(e) => { e.stopPropagation(); setIndex(index - 1) }}
           title={t('viewer.prev')}>
           <svg width="10" height="18" viewBox="0 0 10 18" fill="none"><polyline points="9,1 1,9 9,17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       )}
       {index < images.length - 1 && (
         <button style={{ ...s.viewerArrow, right: 16 }}
-          onClick={(e) => { e.stopPropagation(); setIndex((v) => v! + 1) }}
+          onClick={(e) => { e.stopPropagation(); setIndex(index + 1) }}
           title={t('viewer.next')}>
           <svg width="10" height="18" viewBox="0 0 10 18" fill="none"><polyline points="1,1 9,9 1,17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>

@@ -1,7 +1,8 @@
 // full 版のみが読み込む動画機能のレンダラー側エントリ。renderer/src/main.full.tsx が
 // App を描画する前に import することで、features/registry へ以下を登録する。
 // capture ソースドロップでは renderer/src/video/ ごと削除すればこのファイルも消える。
-import { registerMediaAction, registerContextMenuItems, registerModal, registerSettingsSlot } from '../features/registry'
+import { registerMediaAction, registerContextMenuItems, registerModal, registerSettingsSlot, registerFramePtsResolver } from '../features/registry'
+import { videoApi } from './api'
 import { useTrimStore } from './trimStore'
 import VideoTrimmerModal from './VideoTrimmerModal'
 import ClipHotkeySettings from './ClipHotkeySettings'
@@ -38,5 +39,9 @@ registerContextMenuItems((img) => {
 })
 
 registerModal(() => <VideoTrimmerModal />)
+
+// ビューアのコマ送りを実フレームへ吸着させるための PTS 取得口。main 側で imageId 単位に
+// キャッシュされるので、トリマーと同じクリップなら解析は 1 回で済む。
+registerFramePtsResolver((imageId) => videoApi.getFramePts(imageId))
 
 registerSettingsSlot('capture', (props) => <ClipHotkeySettings {...props} />)

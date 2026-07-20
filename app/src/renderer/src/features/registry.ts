@@ -22,6 +22,20 @@ export type SettingsTab = 'general' | 'capture' | 'tag' | 'data'
 export type SettingsSlotPlacement = 'hotkey' | 'notification'
 type SettingsSlot = (props: { onCapturingChange: (capturing: boolean) => void; placement?: SettingsSlotPlacement }) => ReactNode
 
+// クリップの実フレーム時刻（PTS）の取得口。コマ送りを実フレームへ吸着させるために
+// ビューアのプレーヤー（コア側）が使うが、取得そのものは video/ の IPC なのでここで橋渡しする。
+// 未登録（capture 版）なら呼び出し側が fps 換算のコマ送りにフォールバックする。
+type FramePtsResolver = (imageId: number) => Promise<number[]>
+let framePtsResolver: FramePtsResolver | null = null
+
+export function registerFramePtsResolver(fn: FramePtsResolver): void {
+  framePtsResolver = fn
+}
+
+export function getFramePtsResolver(): FramePtsResolver | null {
+  return framePtsResolver
+}
+
 const mediaActionSlots: MediaActionSlot[] = []
 const contextMenuSlots: ContextMenuSlot[] = []
 const modalSlots: ModalSlot[] = []

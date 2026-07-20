@@ -139,7 +139,13 @@ const DEFAULT_POST_CAPTURE_RESTORE_DELAY_MS = 2400
 // post-capture が WS 切断・SW 再起動・main クラッシュ等で届かないと、隠したプレーヤー UI が
 // 復元されずページリロードまで固着する。最後の砦として一定時間後に必ず強制復元する。正規フロー
 // （pre→post→ホスト別遅延 最大3200ms＋キャプチャ往復）の最悪値より十分長く取り、誤発火を防ぐ。
+//
+// これはスクリーンショット前提の長さ。クリップ録画は最長 30 秒 UI を隠し続けるため、
+// この既定のままだと撮影中に UI が戻ってしまう。録画側は pre-capture の holdMs で
+// 必要な長さを明示してくる（app/src/main/video/recording.ts）。
 const HIDDEN_UI_WATCHDOG_MS = 8000
+// holdMs の上限（background.js の MAX_UI_HOLD_MS と揃える）
+const MAX_UI_HOLD_MS = 120000
 const MAX_TITLE_LENGTH = 500
 const MAX_URL_LENGTH = 2048
 const MAX_REQUEST_ID_LENGTH = 80
@@ -158,14 +164,8 @@ const GENERIC_TITLE_PATTERNS = new Set([
   'disney+', 'dアニメストア', '再生', '動画再生', 'u-next', 'ニコニコ動画'
 ])
 
-// [DIAG] 一時計測フラグ — タイトル欠け／話数欠けの原因切り分け用。調査後に削除する。
-const SHIORI_DIAG = true
-// [DIAG] getPageTitleCached の最新判定を記録し、request-timecode 応答時にまとめてログ出力する
-let lastTitleDiag = null
-
 function getPageTitleCached() {
   const fresh = getPageTitle()
-  const cachedBefore = cachedTitle
   const isGeneric = !fresh || GENERIC_TITLE_PATTERNS.has(fresh.toLowerCase())
   if (fresh && !isGeneric) {
     // キャッシュがより詳細（fresh がキャッシュの先頭部分）なら上書きしない
@@ -174,13 +174,9 @@ function getPageTitleCached() {
       cachedTitle = fresh
     }
   }
-  // 元の3分岐と同じ優先順位を保ったまま、どの分岐で確定したか(branch)を記録する
-  let out, branch
-  if (isGeneric && cachedTitle) { out = cachedTitle; branch = 'generic->cache' }
-  else if (cachedTitle && cachedTitle.startsWith(fresh) && cachedTitle.length > fresh.length) { out = cachedTitle; branch = 'prefix->cache' }
-  else { out = fresh; branch = 'fresh' }
-  if (SHIORI_DIAG) lastTitleDiag = { fresh, cachedBefore, cachedAfter: cachedTitle, isGeneric, branch, out }
-  return out
+  if (isGeneric && cachedTitle) return cachedTitle
+  if (cachedTitle && cachedTitle.startsWith(fresh) && cachedTitle.length > fresh.length) return cachedTitle
+  return fresh
 }
 
 // キャプチャ中にアニメーション起因でUIが再出現するサービスのコンテナセレクター
@@ -318,14 +314,14 @@ function hideCursor() {
   document.head.appendChild(styleEl)
 }
 
-function hidePlayerUI() {
+function hidePlayerUI(holdMs) {
   restorePlayerUI()
   // 失敗・早期 return・post-capture 未達のいずれでも UI が固着しないよう、実際に隠す前に
   // 最後の砦の強制復元を仕込む（隠した要素が 0 でも restorePlayerUI は安全な no-op）。
   hiddenWatchdogTimer = setTimeout(() => {
     hiddenWatchdogTimer = null
     restorePlayerUI()
-  }, HIDDEN_UI_WATCHDOG_MS)
+  }, holdMs || HIDDEN_UI_WATCHDOG_MS)
   hideCursor()
   const host = location.hostname.replace(/^www\./, '')
   startSuppressCaptureKey(host)
@@ -936,35 +932,6 @@ function sendTimecodeNow(requestId, immediate) {
   const payload = buildPayload()
   if (requestId != null) {
     payload.requestId = requestId
-    // [DIAG] キャプチャ要求（request-timecode）到達時点のタイトル状態を payload に載せる。
-    // main が userData/title-diag.log に書き出す。fresh=生DOM読み, branch=キャッシュ判定分岐。
-    if (SHIORI_DIAG) {
-      const diag = {
-        host: location.hostname.replace(/^www\./, ''),
-        hasVideo: !!getVideo(),
-        docTitle: document.title,
-        sentTitle: payload.title,
-        ...(lastTitleDiag || {})
-      }
-      // [DIAG] クロップ見切れ調査: このタブの全<video>の実測rect・選択されたvideoRect・
-      // ウィンドウ座標・フォーカス状態を添付する。vids の各要素は
-      // [left, top, width, height, videoWidth, videoHeight, paused] の圧縮表現。
-      diag.geo = {
-        vids: [...document.querySelectorAll('video')].map((v) => {
-          const r = v.getBoundingClientRect()
-          return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height), v.videoWidth, v.videoHeight, v.paused ? 1 : 0]
-        }),
-        sel: payload.videoRect
-          ? [Math.round(payload.videoRect.left), Math.round(payload.videoRect.top), Math.round(payload.videoRect.width), Math.round(payload.videoRect.height)]
-          : null,
-        win: [payload.windowLeft, payload.windowTop, payload.windowWidth, payload.windowHeight, payload.innerWidth, payload.innerHeight],
-        dpr: payload.devicePixelRatio,
-        fs: payload.fullscreen ? 1 : 0,
-        focus: document.hasFocus() ? 1 : 0
-      }
-      payload.diagJson = JSON.stringify(diag).slice(0, 2000)
-      console.log('[Shiori][diag]', JSON.stringify({ reqId: requestId, ...diag }))
-    }
     if (immediate) {
       postTimecode(payload, { force: true, bypassThrottle: true })
     } else {
@@ -994,7 +961,13 @@ function normalizePortMessage(msg) {
   if (!msg || typeof msg !== 'object') return null
   if (msg.type === 'ws-connected') return { type: 'ws-connected' }
   if (msg.type === 'ws-disconnected') return { type: 'ws-disconnected' }
-  if (msg.type === 'pre-capture') return { type: 'pre-capture' }
+  if (msg.type === 'pre-capture') {
+    const holdMs = Number(msg.holdMs)
+    return {
+      type: 'pre-capture',
+      holdMs: Number.isFinite(holdMs) && holdMs > 0 ? Math.min(holdMs, MAX_UI_HOLD_MS) : undefined
+    }
+  }
   if (msg.type === 'post-capture') return { type: 'post-capture' }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
@@ -1062,7 +1035,7 @@ function connectPort() {
       settingsCaptureKey = safeMsg.captureKey
     } else if (safeMsg.type === 'pre-capture') {
       clearShioriNotice()
-      hidePlayerUI()
+      hidePlayerUI(safeMsg.holdMs)
       cleanVideoFrame()
     } else if (safeMsg.type === 'post-capture') {
       scheduleRestorePlayerUI()

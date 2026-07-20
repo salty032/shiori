@@ -272,7 +272,7 @@ export const ja = {
   'trim.setOut': 'ここをOUT',
   'trim.analyzing': 'フレーム解析中...',
   'trim.analyzeFailed': 'フレーム解析失敗（フレーム精度低下）',
-  'trim.shortcutHint': 'Shift+←→ コマ送り · I/O 設定 · Space 再生/停止',
+  'trim.shortcutHint': ', . / Shift+←→ コマ送り · I/O 設定 · Space 再生/停止',
   'trim.error': 'エラー: {message}',
   'trim.working': 'トリミング中...',
   'trim.save': 'トリミングして保存',

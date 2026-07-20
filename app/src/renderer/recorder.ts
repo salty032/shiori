@@ -84,10 +84,27 @@ async function acquireScreenStream(sourceId: string, fps: number): Promise<{ str
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const videoMandatory = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate } } as any
 
+  // 音声処理は全て切る。既定（audio: true）だと音声通話向けの処理チェーン
+  // （エコーキャンセル・ノイズ抑制・自動ゲイン）が有効になり、その過程でステレオが
+  // モノラルに落とされ、BGM や環境音が「雑音」として削られて音質が明確に劣化する。
+  // 作品の音をそのまま残したいので、加工のかからない生のループバックを要求する。
+  const audioConstraints = {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+  }
+
+  try {
+    return { stream: await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints, audio: audioConstraints }), audioFailed: false }
+  } catch (err) {
+    console.warn('[recorder] getDisplayMedia with audio failed', err)
+  }
+  // 音声制約が通らない環境向けに、加工なし指定を落として一度だけ再試行する
+  // （モノラルでも音が残る方が、音が無いより実用に足りる）。
   try {
     return { stream: await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints, audio: true }), audioFailed: false }
   } catch (err) {
-    console.warn('[recorder] getDisplayMedia with audio failed', err)
+    console.warn('[recorder] getDisplayMedia with plain audio failed', err)
   }
   // V-5 と同じ理由: ループバック音声はオーディオデバイス構成次第で失敗し、
   // audio 同時要求だと映像まで巻き添えで録れなくなる。映像のみで一度リトライする。
@@ -219,9 +236,23 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
     csTrack.requestFrame()
   }
-  const scheduleFrame = (): void => {
+  // 直前に供給した動画フレームの mediaTime。同じ値なら供給しない。
+  //
+  // rVFC は「フレームが表示された」ごとに呼ばれるが、同じ動画フレームが複数回 present
+  // されること（コンポジタの再合成、表示リフレッシュが素材の fps より速い場合など）が
+  // ある。そのたびに requestFrame すると、録画ファイルに同じ絵が何枚も積まれ、コマ送りで
+  // 数えたときに 2 コマ打ちが 3 コマ打ち・4 コマ打ちに化ける。
+  //
+  // 2 コマ打ちの「同じ絵が 2 枚」は素材上で別フレーム（mediaTime が異なる）なので、
+  // この判定では落ちない。落ちるのは同一フレームの重複供給だけ。
+  let lastDrawnMediaTime = -1
+  const scheduleFrame = (_now?: number, meta?: { mediaTime: number }): void => {
     if (!rVfcRunning) return
-    drawFrame()
+    const mediaTime = meta?.mediaTime
+    if (mediaTime === undefined || mediaTime !== lastDrawnMediaTime) {
+      if (mediaTime !== undefined) lastDrawnMediaTime = mediaTime
+      drawFrame()
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(video as any).requestVideoFrameCallback(scheduleFrame)
   }
@@ -243,7 +274,10 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
 
   let rec: MediaRecorder
   try {
-    rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: 8_000_000 })
+    // 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
+    // 映像に 8Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
+    // 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
+    rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 192_000 })
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
     cleanup(stream, cs, token)

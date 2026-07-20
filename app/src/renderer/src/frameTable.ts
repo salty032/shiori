@@ -1,0 +1,39 @@
+// クリップの実フレーム時刻（PTS）テーブルを扱う共通ロジック。
+//
+// 録画クリップは可変フレームレートで記録されるうえ、素材そのものが 2コマ打ち・3コマ打ちを
+// 混在させているため、フレームの間隔は一定ではない。1/fps の固定刻みでシークすると
+// 「間隔より刻みが小さければ同じコマに留まり、大きければ 2 コマ飛ぶ」ことになり、
+// コマを数えたい用途では使い物にならない。実 PTS を辿ることでその両方を防ぐ。
+//
+// トリマー（video/）とビューアのプレーヤー（components/）の双方から使うため、
+// どちらにも寄せずコア側の独立モジュールに置く。
+
+export const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
+
+// idx 番目のフレームを確実に表示させるためのシーク先。
+//
+// フレームの開始時刻ちょうどを指すと、浮動小数点の丸めやデコーダの解釈差で隣のフレームに
+// 着地することがあり、「1 回押したのに動かない／2 コマ進む」の原因になる。表示区間の中央を
+// 狙えば必ずそのフレームに入る（拡張側のコマ送りが ±1.5/0.5 コマずらすのと同じ考え方）。
+// 末尾フレームは次の PTS が無いので、直前の間隔を継続すると見なす。
+export function frameSeekTarget(pts: number[], idx: number, fallbackDur: number): number {
+  const start = pts[idx]
+  if (idx + 1 < pts.length) return (start + pts[idx + 1]) / 2
+  const prevGap = idx > 0 ? start - pts[idx - 1] : fallbackDur
+  return start + prevGap / 2
+}
+
+// pts[i] <= t + EPS を満たす最大の i を返す（表示中フレームのインデックス）
+export function findFrameIdx(pts: number[], t: number): number {
+  if (pts.length === 0) return 0
+  if (t <= pts[0]) return 0
+  const last = pts.length - 1
+  if (t >= pts[last]) return last
+  let lo = 0, hi = last
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1
+    if (pts[mid] <= t + FRAME_EPS) lo = mid
+    else hi = mid
+  }
+  return lo
+}

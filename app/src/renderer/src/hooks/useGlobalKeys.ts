@@ -105,7 +105,10 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
     const handler = (e: KeyboardEvent): void => {
       const { searchInputRef, onQuickTag, viewerIdx, activeImages } = ref.current
       const editing = isEditingTarget(e.target)
-      if (!editing && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      // ビューア表示中は素通しする。検索欄はビューアに覆われて見えないため、フォーカスだけが
+      // そこへ移ると以降の矢印・Delete・Space・Escape が全て「入力中」扱いで死に、
+      // 画面上は何も変わらないままビューアが操作不能になったように見える。
+      if (!editing && viewerIdx === null && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault()
         searchInputRef.current?.focus()
         return

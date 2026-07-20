@@ -64,4 +64,15 @@ describe('extension との定数パリティ（M-1）', () => {
     expect(extractConst(contentJs, 'MAX_NOTICE_MESSAGE_LENGTH'))
       .toBe(extractConst(backgroundJs, 'MAX_NOTICE_MESSAGE_LENGTH'))
   })
+
+  it('background.js と content.js の MAX_UI_HOLD_MS が一致する（pre-capture の holdMs 上限）', () => {
+    expect(extractConst(contentJs, 'MAX_UI_HOLD_MS'))
+      .toBe(extractConst(backgroundJs, 'MAX_UI_HOLD_MS'))
+  })
+
+  it('UI 非表示の上限がクリップ最長（30秒）＋停止マージンを十分に上回る', () => {
+    // 上限がクリップ長を下回ると、録画中に強制復元が走ってプレーヤー UI が写り込む。
+    const maxHoldMs = extractConst(contentJs, 'MAX_UI_HOLD_MS')
+    expect(maxHoldMs).toBeGreaterThan((30 + 10) * 1000)
+  })
 })
