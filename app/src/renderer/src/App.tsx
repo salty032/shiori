@@ -46,7 +46,11 @@ export default function App() {
   const settings = useSettings(toast.showToast)
   const filters = useFilters(settings.settings, settings.setSettings, toast.showToast)
 
-  const [viewerIdx, setViewerIdx] = useState<number | null>(null)
+  // ビューアが開いている画像は「一覧の何番目か」ではなく id で持つ。grid⇔timeline の切替、
+  // フィルタ中のキャプチャ取り込み、prepend、削除の Undo など、activeImages が丸ごと
+  // 差し替わる経路は多いが、id で持てば表示中の画像は何もしなくても保たれる
+  // （一覧から消えた＝下の viewerIdx が null になり、ビューアはそのまま閉じる）。
+  const [viewerId, setViewerId] = useState<number | null>(null)
   // ビューア内 Tab で DetailPanel を隠す（デフォルトは表示）。ビューアを開き直すたびに表示へ戻す。
   const [detailPanelHiddenInViewer, setDetailPanelHiddenInViewer] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -80,36 +84,17 @@ export default function App() {
   const activeImages = viewMode === 'timeline' ? timelineBuilt.ordered : imageList.images
   const timelineOrderedRef = useLatestRef(timelineBuilt.ordered)
 
-  // activeImages の配列差し替え（grid⇔timeline切替・フィルタ中キャプチャの再取得・prepend等）が
-  // 起きるたびに、ビューアが開いていれば「同じ画像を指し続ける」よう id で位置を引き直す。
-  // 見つからなければ（フィルタ対象外になった等）ビューアを閉じる。
-  // これにより grid/timeline で座標系（index vs flatIndex）が違うことや、reloadGrid/reloadTimeline
-  // が配列を丸ごと差し替えることに起因する「ビューアが別の画像を指す」バグを構造的に防ぐ。
-  const prevActiveImagesRef = useRef(activeImages)
-  // ビューア内 Delete（useSelection.deleteViewerImage）で viewerIdx を自前で「次の画像」へ
-  // 更新した直後は、このあとの effect が「配列から消えた＝閉じる」と誤認しないよう1回だけスキップする。
-  const skipViewerAutoTrackRef = useRef(false)
-  // ビューア内削除を Undo したとき「復元されたこの id の画像へ戻ってほしい」という指示。
-  // 立っていれば、通常の「表示中画像を id で追う」ロジックの代わりにこの id を探して viewerIdx を合わせる。
-  const viewerRestoreFollowIdRef = useRef<number | null>(null)
-  useEffect(() => {
-    const prevImages = prevActiveImagesRef.current
-    prevActiveImagesRef.current = activeImages
-    if (skipViewerAutoTrackRef.current) { skipViewerAutoTrackRef.current = false; return }
-    const followId = viewerRestoreFollowIdRef.current
-    if (followId !== null) {
-      viewerRestoreFollowIdRef.current = null
-      if (viewerIdx === null) return
-      const idx = activeImages.findIndex((img) => img.id === followId)
-      if (idx >= 0 && idx !== viewerIdx) setViewerIdx(idx)
-      return
-    }
-    if (prevImages === activeImages || viewerIdx === null) return
-    const prevImg = prevImages[viewerIdx]
-    if (!prevImg) return
-    const nextIdx = activeImages.findIndex((img) => img.id === prevImg.id)
-    if (nextIdx !== viewerIdx) setViewerIdx(nextIdx >= 0 ? nextIdx : null)
-  })
+  // ビューアの表示位置は id からの派生値。activeImages に居なければ null＝閉じる。
+  const viewerIdx = useMemo(() => {
+    if (viewerId === null) return null
+    const idx = activeImages.findIndex((img) => img.id === viewerId)
+    return idx >= 0 ? idx : null
+  }, [activeImages, viewerId])
+
+  // ビューアの前後移動・オープンは位置で指示されるので、id へ変換して持ち替える。
+  const setViewerIdx = useCallback((idx: number | null): void => {
+    setViewerId(idx === null ? null : (activeImages[idx]?.id ?? null))
+  }, [activeImages])
 
   // ビューアを開くたびに DetailPanel の表示状態をデフォルト（表示）へ戻す。
   // 画像間の移動（viewerIdx が非nullのまま変わる）では再実行しない。
@@ -204,7 +189,7 @@ export default function App() {
   const selection = useSelection({
     images: activeImages,
     viewerIdx,
-    setViewerIdx,
+    setViewerId,
     showToast: toast.showToast,
     updateToast: toast.updateToast,
     dismissToast: toast.dismissToast,
@@ -214,8 +199,6 @@ export default function App() {
     removeImages,
     restoreImages,
     gridActiveRef,
-    skipViewerAutoTrackRef,
-    viewerRestoreFollowIdRef,
   })
 
   useEffect(() => {

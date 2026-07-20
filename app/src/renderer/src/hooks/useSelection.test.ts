@@ -70,13 +70,13 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
     grid: [], timeline: [], gridTotalCount: null, timelineTotalCount: null, removedIds: [...ids],
   }))
   const restoreImages = vi.fn()
-  const setViewerIdx = vi.fn()
+  const setViewerId = vi.fn()
   const scrollToIndex = vi.fn()
 
   const options: UseSelectionOptions = {
     images,
     viewerIdx: null,
-    setViewerIdx,
+    setViewerId,
     showToast,
     updateToast,
     dismissToast,
@@ -86,13 +86,11 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
     removeImages,
     restoreImages,
     gridActiveRef: { current: true },
-    skipViewerAutoTrackRef: { current: false },
-    viewerRestoreFollowIdRef: { current: null },
     ...overrides,
   }
 
   const { result, unmount } = renderHook((props: UseSelectionOptions) => useSelection(props), { initialProps: options })
-  return { result, unmount, images, showToast, updateToast, dismissToast, removeImages, restoreImages, setViewerIdx, scrollToIndex }
+  return { result, unmount, images, showToast, updateToast, dismissToast, removeImages, restoreImages, setViewerId, scrollToIndex }
 }
 
 beforeEach(() => {
@@ -327,6 +325,81 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
 
 // 他アプリへのドラッグ&ドロップ。「押した瞬間に選択を1枚へ畳まない」ことが要で、
 // 畳んでしまうと複数選択をまとめて掴めず、最後に押した1枚しか渡らない。
+// ビューアの表示対象は位置ではなく id で受け渡す。一覧が丸ごと差し替わる経路
+// （削除・Undo・grid⇔timeline切替）を跨いでも同じ画像を指し続けるための土台なので、
+// 「どの id を指すよう伝えたか」を固定しておく。
+describe('ビューアの表示対象（id 指定）', () => {
+  it('openIndex はその位置の画像の id を伝える', () => {
+    const images = makeImages(5)
+    const { result, setViewerId } = setup({ images })
+
+    act(() => result.current.openIndex(2))
+
+    expect(setViewerId).toHaveBeenCalledWith(images[2].id)
+  })
+
+  it('ビューア内 Delete では次の画像の id へ移る', () => {
+    vi.useFakeTimers()
+    const images = makeImages(5)
+    const { result, setViewerId } = setup({ images, viewerIdx: 1 })
+
+    act(() => result.current.deleteViewerImage(images[1].id, 1))
+
+    // 2番目を消したら、その位置に繰り上がってくるのは元の3番目。
+    expect(setViewerId).toHaveBeenCalledWith(images[2].id)
+  })
+
+  it('末尾をビューア内 Delete したら1つ前の画像へ下がる', () => {
+    vi.useFakeTimers()
+    const images = makeImages(3)
+    const { result, setViewerId } = setup({ images, viewerIdx: 2 })
+
+    act(() => result.current.deleteViewerImage(images[2].id, 2))
+
+    expect(setViewerId).toHaveBeenCalledWith(images[1].id)
+  })
+
+  it('最後の1枚をビューア内 Delete したらビューアを閉じる', () => {
+    vi.useFakeTimers()
+    const images = makeImages(1)
+    const { result, setViewerId } = setup({ images, viewerIdx: 0 })
+
+    act(() => result.current.deleteViewerImage(images[0].id, 0))
+
+    expect(setViewerId).toHaveBeenCalledWith(null)
+  })
+
+  it('ビューア内削除を Undo したら削除した画像へ戻る', () => {
+    vi.useFakeTimers()
+    const images = makeImages(5)
+    const { result, showToast, setViewerId } = setup({ images, viewerIdx: 1 })
+
+    act(() => result.current.deleteViewerImage(images[1].id, 1))
+
+    const mockShowToast = showToast as unknown as ReturnType<typeof vi.fn>
+    const action = mockShowToast.mock.calls[0][3] as { onClick: () => void }
+    act(() => action.onClick())
+
+    expect(setViewerId).toHaveBeenLastCalledWith(images[1].id)
+  })
+
+  it('ビューアを閉じた後に Undo しても勝手に開き直さない', () => {
+    vi.useFakeTimers()
+    const images = makeImages(5)
+    // viewerIdx: null = 既に閉じている状態
+    const { result, showToast, setViewerId } = setup({ images, viewerIdx: null })
+
+    act(() => result.current.deleteViewerImage(images[1].id, 1))
+    setViewerId.mockClear()
+
+    const mockShowToast = showToast as unknown as ReturnType<typeof vi.fn>
+    const action = mockShowToast.mock.calls[0][3] as { onClick: () => void }
+    act(() => action.onClick())
+
+    expect(setViewerId).not.toHaveBeenCalled()
+  })
+})
+
 describe('サムネからの他アプリへのドラッグ', () => {
   // handleGridMouseDown は選択領域の判定に gridRef/scrollRef の矩形を使う。jsdom の
   // getBoundingClientRect は全て 0 を返すため、座標 0 で押せば領域内と判定される。

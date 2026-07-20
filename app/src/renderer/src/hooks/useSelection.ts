@@ -129,7 +129,9 @@ export interface UseSelectionOptions {
   // 現在アクティブな一覧（グリッド or タイムラインの並び）。選択・矢印移動の基準。
   images: ImageRow[]
   viewerIdx: number | null
-  setViewerIdx: React.Dispatch<React.SetStateAction<number | null>>
+  // ビューアの表示対象は id で持つ（App）。位置ではなく id を渡すことで、削除・Undo・
+  // 一覧の差し替えを跨いでも「どの画像を見ているか」がそのまま保たれる。null で閉じる。
+  setViewerId: (id: number | null) => void
   showToast: ShowToast
   updateToast: UpdateToast
   dismissToast: DismissToast
@@ -142,18 +144,12 @@ export interface UseSelectionOptions {
   // グリッド表示中のみ true。矩形選択はグリッドでは仮想リスト用の座標計算、
   // タイムラインでは実 DOM のサムネイル矩形を使って当たり判定する。
   gridActiveRef: React.MutableRefObject<boolean>
-  // ビューア内削除で viewerIdx を自前で更新したことを App 側の id 追従 effect に伝える
-  // 1 回限りのフラグ。立っていれば effect は「配列から消えた」と誤認せず何もしない。
-  skipViewerAutoTrackRef: React.MutableRefObject<boolean>
-  // ビューア内削除の Undo で「この id の画像へ戻ってほしい」ことを App 側の id 追従 effect に伝える。
-  // 立っていれば effect は通常の（表示中画像を id で追う）ロジックの代わりにこの id を探しに行く。
-  viewerRestoreFollowIdRef: React.MutableRefObject<number | null>
 }
 
 export function useSelection({
   images,
   viewerIdx,
-  setViewerIdx,
+  setViewerId,
   showToast,
   updateToast,
   dismissToast,
@@ -163,8 +159,6 @@ export function useSelection({
   removeImages,
   restoreImages,
   gridActiveRef,
-  skipViewerAutoTrackRef,
-  viewerRestoreFollowIdRef,
 }: UseSelectionOptions) {
   const [selectedIds, setSelectedIdsState] = useState<Set<number>>(new Set())
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
@@ -218,7 +212,7 @@ export function useSelection({
     // 押しても何も起きない（既に戻し済み）状態になる（BUG-8）。
     toastId?: number
     // ビューア内削除（deleteViewerImage）由来のときだけ、削除した画像の id を持つ。
-    // この削除が Undo されたとき、ビューアが開いていればその画像へ戻すために使う。
+    // この削除が Undo されたとき、ビューアをその画像へ戻すために使う。
     viewerRestoreId?: number
   } | null>(null)
 
@@ -335,7 +329,11 @@ export function useSelection({
     window.clearTimeout(pending.timer)
     unmarkPendingDelete(pending.ids)
     if (pending.toastId != null) dismissToast(pending.toastId)
-    if (pending.viewerRestoreId != null) viewerRestoreFollowIdRef.current = pending.viewerRestoreId
+    // ビューアを開いたまま削除して Undo したなら、その画像へ戻す（復元で一覧に戻るため、
+    // id を指し直すだけで表示位置は自動的に付いてくる）。
+    if (pending.viewerRestoreId != null && latestRef.current.viewerIdx !== null) {
+      setViewerId(pending.viewerRestoreId)
+    }
     restoreImages(pending.snapshot)
     restoreSelectionAfterUndo(pending.selectedBefore)
     showToast(t('toast.deleteUndone'), 'info')
@@ -384,23 +382,22 @@ export function useSelection({
     )
   }
 
-  // ビューア表示中に Delete された1枚だけを対象にした削除。グリッド選択は
-  // queueDelete→selectAfterDelete が既存ロジックのまま「次の画像」を選択状態にするので、
-  // ここでは同じ index 計算で viewerIdx を進める（末尾なら1つ前、残り0枚なら閉じる）。
+  // ビューア表示中に Delete された1枚だけを対象にした削除。削除後に同じ位置へ来る画像
+  // （末尾なら1つ前、残り0枚なら閉じる）を先に決め、その id へ移してから削除する。
   function deleteViewerImage(id: number, currentViewerIdx: number): void {
     const remaining = latestRef.current.images.filter((img) => img.id !== id)
-    const nextViewerIdx = remaining.length > 0 ? Math.min(currentViewerIdx, remaining.length - 1) : null
-    skipViewerAutoTrackRef.current = true
+    const next = remaining.length > 0 ? remaining[Math.min(currentViewerIdx, remaining.length - 1)] : null
     queueDelete(new Set([id]))
     // queueDelete が pendingDeleteRef に積んだ直後なので、この削除だけを Undo したとき
-    // ビューアが id で復元画像へ戻れるよう印を付けておく。
+    // ビューアが元の画像へ戻れるよう印を付けておく。
     if (pendingDeleteRef.current) pendingDeleteRef.current.viewerRestoreId = id
-    setViewerIdx(nextViewerIdx)
+    setViewerId(next?.id ?? null)
   }
 
   function openIndex(idx: number): void {
     if (performance.now() - lastDeleteAtRef.current < SUPPRESS_OPEN_AFTER_DELETE_MS) return
-    setViewerIdx(idx)
+    const img = latestRef.current.images[idx]
+    if (img) setViewerId(img.id)
   }
 
   function selectIndex(idx: number, modifiers?: { shift?: boolean; ctrl?: boolean; meta?: boolean }): void {
@@ -576,8 +573,11 @@ export function useSelection({
       const tag = (e.target as HTMLElement).tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
       if (viewerIdx !== null) {
-        if (!isEditing && e.key === 'ArrowLeft') { setViewerIdx((i) => (i !== null && i > 0 ? i - 1 : i)); return }
-        if (!isEditing && e.key === 'ArrowRight') { setViewerIdx((i) => (i !== null && i < images.length - 1 ? i + 1 : i)); return }
+        if (!isEditing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          const next = viewerIdx + (e.key === 'ArrowRight' ? 1 : -1)
+          if (next >= 0 && next < images.length) setViewerId(images[next].id)
+          return
+        }
         if (!isEditing && e.key === 'Delete') {
           const img = images[viewerIdx]
           if (img) deleteViewerImage(img.id, viewerIdx)
@@ -644,7 +644,7 @@ export function useSelection({
         const openIdx = focused !== null && focused >= 0 && focused < images.length ? focused : selectedIdx
         if (openIdx < 0) return
         e.preventDefault()
-        setViewerIdx(openIdx)
+        setViewerId(images[openIdx].id)
         return
       }
       if ((GRID_NAV_KEYS as readonly string[]).includes(e.key)) {
