@@ -2,10 +2,10 @@ import { useEffect } from 'react'
 import { useLatestRef } from './useLatestRef'
 import type { ImageRow } from '../types'
 import type { ShowToast } from './useToast'
+import { t } from '../i18n'
 
 export interface GlobalKeysOptions {
   searchInputRef: React.RefObject<HTMLInputElement | null>
-  setShowSettings: React.Dispatch<React.SetStateAction<boolean>>
   viewerIdx: number | null
   // ビューアの並び基準（Ctrl+C で現在画像をコピーするために参照）
   activeImages: ImageRow[]
@@ -30,6 +30,47 @@ function isEditingTarget(target: EventTarget | null): boolean {
 export function useGlobalKeys(opts: GlobalKeysOptions): void {
   const ref = useLatestRef(opts)
 
+  // アプリ本体では Tab によるフォーカス移動を無効化する。操作は / ・矢印・Enter・Space・
+  // Delete・Ctrl+A 等の専用ショートカットで完結しており、Tab で見えないフォーカスが飛ぶと
+  // 次の Enter/Space が意図しない要素に入る誤操作の元になるため。
+  //
+  // モーダルが開いている間だけは素通しする。モーダル内の Tab 循環は useFocusTrap が
+  // 「パネル要素上の keydown」で担っており、window まで上がってきたここで一律に潰すと、
+  // 循環に介入しない中間位置（先頭でも末尾でもない）の Tab が死んでモーダルを
+  // キーボードで操作できなくなる。判定は target の closest ではなく「開いているか」で行う:
+  // モーダルを開いた直後などフォーカスがまだ body にある状態では target が
+  // パネル外になり、closest 判定だとモーダルへ入る最初の Tab を潰してしまう。
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      if (e.key !== 'Tab') return
+      if (document.querySelector('[role="dialog"]')) return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // 上の Tab 無効化と対になる措置。Tab を殺したことでフォーカスの移動手段はマウスの
+  // クリックだけになったが、<button> はクリックでフォーカスを保持し続けるため、
+  // 「設定を開いて閉じた後に Space を押すと設定がまた開く」ような取り違えが起きる
+  // （押した本人にはフォーカスがどこにあるか見えない）。
+  // mousedown の既定動作を止めるとフォーカスは移らず、click は mouseup で発火するので
+  // ボタンとしての動作はそのまま残る。
+  //
+  // モーダル内は除外する。あちらは useFocusTrap がフォーカスを管理しており、
+  // ここで奪うと Enter/Space での確定やトラップの循環が成立しなくなる。
+  // 対象を button に限るのは、input/textarea はフォーカスできないと入力自体が不能になるため。
+  useEffect(() => {
+    const handler = (e: MouseEvent): void => {
+      const el = e.target as HTMLElement | null
+      const button = el?.closest?.('button')
+      if (!button || button.closest('[role="dialog"]')) return
+      e.preventDefault()
+    }
+    window.addEventListener('mousedown', handler)
+    return () => window.removeEventListener('mousedown', handler)
+  }, [])
+
   // Ctrl+V でクリップボード画像をインポート（テキスト入力中は無視）
   useEffect(() => {
     // クリップボード読み取り〜登録は非同期。キー長押し等で連打されると同じ画像が
@@ -44,11 +85,11 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
         const result = await window.api.clipboardPaste()
         if (result.ok) {
           ref.current.onLibraryChanged()
-          ref.current.showToast('クリップボードから取り込みました', 'success')
+          ref.current.showToast(t('toast.pastedFromClipboard'), 'success')
         } else if (result.reason === 'empty') {
-          ref.current.showToast('クリップボードに画像がありません', 'info')
+          ref.current.showToast(t('toast.clipboardEmpty'), 'info')
         } else {
-          ref.current.showToast('クリップボードからの取り込みに失敗しました', 'error')
+          ref.current.showToast(t('toast.pasteFailed'), 'error')
         }
       } finally {
         pasting = false
@@ -58,10 +99,11 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
     return () => window.removeEventListener('keydown', handler)
   }, [ref])
 
-  // /キーで検索フォーカス・T でクイックタグ・Ctrl+, で設定・ビューア開放中の Ctrl+C で画像コピー
+  // /キーで検索フォーカス・T でクイックタグ・ビューア開放中の Ctrl+C で画像コピー
+  // （設定はサイドバー下部の歯車から開く。Ctrl+, は廃止した）
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
-      const { searchInputRef, setShowSettings, onQuickTag, viewerIdx, activeImages } = ref.current
+      const { searchInputRef, onQuickTag, viewerIdx, activeImages } = ref.current
       const editing = isEditingTarget(e.target)
       if (!editing && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault()
@@ -70,11 +112,6 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
       }
       if (!editing && e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (onQuickTag()) e.preventDefault()
-        return
-      }
-      if (!editing && (e.ctrlKey || e.metaKey) && e.key === ',') {
-        e.preventDefault()
-        setShowSettings(true)
         return
       }
       if (!editing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
@@ -91,13 +128,13 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
         }
         if (!target) return
         if (target.media_type === 'video') {
-          showToast('動画はクリップボードにコピーできません', 'info')
+          showToast(t('toast.videoCopyUnsupported'), 'info')
           return
         }
         e.preventDefault()
         window.api.clipboardCopyImage(target.id).then(
-          (ok) => showToast(ok ? 'クリップボードにコピーしました' : '画像のコピーに失敗しました', ok ? 'success' : 'warning'),
-          (err) => { console.error('[copy] clipboard write failed', err); showToast('画像のコピーに失敗しました', 'warning') },
+          (ok) => showToast(ok ? t('toast.copiedToClipboard') : t('toast.copyFailed'), ok ? 'success' : 'warning'),
+          (err) => { console.error('[copy] clipboard write failed', err); showToast(t('toast.copyFailed'), 'warning') },
         )
       }
     }

@@ -15,6 +15,7 @@ import { MAX_IMPORT_VIDEO_SECONDS, IMPORT_VIDEO_SECONDS_EPS } from './ipc-import
 import { registerCapturedMedia } from './captured-media'
 import { createProgressThrottle } from './progress-throttle'
 import { beginTask, endTask } from './busy'
+import { t } from './i18n'
 
 let isShareExporting = false
 let isShareExportCanceled = false
@@ -48,7 +49,7 @@ export function registerShareHandlers(): void {
     try {
       // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
       const exportWin = getMainWindow()
-      const exportDialogOptions: Electron.OpenDialogOptions = { title: 'エクスポート先フォルダを選択', properties: ['openDirectory'] }
+      const exportDialogOptions: Electron.OpenDialogOptions = { title: t('dialog.exportFolder'), properties: ['openDirectory'] }
       const { canceled, filePaths } = exportWin
         ? await dialog.showOpenDialog(exportWin, exportDialogOptions)
         : await dialog.showOpenDialog(exportDialogOptions)
@@ -143,7 +144,7 @@ export function registerShareHandlers(): void {
     try {
       // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
       const importWin = getMainWindow()
-      const importDialogOptions: Electron.OpenDialogOptions = { title: 'インポートするフォルダを選択', properties: ['openDirectory'] }
+      const importDialogOptions: Electron.OpenDialogOptions = { title: t('dialog.importFolder'), properties: ['openDirectory'] }
       const { canceled, filePaths } = importWin
         ? await dialog.showOpenDialog(importWin, importDialogOptions)
         : await dialog.showOpenDialog(importDialogOptions)
@@ -156,11 +157,11 @@ export function registerShareHandlers(): void {
         const metadataPath = join(srcDir, 'metadata.jsonl')
         const metadataStat = await stat(metadataPath)
         if (!metadataStat.isFile() || metadataStat.size > MAX_SHARE_METADATA_BYTES) {
-          return { canceled: false, count: 0, errors: ['metadata.jsonl が大きすぎます（上限64MB）'] }
+          return { canceled: false, count: 0, errors: [t('error.metadataTooLarge')] }
         }
         content = await readFile(metadataPath, 'utf-8')
       } catch {
-        return { canceled: false, count: 0, errors: ['metadata.jsonl が見つかりません'] }
+        return { canceled: false, count: 0, errors: [t('error.metadataMissing')] }
       }
 
       let count = 0
@@ -225,7 +226,7 @@ export function registerShareHandlers(): void {
               console.warn('[share:import] getVideoDuration failed', err)
             }
             // 通常のファイル取り込み（ipc-import.ts）と同じ尺上限を適用する。ここを素通りさせると
-            // metadata.jsonl を手編集した共有バンドル経由で著作権対策の60秒上限を回避できてしまう。
+            // metadata.jsonl を手編集した共有バンドル経由で著作権対策の30秒上限を回避できてしまう。
             if (duration == null || duration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
               errors.push(duration == null
                 ? `duration unknown: ${parsed.file}`
@@ -277,7 +278,7 @@ export function registerShareHandlers(): void {
           const settingsPath = join(srcDir, 'settings.json')
           const settingsStat = await stat(settingsPath)
           if (!settingsStat.isFile() || settingsStat.size > MAX_SHARE_SETTINGS_BYTES) {
-            errors.push('settings.json が大きすぎます（上限1MB）')
+            errors.push(t('error.settingsTooLarge'))
           } else {
             const settingsRaw = await readFile(settingsPath, 'utf-8')
             const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }

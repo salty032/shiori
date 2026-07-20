@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode } from '../types'
-import { font, color, modal } from '../styles'
+import { font, color, modal, radius } from '../styles'
 import { buildAccelerator } from '../utils'
 import { SUPPORTED_SERVICES, alpha, serviceColor } from '../services'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
@@ -8,6 +8,8 @@ import { XIcon } from './Icon'
 import { useExportStore } from '../stores/exportStore'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getSettingsSlots } from '../features/registry'
+import { useT } from '../i18n'
+import type { MessageKey } from '../../../shared/i18n'
 
 type Props = {
   settings: Settings
@@ -24,6 +26,7 @@ type Props = {
   onUpdateCaptureNotify: (enabled: boolean) => void
   onUpdateShowAiTags: (enabled: boolean) => void
   onUpdateTheme: (theme: Settings['theme']) => void
+  onUpdateLanguage: (language: Settings['language']) => void
   onTaggerDownload: () => void
   onTaggerCancelDownload: () => void
   onTaggerDelete: () => void
@@ -36,11 +39,11 @@ const CLOSE_MS = 110
 
 // M-4: 表示ラベルと状態識別子を分離する（ラベル文言の変更が型・状態キーの変更を兼ねないように）。
 type TabId = 'general' | 'capture' | 'tag' | 'data'
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'general', label: '基本' },
-  { id: 'capture', label: 'キャプチャ' },
-  { id: 'tag', label: 'タグ' },
-  { id: 'data', label: 'データ' },
+const TABS: { id: TabId; labelKey: MessageKey }[] = [
+  { id: 'general', labelKey: 'settings.tab.general' },
+  { id: 'capture', labelKey: 'settings.tab.capture' },
+  { id: 'tag', labelKey: 'settings.tab.tag' },
+  { id: 'data', labelKey: 'settings.tab.data' },
 ]
 
 export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
@@ -58,6 +61,7 @@ export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange
 }
 
 export default function SettingsModal(p: Props) {
+  const { t, tp } = useT()
   const [shareExportStatus, setShareExportStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [shareImportStatus, setShareImportStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [shareExporting, setShareExporting] = useState(false)
@@ -122,7 +126,7 @@ export default function SettingsModal(p: Props) {
         setHotkeyError(null)
       } else {
         setCapturedAccel(null)
-        setHotkeyError('このキーの組み合わせは使用できません')
+        setHotkeyError(t('hotkey.unsupportedCombo'))
       }
     }
     document.addEventListener('keydown', handler)
@@ -170,8 +174,8 @@ export default function SettingsModal(p: Props) {
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={closeSettings}>
       <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div style={s.header}>
-          <span id="settings-modal-title" style={s.title}>設定</span>
-          <button style={s.close} onClick={closeSettings} title="閉じる"><XIcon size={17} /></button>
+          <span id="settings-modal-title" style={s.title}>{t('menu.settings')}</span>
+          <button style={s.close} onClick={closeSettings} title={t('action.close')}><XIcon size={17} /></button>
         </div>
 
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -183,7 +187,7 @@ export default function SettingsModal(p: Props) {
                 style={{ ...s.tabBtn, ...(activeTab === tab.id ? s.tabBtnActive : {}) }}
                 onClick={() => setActiveTab(tab.id)}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
@@ -191,12 +195,12 @@ export default function SettingsModal(p: Props) {
           <div style={s.tabContent}>
             {activeTab === 'general' && (
               <>
-                <div style={s.group}>
-                  <div style={s.section}>外観</div>
+                <div style={{ ...s.group, ...s.groupFirst }}>
+                  <div style={s.section}>{t('settings.appearance')}</div>
                   <div style={s.row}>
-                    <span style={s.label}>テーマ</span>
+                    <span style={s.label}>{t('settings.theme')}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {([['system', 'システム'], ['dark', 'ダーク'], ['light', 'ライト']] as const).map(([value, label]) => {
+                      {([['system', t('settings.theme.system')], ['dark', t('settings.theme.dark')], ['light', t('settings.theme.light')]] as const).map(([value, label]) => {
                         const active = p.settings.theme === value
                         return (
                           <button key={value} onClick={() => p.onUpdateTheme(value)}
@@ -207,36 +211,50 @@ export default function SettingsModal(p: Props) {
                       })}
                     </div>
                   </div>
+                  <div style={s.row}>
+                    <span style={s.label}>{t('settings.language')}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {([['ja', '日本語'], ['en', 'English']] as const).map(([value, label]) => {
+                        const active = p.settings.language === value
+                        return (
+                          <button key={value} onClick={() => p.onUpdateLanguage(value)}
+                            style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
                 <div style={s.group}>
-                  <div style={s.section}>起動</div>
+                  <div style={s.section}>{t('settings.startup')}</div>
                   <div style={s.toggleRow}>
-                    <span style={s.label}>ログイン時に自動起動</span>
+                    <span style={s.label}>{t('settings.startOnLogin')}</span>
                     <ToggleSwitch checked={p.startup} onChange={() => p.onToggleStartup()} />
                   </div>
                 </div>
                 <div style={s.group}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={s.section}>拡張機能</div>
+                    <div style={s.section}>{t('settings.extension')}</div>
                     <span style={{ ...s.statusBadge, ...(extensionVersionMismatch ? s.statusWarn : extensionConnected ? s.statusOk : s.statusMuted) }}>
-                      {extensionVersionMismatch ? '再読み込みが必要' : extensionConnected ? '受信中' : '未受信'}
+                      {t(extensionVersionMismatch ? 'settings.extReloadNeeded' : extensionConnected ? 'settings.extConnected' : 'settings.extDisconnected')}
                     </span>
                   </div>
                   <div style={s.actionRow}>
                     <div style={s.hint}>
                       {extensionVersionMismatch
-                        ? 'ブラウザの拡張機能ページで再読み込みすると最新版が反映されます。'
-                        : '対応サイトの動画ページから Shiori に情報が届いているかを表示します。'}
+                        ? t('settings.extReloadHint')
+                        : t('settings.extStatusHint')}
                     </div>
                     {(!extensionConnected || extensionVersionMismatch) && (
                       <button style={s.addBtn} onClick={() => window.api.showExtensionFolder()}>
-                        拡張機能フォルダを開く
+                        {t('onboarding.openExtensionFolder')}
                       </button>
                     )}
                   </div>
                 </div>
                 <div style={s.group}>
-                  <div style={s.section}>対応サービス</div>
+                  <div style={s.section}>{t('settings.services')}</div>
                   <div style={s.serviceGrid}>
                     {SUPPORTED_SERVICES.map((service) => {
                       const accent = serviceColor(service.hosts[0])
@@ -257,44 +275,44 @@ export default function SettingsModal(p: Props) {
 
             {activeTab === 'capture' && (
               <>
-                <div style={s.group}>
-                  <div style={s.section}>ホットキー</div>
+                <div style={{ ...s.group, ...s.groupFirst }}>
+                  <div style={s.section}>{t('settings.hotkey')}</div>
                   <div style={s.row}>
-                    <span style={s.label}>キャプチャホットキー</span>
+                    <span style={s.label}>{t('settings.captureHotkey')}</span>
                     {capturing ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div ref={captureRef} style={s.hotkeyCapture}>
-                          {capturedAccel || 'キーを押してください...'}
+                          {capturedAccel || t('hotkey.pressKeys')}
                         </div>
                         <button style={s.sizeBtn} disabled={!capturedAccel} onClick={async () => {
                           if (!capturedAccel) return
                           const ok = await p.onUpdateCaptureHotkey(capturedAccel)
                           if (ok) { setCapturing(false); setHotkeyError(null) }
-                          else setHotkeyError('競合しています')
-                        }}>確定</button>
-                        <button style={s.sizeBtn} onClick={() => { setCapturing(false); setCapturedAccel(null); setHotkeyError(null) }}>キャンセル</button>
+                          else setHotkeyError(t('hotkey.conflict'))
+                        }}>{t('action.confirm')}</button>
+                        <button style={s.sizeBtn} onClick={() => { setCapturing(false); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.cancel')}</button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={s.hotkeyBadge}>{p.settings.captureHotkey}</span>
-                        <button style={s.sizeBtn} onClick={() => { setCapturing(true); setCapturedAccel(null); setHotkeyError(null) }}>変更</button>
+                        <button style={s.sizeBtn} onClick={() => { setCapturing(true); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.change')}</button>
                       </div>
                     )}
                   </div>
                   {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
-                  {getSettingsSlots('キャプチャ').map((Slot, i) => (
+                  {getSettingsSlots('capture').map((Slot, i) => (
                     <Slot key={i} onCapturingChange={setSlotCapturing} placement="hotkey" />
                   ))}
                 </div>
                 {/* UX-8: コマ送り(Shift+←/→)もキャプチャ体験の設定のため「基本」タブから移動 */}
                 <div style={s.group}>
-                  <div style={s.section}>コマ送り (Shift+←/→)</div>
+                  <div style={s.section}>{t('settings.frameStep')}</div>
                   <div style={s.row}>
                     <span style={s.label}>FPS</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--text-secondary)', fontSize: font.base }}>
                         <ToggleSwitch checked={p.settings.frameFpsAuto} onChange={p.onUpdateFrameFpsAuto} />
-                        自動検出
+                        {t('settings.autoDetect')}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: p.settings.frameFpsAuto ? 0.35 : 1, pointerEvents: p.settings.frameFpsAuto ? 'none' : 'auto' }}>
                         {[24, 30, 60].map((fps) => {
@@ -334,15 +352,15 @@ export default function SettingsModal(p: Props) {
                       </div>
                     </div>
                   </div>
-                  <div style={s.hint}>自動検出ON: 動画から計測。OFF: 固定fps（アニメ ≈ 24、実写 ≈ 30）</div>
+                  <div style={s.hint}>{t('settings.fpsHint')}</div>
                 </div>
                 <div style={s.group}>
-                  <div style={s.section}>通知</div>
+                  <div style={s.section}>{t('settings.notifications')}</div>
                   <div style={s.toggleRow}>
-                    <span style={s.label}>キャプチャ完了時に通知する</span>
+                    <span style={s.label}>{t('settings.notifyOnCapture')}</span>
                     <ToggleSwitch checked={p.settings.captureNotify ?? true} onChange={p.onUpdateCaptureNotify} />
                   </div>
-                  {getSettingsSlots('キャプチャ').map((Slot, i) => (
+                  {getSettingsSlots('capture').map((Slot, i) => (
                     <Slot key={i} onCapturingChange={setSlotCapturing} placement="notification" />
                   ))}
                 </div>
@@ -351,14 +369,14 @@ export default function SettingsModal(p: Props) {
 
             {activeTab === 'tag' && (
               <>
-                <div style={s.group}>
-                  <div style={s.section}>自動タグ付け (WD Tagger)</div>
-                  <div style={s.hint}>キャプチャ時にアニメ特化のAIがタグ候補を自動生成します。初回はモデルファイル（約600MB）のダウンロードが必要です。</div>
+                <div style={{ ...s.group, ...s.groupFirst }}>
+                  <div style={s.section}>{t('settings.autoTagging')}</div>
+                  <div style={s.hint}>{t('settings.autoTaggingHint')}</div>
                   {p.taggerReady ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ ...s.statusBadge, ...s.statusOk }}>準備完了</span>
-                        <button style={s.deleteBtn} onClick={p.onTaggerDelete}>モデルを削除</button>
+                        <span style={{ ...s.statusBadge, ...s.statusOk }}>{t('settings.taggerReady')}</span>
+                        <button style={s.deleteBtn} onClick={p.onTaggerDelete}>{t('settings.deleteModel')}</button>
                       </div>
                       {p.retagProgress ? (
                         <div style={s.progressWrap}>
@@ -369,9 +387,9 @@ export default function SettingsModal(p: Props) {
                         </div>
                       ) : (
                         <div style={s.actionRow}>
-                          <div style={s.hint}>タグが未付与の既存画像をまとめて処理します。</div>
+                          <div style={s.hint}>{t('settings.retagHint')}</div>
                           <button style={s.addBtn} onClick={p.onTaggerRetagAll}>
-                            既存画像にタグ付け...
+                            {t('settings.retagButton')}
                           </button>
                         </div>
                       )}
@@ -382,37 +400,34 @@ export default function SettingsModal(p: Props) {
                         <div style={{ ...s.progressFill, width: `${Math.round(p.taggerProgress * 100)}%` }} />
                       </div>
                       <span style={s.progressLabel}>{Math.round(p.taggerProgress * 100)}%</span>
-                      <button style={s.cancelBtn} onClick={p.onTaggerCancelDownload}>中止</button>
+                      <button style={s.cancelBtn} onClick={p.onTaggerCancelDownload}>{t('action.stop')}</button>
                     </div>
                   ) : (
                     <div style={s.actionRow}>
-                      <div style={s.hint}>モデルを保存すると、以後のキャプチャで自動タグ付けを使えます。</div>
+                      <div style={s.hint}>{t('settings.modelSaveHint')}</div>
                       <button style={s.addBtn} onClick={p.onTaggerDownload}>
-                        モデルをダウンロード
+                        {t('settings.downloadModel')}
                       </button>
                     </div>
                   )}
                 </div>
                 <div style={s.group}>
-                  <div style={s.section}>サイドバー表示</div>
+                  <div style={s.section}>{t('settings.sidebarDisplay')}</div>
                   <div style={s.toggleRow}>
-                    <span style={s.label}>AIタグもサイドバーに表示する</span>
+                    <span style={s.label}>{t('settings.showAiTags')}</span>
                     <ToggleSwitch checked={p.settings.showAiTags ?? false} onChange={p.onUpdateShowAiTags} />
                   </div>
-                  <div style={s.hint}>OFFの間は手動で付けたタグのみを表示します。ONにするとAIタグも表示されますが、手動タグを優先して上位に並べます。</div>
+                  <div style={s.hint}>{t('settings.showAiTagsHint')}</div>
                 </div>
               </>
             )}
 
             {activeTab === 'data' && (
-              <div style={s.group}>
-                <div style={s.section}>データ</div>
-                <div style={s.dataBlock}>
-                  <div style={s.dataHeader}>
-                    <div>
-                      <div style={s.dataTitle}>エクスポート</div>
-                      <div style={s.hint}>キャプチャ、タグ、メモ、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）</div>
-                    </div>
+              <>
+                <div style={{ ...s.group, ...s.groupFirst }}>
+                  <div style={s.section}>{t('action.export')}</div>
+                  <div style={s.actionRow}>
+                    <div style={s.hint}>{t('settings.exportHint')}</div>
                     <button style={s.addBtn} disabled={shareExporting || otherExportActive} onClick={async () => {
                       setShareExporting(true)
                       setShareExportStatus(null)
@@ -420,14 +435,14 @@ export default function SettingsModal(p: Props) {
                       try {
                         const result = await p.onShareExport()
                         if (result.canceled) {
-                          if (result.count != null) setShareExportStatus({ text: `${result.count}枚で中止しました` })
+                          if (result.count != null) setShareExportStatus({ text: tp('settings.stoppedCount', result.count) })
                           // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
                         } else {
-                          setShareExportStatus({ text: `${result.count ?? 0}枚をエクスポートしました` })
+                          setShareExportStatus({ text: tp('toast.exported', result.count ?? 0) })
                         }
                       } catch (err) {
                         console.error('[settings] share export failed', err)
-                        setShareExportStatus({ text: 'エクスポートに失敗しました', error: true })
+                        setShareExportStatus({ text: t('settings.exportFailed'), error: true })
                       } finally {
                         setShareExporting(false)
                         // 通常は onExportProgress 側（current>=total）でクリアされるが、途中キャンセル・
@@ -435,24 +450,22 @@ export default function SettingsModal(p: Props) {
                         useExportStore.getState().clearExport()
                       }
                     }}>
-                      {shareExporting ? 'エクスポート中...' : 'ライブラリをエクスポート...'}
+                      {shareExporting ? t('settings.exporting') : t('settings.exportLibrary')}
                     </button>
                   </div>
                   {shareExportStatus && <div style={{ ...s.statusLine, ...(shareExportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareExportStatus.text}</div>}
                 </div>
-                <div style={s.dataBlock}>
-                  <div style={s.dataHeader}>
-                    <div>
-                      <div style={s.dataTitle}>インポート</div>
-                      <div style={s.hint}>画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。同じフォルダを再度インポートすると重複して追加されるのでご注意ください。</div>
-                    </div>
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.import')}</div>
+                  <div style={s.actionRow}>
+                    <div style={s.hint}>{t('settings.importHint')}</div>
                     {shareImportProgress ? (
                       <div style={{ ...s.progressWrap, flex: '0 0 220px' }}>
                         <div style={s.progressBar}>
                           <div style={{ ...s.progressFill, width: `${shareImportProgress.total > 0 ? Math.round(shareImportProgress.current / shareImportProgress.total * 100) : 0}%` }} />
                         </div>
                         <span style={s.progressLabel}>{shareImportProgress.current}/{shareImportProgress.total}</span>
-                        <button style={s.cancelBtn} onClick={() => window.api.shareImportCancel()}>中止</button>
+                        <button style={s.cancelBtn} onClick={() => window.api.shareImportCancel()}>{t('action.stop')}</button>
                       </div>
                     ) : (
                       <button style={s.addBtn} disabled={shareImporting} onClick={async () => {
@@ -461,16 +474,16 @@ export default function SettingsModal(p: Props) {
                         try {
                           const result = await p.onShareImport()
                           if (result.canceled) {
-                            if (result.count != null) setShareImportStatus({ text: `${result.count}枚で中止しました` })
+                            if (result.count != null) setShareImportStatus({ text: tp('settings.stoppedCount', result.count) })
                             // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
                           } else {
-                            const errMsg = result.errors && result.errors.length > 0 ? `（エラー${result.errors.length}件）` : ''
-                            const folderMsg = result.importedFolders ? `、スマートフォルダ${result.importedFolders}件` : ''
-                            setShareImportStatus({ text: `${result.count ?? 0}枚をインポートしました${folderMsg}${errMsg}` })
+                            const errMsg = result.errors && result.errors.length > 0 ? t('settings.importErrorSuffix', { count: result.errors.length }) : ''
+                            const folderMsg = result.importedFolders ? t('settings.importFolderSuffix', { count: result.importedFolders }) : ''
+                            setShareImportStatus({ text: tp('settings.importedCount', result.count ?? 0) + folderMsg + errMsg })
                           }
                         } catch (err) {
                           console.error('[settings] share import failed', err)
-                          setShareImportStatus({ text: 'インポートに失敗しました', error: true })
+                          setShareImportStatus({ text: t('settings.importFailed'), error: true })
                         } finally {
                           setShareImporting(false)
                           // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
@@ -478,48 +491,58 @@ export default function SettingsModal(p: Props) {
                           useExportStore.getState().setShareImportProgress(null)
                         }
                       }}>
-                        {shareImporting ? 'インポート中...' : 'ライブラリをインポート...'}
+                        {shareImporting ? t('settings.importing') : t('settings.importLibrary')}
                       </button>
                     )}
                   </div>
                   {shareImportStatus && <div style={{ ...s.statusLine, ...(shareImportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareImportStatus.text}</div>}
                 </div>
-                <div style={s.dataBlock}>
-                  <div style={s.dataHeader}>
-                    <div>
-                      <div style={s.dataTitle}>サムネイルの修復</div>
-                      <div style={s.hint}>一覧のサムネイルが表示されない画像がある場合に実行します。全画像を検査するため、枚数が多いと時間がかかります。</div>
-                    </div>
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.thumbRepair')}</div>
+                  <div style={s.actionRow}>
+                    <div style={s.hint}>{t('settings.thumbRepairHint')}</div>
                     <button style={s.addBtn} disabled={repairing} onClick={async () => {
                       setRepairing(true)
                       setRepairStatus(null)
                       try {
                         const { repaired, failed } = await window.api.imagesRepairThumbs()
-                        const failMsg = failed > 0 ? `（${failed}枚は失敗）` : ''
+                        const failMsg = failed > 0 ? t('settings.repairFailSuffix', { count: failed }) : ''
                         setRepairStatus({
-                          text: repaired > 0 ? `${repaired}枚のサムネイルを再生成しました${failMsg}` : `問題は見つかりませんでした${failMsg}`,
+                          text: repaired > 0 ? tp('settings.repairedCount', repaired) + failMsg : t('settings.repairNoIssues') + failMsg,
                         })
                       } catch (err) {
                         console.error('[settings] thumbnail repair failed', err)
-                        setRepairStatus({ text: '修復に失敗しました', error: true })
+                        setRepairStatus({ text: t('settings.repairFailed'), error: true })
                       } finally {
                         setRepairing(false)
                       }
                     }}>
-                      {repairing ? '検査中...' : 'サムネイルを修復...'}
+                      {repairing ? t('settings.repairing') : t('settings.repairButton')}
                     </button>
                   </div>
                   {repairStatus && <div style={{ ...s.statusLine, ...(repairStatus.error ? s.statusLineError : s.statusLineOk) }}>{repairStatus.text}</div>}
                 </div>
-                <div style={s.dataBlock}>
-                  <div style={s.dataHeader}>
-                    <div>
-                      <div style={s.dataTitle}>バージョン</div>
-                      <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
-                    </div>
-                  </div>
+                {/* バージョンとクレジットは操作対象ではないので、右側にボタンを置く actionRow は
+                    使わず見出し＋説明だけにする。以前は他と同じ「左に見出し・右にボタン」の
+                    カードに入っていて、右半分が空いたまま操作できそうな見た目になっていた。 */}
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.version')}</div>
+                  <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
                 </div>
-              </div>
+                {/* Icons8 の無料ライセンスはアプリ内のクレジット表示とリンクを条件にしている。
+                    他のサードパーティ表記も同じ場所にまとめ、詳細は NOTICE.md に委ねる。 */}
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.credits')}</div>
+                  <div style={s.hint}>
+                    {t('settings.creditIcons')}<button style={s.creditLink} onClick={() => window.api.openUrl('https://icons8.com')}>Icons8</button>
+                    {' ／ '}
+                    {t('settings.creditTagger')}<button style={s.creditLink} onClick={() => window.api.openUrl('https://huggingface.co/SmilingWolf/wd-vit-tagger-v3')}>WD ViT Tagger v3</button>
+                    {' ／ '}
+                    {t('settings.creditVideo')}<button style={s.creditLink} onClick={() => window.api.openUrl('https://ffmpeg.org')}>FFmpeg</button>
+                  </div>
+                  <div style={s.hint}>{t('settings.creditsHint')}</div>
+                </div>
+              </>
             )}
 
           </div>
@@ -530,6 +553,23 @@ export default function SettingsModal(p: Props) {
 }
 
 // 各種設定スロットが見た目を揃えるために再利用する共通スタイル。
+//
+// ── 崩すと「統一感がない」に戻る約束 ─────────────────────────────
+// 1. 器はひとつ。タブの中身は必ず group（区切り線＋余白）で組む。背景付きのカードは使わない。
+//    以前は「データ」タブだけが背景付きカード(dataBlock)で、他3タブの区切り線と別物に見えていた。
+// 2. 文字は 3 段だけ: section(xs/secondary) > label(base/primary) > hint(sm/secondary)。
+//    label を section より大きくしないこと。以前は label が lg(15) で見出し xs(12) より
+//    目立ち、階層が反転していた。
+// 3. 角丸は radius トークンのみ。操作部品(ボタン・入力・バッジ)= sm、器(パネル・タイル)= md。
+//    以前は 3 と 4 が根拠なく混在していた。
+// 4. ボタンは btnBase で高さ・角丸・字送りを固定し、色だけで役割を分ける。
+//    以前は addBtn/sizeBtn/cancelBtn/deleteBtn が全部別の padding と font-size を持っていた。
+const btnBase: React.CSSProperties = {
+  height: 32, boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0, padding: '0 14px', borderRadius: radius.sm, fontSize: font.base, fontWeight: 700,
+  cursor: 'pointer', whiteSpace: 'nowrap' as const,
+}
+
 export const s: Record<string, React.CSSProperties> = {
   overlay: { ...modal.overlay, background: 'rgba(var(--scrim-rgb), 0.88)', zIndex: 2000, padding: 0 },
   panel: { ...modal.panel, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
@@ -539,16 +579,21 @@ export const s: Record<string, React.CSSProperties> = {
   tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: 700 },
   tabContent: { overflowY: 'auto' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
   title: { fontSize: font.xxl, fontWeight: 800, color: 'var(--text-bright)' },
-  close: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
-  group: { borderTop: '1px solid var(--border-strong)', paddingTop: 22, paddingBottom: 22, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 620 },
+  close: { ...btnBase, width: 32, padding: 0, background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', color: 'var(--text-secondary)' },
+  // 区切り線は 2 つ目以降の group にだけ出す。1 つ目に出すとヘッダーの下線と重なって
+  // 二重線に見えるため、各タブの先頭 group には groupFirst を重ねること。
+  group: { borderTop: '1px solid var(--border-default)', padding: '22px 0', display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 620 },
+  groupFirst: { borderTop: 'none' },
   section: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
   toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 },
-  row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  label: { fontSize: font.lg, color: 'var(--text-primary)', fontWeight: 700 },
-  sizeBtn: { padding: '6px 18px', background: 'var(--bg-surface)', borderRadius: 3, border: '1px solid var(--border-strong)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.base, transition: 'all 0.1s' },
+  // row と toggleRow は同一。外部の設定スロットが両方の名前を使っているため別名で残す。
+  row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 },
+  label: { fontSize: font.base, color: 'var(--text-primary)', fontWeight: 700 },
+  sizeBtn: { ...btnBase, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', fontWeight: 600, transition: 'all 0.1s' },
   hint: { fontSize: font.sm, color: 'var(--text-secondary)', lineHeight: 1.7 },
-  hotkeyBadge: { padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 3, color: 'var(--text-primary)', fontSize: font.base, fontFamily: 'monospace' },
-  hotkeyCapture: { padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--accent-text)', fontSize: font.base, fontFamily: 'monospace', minWidth: 140, outline: 'none', cursor: 'text' },
+  creditLink: { padding: 0, background: 'none', border: 'none', color: 'var(--accent-text)', fontSize: font.sm, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' },
+  hotkeyBadge: { ...btnBase, cursor: 'default', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', fontFamily: 'monospace', fontWeight: 400 },
+  hotkeyCapture: { ...btnBase, cursor: 'text', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--accent-text)', fontFamily: 'monospace', fontWeight: 400, minWidth: 140, outline: 'none' },
   toggleSwitch: { width: 44, height: 28, padding: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
   toggleSwitchOn: { background: 'rgba(var(--accent-rgb), 0.24)', borderColor: 'rgba(var(--accent-rgb), 0.6)' },
   toggleKnob: { width: 20, height: 20, borderRadius: 999, background: 'var(--text-secondary)', boxShadow: '0 1px 3px rgba(var(--scrim-rgb), 0.45)', transition: 'transform 0.16s cubic-bezier(.22,1,.36,1), background 0.16s ease' },
@@ -558,28 +603,25 @@ export const s: Record<string, React.CSSProperties> = {
   statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'rgba(var(--border-rgb), 0.6)' },
   statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
   inputRow: { display: 'flex', gap: 8 },
-  input: { flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-primary)', padding: '7px 10px', fontSize: font.base, outline: 'none' },
+  input: { flex: 1, height: 32, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
   actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  addBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), 0.45)', borderRadius: 3, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, whiteSpace: 'nowrap' as const, fontWeight: 700 },
+  addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), 0.45)', color: 'var(--accent-text)' },
   patternEmpty: { color: 'var(--text-secondary)', fontSize: font.base },
   patternList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
-  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 3, padding: '6px 10px' },
+  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.sm, padding: '6px 10px' },
   code: { fontFamily: 'monospace', fontSize: font.sm, color: 'var(--text-secondary)', flex: 1 },
   removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 },
-  deleteBtn: { padding: '5px 12px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: 3, color: color.danger, cursor: 'pointer', fontSize: font.sm, fontWeight: 700 },
-  cancelBtn: { padding: '5px 10px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, flexShrink: 0 },
+  deleteBtn: { ...btnBase, background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, color: color.danger },
+  cancelBtn: { ...btnBase, background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' },
   progressWrap: { display: 'flex', alignItems: 'center', gap: 8 },
   progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: '100%', background: 'var(--accent)', borderRadius: 2, transition: 'width 0.3s' },
   progressLabel: { color: 'var(--text-secondary)', fontSize: font.sm, width: 36, textAlign: 'right' as const },
-  dataBlock: { display: 'flex', flexDirection: 'column' as const, gap: 12, width: '100%', padding: '14px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, boxSizing: 'border-box' as const },
-  dataHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  dataTitle: { color: 'var(--text-primary)', fontSize: font.base, fontWeight: 800 },
   statusLine: { fontSize: font.sm, fontWeight: 700 },
   statusLineOk: { color: 'var(--success)' },
   statusLineError: { color: color.danger },
   serviceGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(168px, 1fr))', gap: 8, width: '100%' },
-  serviceItem: { minHeight: 42, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid', borderRadius: 4, boxSizing: 'border-box' as const },
+  serviceItem: { minHeight: 42, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid', borderRadius: radius.md, boxSizing: 'border-box' as const },
   serviceDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, boxShadow: '0 0 0 3px rgba(var(--text-rgb), 0.04)' },
   serviceText: { minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 2 },
   serviceName: { color: 'var(--text-primary)', fontSize: font.base, fontWeight: 800, lineHeight: 1.2 },

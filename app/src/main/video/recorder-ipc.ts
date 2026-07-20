@@ -12,13 +12,14 @@ import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
 import { registerCapturedMedia } from '../captured-media'
+import { t } from '../i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
 const MAX_WEBM_BYTES = 1024 * 1024 * 1024 // 1GB
-// 著作権対策の録画上限（settings.ts の clipMaxSeconds、最大60秒）に停止タイマーの
+// 著作権対策の録画上限（settings.ts の clipMaxSeconds、最大30秒）に停止タイマーの
 // 遅延分だけ余裕を持たせた値。renderer が改ざん・誤動作しても、この値を超える尺の
 // クリップを保存させない（多層防御。settings.ts 側が一次の上限）。
-const MAX_CLIP_DURATION_SEC = 70
+const MAX_CLIP_DURATION_SEC = 40
 
 function formatClipDuration(seconds: number): string {
   const s = Math.round(seconds)
@@ -46,18 +47,18 @@ export function registerRecorderIpc(): void {
     // V-5: audio+video が失敗し video のみで録画を継続しているだけなので、録画状態は
     // リセットしない（このあと recorder:done / recorder:error が別途届く）。
     if (msg === 'audio_unavailable_fallback') {
-      sendBrowserNotice('warning', '音声なしで録画しています（音声デバイスの初期化に失敗しました）。')
+      sendBrowserNotice('warning', t('notice.recordingNoAudio'))
       return
     }
     finishRecordingState()
     if (msg === 'crop_unavailable') {
-      sendNotice('warning', '動画領域を特定できませんでした。ページを再読み込みして再試行してください。')
+      sendNotice('warning', t('notice.videoRegionNotFound'))
     } else if (msg === 'no_data') {
-      sendNotice('warning', '録画データが空でした。短すぎる録画は保存されません。')
+      sendNotice('warning', t('notice.recordingEmpty'))
     } else if (msg === 'getUserMedia_not_allowed') {
-      sendNotice('error', '画面録画の権限がありません。Chromeのハードウェアアクセラレーションをオフにして再試行してください。')
+      sendNotice('error', t('notice.screenCapturePermission'))
     } else {
-      sendNotice('error', `録画エラー: ${msg.slice(0, 80)}`)
+      sendNotice('error', t('notice.recordingError', { message: msg.slice(0, 80) }))
     }
   })
 
@@ -71,13 +72,13 @@ export function registerRecorderIpc(): void {
     if (!(webmAB instanceof ArrayBuffer) || webmAB.byteLength === 0 || webmAB.byteLength > MAX_WEBM_BYTES) {
       console.error('[clip] recorder:done rejected: invalid webm payload', { byteLength: (webmAB as ArrayBuffer)?.byteLength })
       finishRecordingState()
-      sendNotice('error', '録画データが不正なため保存できませんでした。')
+      sendNotice('error', t('notice.recordingDataInvalid'))
       return
     }
     if (!Number.isFinite(duration) || duration <= 0 || duration > MAX_CLIP_DURATION_SEC) {
       console.error('[clip] recorder:done rejected: invalid duration', { duration })
       finishRecordingState()
-      sendNotice('error', '録画データが不正なため保存できませんでした。')
+      sendNotice('error', t('notice.recordingDataInvalid'))
       return
     }
 
@@ -120,17 +121,17 @@ export function registerRecorderIpc(): void {
         autoTag: thumbPath ? { path: thumbPath } : null
       })
       if (!result.ok) {
-        sendNotice('error', 'クリップの保存に失敗しました')
+        sendNotice('error', t('notice.clipSaveFailed'))
         return
       }
       if (loadSettings().clipNotify !== false) {
-        sendBrowserNotice('success', `クリップを保存しました（${formatClipDuration(duration)}）`)
+        sendBrowserNotice('success', t('notice.clipSaved', { duration: formatClipDuration(duration) }))
       }
     } catch (err) {
       console.error('[clip] save failed', err)
       if (webmPath) try { await unlink(webmPath) } catch {}
       if (thumbPath) try { await unlink(thumbPath) } catch {}
-      sendNotice('error', 'クリップの保存に失敗しました')
+      sendNotice('error', t('notice.clipSaveFailed'))
     }
   })
 }

@@ -3,7 +3,8 @@ import { join } from 'path'
 import { readFileSync, existsSync, renameSync } from 'fs'
 import { writeFile, rename, unlink } from 'fs/promises'
 import { normalizeCaptureHotkey } from './hotkey'
-import type { SmartFolder, Settings } from '../shared/types'
+import type { SmartFolder, Settings, Lang } from '../shared/types'
+import { langFromLocale } from '../shared/i18n'
 import { SETTINGS_DEFAULTS } from '../shared/settingsDefaults'
 
 export type { SmartFolder, Settings }
@@ -62,6 +63,22 @@ function themeValue(value: unknown): Settings['theme'] {
   return value === 'dark' || value === 'light' || value === 'system' ? value : 'dark'
 }
 
+function languageValue(value: unknown): Lang {
+  return value === 'ja' || value === 'en' ? value : DEFAULTS.language
+}
+
+// 新規インストール時の初期表示言語。app.getLocale() は app ready 前だと空文字を返しうるので、
+// 呼ぶのは settings.json が存在しないと分かった後（＝ready 後の loadSettings）に限る。
+// 一度決めたら settings.json に焼き付き、以降 OS の言語変更には追従しない
+// （ユーザーが設定画面で選び直した値を勝手に上書きしないため）。
+function osDefaultLang(): Lang {
+  try {
+    return langFromLocale(app.getLocale())
+  } catch {
+    return DEFAULTS.language
+  }
+}
+
 function extensionIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value
@@ -82,15 +99,16 @@ export function normalizeSettings(value: unknown): Settings {
     smartFolders: smartFolders(data.smartFolders),
     captureHotkey: hotkeyText(data.captureHotkey, DEFAULTS.captureHotkey),
     clipHotkey: hotkeyText(data.clipHotkey, DEFAULTS.clipHotkey),
-    // 著作権対策として録画時間を厳格に上限60秒とする（設定でもこれ以上には出来ない）。
+    // 著作権対策として録画時間を厳格に上限30秒とする（設定でもこれ以上には出来ない）。
     // インポート動画の尺上限（ipc-import.ts の MAX_IMPORT_VIDEO_SECONDS）と揃える。
-    clipMaxSeconds: boundedNumber(data.clipMaxSeconds, DEFAULTS.clipMaxSeconds, 5, 60),
+    clipMaxSeconds: boundedNumber(data.clipMaxSeconds, DEFAULTS.clipMaxSeconds, 5, 30),
     clipNotify: data.clipNotify !== false,
     captureNotify: data.captureNotify !== false,
     allowedExtensionIds: allowedIds.length > 0 ? allowedIds : [EXTENSION_ID],
     serviceOrder: stringList(data.serviceOrder),
     showAiTags: data.showAiTags === true,
     theme: themeValue(data.theme),
+    language: languageValue(data.language),
     lastRunVersion: nullableText(data.lastRunVersion),
   }
 }
@@ -128,7 +146,10 @@ export function loadSettings(): Settings {
     }
     _corruptOnLoad = true
   }
-  _settingsCache = { ...DEFAULTS }
+  // ここに来るのは「settings.json が無い（＝新規インストール）」か「読み込みに失敗した」かの
+  // どちらか。前者だけ OS ロケールから表示言語を決める。後者（_corruptOnLoad）は設定を持っていた
+  // ユーザーなので、破損をきっかけに表示言語まで変わらないよう DEFAULTS の 'ja' を維持する。
+  _settingsCache = { ...DEFAULTS, language: _corruptOnLoad ? DEFAULTS.language : osDefaultLang() }
   return _settingsCache
 }
 

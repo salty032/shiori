@@ -1,8 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { SHORTCUT_GROUPS } from '../shortcuts'
+import { shortcutGroups } from '../shortcuts'
+import { useT } from '../i18n'
 import { font } from '../styles'
 
 const CLOSE_MS = 100
+// 説明とキーを横に並べる分、縦積みだった頃（260）より広い幅が要る。
+const FLYOUT_WIDTH = 340
+
+// 「Shift+矢印 / Shift+クリック」のような択一表記を 1 個ずつのキーに割る。
+// 区切りは前後に空白のある ' / ' だけを見ること: 単体の '/'（検索フォーカス）が
+// それ自身セパレータとして割れて空のキーが 2 個できてしまう。
+function splitKeys(keys: string): string[] {
+  return keys.split(' / ')
+}
 
 type Props = {
   anchorEl: HTMLElement | null
@@ -13,6 +23,8 @@ type Props = {
 // 無関係の独立したフライアウトで、サイドバーの右端からはみ出す形で表示する
 // （閉じる判定は ContextMenu.tsx と同じ document リスナー方式）。
 export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
+  const { t } = useT()
+  const groups = shortcutGroups(t)
   const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null)
   const [closing, setClosing] = useState(false)
@@ -20,7 +32,10 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
   useLayoutEffect(() => {
     if (!anchorEl) return
     const rect = anchorEl.getBoundingClientRect()
-    setPos({ left: rect.right + 10, bottom: Math.max(12, window.innerHeight - rect.bottom) })
+    // 横並び化で幅が広がった分、サイドバーを広げているとアンカーの右に置くだけでは
+    // 画面右端からはみ出す。右端で止め、それでも入らなければ左端に寄せる。
+    const left = Math.max(12, Math.min(rect.right + 10, window.innerWidth - FLYOUT_WIDTH - 12))
+    setPos({ left, bottom: Math.max(12, window.innerHeight - rect.bottom) })
   }, [anchorEl])
 
   function close(): void {
@@ -52,33 +67,39 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
 
   return (
     <div ref={panelRef} style={{ ...s.flyout, left: pos?.left ?? 0, bottom: pos?.bottom ?? 0, visibility: pos ? 'visible' : 'hidden', animation: closing ? 'shioriPopoverOut 0.1s ease-out forwards' : 'shioriPopoverIn 0.1s ease-out' }}>
-      <div style={s.heading}>ショートカット</div>
-      {SHORTCUT_GROUPS.map((group) => (
+      <div style={s.heading}>{t('shortcuts.heading')}</div>
+      {groups.map((group) => (
         <div key={group.title} style={s.group}>
           <div style={s.groupTitle}>{group.title}</div>
           <div style={s.list}>
             {group.items.map((item) => (
               <div key={item.keys} style={s.row}>
                 <span style={s.desc}>{item.desc}</span>
-                <span style={s.key}>{item.keys}</span>
+                <span style={s.keys}>
+                  {splitKeys(item.keys).map((k) => <kbd key={k} style={s.key}>{k}</kbd>)}
+                </span>
               </div>
             ))}
           </div>
         </div>
       ))}
-      <div style={s.hint}>キャプチャホットキーは設定 →「キャプチャ」で変更できます。</div>
+      <div style={s.hint}>{t('shortcuts.hint')}</div>
     </div>
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  flyout: { position: 'fixed' as const, width: 260, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
+  flyout: { position: 'fixed' as const, width: FLYOUT_WIDTH, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
   heading: { fontSize: font.sm, fontWeight: 800, color: 'var(--accent-text)' },
   group: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
   groupTitle: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
-  list: { display: 'flex', flexDirection: 'column' as const, gap: 7, width: '100%' },
-  row: { display: 'flex', flexDirection: 'column' as const, gap: 2 },
-  desc: { fontSize: font.xs, color: 'var(--text-secondary)', lineHeight: 1.4 },
-  key: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--accent-text)', background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 3, padding: '1px 7px', display: 'inline-block', width: 'fit-content', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  list: { display: 'flex', flexDirection: 'column' as const, gap: 6, width: '100%' },
+  // 説明を左・キーを右に並べる。縦積みだと説明とキーが 1 本の流れになり、どの説明が
+  // どのキーの分か目で追えなかった。キーを右端で揃えることで、行の対応が横一直線で読める。
+  row: { display: 'flex', flexDirection: 'row' as const, alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  // 説明側だけを縮ませる（キーは省略されると意味を失うため flexShrink: 0）。
+  desc: { flex: '1 1 auto', minWidth: 0, fontSize: font.xs, color: 'var(--text-primary)', lineHeight: 1.5 },
+  keys: { flexShrink: 0, display: 'flex', flexWrap: 'wrap' as const, justifyContent: 'flex-end', gap: 4, maxWidth: '58%' },
+  key: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--accent-text)', background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 3, padding: '1px 7px', whiteSpace: 'nowrap' as const },
   hint: { fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 },
 }

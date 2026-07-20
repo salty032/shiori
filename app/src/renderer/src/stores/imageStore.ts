@@ -3,6 +3,7 @@ import type { ImageRow } from '../types'
 import type { ShowToast } from '../hooks/useToast'
 import { getCommitted, useFilterStore } from './filterStore'
 import { buildImageQuery } from './imageQuery'
+import { t, currentLocale } from '../i18n'
 
 const PAGE_SIZE = 50
 
@@ -147,7 +148,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
       }
     } catch (err) {
       console.error('[images] loadMore failed', err)
-      if (generation === grid.listGeneration) showToast('画像の読み込みに失敗しました', 'error')
+      if (generation === grid.listGeneration) showToast(t('toast.loadImagesFailed'), 'error')
     } finally {
       if (generation === grid.listGeneration) {
         grid.loading = false
@@ -190,14 +191,14 @@ export const useImageStore = create<ImageState>((set, get) => ({
       if (count > rows.length) {
         if (!timelineTruncatedNotified) {
           timelineTruncatedNotified = true
-          showToast(`表示上限のため一部の画像はタイムラインに表示されていません（${rows.length.toLocaleString()} / ${count.toLocaleString()} 件）`, 'warning')
+          showToast(t('toast.timelineTruncated', { shown: rows.length.toLocaleString(currentLocale()), total: count.toLocaleString(currentLocale()) }), 'warning')
         }
       } else {
         timelineTruncatedNotified = false
       }
     } catch (err) {
       console.error('[timeline] load failed', err)
-      if (generation === timelineGeneration) showToast('タイムラインの読み込みに失敗しました', 'error')
+      if (generation === timelineGeneration) showToast(t('toast.loadTimelineFailed'), 'error')
     } finally {
       if (generation === timelineGeneration) set({ timelineLoading: false })
     }

@@ -5,10 +5,11 @@ import { broadcastMessage, onExtensionMessage, type ExtensionMessage } from '../
 import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRect } from '../capture'
 import { loadSettings } from '../settings'
 import { isMainWindowFocused } from '../windows'
-import { getRecorderWindow, createRecorderWindow } from './recorder-window'
+import { getRecorderWindow, createRecorderWindow, setPendingDisplaySource } from './recorder-window'
 import { setTrayRecording } from '../tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../timecode'
 import { sendBrowserNotice } from '../browser-notice'
+import { t } from '../i18n'
 
 export interface RecordingMeta {
   title: string | null
@@ -71,7 +72,11 @@ async function getDesktopSourceId(): Promise<string | null> {
   if (!rect) return null
   const { left: wl, top: wt, width: ww, height: wh } = rect
   const edisp = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
-  const sources = await desktopCapturer.getSources({ types: ['screen'] })
+  // thumbnailSize を明示しないと Electron は既定で全スクリーンの 150x150 サムネイルを
+  // 実際に撮ってから返す。ここで欲しいのは source.id だけで画像は捨てるため、その撮影は
+  // 丸ごと無駄な待ち時間になる（ホットキーを押してから録画が始まるまでの遅延に直結する）。
+  // 0x0 を指定してサムネイル生成を省く。
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
   const source = sources.find(s => s.display_id === String(edisp.id)) ?? sources[0]
   return source?.id ?? null
 }
@@ -127,23 +132,23 @@ export async function startRecording(): Promise<void> {
     const CLIP_TIMECODE_MAX_AGE_MS = 1500
     if (!target && Date.now() - getLastTimecodeAt() > CLIP_TIMECODE_MAX_AGE_MS) {
       console.warn('[clip] stale timecode after target timeout, aborting recording')
-      sendBrowserNotice('warning', '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。')
+      sendBrowserNotice('warning', t('notice.videoNotDetected'))
       return
     }
 
     if (!canCaptureVideo()) {
       console.warn('[clip] canCaptureVideo false', { hasTarget: !!target, videoRect: target?.videoRect ?? null })
-      sendBrowserNotice('warning', '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。')
+      sendBrowserNotice('warning', t('notice.videoNotDetected'))
       return
     }
     if (!(await ensureRecorderReady(RECORDER_LOAD_TIMEOUT_MS))) {
-      sendBrowserNotice('error', 'レコーダーの準備に失敗しました。もう一度お試しください。')
+      sendBrowserNotice('error', t('notice.recorderPrepareFailed'))
       return
     }
 
     const sourceId = await getDesktopSourceId()
     if (!sourceId) {
-      sendBrowserNotice('error', '録画ソースが見つかりませんでした')
+      sendBrowserNotice('error', t('notice.recordingSourceNotFound'))
       return
     }
 
@@ -158,11 +163,19 @@ export async function startRecording(): Promise<void> {
     }
 
     const settings = loadSettings()
-    const maxSeconds = settings.clipMaxSeconds ?? 60
+    const maxSeconds = settings.clipMaxSeconds ?? 30
     const sessionId = ++currentRecordingSessionId
+    // getDisplayMedia 側はソースをレンダラーではなく main のハンドラが決めるため、
+    // ここで解決済みの画面を預けてから開始させる（sourceId は従来方式の退避用に送り続ける）。
+    setPendingDisplaySource(sourceId)
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,
-      fps: 30,
+      // 取得フレームレートの上限（recorder.ts の acquireScreenStream に渡す）。
+      // 30 だと 30fps でエンコードされた配信を 30fps で取り込む際に位相ズレで
+      // コマが落ちうる。60 に上げても実際に吐かれるのは「画面が変化したぶん」だけ
+      // （captureStream(0) + requestFrame の手動供給）なので、動きの無い場面で
+      // ファイルサイズが倍になるわけではない。
+      fps: 60,
       maxSeconds,
       sessionId
     })
@@ -177,7 +190,7 @@ export async function startRecording(): Promise<void> {
       if (!isRecording) return
       console.error('[clip] watchdog: recorder did not report done/error in time, forcing reset')
       finishRecordingState()
-      sendBrowserNotice('error', '録画処理がタイムアウトしました。もう一度お試しください。')
+      sendBrowserNotice('error', t('notice.recordingTimeout'))
     }, (maxSeconds + 30) * 1000)
   } catch (err) {
     console.error('[clip] startRecording failed', err)
@@ -202,6 +215,10 @@ export function finishRecordingState(): void {
   const wasRecording = isRecording
   isRecording = false
   recordingMeta = null
+  // 預けた画面ソースを解放する。残しておくと、次の録画が何らかの理由で
+  // setPendingDisplaySource を通らずに始まったとき、前回の（別ディスプレイかもしれない）
+  // 画面をそのまま撮ってしまう。
+  setPendingDisplaySource(null)
   if (wasRecording) broadcastMessage({ type: 'post-capture' })
   setTrayRecording(false)
 }

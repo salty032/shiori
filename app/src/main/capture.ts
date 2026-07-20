@@ -5,6 +5,7 @@ import { appendFileSync } from 'fs'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { ensureCaptureSubDir } from './paths'
+import { t } from './i18n'
 
 export type CropRect = { x: number; y: number; w: number; h: number }
 
@@ -370,12 +371,12 @@ export function registerHotkey(hotkey: string, onError?: (message: string) => vo
       // preCaptureHook が既に具体的な警告（動画未検出）を送信済みのケースもここに含まれる。
       if (err instanceof SilentCaptureAbort) return
       console.error('[capture] failed', err)
-      onError?.('キャプチャに失敗しました。もう一度お試しください。')
+      onError?.(t('error.captureFailed'))
     })
   })
   if (!ok) {
     console.warn(`[capture] hotkey ${hotkey} registration failed`)
-    onError?.(`ホットキー ${hotkey} を登録できませんでした。他のアプリで使われている可能性があります。`)
+    onError?.(t('error.hotkeyRegisterFailed', { hotkey }))
   } else {
     currentHotkey = hotkey
     console.log(`[capture] hotkey registered: ${hotkey}`)

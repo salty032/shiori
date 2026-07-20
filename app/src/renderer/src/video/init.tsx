@@ -5,6 +5,7 @@ import { registerMediaAction, registerContextMenuItems, registerModal, registerS
 import { useTrimStore } from './trimStore'
 import VideoTrimmerModal from './VideoTrimmerModal'
 import ClipHotkeySettings from './ClipHotkeySettings'
+import { t } from '../i18n'
 
 const panelBtnStyle: React.CSSProperties = {
   width: '100%', height: 34, padding: '0 12px', background: 'rgba(35,190,183,0.1)',
@@ -12,31 +13,30 @@ const panelBtnStyle: React.CSSProperties = {
   cursor: 'pointer', fontSize: 12, fontWeight: 800,
 }
 
-const viewerBtnStyle: React.CSSProperties = {
-  padding: '3px 10px', background: 'rgba(123,123,246,0.15)', border: '1px solid rgba(123,123,246,0.4)',
-  borderRadius: 4, color: '#9ea5ff', fontSize: 12, cursor: 'pointer', fontWeight: 700, flexShrink: 0,
-}
-
 registerMediaAction((img, ctx) => {
   if (img.media_type !== 'video') return null
+  // ctx.close の有無で呼び出し元（Viewer / DetailPanel）を判別する。
+  // ビューア上部にはトリミングボタンを出さない。DetailPanel はビューアに覆われず常時
+  // 隣に出ているため（Viewer の設計コメント参照）、ビューアを開いていても同じ操作が
+  // そこから届く。同じ導線を 2 つ並べる価値がなく、上部バーは閉じる・カウンタだけの
+  // 静かな状態に保つ。右クリックメニュー（下の registerContextMenuItems）も残るので、
+  // ビューアからトリミングに入る手段自体は失われない。
+  if (ctx?.close != null) return null
   const open = (): void => {
-    ctx?.close?.()
     useTrimStore.getState().open(img.id)
   }
-  // ctx.close の有無で呼び出し元（Viewer=コンパクト表示 / DetailPanel=全幅表示）を判別する。
-  const isViewer = ctx?.close != null
   return (
-    <button key="trim" style={isViewer ? viewerBtnStyle : panelBtnStyle} onClick={open}>
-      トリミング
+    <button key="trim" style={panelBtnStyle} onClick={open}>
+      {t('video.trim')}
     </button>
   )
 })
 
 registerContextMenuItems((img) => {
   if (img.media_type !== 'video') return []
-  return [{ label: 'トリミング', onClick: () => useTrimStore.getState().open(img.id) }]
+  return [{ label: t('video.trim'), onClick: () => useTrimStore.getState().open(img.id) }]
 })
 
 registerModal(() => <VideoTrimmerModal />)
 
-registerSettingsSlot('キャプチャ', (props) => <ClipHotkeySettings {...props} />)
+registerSettingsSlot('capture', (props) => <ClipHotkeySettings {...props} />)

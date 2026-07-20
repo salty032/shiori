@@ -123,6 +123,21 @@ textarea::placeholder { color: var(--text-muted); }
   outline: 2px solid var(--accent) !important;
   outline-offset: 1px;
 }
+
+/* 検索欄だけは例外。他の入力欄は <input> 自身が border/background を持つ＝見えている枠と
+   フォーカスされる要素が一致するが、検索欄は「アイコン＋入力＋クリアボタン」を1つの枠に
+   見せる複合コントロールで、枠を描いているのは親(.shiori-search-input-wrap)、フォーカスが
+   当たるのは中の透明・ボーダーなしの <input>。そのまま上の共通リングを効かせると、枠の
+   内側に浮いた小さな矩形（アイコンの右から×ボタンの手前まで）が出て位置がズレて見える。
+   リングは実体ではなく「ユーザーが入力欄だと思っている外枠」に出す。
+   :has() は Electron 42(Chromium 136) で問題なく使える。 */
+.shiori-search-input:focus-visible {
+  outline: none !important;
+}
+.shiori-search-input-wrap:has(.shiori-search-input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 /* ライトはボタン濃色地に white ではなく黒寄りテキストのため、hover は明るくすると
    逆にコントラストが落ちる。ダーク(明るくする)/ライト(暗くする)で係数を反転する。 */
 button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
@@ -186,6 +201,10 @@ button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
 @keyframes shioriViewFromRight { from { opacity: 0; transform: translateX(14px) } to { opacity: 1; transform: translateX(0) } }
 /* 検索ボックスのローディングスピナー（検索アイコンの代わりに表示） */
 @keyframes shioriSpin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+/* 初回ロード中のサムネイル枠（スケルトン）。opacity だけを揺らして「まだ来ていない」
+   ことを伝える。background-position を動かす光沢スイープにすると、仮想リストで
+   数十枚が同時に走って GPU 負荷が跳ねるため、意図的に最小限の表現にしている。 */
+@keyframes shioriSkeletonPulse { 0%, 100% { opacity: 0.55 } 50% { opacity: 0.9 } }
 
 /* OS で「視差効果を減らす」設定時はアニメーションを実質無効化（酔い対策）。
    duration を 0 にせず極小にすることで animationend/transitionend 依存コードは壊さない。 */

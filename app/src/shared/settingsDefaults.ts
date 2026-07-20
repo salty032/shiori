@@ -11,7 +11,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+D',
-  clipMaxSeconds: 60,
+  clipMaxSeconds: 30,
   clipNotify: true,
   captureNotify: true,
   allowedExtensionIds: [],
@@ -21,5 +21,10 @@ export const SETTINGS_DEFAULTS: Settings = {
   // 無効値・破損設定からの復旧時のフォールバック（settings.ts の themeValue）は
   // 従来通り 'dark' のまま変更しない（挙動が変わるのは初回起動時のみ）。
   theme: 'system',
+  // 静的な既定は 'ja'。新規インストール時だけ main/settings.ts が OS ロケールを見て
+  // 上書きするため、ここを 'en' にしても新規ユーザーの初期値は変わらない。
+  // この値が実際に効くのは「settings.json はあるが language キーが無い」＝
+  // 言語設定より前のバージョンからのアップグレード組で、従来どおり日本語で起動させる。
+  language: 'ja',
   lastRunVersion: null,
 }

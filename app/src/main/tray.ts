@@ -3,38 +3,40 @@ import { join } from 'path'
 import { deflateSync } from 'zlib'
 import { sendToRenderer, showMainWindow } from './windows'
 import { CH } from '../shared/api'
+import { t } from './i18n'
 
 let tray: Tray | null = null
 let trayNormalIcon: Electron.NativeImage | null = null
 let trayRecordingIcon: Electron.NativeImage | null = null
+// 言語変更でツールチップを組み直すときに、録画中かどうかを復元するために保持する。
+let isRecording = false
 
 function buildTrayMenu(): Electron.Menu {
   return Menu.buildFromTemplate([
-    { label: '開く', click: () => showMainWindow() },
+    { label: t('menu.open'), click: () => showMainWindow() },
     {
-      label: '設定',
+      label: t('menu.settings'),
       click: () => {
         showMainWindow()
         sendToRenderer(CH.openSettings)
       }
     },
-    { label: '終了', click: () => app.quit() }
+    { label: t('menu.quit'), click: () => app.quit() }
   ])
 }
 
-// トレイ用アイコンを、サイズごとに描き分けた PNG（build/icon16・icon32・icon48）から組み立てる。
-// icon.ico を nativeImage.createFromPath() で読むと最大サイズ（256x256）の 1 枚しか取り出せず、
-// それを 16px 枠へ潰し込むことになって絵が崩れる。小サイズ用に線の太さを調整した専用 PNG を
-// スケールごとに持たせ、表示スケール（100%/150%/200%）に応じた解像度を OS に選ばせる。
-// トレイの論理サイズは 16。各 representation のピクセル数は 16 * scaleFactor になる必要があるため、
-// 1x=16px / 1.5x=24px（48px を縮小）/ 2x=32px を渡す。
+// トレイ用アイコンを、サイズごとに用意された PNG（build/icon16・icon24・icon32）から組み立てる。
+// icon.ico を nativeImage.createFromPath() で読むと最大サイズの 1 枚しか取り出せず、
+// それを 16px 枠へ潰し込むことになって絵が崩れる。表示スケール（100%/150%/200%）ごとに
+// 実寸の PNG を持たせ、どれを使うかを OS に選ばせる。
+// トレイの論理サイズは 16 なので、各 representation のピクセル数は 16 * scaleFactor と一致する。
+// PNG はここでリサイズしない。絵の差し替えは assets/icons/ に置いて scripts/build-icons.mjs を流す。
 function buildTrayIcon(): Electron.NativeImage {
   const icon = nativeImage.createEmpty()
-  for (const [scaleFactor, file, px] of [[1, 'icon16.png', 16], [1.5, 'icon48.png', 24], [2, 'icon32.png', 32]] as const) {
+  for (const [scaleFactor, file] of [[1, 'icon16.png'], [1.5, 'icon24.png'], [2, 'icon32.png']] as const) {
     const rep = nativeImage.createFromPath(join(__dirname, '../../build', file))
     if (rep.isEmpty()) continue
-    const sized = rep.getSize().width === px ? rep : rep.resize({ width: px, height: px, quality: 'best' })
-    icon.addRepresentation({ scaleFactor, buffer: sized.toPNG() })
+    icon.addRepresentation({ scaleFactor, buffer: rep.toPNG() })
   }
   return icon
 }
@@ -100,12 +102,23 @@ export function createTray(): void {
   tray.on('double-click', () => showMainWindow())
 }
 
+// 言語変更時に呼ぶ。メニュー項目のラベルは Menu 生成時に文字列として焼き込まれるので、
+// t() の参照先が変わっても既存メニューは古い言語のまま残る。作り直しが必要なのはここだけ
+// （他の main 側文言は表示の直前に t() を呼ぶため、設定変更が自動で効く）。
+export function rebuildTrayMenu(): void {
+  if (!tray) return
+  tray.setContextMenu(buildTrayMenu())
+  // ツールチップも現在の言語へ揃える（録画中に言語を変えた場合に取り残されないよう）。
+  setTrayRecording(isRecording)
+}
+
 // 録画状態に応じてトレイアイコン・ツールチップを切り替える。
 export function setTrayRecording(recording: boolean): void {
   if (!tray) return
+  isRecording = recording
   if (recording) {
     if (trayRecordingIcon) tray.setImage(trayRecordingIcon)
-    tray.setToolTip('Shiori — 録画中')
+    tray.setToolTip(t('tray.recording'))
   } else {
     if (trayNormalIcon) tray.setImage(trayNormalIcon)
     tray.setToolTip('Shiori')

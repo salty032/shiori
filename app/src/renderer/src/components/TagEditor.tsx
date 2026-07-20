@@ -4,6 +4,7 @@ import { s, font, color } from '../styles'
 import { normalizeTag, tagSuggestions } from '../utils'
 import ContextMenu from './ContextMenu'
 import TagSuggestInput from './TagSuggestInput'
+import { useT } from '../i18n'
 
 const TAG_LIST_COLLAPSED_MAX_HEIGHT = 177
 
@@ -19,6 +20,7 @@ type Props = {
 
 // 単一画像のタグ表示・追加・削除。DetailPanel とビューア内タグパネルの両方から使う共通部品（S7-2/P1）。
 export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChanged, onFilterByTag }: Props) {
+  const { t } = useT()
   const [tags, setTags] = useState<ImageTag[]>([])
   const [tagInput, setTagInput] = useState('')
   const [tagInputOpen, setTagInputOpen] = useState(false)
@@ -60,7 +62,7 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
       onTagsChanged()
     } catch (err) {
       console.error('[tag] addTag failed', err)
-      setTagError('タグの追加に失敗しました')
+      setTagError(t('tag.addFailed'))
       setTimeout(() => setTagError(null), 3000)
     }
   }
@@ -88,13 +90,13 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
   return (
     <div style={styles.tagSection}>
       <div style={{ ...styles.tagLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>タグ</span>
-        <span style={styles.tagLegend}><span style={{ color: 'var(--success)' }}>●</span> 手動　<span style={{ color: 'var(--accent-text)' }}>●</span> AI</span>
+        <span>{t('tag.sectionTitle')}</span>
+        <span style={styles.tagLegend}><span style={{ color: 'var(--success)' }}>●</span> {t('tag.legendManual')}　<span style={{ color: 'var(--accent-text)' }}>●</span> {t('tag.legendAi')}</span>
       </div>
       <div className="shiori-tag-list" style={styles.tagList}>
         {[...tags].sort((a, b) => a.source === b.source ? 0 : a.source === 'manual' ? -1 : 1).map(tag => (
           <span key={tag.name} style={{ ...(tag.source === 'ai' ? s.tagChipAi : s.tagChipManual), cursor: onFilterByTag ? 'pointer' : 'default' }}
-            title={(onFilterByTag ? 'クリックで絞り込み / 絞り込み中なら解除' : '') + '（右クリックで削除）'}
+            title={(onFilterByTag ? t('tag.clickToFilter') : '') + t('tag.rightClickToDelete')}
             onClick={() => onFilterByTag?.(tag.name)}
             onContextMenu={(e) => { e.preventDefault(); setTagCtxMenu({ x: e.clientX, y: e.clientY, tag: tag.name }) }}>
             {tag.name}
@@ -106,7 +108,7 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
           x={tagCtxMenu.x}
           y={tagCtxMenu.y}
           items={[
-            { label: `タグ「${tagCtxMenu.tag}」を削除`, danger: true, onClick: () => removeTag(tagCtxMenu.tag) },
+            { label: t('tag.deleteNamed', { tag: tagCtxMenu.tag }), danger: true, onClick: () => removeTag(tagCtxMenu.tag) },
           ]}
           onClose={() => setTagCtxMenu(null)}
         />
@@ -118,12 +120,12 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
             value={tagInput}
             onChange={setTagInput}
             suggestions={suggestions}
-            placeholder="タグを追加..."
+            placeholder={t('tag.addPlaceholder')}
             onConfirm={handleConfirm}
             onCancel={handleCancel}
           />
         ) : (
-          <button style={s.addTagChip} onClick={openTagInput}>+ タグ</button>
+          <button style={s.addTagChip} onClick={openTagInput}>{t('tag.addChip')}</button>
         )}
       </div>
       {tagError && <div style={styles.tagError}>{tagError}</div>}

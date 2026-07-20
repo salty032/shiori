@@ -3,6 +3,7 @@ import { useLatestRef } from './useLatestRef'
 import { hasCommittedFilter, useFilterStore } from '../stores/filterStore'
 import { useImageStore } from '../stores/imageStore'
 import type { ShowToast } from './useToast'
+import { t } from '../i18n'
 
 export interface CaptureSyncOptions {
   // キャプチャでライブラリ内容が変わったときのサイドバー再取得（サービス/カラー）
@@ -55,7 +56,7 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
     const unsubscribe = window.api.onCapture(async ({ id }) => {
       const { showToast } = ref.current
       if (id == null) {
-        showToast('キャプチャ画像の登録に失敗しました。アプリを再起動してもう一度試してください。', 'error')
+        showToast(t('toast.captureRegisterFailed'), 'error')
         return
       }
       let img
@@ -63,11 +64,11 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
         img = await window.api.getImage(id)
       } catch (err) {
         console.error('[capture] getImage failed', err)
-        showToast('キャプチャ画像を一覧に追加できませんでした', 'error')
+        showToast(t('toast.captureAddFailed'), 'error')
         return
       }
       if (!img) {
-        showToast('キャプチャ画像を一覧に追加できませんでした', 'error')
+        showToast(t('toast.captureAddFailed'), 'error')
         return
       }
       const store = useImageStore.getState()

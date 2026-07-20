@@ -1,3 +1,5 @@
+import { t } from './i18n'
+
 export type VersionNotice =
   | { kind: 'whatsNew'; version: string; notes: string[] }
   | { kind: 'toast'; message: string }
@@ -15,5 +17,5 @@ export function decideVersionNotice(
   if (previousRunVersion === currentVersion) return { kind: 'none' }
   if (previousRunVersion === null) return { kind: 'none' }
   if (notes && notes.length > 0) return { kind: 'whatsNew', version: currentVersion, notes }
-  return { kind: 'toast', message: `Shiori を v${currentVersion} に更新しました` }
+  return { kind: 'toast', message: t('notice.updated', { version: currentVersion }) }
 }

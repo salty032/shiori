@@ -44,7 +44,9 @@ vi.mock('../paths', () => ({
 }))
 
 vi.mock('../settings', () => ({
-  loadSettings: vi.fn(() => ({ clipNotify: true }))
+  // i18n の t() は loadSettings().language を読むため、言語を明示する
+  // （未指定だと currentLang() が undefined になり辞書引きで throw する）。
+  loadSettings: vi.fn(() => ({ clipNotify: true, language: 'ja' }))
 }))
 
 vi.mock('../browser-notice', () => ({
@@ -120,16 +122,16 @@ describe('recorder:done - duration 上限（多層防御）', () => {
     registerRecorderIpc()
   })
 
-  it('上限(70秒)ちょうどは保存する', async () => {
+  it('上限(40秒)ちょうどは保存する', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 70, 1)
+    await handler({}, new ArrayBuffer(10), 40, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
     expect(sendNotice).not.toHaveBeenCalled()
   })
 
-  it('上限(70秒)超は拒否し保存しない', async () => {
+  it('上限(40秒)超は拒否し保存しない', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 70.1, 1)
+    await handler({}, new ArrayBuffer(10), 40.1, 1)
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(finishRecordingState).toHaveBeenCalled()
     expect(sendNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')

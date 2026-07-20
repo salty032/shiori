@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import { font, radius } from '../styles'
 import { useTagSuggest } from '../hooks/useTagSuggest'
 import { MAX_TAG_LENGTH, tagNormalizePreview } from '../utils'
+import { useT } from '../i18n'
 
 type Props = {
   value: string
@@ -20,6 +21,7 @@ type Props = {
 // 一括編集で内容がほぼ同一だった実装を1つに集約し、キーボード契約を統一する
 // （初期ハイライト=先頭、↑↓ループ、Enter=ハイライト確定/なければ入力値）。
 export default function TagSuggestInput({ value, onChange, suggestions, placeholder, onConfirm, onCancel, inputRef, autoFocus }: Props) {
+  const { t } = useT()
   const { highlightedIndex, setHighlightedIndex, moveHighlight, resolveConfirmValue } = useTagSuggest(suggestions)
   // 候補（既存タグ）がある間はそちらを優先させたいので、候補が無いとき（＝新規タグを
   // 作ろうとしているとき）だけ正規化後の見た目を予告する。候補ボックスと同じ absolute
@@ -54,7 +56,7 @@ export default function TagSuggestInput({ value, onChange, suggestions, placehol
         onKeyDown={handleKeyDown}
         onBlur={() => setTimeout(() => setHighlightedIndex(-1), 100)}
       />
-      <button style={s.tagAddBtn} onClick={handleAddClick} disabled={!value.trim()} title="追加 (Enter)">+</button>
+      <button style={s.tagAddBtn} onClick={handleAddClick} disabled={!value.trim()} title={t('tag.addHint')}>+</button>
       {suggestions.length > 0 && (
         <div style={s.suggestions}>
           {suggestions.map((t, i) => (
@@ -66,7 +68,7 @@ export default function TagSuggestInput({ value, onChange, suggestions, placehol
         </div>
       )}
       {normalizePreview && (
-        <div style={s.normalizePreview}>→ {normalizePreview} として追加されます</div>
+        <div style={s.normalizePreview}>{t('tag.normalizePreview', { tag: normalizePreview })}</div>
       )}
     </span>
   )

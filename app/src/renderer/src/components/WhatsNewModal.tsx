@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { font, modal } from '../styles'
 import { XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useT } from '../i18n'
 
 const CLOSE_MS = 110
 
@@ -12,6 +13,7 @@ type Props = {
 }
 
 export default function WhatsNewModal({ version, notes, onClose }: Props) {
+  const { t } = useT()
   const [closing, setClosing] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -46,8 +48,8 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={close}>
       <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="whats-new-title">
         <div style={s.header}>
-          <div id="whats-new-title" style={s.title}>{`Shiori v${version} の変更点`}</div>
-          <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title="閉じる"><XIcon size={16} /></button>
+          <div id="whats-new-title" style={s.title}>{t('whatsNew.title', { version })}</div>
+          <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
         </div>
         <ul style={s.list}>
           {notes.map((note, i) => (
@@ -55,7 +57,7 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
           ))}
         </ul>
         <div style={s.actions}>
-          <button style={s.closeAction} onClick={close}>閉じる</button>
+          <button style={s.closeAction} onClick={close}>{t('action.close')}</button>
         </div>
       </div>
     </div>

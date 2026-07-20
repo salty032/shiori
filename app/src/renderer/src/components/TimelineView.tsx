@@ -3,7 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
 import { cleanTitle, computeGridLayout, formatTime, thumbSrc } from '../utils'
-import { font, s as appStyles } from '../styles'
+import { font, badgeInset, s as appStyles } from '../styles'
+import { useT } from '../i18n'
 
 // サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
 // ThumbCell / フィルムストリップと同様に onError でプレースホルダへ切り替える。
@@ -66,7 +67,10 @@ type Row =
   | { kind: 'cells'; groupIndex: number; from: number; to: number; size: number }
 
 const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView(p, ref) {
+  const { t } = useT()
   const { columns, cellWidth, cellHeight } = computeGridLayout(p.containerWidth, p.thumbnailSize, CELL_GAP)
+  // 四隅バッジの余白はグリッドと同じ基準（セル幅比例）で出す。
+  const inset = badgeInset(cellWidth)
 
   // 全グループを行の配列へ潰し、各行の高さ（行間の隙間込み）を前計算する。
   // 高さは実DOMの配置と厳密に一致させる必要がある（ズレると translateY 計算が
@@ -134,10 +138,10 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
   }), [groupRowStart, groupStartFlat, columns, cellHeight, virtualizer, p.groups])
 
   if (p.groups.length === 0) {
-    if (p.loading) return <div style={s.empty}>読み込み中...</div>
+    if (p.loading) return <div style={s.empty}>{t('state.loading')}</div>
     return (
       <div style={s.empty}>
-        {p.hasActiveFilter ? '該当する画像がありません' : 'まだ画像がありません'}
+        {p.hasActiveFilter ? t('grid.noMatches') : t('grid.empty')}
       </div>
     )
   }
@@ -165,7 +169,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
         {activeGroup && (
           <div style={s.heading}>
             <span style={s.headingTitle}>
-              {activeGroup.title ? cleanTitle(activeGroup.title, p.titleStrip) : 'タイトルなし'}
+              {activeGroup.title ? cleanTitle(activeGroup.title, p.titleStrip) : t('grid.untitled')}
             </span>
             <span style={s.headingCount}>{activeGroup.items.length}</span>
           </div>
@@ -183,7 +187,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
           return (
             <div key={`${group.key}:h`} style={{ ...position, ...s.headingStatic }}>
               <span style={s.headingTitle}>
-                {group.title ? cleanTitle(group.title, p.titleStrip) : 'タイトルなし'}
+                {group.title ? cleanTitle(group.title, p.titleStrip) : t('grid.untitled')}
               </span>
               <span style={s.headingCount}>{group.items.length}</span>
             </div>
@@ -204,14 +208,12 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                 >
                   <TimelineThumbImg img={img} cellHeight={cellHeight} />
                   {img.current_time != null && (
-                    <div style={s.timeBadge}>{formatTime(img.current_time)}</div>
+                    <div style={{ ...s.timeBadge, left: inset.x, bottom: inset.y }}>{formatTime(img.current_time)}</div>
                   )}
-                  {img.media_type === 'video' && (
-                    <>
-                      <div style={appStyles.thumbVideoPlay}>▶</div>
-                      {img.duration != null && <div style={appStyles.thumbVideoDuration}>{formatTime(img.duration)}</div>}
-                    </>
-                  )}
+                  {/* タイムラインでは尺（duration）を出さない。左下に再生時刻（current_time）の
+                      バッジが既にあり、同じ「0:02」形式の時間が 1 セルに 2 つ並ぶと、
+                      どちらが何なのか読み取れなくなるため。尺はグリッド側にだけ出す。 */}
+                  {img.media_type === 'video' && <div style={appStyles.thumbVideoPlay}>▶</div>}
                   {flatIndex === p.focusedIndex && !isSelected && <div style={appStyles.thumbFocusFrame} />}
                 </div>
               )

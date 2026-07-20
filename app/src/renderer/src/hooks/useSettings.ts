@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ExtensionTimecode, Settings } from '../types'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { ShowToast } from './useToast'
+import { t } from '../i18n'
 
 // 設定の「真実」は settingsStore（zustand）に一元化されている（C-4）。ここはそのストアを
 // 購読し、起動状態・拡張ステータスなど settings.json 非永続の UI 状態を合わせて App 向けの
@@ -52,7 +53,7 @@ export function useSettings(showToast?: ShowToast) {
     } catch (err) {
       console.error('[settings] toggleStartup failed', err)
       setStartup(!next)
-      showToast?.('自動起動の設定に失敗しました', 'error')
+      showToast?.(t('toast.startupToggleFailed'), 'error')
     }
   }
 
@@ -71,5 +72,6 @@ export function useSettings(showToast?: ShowToast) {
     updateCaptureNotify: (v: boolean) => update('captureNotify', v, showToast),
     updateShowAiTags: (v: boolean) => update('showAiTags', v, showToast),
     updateTheme: (v: Settings['theme']) => update('theme', v, showToast),
+    updateLanguage: (v: Settings['language']) => update('language', v, showToast),
   }
 }

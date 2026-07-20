@@ -5,14 +5,18 @@
 //
 // 各モジュールの既存フラグ（isShareImporting など）は二重起動防止用にそのまま残す。
 // こちらは「終了してよいか」を判断するためだけの登録簿。
+import { t } from './i18n'
+import type { MessageKey } from '../shared/i18n'
+
 export type BusyTask = 'import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
 
-const LABELS: Record<BusyTask, string> = {
-  import: '取り込み',
-  export: 'エクスポート',
-  retag: 'AIタグ付け',
-  'model-download': 'AIモデルのダウンロード',
-  'thumb-repair': 'サムネイルの修復'
+// 表示直前に翻訳する必要があるため、ここでは辞書キーだけを持つ。
+const LABEL_KEYS: Record<BusyTask, MessageKey> = {
+  import: 'busy.import',
+  export: 'busy.export',
+  retag: 'busy.retag',
+  'model-download': 'busy.modelDownload',
+  'thumb-repair': 'busy.thumbRepair'
 }
 
 // 同種タスクが同時に走ることはない（各モジュールが単一フラグで排他している）が、
@@ -31,7 +35,7 @@ export function endTask(task: BusyTask): void {
 }
 
 export function activeTaskLabels(): string[] {
-  return [...active.keys()].map((task) => LABELS[task])
+  return [...active.keys()].map((task) => t(LABEL_KEYS[task]))
 }
 
 export function hasActiveTasks(): boolean {

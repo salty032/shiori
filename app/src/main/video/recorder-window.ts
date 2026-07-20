@@ -1,11 +1,19 @@
 // レコーダーウィンドウ（画面録画専用の隠しウィンドウ）の生成・参照・送信元検証。
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, desktopCapturer } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { isAllowedDevRendererUrl } from '../windows'
 
 let recorderWindow: BrowserWindow | null = null
 let trustedRecorderUrl: string | null = null
+
+// 録画に使う画面ソース。getDisplayMedia ではソースをレンダラーではなく main 側の
+// ハンドラが決めるため、recording.ts が解決した ID を録画開始前にここへ預ける。
+let pendingDisplaySourceId: string | null = null
+
+export function setPendingDisplaySource(sourceId: string | null): void {
+  pendingDisplaySourceId = sourceId
+}
 
 export function getRecorderWindow(): BrowserWindow | null {
   return recorderWindow
@@ -53,6 +61,25 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   recorderWindow.on('closed', () => {
     recorderWindow = null
     onInterrupted?.()
+  })
+
+  // getDisplayMedia はソースをレンダラーではなく main 側のこのハンドラが決める仕様なので、
+  // recording.ts が解決済みの ID をここで突き合わせて画面を固定する（選択 UI は出さない）。
+  // ここで拒否（空で callback）してもレンダラーは従来方式へ退避するので録画自体は失われない。
+  //
+  // 注: この経路にカーソル除外の効果は無い（cursor:'never' は Chromium 未実装。詳細は
+  // recorder.ts の acquireScreenStream）。除外は拡張機能側 content.js の hideCursor が担う。
+  recorderWindow.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] })
+      .then((sources) => {
+        const source = sources.find((s) => s.id === pendingDisplaySourceId) ?? sources[0]
+        if (!source) { callback({}); return }
+        callback({ video: source, audio: 'loopback' })
+      })
+      .catch((err) => {
+        console.error('[recorder] display media source resolution failed', err)
+        callback({})
+      })
   })
 
   // レコーダーは外部 URL を開く正当な理由がないため、全て deny（外部ブラウザへの委譲もしない）

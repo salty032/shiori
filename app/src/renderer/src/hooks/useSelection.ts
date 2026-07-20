@@ -7,6 +7,7 @@ import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterSt
 import { buildImageQuery } from '../stores/imageQuery'
 import { useExportStore } from '../stores/exportStore'
 import { MAX_BULK_IDS } from '../../../shared/constants'
+import { t, tp, currentLocale } from '../i18n'
 
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
@@ -75,7 +76,7 @@ async function deleteImages(
   if (showProgress) {
     progressTimer = window.setTimeout(() => {
       progressTimer = null
-      progressToastId = showToast(`${idList.length}枚を削除中...`, 'info', 60000)
+      progressToastId = showToast(tp('toast.deleting', idList.length), 'info', 60000)
     }, 400)
   }
 
@@ -113,8 +114,8 @@ async function deleteImages(
     const failedIds = new Set(results.filter((result) => !result.ok).map((result) => result.id))
     onFailed?.(failedIds)
     const message = deletedIds.size > 0
-      ? `${deletedIds.size}枚を削除しました。${failedCount}枚は削除できませんでした。`
-      : '画像を削除できませんでした。ファイルの状態を確認してください。'
+      ? t('toast.deletedPartial', { deleted: deletedIds.size, failed: failedCount })
+      : t('toast.deleteFailed')
     notify(message, failedCount === results.length ? 'error' : 'warning')
     return
   }
@@ -323,7 +324,7 @@ export function useSelection({
       console.error('[delete] failed', err)
       restoreImages(pending.snapshot)
       unmarkPendingDelete(pending.ids)
-      showToast('画像を削除できませんでした。ファイルの状態を確認してください。', 'error')
+      showToast(t('toast.deleteFailed'), 'error')
     })
   }
 
@@ -337,7 +338,7 @@ export function useSelection({
     if (pending.viewerRestoreId != null) viewerRestoreFollowIdRef.current = pending.viewerRestoreId
     restoreImages(pending.snapshot)
     restoreSelectionAfterUndo(pending.selectedBefore)
-    showToast('削除を取り消しました', 'info')
+    showToast(t('toast.deleteUndone'), 'info')
     return true
   }
 
@@ -376,10 +377,10 @@ export function useSelection({
     // ms はここだけ既定値（トーンごとの自動値）に任せず DELETE_UNDO_MS を明示する。
     // トーストの表示時間と「まだ元に戻せる」実際の猶予（上の setTimeout）を必ず一致させるため。
     pending.toastId = showToast(
-      ids.size === 1 ? '画像を削除しました' : `${ids.size}枚を削除しました`,
+      tp('toast.deleted', ids.size),
       'success',
       DELETE_UNDO_MS,
-      { label: '元に戻す', onClick: undoPendingDelete },
+      { label: t('action.undo'), onClick: undoPendingDelete },
     )
   }
 
@@ -621,7 +622,7 @@ export function useSelection({
             // B10: listAllImages は上限（5000件）でキャップされるため、実件数がそれを
             // 超えている場合は「全選択のつもりが一部しか選ばれていない」ことを明示する。
             if (count > rows.length) {
-              showToast(`表示上限のため ${rows.length.toLocaleString()} / ${count.toLocaleString()} 件のみ選択されました`, 'warning')
+              showToast(t('toast.selectAllTruncated', { shown: rows.length.toLocaleString(currentLocale()), total: count.toLocaleString(currentLocale()) }), 'warning')
             }
           })
           .catch((err) => {
@@ -667,12 +668,9 @@ export function useSelection({
             : Math.min(images.length - 1, cur < 0 ? 0 : cur + step)
         }
         setFocusIdx(next)
-        if (e.ctrlKey && e.shiftKey) {
-          const anchor = anchorIdx.current ?? next
-          const from = Math.min(anchor, next); const to = Math.max(anchor, next)
-          const range = new Set(images.slice(from, to + 1).map((img) => img.id))
-          setSelectedIds((prev) => { const n = new Set(prev); range.forEach((id) => n.add(id)); return n })
-        } else if (e.shiftKey) {
+        // Ctrl+Shift+矢印（選択に範囲を追加）は廃止した。修飾キーの組み合わせは
+        // 下の shift 節に吸われるので、押しても Shift+矢印 と同じ「範囲を選び直す」になる。
+        if (e.shiftKey) {
           const anchor = anchorIdx.current ?? next
           const from = Math.min(anchor, next); const to = Math.max(anchor, next)
           setSelectedIds(new Set(images.slice(from, to + 1).map((img) => img.id)))
@@ -823,7 +821,7 @@ export function useSelection({
     // export:progress チャンネル・中止ボタンは images/share の1系統しかないため、共有書き出しが
     // 進行中に選択エクスポートを始めると進捗・中止が混線する（B-6）。片方が完了するまで待たせる。
     if (useExportStore.getState().exportKind !== null) {
-      showToast('他のエクスポートが完了してからお試しください', 'warning')
+      showToast(t('toast.exportBusy'), 'warning')
       return
     }
     useExportStore.getState().startExport('images')
@@ -831,15 +829,15 @@ export function useSelection({
       const result = await window.api.exportImages(ids)
       if (result.canceled) {
         // count がある = 中止ボタンでの途中キャンセル。ない = フォルダ選択自体のキャンセル（無言）。
-        if (result.count != null) showToast(`${result.count}枚でエクスポートを中止しました`, 'warning')
+        if (result.count != null) showToast(tp('toast.exportStopped', result.count), 'warning')
       } else if (result.count != null) {
         // U-2: エクスポートID上限（MAX_EXPORT_IDS）到達を明示する
-        const truncatedMsg = result.truncated ? '（上限のため一部は対象外です）' : ''
-        showToast(`${result.count}枚をエクスポートしました${truncatedMsg}`, result.truncated ? 'warning' : 'success')
+        const truncatedMsg = result.truncated ? t('toast.exportTruncatedSuffix') : ''
+        showToast(tp('toast.exported', result.count) + truncatedMsg, result.truncated ? 'warning' : 'success')
       }
     } catch (err) {
       console.error('[export] failed', err)
-      showToast('エクスポートに失敗しました。保存先やファイルの状態を確認してください。', 'error')
+      showToast(t('toast.exportFailed'), 'error')
     } finally {
       // 通常は onExportProgress 側（current>=total）でクリアされるが、途中キャンセル・
       // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。

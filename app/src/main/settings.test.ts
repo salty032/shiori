@@ -14,13 +14,16 @@ const DEFAULTS = {
   smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+D',
-  clipMaxSeconds: 60,
+  clipMaxSeconds: 30,
   clipNotify: true,
   captureNotify: true,
   allowedExtensionIds: [DEFAULT_EXTENSION_ID],
   serviceOrder: [],
   showAiTags: false,
   theme: 'dark',
+  // 無効・未指定の language は 'ja' へ倒す（normalizeSettings は OS ロケールを見ない。
+  // 新規インストール時の OS ロケール判定は loadSettings 側の責務）。
+  language: 'ja',
   lastRunVersion: null,
 }
 
@@ -52,9 +55,9 @@ describe('normalizeSettings', () => {
   describe('clipMaxSeconds', () => {
     it('有効値: 20', () => expect(normalizeSettings({ clipMaxSeconds: 20 }).clipMaxSeconds).toBe(20))
     it('下限 5 未満 → 5', () => expect(normalizeSettings({ clipMaxSeconds: 1 }).clipMaxSeconds).toBe(5))
-    // 著作権対策として録画時間を厳格に上限60秒とする（設定でもこれ以上には出来ない）
-    it('上限 60 超 → 60', () => expect(normalizeSettings({ clipMaxSeconds: 300 }).clipMaxSeconds).toBe(60))
-    it('NaN → デフォルト 60', () => expect(normalizeSettings({ clipMaxSeconds: NaN }).clipMaxSeconds).toBe(60))
+    // 著作権対策として録画時間を厳格に上限30秒とする（設定でもこれ以上には出来ない）
+    it('上限 30 超 → 30', () => expect(normalizeSettings({ clipMaxSeconds: 300 }).clipMaxSeconds).toBe(30))
+    it('NaN → デフォルト 30', () => expect(normalizeSettings({ clipMaxSeconds: NaN }).clipMaxSeconds).toBe(30))
   })
 
   describe('captureHotkey', () => {

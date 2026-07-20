@@ -5,6 +5,7 @@ import { font, color } from '../styles'
 import { s, ToggleSwitch } from '../components/SettingsModal'
 import { useSettingsStore } from '../stores/settingsStore'
 import { videoApi } from './api'
+import { useT } from '../i18n'
 
 // SettingsModal の「キャプチャ」タブへ features/registry 経由で挿入される、録画専用の設定。
 // 設定の読み書きは settingsStore（zustand）を購読する。以前は自前で getSettings() を
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export default function ClipHotkeySettings({ onCapturingChange, placement }: Props) {
+  const { t } = useT()
   const settings = useSettingsStore((s) => s.settings)
   const setSettings = useSettingsStore((s) => s.setSettings)
   const initSettings = useSettingsStore((s) => s.init)
@@ -39,7 +41,7 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
         setHotkeyError(null)
       } else {
         setCapturedAccel(null)
-        setHotkeyError('このキーの組み合わせは使用できません')
+        setHotkeyError(t('hotkey.unsupportedCombo'))
       }
     }
     document.addEventListener('keydown', handler)
@@ -56,7 +58,7 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
   if (placement === 'notification') {
     return (
       <div style={s.toggleRow}>
-        <span style={s.label}>録画完了時に通知する</span>
+        <span style={s.label}>{t('clip.notifyOnFinish')}</span>
         <ToggleSwitch checked={settings.clipNotify ?? true} onChange={updateClipNotify} />
       </div>
     )
@@ -65,11 +67,11 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
   return (
     <>
       <div style={s.row}>
-        <span style={s.label}>録画ホットキー</span>
+        <span style={s.label}>{t('clip.hotkeyLabel')}</span>
         {capturing ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={s.hotkeyCapture}>
-              {capturedAccel || 'キーを押してください...'}
+              {capturedAccel || t('hotkey.pressKeys')}
             </div>
             <button style={s.sizeBtn} disabled={!capturedAccel} onClick={async () => {
               if (!capturedAccel) return
@@ -79,21 +81,21 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
                 setHotkeyError(null)
                 setSettings({ ...settings, clipHotkey: capturedAccel })
               } else {
-                setHotkeyError('競合しています')
+                setHotkeyError(t('hotkey.conflict'))
               }
-            }}>確定</button>
-            <button style={s.sizeBtn} onClick={() => { setCapturing(false); setCapturedAccel(null); setHotkeyError(null) }}>キャンセル</button>
+            }}>{t('action.confirm')}</button>
+            <button style={s.sizeBtn} onClick={() => { setCapturing(false); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.cancel')}</button>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={s.hotkeyBadge}>{settings.clipHotkey}</span>
-            <button style={s.sizeBtn} onClick={() => { setCapturing(true); setCapturedAccel(null); setHotkeyError(null) }}>変更</button>
+            <button style={s.sizeBtn} onClick={() => { setCapturing(true); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.change')}</button>
           </div>
         )}
       </div>
       {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
       <div style={s.hint}>
-        録画ホットキーが効かない場合、他のアプリ（NVIDIA App などのオーバーレイ／録画ソフト）が同じキーを使っている可能性があります。別のキーに変更してお試しください。
+        {t('clip.hotkeyTroubleshoot')}
       </div>
     </>
   )

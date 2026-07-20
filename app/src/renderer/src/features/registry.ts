@@ -12,9 +12,10 @@ type MediaActionSlot = (img: ImageRow, ctx?: { close?: () => void }) => ReactNod
 type ContextMenuSlot = (img: ImageRow) => MenuItem[]
 type ModalSlot = () => ReactNode
 
-// SettingsModal のタブ名。タブ自体はコアが定義するので、ここでは文字列リテラルで持つ
+// SettingsModal のタブ識別子。タブ自体はコアが定義するので、ここでは文字列リテラルで持つ
 // （video 側から見たときの依存先を registry だけに留めるため、SettingsModal 型は import しない）。
-export type SettingsTab = '基本' | 'キャプチャ' | 'タグ' | 'データ'
+// SettingsModal の TabId と同じ値を並べること。表示ラベルは言語で変わるので識別子には使わない。
+export type SettingsTab = 'general' | 'capture' | 'tag' | 'data'
 // onCapturingChange: スロットが独自にキー入力キャプチャ UI（ホットキー変更など）を
 // 開いている間 true を報告する。SettingsModal はこれを見て Escape での自動クローズを
 // 一時停止する（スロット側の状態は SettingsModal から見えないため、明示的に橋渡しする）。
@@ -24,7 +25,7 @@ type SettingsSlot = (props: { onCapturingChange: (capturing: boolean) => void; p
 const mediaActionSlots: MediaActionSlot[] = []
 const contextMenuSlots: ContextMenuSlot[] = []
 const modalSlots: ModalSlot[] = []
-const settingsSlots: Record<SettingsTab, SettingsSlot[]> = { '基本': [], 'キャプチャ': [], 'タグ': [], 'データ': [] }
+const settingsSlots: Record<SettingsTab, SettingsSlot[]> = { general: [], capture: [], tag: [], data: [] }
 
 export function registerMediaAction(fn: MediaActionSlot): void {
   mediaActionSlots.push(fn)

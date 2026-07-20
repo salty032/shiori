@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, memo } from 'react'
 import type { ImageRow } from '../types'
 import { cleanTitle, thumbSrc, splitHighlight, formatTime } from '../utils'
-import { s } from '../styles'
+import { s, badgeInset } from '../styles'
+import { useT } from '../i18n'
 
 function thumbDurationLabel(img: ImageRow): string | null {
   if (img.media_type !== 'video' || img.duration == null || !Number.isFinite(img.duration)) return null
@@ -24,6 +25,7 @@ type Props = {
 const NEW_EXIT_MS = 920
 
 export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focused, titleStrip, highlight, onContextMenu, onOpen, index }: Props) {
+  const { t } = useT()
   const [hovered, setHovered] = useState(false)
   const [thumbFailed, setThumbFailed] = useState(false)
   const [thumbLoaded, setThumbLoaded] = useState(false)
@@ -39,11 +41,20 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
     }
     wasNewRef.current = isNew
   }, [isNew])
+  // セルは常に 16:9（computeGridLayout が cellHeight = cellWidth × 9/16 を返す）なので、
+  // 受け取っている高さから幅を復元して余白を決める。
+  const inset = badgeInset(cellHeight * 16 / 9)
   const durationLabel = thumbDurationLabel(img)
   const titleLabel = img.title ? cleanTitle(img.title, titleStrip) : ''
   const showNew = isNew || newExiting
   return (
+    // role/aria は表示には一切影響しない付加情報。選択・矢印移動・ビューア起動の実体は
+    // すべて useSelection の window レベルのキーハンドラ側にあるため、ここに tabIndex は
+    // 付けない（付けると Tab がサムネイル全件を巡回して検索欄へ戻れなくなる）。
     <div data-img-id={img.id}
+      role="option"
+      aria-selected={selected}
+      aria-label={titleLabel || t('grid.untitled')}
       style={{ ...s.thumb, ...(hovered ? s.thumbHovered : {}), ...(selected ? s.thumbSelected : {}), ...(isNew ? s.thumbNew : newExiting ? s.thumbNewExit : {}) }}
       onContextMenu={(e) => onContextMenu(e, img.id)}
       onMouseEnter={() => setHovered(true)}
@@ -59,8 +70,8 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
               onLoad={(e) => { setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight); setThumbLoaded(true) }}
               onError={() => setThumbFailed(true)} />}
         {img.media_type === 'video' && <div style={s.thumbVideoPlay}>▶</div>}
-        {durationLabel && <div style={s.thumbVideoDuration}>{durationLabel}</div>}
-        {showNew && <div style={isNew ? s.thumbNewBadge : s.thumbNewBadgeExit}>NEW</div>}
+        {durationLabel && <div style={{ ...s.thumbVideoDuration, top: inset.y, right: inset.x }}>{durationLabel}</div>}
+        {showNew && <div style={{ ...(isNew ? s.thumbNewBadge : s.thumbNewBadgeExit), top: inset.y, left: inset.x }}>NEW</div>}
       </div>
       <div style={s.thumbLabel} title={titleLabel || undefined}>
         {highlight

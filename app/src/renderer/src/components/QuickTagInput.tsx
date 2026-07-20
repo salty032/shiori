@@ -3,6 +3,7 @@ import { font, radius } from '../styles'
 import { normalizeTag, tagSuggestions, tagNormalizePreview, fetchBulkTagFrequency, addTagToImages, MAX_TAG_LENGTH } from '../utils'
 import { useTagSuggest } from '../hooks/useTagSuggest'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useT } from '../i18n'
 
 type Props = {
   imageIds: number[]
@@ -13,6 +14,7 @@ type Props = {
 }
 
 export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose, onTagged }: Props) {
+  const { t } = useT()
   const [input, setInput] = useState('')
   const [tagsOnAll, setTagsOnAll] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
@@ -96,14 +98,14 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
     <div style={s.overlay} onMouseDown={onClose} data-keep-selection>
       <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="quick-tag-title">
         <div style={s.header}>
-          <span id="quick-tag-title" style={s.title}>タグを追加</span>
+          <span id="quick-tag-title" style={s.title}>{t('tag.addTitle')}</span>
           <span style={s.target}>{targetLabel}</span>
         </div>
         <input
           ref={inputRef}
           style={s.input}
           value={input}
-          placeholder="タグ名"
+          placeholder={t('tag.namePlaceholder')}
           maxLength={MAX_TAG_LENGTH}
           disabled={saving}
           onChange={(e) => setInput(e.target.value)}
@@ -123,9 +125,9 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
             ))}
           </div>
         ) : normalizePreview ? (
-          <div style={s.normalizePreview}>→ {normalizePreview} として追加されます</div>
+          <div style={s.normalizePreview}>{t('tag.normalizePreview', { tag: normalizePreview })}</div>
         ) : null}
-        <div style={s.hint}>Enter で追加 · Shift+Enter で連続追加 · Esc で閉じる</div>
+        <div style={s.hint}>{t('tag.quickHint')}</div>
       </div>
     </div>
   )

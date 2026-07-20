@@ -1,5 +1,7 @@
 # 開発環境セットアップ
 
+**日本語** ・ [English](SETUP.en.md)
+
 ## 前提
 
 - Node.js（LTS）が必要。未インストールの場合：
@@ -20,7 +22,24 @@ cd app
 npm install
 ```
 
-`postinstall` で `electron-rebuild` が自動実行され、`better-sqlite3` と `onnxruntime-node` の Electron 向けネイティブビルドが行われる（数分かかる）。
+`postinstall` で以下が自動実行される。
+
+1. `scripts/fetch-ffmpeg.mjs` が `app/resources/ffmpeg.exe`（LGPL ビルド、約92MB）を取得する。
+   リポジトリには含めていないため、クローン直後は必ずこの取得が走る（初回は数分かかる）。
+   既に正しいバイナリがあればスキップされる。
+2. `electron-rebuild` が `better-sqlite3` と `onnxruntime-node` の Electron 向けネイティブビルドを行う（数分かかる）。
+
+### ffmpeg の取得だけやり直す
+
+```
+cd app
+npm run fetch-ffmpeg          # 不足時のみ取得
+node scripts/fetch-ffmpeg.mjs --force   # 強制的に取り直す
+```
+
+URL と SHA256 はスクリプト内でピン留めしてある。**GPL ビルドに差し替えないこと** —
+Shiori 本体は proprietary ライセンスのため、GPL 版 ffmpeg を同梱すると
+ライセンスが衝突する（詳細は NOTICE.md）。
 
 ## 起動
 

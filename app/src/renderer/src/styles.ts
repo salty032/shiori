@@ -17,6 +17,29 @@ export const radius = {
   pill: 999,
 } as const
 
+// サムネイルの四隅に重ねるバッジ（NEW・尺・再生時刻）の余白。左右と上下で値が違う。
+//
+// 左右: セルの大きさに比例させる。固定値だとサムネイルを大きくしたとき相対的に
+// 端に張り付き、小さくしたとき内側に浮いて見える。
+//
+// 上下: 左右より小さくする。セルは横長（16:9）なので、上下に左右と同じ値を使うと
+// 「辺までの距離が枠に占める割合」が上下だけ約1.8倍になり、バッジが上下だけ
+// 内側に浮いて見える。比率どおりに詰めると（左右の約0.56倍）隅に張り付きすぎるので、
+// その手前で止めている。
+const BADGE_INSET_X_RATIO = 6 / 160
+const BADGE_INSET_Y_RATIO = BADGE_INSET_X_RATIO * 0.65
+
+export type BadgeInset = { x: number; y: number }
+
+export function badgeInset(cellWidth: number): BadgeInset {
+  const clamp = (value: number, min: number, max: number): number =>
+    Math.round(Math.min(max, Math.max(min, value)))
+  return {
+    x: clamp(cellWidth * BADGE_INSET_X_RATIO, 4, 10),
+    y: clamp(cellWidth * BADGE_INSET_Y_RATIO, 3, 7),
+  }
+}
+
 // カラートークン（C-1）。実体は global.css の CSS 変数（テーマごとに切り替わる）。
 // ここでは JS 側から参照する名前だけを固定し、値はテーマに応じて自動で変わる。
 export const color = {
@@ -116,6 +139,9 @@ export const s: Record<string, CSSProperties> = {
   thumbFallback: { width: '100%', height: '100%', display: 'block', background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
   thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-secondary)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: 2, padding: '0 1px' },
+  // 初回ロード中（まだ1枚も届いていない）に実グリッドと同じ寸法で敷くプレースホルダ。
+  // 以前はここが完全な空白で、画面下の「読み込み中...」だけが手掛かりだった。
+  skeletonCell: { background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 4, animation: 'shioriSkeletonPulse 1.4s ease-in-out infinite' },
   empty: { color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column' as const, gap: 12, alignItems: 'center', justifyContent: 'center', textAlign: 'center' as const, width: '100%', minHeight: 'calc(100vh - 190px)' },
   emptyTitle: { color: 'var(--text-primary)', fontSize: font.xl, fontWeight: 700 },
   emptySteps: { display: 'flex', flexDirection: 'column' as const, gap: 6, color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.6, textAlign: 'left' as const },

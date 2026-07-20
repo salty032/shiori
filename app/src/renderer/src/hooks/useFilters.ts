@@ -4,6 +4,7 @@ import { SITE_NAME_MAP } from '../utils'
 import { DEFAULT_SERVICE_ORDER } from '../services'
 import { useFilterStore } from '../stores/filterStore'
 import type { ShowToast } from './useToast'
+import { t } from '../i18n'
 
 export function useFilters(settings: Settings, setSettings: (updated: Settings) => void, showToast?: ShowToast) {
   // 確定フィルタの状態は filterStore が単一の真実。ここはストアを購読して
@@ -81,7 +82,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
     } catch (err) {
       console.error('[smart-folder] save failed', err)
       setSettings(prev)
-      showToast?.('スマートフォルダの保存に失敗しました', 'error')
+      showToast?.(t('toast.smartFolderSaveFailed'), 'error')
     }
   }
 
@@ -94,7 +95,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
     } catch (err) {
       console.error('[smart-folder] delete failed', err)
       setSettings(prev)
-      showToast?.('スマートフォルダの削除に失敗しました', 'error')
+      showToast?.(t('toast.smartFolderDeleteFailed'), 'error')
     }
   }
 
@@ -106,7 +107,7 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
     } catch (err) {
       console.error('[smart-folder] reorder failed', err)
       setSettings(prev)
-      showToast?.('並べ替えの保存に失敗しました', 'error')
+      showToast?.(t('toast.reorderSaveFailed'), 'error')
     }
   }
 

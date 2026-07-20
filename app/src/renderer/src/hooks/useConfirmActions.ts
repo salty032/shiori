@@ -1,6 +1,7 @@
 import type { SmartFolder } from '../types'
 import type { ShowToast } from './useToast'
 import { useImageStore } from '../stores/imageStore'
+import { t, tp } from '../i18n'
 
 export type ConfirmDialogState = {
   title: string
@@ -28,9 +29,9 @@ export function useConfirmActions(opts: UseConfirmActionsOptions) {
 
   function confirmSmartFolderDelete(folder: SmartFolder): void {
     setConfirmDialog({
-      title: 'スマートフォルダを削除',
-      message: `「${folder.name}」を削除しますか？\n保存した絞り込み条件だけが削除され、画像は削除されません。`,
-      confirmLabel: '削除',
+      title: t('confirm.deleteSmartFolder.title'),
+      message: t('confirm.deleteSmartFolder.message', { name: folder.name }),
+      confirmLabel: t('action.delete'),
       danger: true,
       onConfirm: () => deleteSmartFolder(folder.id),
     })
@@ -46,10 +47,10 @@ export function useConfirmActions(opts: UseConfirmActionsOptions) {
       refreshTags()
       useImageStore.getState().reloadGrid(showToast)
       useImageStore.getState().reloadTimeline(showToast)
-      showToast(`タグ「${tag}」を${removedCount}枚から削除しました`, 'success')
+      showToast(tp('toast.tagRemovedFromAll', removedCount, { tag }), 'success')
     } catch (err) {
       console.error('[tag] deleteTagFromAllImages failed', err)
-      showToast('タグの削除に失敗しました', 'warning')
+      showToast(t('toast.tagRemoveFailed'), 'warning')
     }
   }
 
@@ -57,9 +58,9 @@ export function useConfirmActions(opts: UseConfirmActionsOptions) {
     // サイドバーの件数バッジ廃止に伴い常時取得の tagCounts をやめ、削除確認時にオンデマンドで数える（F-7）。
     const count = await window.api.countImages({ tags: [tag] })
     setConfirmDialog({
-      title: 'タグを削除',
-      message: `タグ「${tag}」を${count}枚の画像すべてから削除しますか？この操作は元に戻せません。`,
-      confirmLabel: '削除',
+      title: t('confirm.deleteTag.title'),
+      message: tp('confirm.deleteTag.message', count, { tag }),
+      confirmLabel: t('action.delete'),
       danger: true,
       onConfirm: () => deleteTagFromAllImages(tag),
     })
@@ -67,9 +68,9 @@ export function useConfirmActions(opts: UseConfirmActionsOptions) {
 
   function confirmTaggerDelete(): void {
     setConfirmDialog({
-      title: 'AIタグ付けモデルを削除',
-      message: '再度使うには約600MBのモデルをダウンロードする必要があります。これまでに付与されたAIタグ（手動タグは除く）もライブラリ全体から削除されます。この操作は元に戻せません。',
-      confirmLabel: '削除',
+      title: t('confirm.deleteModel.title'),
+      message: t('confirm.deleteModel.message'),
+      confirmLabel: t('action.delete'),
       danger: true,
       onConfirm: taggerDelete,
     })

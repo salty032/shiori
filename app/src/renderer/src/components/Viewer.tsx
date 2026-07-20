@@ -5,6 +5,7 @@ import { s } from '../styles'
 import { XIcon } from './Icon'
 import VideoPlayer, { type VideoPlayerHandle } from './VideoPlayer'
 import { getMediaActions } from '../features/registry'
+import { useT } from '../i18n'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -26,6 +27,8 @@ type Props = {
   // 全体の総数（無限スクロールで未読み込みの分も含む）。カウンタ表示に使う。
   total: number
   titleStrip: string[]
+  // 動画のコマ送り（, / .）の刻み幅に使う素材の fps。
+  frameFps: number
   // Tab で DetailPanel の表示/非表示を切り替える（呼び出し元が状態を持つ。デフォルトは表示）。
   onToggleDetailPanel: () => void
 }
@@ -33,7 +36,8 @@ type Props = {
 // 画像の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
 // すべてビューア内部の状態。開閉位置（index）だけは選択・キャプチャ追従のため親が持つ。
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
-export default function Viewer({ images, index, setIndex, total, titleStrip, onToggleDetailPanel }: Props) {
+export default function Viewer({ images, index, setIndex, total, titleStrip, frameFps, onToggleDetailPanel }: Props) {
+  const { t } = useT()
   const [closing, setClosing] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -83,6 +87,13 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
         // 動画は再生/停止、それ以外（画像）は Quick Look 的に Space で閉じる（開くのと対称）。
         if (images[index].media_type === 'video') videoPlayerRef.current?.togglePlay()
         else close()
+        return
+      }
+      // コマ送り。動画編集ソフト（Premiere 等）と同じ , / . に合わせる。
+      // 日本語配列では「、」「。」の位置がそのまま前コマ・次コマになる。
+      if (images[index].media_type === 'video' && (e.key === ',' || e.key === '.')) {
+        e.preventDefault()
+        videoPlayerRef.current?.stepFrame(e.key === '.' ? 1 : -1)
         return
       }
       if (images[index].media_type !== 'video' && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0')) {
@@ -286,13 +297,13 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
               未読み込みが残る間はカウンタと End の到達点がズレる。実害は小さい
               （後続ロードで辿れる）ため、挙動は変えずツールチップで補足するに留める。 */}
           {getMediaActions(img, { close })}
-          <span style={s.viewerCounter} title={images.length < total ? 'End は読み込み済みの最後へ移動します' : undefined}>{index + 1} / {Math.max(total, images.length)}</span>
-          <button style={s.viewerClose} onClick={close} title="閉じる (Esc)"><XIcon size={15} /></button>
+          <span style={s.viewerCounter} title={images.length < total ? t('viewer.endHint') : undefined}>{index + 1} / {Math.max(total, images.length)}</span>
+          <button style={s.viewerClose} onClick={close} title={t('viewer.close')}><XIcon size={15} /></button>
         </div>
       </div>
       <div style={s.viewerMediaStack}>
         {img.media_type === 'video' ? (
-          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay onVideoClick={handleVideoClick} />
+          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={frameFps} showRateLoop onVideoClick={handleVideoClick} />
         ) : (
           <img
             ref={imgRef}
@@ -318,14 +329,14 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
       {index > 0 && (
         <button style={{ ...s.viewerArrow, left: 16 }}
           onClick={(e) => { e.stopPropagation(); setIndex((v) => v! - 1) }}
-          title="前へ (←)">
+          title={t('viewer.prev')}>
           <svg width="10" height="18" viewBox="0 0 10 18" fill="none"><polyline points="9,1 1,9 9,17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       )}
       {index < images.length - 1 && (
         <button style={{ ...s.viewerArrow, right: 16 }}
           onClick={(e) => { e.stopPropagation(); setIndex((v) => v! + 1) }}
-          title="次へ (→)">
+          title={t('viewer.next')}>
           <svg width="10" height="18" viewBox="0 0 10 18" fill="none"><polyline points="1,1 9,9 1,17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       )}

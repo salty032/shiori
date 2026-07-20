@@ -9,6 +9,7 @@ import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { usePanelResize } from '../hooks/usePanelResize'
 import VideoPlayer from './VideoPlayer'
 import { getMediaActions } from '../features/registry'
+import { useT } from '../i18n'
 
 type Props = {
   selectedIds: Set<number>
@@ -55,6 +56,7 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
 }
 
 export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
+  const { t, tp, locale } = useT()
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
     min: 300,
@@ -306,23 +308,23 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     onClick={() => setTitleExpanded((v) => !v)}
                     onDoubleClick={startEditingTitle}
                     onKeyDown={(e) => { if (e.key === 'F2' || (e.key === 'Enter' && !e.nativeEvent.isComposing)) startEditingTitle() }}
-                    title="クリックで展開 / ダブルクリックまたはF2で編集"
+                    title={t('detail.titleHint')}
                   >
                     {cleanTitle(single.title, settings.titleStrip)}
                   </span>
-                  <button style={s.titleEditBtn} onClick={startEditingTitle} title="タイトルを編集"><PencilIcon size={13} /></button>
+                  <button style={s.titleEditBtn} onClick={startEditingTitle} title={t('detail.editTitle')}><PencilIcon size={13} /></button>
                 </div>
               )}
             </div>
             {(single.current_time != null || single.media_type === 'video') && (
               <div style={s.metaHalf}>
                 <div style={s.metaRow}>
-                  <span style={s.label}>動画時刻</span>
+                  <span style={s.label}>{t('detail.timecode')}</span>
                   <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
                 </div>
                 {single.media_type === 'video' && (
                   <div style={s.metaRow}>
-                    <span style={s.label}>長さ</span>
+                    <span style={s.label}>{t('detail.duration')}</span>
                     <span style={s.value}>{single.duration != null ? formatTime(single.duration) : '—'}</span>
                   </div>
                 )}
@@ -340,17 +342,17 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
 
             <div style={s.row}>
               <div style={s.memoLabelRow}>
-                <span style={s.label}>メモ</span>
+                <span style={s.label}>{t('detail.memo')}</span>
                 {memoStatus !== 'idle' && (
                   <span style={{ ...s.memoStatus, ...(memoStatus === 'error' ? s.memoStatusError : {}) }}>
-                    {memoStatus === 'dirty' ? '未保存' : memoStatus === 'saving' ? '保存中...' : memoStatus === 'saved' ? '保存済み' : '保存失敗'}
+                    {t(memoStatus === 'dirty' ? 'detail.memoUnsaved' : memoStatus === 'saving' ? 'detail.memoSaving' : memoStatus === 'saved' ? 'detail.memoSaved' : 'detail.memoSaveFailed')}
                   </span>
                 )}
               </div>
               <textarea
                 style={s.memoInput}
                 value={memoDraft}
-                placeholder="メモを入力..."
+                placeholder={t('detail.memoPlaceholder')}
                 rows={3}
                 onChange={(e) => {
                   if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
@@ -381,7 +383,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
             <div style={s.metaFooter}>
               {single.url && (
                 <div style={s.subtleRow}>
-                  <span style={s.subtleLabel}>サイト</span>
+                  <span style={s.subtleLabel}>{t('detail.site')}</span>
                   <button style={s.subtleUrlBadge} onClick={() => window.api.openUrl(single.url!)} title={single.url}>
                     {siteName(single.url)}
                     <ExternalLinkIcon size={11} />
@@ -389,25 +391,25 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 </div>
               )}
               <div style={s.subtleRow}>
-                <span style={s.subtleLabel}>取得日時</span>
-                <span style={s.subtleValue}>{new Date(single.captured_at).toLocaleString('ja-JP')}</span>
+                <span style={s.subtleLabel}>{t('detail.capturedAt')}</span>
+                <span style={s.subtleValue}>{new Date(single.captured_at).toLocaleString(locale)}</span>
               </div>
             </div>
           </div>
           </div>
           <div style={s.actions}>
             {getMediaActions(single)}
-            <button style={s.showInFolderBtn} onClick={onExport}>エクスポート</button>
-            <button style={s.deleteActionBtn} onClick={onDelete}>削除</button>
+            <button style={s.showInFolderBtn} onClick={onExport}>{t('action.export')}</button>
+            <button style={s.deleteActionBtn} onClick={onDelete}>{t('action.delete')}</button>
           </div>
         </>
       ) : selectedIds.size === 0 ? (
         <div style={s.empty}>
-          <div style={s.emptyTitle}>画像を選択</div>
+          <div style={s.emptyTitle}>{t('detail.emptyTitle')}</div>
           <div style={s.emptyHints}>
-            <div>クリックで選択・ダブルクリックで拡大</div>
-            <div>タグをクリックで絞り込み</div>
-            <div>T キーで選択中にタグ追加</div>
+            <div>{t('detail.emptyHint1')}</div>
+            <div>{t('detail.emptyHint2')}</div>
+            <div>{t('detail.emptyHint3')}</div>
           </div>
         </div>
       ) : (
@@ -415,11 +417,11 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
         <div style={s.panelContent}>
         <div style={s.multi}>
           <div style={s.multiHeader}>
-            <div style={s.multiCount}>{selectedIds.size}枚選択中</div>
-            <button style={s.multiClearBtn} onClick={onClearSelection}>解除</button>
+            <div style={s.multiCount}>{tp('detail.selectedCount', selectedIds.size)}</div>
+            <button style={s.multiClearBtn} onClick={onClearSelection}>{t('action.clear')}</button>
           </div>
           <div style={s.tagSection}>
-            <div style={s.tagLabel}>タグ（一括編集）</div>
+            <div style={s.tagLabel}>{t('detail.bulkTags')}</div>
             <div style={s.tagList}>
               {[...bulkTagMap.entries()]
                 .sort(sortBulkTags)
@@ -429,7 +431,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   return (
                     <span key={name}
                       style={{ ...base, ...(partial ? s.tagChipPartialMod : {}), cursor: partial ? 'pointer' : 'default' }}
-                      title={(entry.source === 'ai' ? 'AIタグ' : '手動タグ') + (partial ? '・一部の画像のみ（クリックですべてに追加）' : '') + '（右クリックで削除）'}
+                      title={t(entry.source === 'ai' ? 'tag.kindAi' : 'tag.kindManual') + (partial ? t('detail.partialTagHint') : '') + t('tag.rightClickToDelete')}
                       onClick={() => partial ? bulkAddTag(name) : undefined}
                       onContextMenu={(e) => { e.preventDefault(); setBulkTagCtxMenu({ x: e.clientX, y: e.clientY, tag: name }) }}>
                       {name}
@@ -440,7 +442,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 <ContextMenu
                   x={bulkTagCtxMenu.x}
                   y={bulkTagCtxMenu.y}
-                  items={[{ label: `タグ「${bulkTagCtxMenu.tag}」を削除`, danger: true, onClick: () => bulkRemoveTag(bulkTagCtxMenu.tag) }]}
+                  items={[{ label: t('tag.deleteNamed', { tag: bulkTagCtxMenu.tag }), danger: true, onClick: () => bulkRemoveTag(bulkTagCtxMenu.tag) }]}
                   onClose={() => setBulkTagCtxMenu(null)}
                 />
               )}
@@ -450,20 +452,20 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   value={bulkTagInput}
                   onChange={setBulkTagInput}
                   suggestions={bulkSuggestions}
-                  placeholder="タグを追加（選択中すべてに）..."
+                  placeholder={t('detail.bulkTagPlaceholder')}
                   onConfirm={handleBulkConfirm}
                   onCancel={handleBulkCancel}
                 />
               ) : (
-                <button style={commonStyles.addTagChip} onClick={openBulkTagInput}>+ タグ</button>
+                <button style={commonStyles.addTagChip} onClick={openBulkTagInput}>{t('tag.addChip')}</button>
               )}
             </div>
           </div>
         </div>
         </div>
         <div style={s.actions}>
-          <button style={s.showInFolderBtn} onClick={onExport}>エクスポート</button>
-          <button style={s.deleteActionBtn} onClick={onDelete}>削除</button>
+          <button style={s.showInFolderBtn} onClick={onExport}>{t('action.export')}</button>
+          <button style={s.deleteActionBtn} onClick={onDelete}>{t('action.delete')}</button>
         </div>
         </>
       )}
@@ -475,20 +477,33 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
 const s: Record<string, React.CSSProperties> = {
   panel: { background: 'var(--bg-page)', borderLeft: '1px solid var(--border-default)', flexShrink: 0, display: 'flex', flexDirection: 'column', position: 'relative' as const },
   resizeHandle: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
-  panelContent: { flex: 1, overflowY: 'auto' as const },
+  // scrollbar-gutter: stable — スクロールバーの有無でコンテンツ幅が変わると、
+  // 画像(短い→バー無し)と動画(バー分長い→スクロールバー出現)で calc(100%-20px) の基準が
+  // ズレて右端が合わなくなる。gutter を常に確保して幅を一定にし、画像/動画を厳密に揃える。
+  panelContent: { flex: 1, overflowY: 'auto' as const, scrollbarGutter: 'stable' as const },
   searchTile: { padding: '8px 16px 16px', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: 16 },
   actions: { padding: '16px 12px', borderTop: '1px solid var(--border-default)', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: 10, flexShrink: 0 },
   empty: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, padding: '0 20px', textAlign: 'center' as const },
   emptyTitle: { color: 'var(--text-secondary)', fontSize: font.base, fontWeight: 700 },
   emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },
+  // シークバーが映像内のオーバーレイになったので、動画と画像は外形が完全に一致する。
+  // 以前ここにあった marginBottom: VC_BAR_HEIGHT（バー分の辻褄合わせ）は不要になった。
   img: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'block', flexShrink: 0 },
+  // aspectRatio は img と同じく「枠を持つ外側のボックス」に持たせること。以前は内側の
+  // videoEl 側に持たせていたため、img が w×9/16（border-box＝枠込みで16:9）なのに対し
+  // 動画は (w-2)×9/16＋枠2px となり、外形の高さが約1px ずれてタイトル以降の位置も
+  // 画像と揃わなかった。videoEl は height:100% で外形に従わせる。
   videoWrap: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', overflow: 'hidden', display: 'block', flexShrink: 0 },
   videoEl: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
   meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid var(--border-default)', paddingBottom: 8 },
-  metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start', padding: '2px 0 3px' },
-  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  // 動画時刻／長さの2項目を並べる箱。項目の分離はここの列間だけで取る。
+  metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, alignItems: 'start', padding: '2px 0 3px' },
+  // 値は右端に揃える（tabular-nums と合わせて桁が縦に揃う）。左寄せでラベルに隣接させると
+  // 値の開始位置がラベルの文字数に左右され、項目ごとに揃わなくなる。
+  // ペアの分離は距離ではなく metaHalf の列間で取ること。
+  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   row: { display: 'flex', flexDirection: 'column', gap: 5 },
   label: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
   value: { fontSize: font.base, color: 'var(--text-bright)', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },

@@ -7,7 +7,12 @@ import { FolderIcon, GridIcon, HelpCircleIcon, ListIcon, PlusIcon, SettingsIcon,
 import ContextMenu from './ContextMenu'
 import ShortcutsFlyout from './ShortcutsFlyout'
 import { usePanelResize } from '../hooks/usePanelResize'
-import appIcon from '../../../../build/icon.ico'
+// .ico を img に渡すと最大サイズ（128px）だけが選ばれて 16px へ縮小され、ぼやける上に
+// 絵が枠内でわずかに上寄りなぶんだけ文字とズレる。実寸の PNG を表示倍率ごとに渡す。
+import appIcon16 from '../../../../build/icon16.png'
+import appIcon24 from '../../../../build/icon24.png'
+import appIcon32 from '../../../../build/icon32.png'
+import { useT } from '../i18n'
 
 // サイドバーに出すタグの下限枚数。「上位N件」で切ると、AIタグ付けがキャプチャ1枚につき
 // 十数個のタグを付けるせいで撮影・削除のたびに各タグの件数が動き、境界のタグが順位を
@@ -54,6 +59,7 @@ export default function Sidebar({
   thumbnailSize, onThumbnailSize, viewMode, onViewMode,
   onDeleteSmartFolder, onReorderSmartFolders, onDeleteTag,
 }: Props) {
+  const { t, tp } = useT()
   const nearestThumbSize = THUMB_SIZES.reduce(
     (best, size) => Math.abs(size - thumbnailSize) < Math.abs(best - thumbnailSize) ? size : best,
     THUMB_SIZES[0],
@@ -214,10 +220,10 @@ export default function Sidebar({
   const hiddenTagCount = Math.max(0, filters.allTags.length - visibleTags.length)
   const canCreateSmartFolder = filters.hasActiveFilter() && !filters.activeSmartFolderId
   const smartFolderAddTitle = canCreateSmartFolder
-    ? '現在の絞り込みをスマートフォルダとして保存'
+    ? t('sidebar.saveSmartFolderHint')
     : filters.activeSmartFolderId
-      ? 'スマートフォルダ表示中は新規保存できません'
-      : 'タグ・サイト・検索などで絞り込むと保存できます'
+      ? t('sidebar.saveDisabledInFolder')
+      : t('sidebar.saveNeedsFilter')
 
   useEffect(() => {
     if (canCreateSmartFolder) return
@@ -231,15 +237,22 @@ export default function Sidebar({
       <div style={s.sidebarScroll}>
         <div style={s.sidebarHeaderRow}>
           <div style={s.sidebarBrand}>
-            <img src={appIcon} width={16} height={16} alt="" style={s.sidebarIcon} />
+            <img
+              src={appIcon16}
+              srcSet={`${appIcon16} 1x, ${appIcon24} 1.5x, ${appIcon32} 2x`}
+              width={16}
+              height={16}
+              alt=""
+              style={s.sidebarIcon}
+            />
             <span style={s.sidebarBrandName}>Shiori</span>
           </div>
-          <span style={s.count}>{count}枚</span>
+          <span style={s.count}>{tp('sidebar.imageCount', count)}</span>
         </div>
 
         <div style={s.siteGroup}>
           <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 }}>
-            <span>スマートフォルダ</span>
+            <span>{t('sidebar.smartFolders')}</span>
             {!filters.creatingFolder && (
               <button
                 className="shiori-hover-tint"
@@ -256,7 +269,7 @@ export default function Sidebar({
               <input
                 autoFocus
                 style={s.smartFolderCreateInput}
-                placeholder="フォルダ名"
+                placeholder={t('sidebar.folderNamePlaceholder')}
                 value={filters.newFolderName}
                 onChange={(e) => filters.setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
@@ -269,7 +282,7 @@ export default function Sidebar({
                 onClick={() => filters.newFolderName.trim() && filters.saveSmartFolder(filters.newFolderName)}
                 disabled={!filters.newFolderName.trim()}
                 style={{ ...s.smartFolderAddIconBtn, opacity: filters.newFolderName.trim() ? 1 : 0.45 }}
-                title="スマートフォルダを保存">
+                title={t('sidebar.saveSmartFolder')}>
                 <PlusIcon size={13} strokeWidth={2} />
               </button>
             </div>
@@ -296,7 +309,7 @@ export default function Sidebar({
                     ...s.smartFolderBtn,
                     ...(filters.activeSmartFolderId === folder.id ? s.smartFolderActive : {}),
                   }}
-                  title={`${folder.name}（長押しで並べ替え）`}>
+                  title={t('sidebar.folderReorderHint', { name: folder.name })}>
                   <FolderIcon size={12} strokeWidth={1.6} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{folder.name}</span>
                 </button>
@@ -304,7 +317,7 @@ export default function Sidebar({
                   className="shiori-hover-tint"
                   onClick={() => onDeleteSmartFolder(folder)}
                   style={s.smartFolderDeleteBtn}
-                  title={`${folder.name}を削除`}>
+                  title={t('sidebar.deleteFolder', { name: folder.name })}>
                   <XIcon size={11} strokeWidth={2} />
                 </button>
               </div>
@@ -314,14 +327,14 @@ export default function Sidebar({
             <div style={{ ...s.smartFolderInsertLine, opacity: dragFolderId && dragOverIndex === smartFolders.length ? 1 : 0 }} />
           )}
           {smartFolders.length === 0 && !filters.creatingFolder && (
-            <div style={s.smartFolderEmpty}>保存済みのフォルダはまだありません</div>
+            <div style={s.smartFolderEmpty}>{t('sidebar.noSmartFolders')}</div>
           )}
         </div>
 
         {filters.allTags.length > 0 && (
           <div style={s.siteGroup}>
             <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 }}>
-              <span>タグ</span>
+              <span>{t('tag.sectionTitle')}</span>
               <div style={s.tagLabelActions}>
                 {/* タグクリックは searchTags（検索欄の tag:xxx）に書き込まれ、tagFilters は
                     旧形式スマートフォルダ経由でしか更新されないため、表示条件は両方の
@@ -342,7 +355,7 @@ export default function Sidebar({
                     const next = filters.search.replace(/(?:^|\s)tag:\S+/gi, '').replace(/\s+/g, ' ').trim()
                     filters.setSearch(next)
                     filters.commitSearch(next)
-                  }} style={{ ...s.sidebarXBtn, ...s.tagClearBtn }} title="タグフィルターをすべて解除"><XIcon size={11} strokeWidth={2} /></button>
+                  }} style={{ ...s.sidebarXBtn, ...s.tagClearBtn }} title={t('sidebar.clearTagFilters')}><XIcon size={11} strokeWidth={2} /></button>
                 )}
               </div>
             </div>
@@ -379,7 +392,7 @@ export default function Sidebar({
                       }
                     }}
                     style={{ ...s.sidebarTagChip, ...chipStyle }}
-                    title={`${tag}${aiOnly ? '（AIタグ）' : ''}（右クリック / Shift+F10 でタグ自体を削除）`}>
+                    title={tag + (aiOnly ? t('sidebar.aiTagSuffix') : '') + t('sidebar.tagDeleteHint')}>
                     <span style={s.sidebarTagChipText}>{tag}</span>
                   </button>
                 )
@@ -388,7 +401,7 @@ export default function Sidebar({
             {hiddenTagCount > 0 && (
               <button className="shiori-hover-tint" style={s.sidebarMoreBtn} onClick={() => setShowAllTags((v) => !v)}>
                 {/* UX-5: 「付けたタグが出てこない」を防ぐため、隠れている理由（枚数しきい値未満）を明示する */}
-                {showAllTags ? '折りたたむ' : `+${hiddenTagCount}（${SIDEBAR_TAG_MIN_COUNT}枚未満）表示`}
+                {showAllTags ? t('sidebar.collapseTags') : t('sidebar.showHiddenTags', { count: hiddenTagCount, min: SIDEBAR_TAG_MIN_COUNT })}
               </button>
             )}
           </div>
@@ -398,7 +411,7 @@ export default function Sidebar({
         <ContextMenu
           x={tagCtxMenu.x}
           y={tagCtxMenu.y}
-          items={[{ label: `タグ「${tagCtxMenu.tag}」を全画像から削除`, danger: true, onClick: () => onDeleteTag(tagCtxMenu.tag) }]}
+          items={[{ label: t('sidebar.deleteTagEverywhere', { tag: tagCtxMenu.tag }), danger: true, onClick: () => onDeleteTag(tagCtxMenu.tag) }]}
           initialHighlight={tagCtxMenu.keyboard ? 0 : -1}
           onClose={() => setTagCtxMenu(null)}
         />
@@ -406,7 +419,7 @@ export default function Sidebar({
 
       <div style={s.sidebarUtilitySection}>
         <div style={s.sidebarControls}>
-          <div style={s.thumbSizeControl} title="サムネイルサイズ">
+          <div style={s.thumbSizeControl} title={t('sidebar.thumbnailSize')}>
             {/* 選択中ハイライト（背面）。選択先のセグメントへスライドする。settings.json の
                 thumbnailSize は 80-360 を許容するが UI は3択のみなので、旧値・手編集で
                 ちょうど一致しない値が入っていても最も近いボタンをアクティブに見せる
@@ -416,13 +429,13 @@ export default function Sidebar({
               <button key={size}
                 style={{ ...s.thumbSizeBtn, ...(nearestThumbSize === size ? s.segActive : {}) }}
                 onClick={() => onThumbnailSize(size)}
-                title={label === 'S' ? '小' : label === 'M' ? '中' : '大'}>{label}</button>
+                title={t(label === 'S' ? 'sidebar.sizeSmall' : label === 'M' ? 'sidebar.sizeMedium' : 'sidebar.sizeLarge')}>{label}</button>
             ))}
           </div>
           <div style={s.controlDivider} />
           <div style={s.viewToggle}>
             <div style={{ ...s.segSlider, width: 38, transform: `translateX(${viewMode === 'timeline' ? 38 : 0}px)` }} />
-            {([['grid', <GridIcon key="i" />, 'グリッド'], ['timeline', <ListIcon key="i" />, 'タイムライン']] as const).map(([mode, icon, label]) => (
+            {([['grid', <GridIcon key="i" />, t('sidebar.viewGrid')], ['timeline', <ListIcon key="i" />, t('sidebar.viewTimeline')]] as const).map(([mode, icon, label]) => (
               <button key={mode}
                 style={{ ...s.viewToggleBtn, ...(viewMode === mode ? s.segActive : {}) }}
                 onClick={() => onViewMode(mode)} title={label}>{icon}</button>
@@ -433,10 +446,10 @@ export default function Sidebar({
           <button className="shiori-hover-tint" style={{ ...s.gearBtn, color: settingsActive ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={onToggleSettings}>
             <SettingsIcon size={16} />
-            <span style={{ fontSize: font.base, fontWeight: 800 }}>設定</span>
+            <span style={{ fontSize: font.base, fontWeight: 800 }}>{t('menu.settings')}</span>
           </button>
           <button className="shiori-hover-tint" ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
-            onClick={() => setShowShortcuts((v) => !v)} title="ショートカット一覧">
+            onClick={() => setShowShortcuts((v) => !v)} title={t('shortcuts.heading')}>
             <HelpCircleIcon size={16} />
           </button>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { font, color, modal } from '../styles'
 import { XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useT } from '../i18n'
 
 const CLOSE_MS = 110
 
@@ -19,11 +20,12 @@ export default function ConfirmDialog({
   title,
   message,
   confirmLabel,
-  cancelLabel = 'キャンセル',
+  cancelLabel,
   danger = false,
   onConfirm,
   onClose,
 }: Props) {
+  const { t } = useT()
   const [busy, setBusy] = useState(false)
   const [closing, setClosing] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -81,17 +83,17 @@ export default function ConfirmDialog({
       <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
         <div style={s.header}>
           <div id="confirm-dialog-title" style={s.title}>{title}</div>
-          <button style={s.closeBtn} onClick={close} disabled={busy} title="閉じる"><XIcon size={16} /></button>
+          <button style={s.closeBtn} onClick={close} disabled={busy} title={t('action.close')}><XIcon size={16} /></button>
         </div>
         <div style={s.body}>{message}</div>
         <div style={s.actions}>
-          <button ref={cancelBtnRef} style={s.cancelBtn} onClick={close} disabled={busy}>{cancelLabel}</button>
+          <button ref={cancelBtnRef} style={s.cancelBtn} onClick={close} disabled={busy}>{cancelLabel ?? t('action.cancel')}</button>
           <button
             style={{ ...s.confirmBtn, ...(danger ? s.confirmDanger : s.confirmPrimary), opacity: busy ? 0.65 : 1 }}
             onClick={handleConfirm}
             disabled={busy}
           >
-            {busy ? '処理中...' : confirmLabel}
+            {busy ? t('state.working') : confirmLabel}
           </button>
         </div>
       </div>

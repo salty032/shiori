@@ -3,15 +3,24 @@ import { spawn } from 'child_process'
 import { mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import ffmpegStatic from 'ffmpeg-static'
+// 同梱バイナリ（resources/ffmpeg.exe）を直接使う。ffmpeg.ts の未パッケージ時のパス解決が
+// app.getAppPath() 基準なので、mock からも同じ場所を指させる。
+const APP_ROOT = process.cwd()
+const FFMPEG_BIN = join(APP_ROOT, 'resources', 'ffmpeg.exe')
 
-vi.mock('electron', () => ({ app: { isPackaged: false, getPath: vi.fn().mockReturnValue(tmpdir()) } }))
+vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+    getPath: vi.fn().mockReturnValue(tmpdir()),
+    getAppPath: vi.fn().mockReturnValue(process.cwd())
+  }
+}))
 
 import { trimWebm, getVideoDuration } from './ffmpeg'
 
 function runFfmpegSync(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegStatic as string, args, { stdio: 'ignore' })
+    const proc = spawn(FFMPEG_BIN, args, { stdio: 'ignore' })
     proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))))
     proc.on('error', reject)
   })

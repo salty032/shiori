@@ -22,6 +22,7 @@ import { createImageThumb } from './image-thumb'
 import { getVideoThumbProvider } from './video-thumb-provider'
 import { createProgressThrottle } from './progress-throttle'
 import { beginTask, endTask } from './busy'
+import { t } from './i18n'
 // 削除を並列投入しすぎると Windows のファイル操作が一時的に失敗するため絞る
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
 const DELETE_CONCURRENCY = 4
@@ -160,7 +161,7 @@ export function registerImageHandlers(): void {
       // 親ウィンドウを渡さないとダイアログがモーダル化されず、他ウィンドウの操作で
       // 背面に隠れると「押したのに何も起きない」ように見える（BUG-3）。
       const win = getMainWindow()
-      const dialogOptions: Electron.OpenDialogOptions = { title: 'エクスポート先フォルダを選択', properties: ['openDirectory'] }
+      const dialogOptions: Electron.OpenDialogOptions = { title: t('dialog.exportFolder'), properties: ['openDirectory'] }
       const { canceled, filePaths } = win
         ? await dialog.showOpenDialog(win, dialogOptions)
         : await dialog.showOpenDialog(dialogOptions)

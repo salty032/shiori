@@ -22,7 +22,8 @@ vi.mock('./db', () => ({
 }))
 
 vi.mock('./settings', () => ({
-  loadSettings: vi.fn(() => ({ smartFolders: [] })),
+  // i18n の t()（ダイアログ文言など）が loadSettings().language を読むため言語を明示する。
+  loadSettings: vi.fn(() => ({ smartFolders: [], language: 'ja' })),
   saveSettings: vi.fn(),
   smartFolders: vi.fn(() => [])
 }))
@@ -39,10 +40,10 @@ vi.mock('./ipc-validation', () => ({
   uniqueExportFilename: vi.fn(async (_dir: string, name: string) => name)
 }))
 
-// 60秒上限の実装（ipc-import.ts）は他にも多数の依存を引き込むため、ここでは定数のみ
+// 30秒上限の実装（ipc-import.ts）は他にも多数の依存を引き込むため、ここでは定数のみ
 // 差し替える。上限値自体が変わったら share 側もこの値で追随することを確認する。
 vi.mock('./ipc-import', () => ({
-  MAX_IMPORT_VIDEO_SECONDS: 60,
+  MAX_IMPORT_VIDEO_SECONDS: 30,
   IMPORT_VIDEO_SECONDS_EPS: 0.5
 }))
 
@@ -82,7 +83,7 @@ import { setVideoThumbProvider } from './video-thumb-provider'
 const extractThumbMock = vi.fn(async () => {})
 const getVideoDurationMock = vi.fn(async (): Promise<number | null> => null)
 
-describe('share:import - 動画の60秒上限（著作権対策）', () => {
+describe('share:import - 動画の30秒上限（著作権対策）', () => {
   beforeEach(() => {
     handlers.clear()
     statMock.mockClear()
@@ -101,8 +102,8 @@ describe('share:import - 動画の60秒上限（著作権対策）', () => {
     registerShareHandlers()
   })
 
-  it('尺が上限(60秒+誤差0.5秒)を超える動画は登録を拒否し、コピー済みファイルを削除する', async () => {
-    getVideoDurationMock.mockResolvedValue(61)
+  it('尺が上限(30秒+誤差0.5秒)を超える動画は登録を拒否し、コピー済みファイルを削除する', async () => {
+    getVideoDurationMock.mockResolvedValue(31)
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 
@@ -123,8 +124,8 @@ describe('share:import - 動画の60秒上限（著作権対策）', () => {
     expect(result.errors[0]).toMatch(/duration unknown/)
   })
 
-  it('誤差込みの境界値(60.5秒ちょうど)は登録する', async () => {
-    getVideoDurationMock.mockResolvedValue(60.5)
+  it('誤差込みの境界値(30.5秒ちょうど)は登録する', async () => {
+    getVideoDurationMock.mockResolvedValue(30.5)
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 
@@ -134,8 +135,8 @@ describe('share:import - 動画の60秒上限（著作権対策）', () => {
     expect(unlinkMock).not.toHaveBeenCalled()
   })
 
-  it('境界超過(60.51秒)は拒否する', async () => {
-    getVideoDurationMock.mockResolvedValue(60.51)
+  it('境界超過(30.51秒)は拒否する', async () => {
+    getVideoDurationMock.mockResolvedValue(30.51)
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 

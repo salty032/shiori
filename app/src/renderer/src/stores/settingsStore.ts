@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Settings } from '../types'
 import { SETTINGS_DEFAULTS } from '../../../shared/settingsDefaults'
+import { t } from '../i18n'
 
 type ShowToast = (message: string, tone?: 'info' | 'success' | 'warning' | 'error', ms?: number) => void
 
@@ -40,7 +41,7 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
       // 巻き戻しは対象キーのみを最新 state に対して行う。全体スナップショット（prev）へ戻すと、
       // await 中に成功した別キーの変更まで消えてしまう（連続操作時の巻き添え）。
       set((s) => ({ settings: { ...s.settings, [key]: prevValue } }))
-      showToast?.('設定の保存に失敗しました', 'error')
+      showToast?.(t('toast.settingsSaveFailed'), 'error')
     }
   },
 

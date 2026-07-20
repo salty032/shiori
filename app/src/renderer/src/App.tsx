@@ -29,6 +29,7 @@ import { useCaptureSync } from './hooks/useCaptureSync'
 import { useGlobalKeys } from './hooks/useGlobalKeys'
 import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
 import { getExtraContextMenuItems, getModals } from './features/registry'
+import { useT } from './i18n'
 
 // サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
 const COL_GAP = 6
@@ -40,6 +41,7 @@ function clamp01(value: number): number {
 }
 
 export default function App() {
+  const { t, tp } = useT()
   const toast = useToast()
   const settings = useSettings(toast.showToast)
   const filters = useFilters(settings.settings, settings.setSettings, toast.showToast)
@@ -141,12 +143,12 @@ export default function App() {
       filters.refreshSites()
       // B11/U-2: 200件上限で打ち切られた場合、超過分が黙って捨てられたことを明示する
       // CODE-REVIEW-v1.0.4 B-1: 一部失敗があった場合も成功一色にせず件数を明示する
-      const truncatedMsg = result.truncated ? '（200件の上限を超えたため一部は取り込まれていません）' : ''
-      const failedMsg = result.errors.length > 0 ? `（${result.errors.length}件は取り込めませんでした）` : ''
+      const truncatedMsg = result.truncated ? t('toast.importTruncatedSuffix') : ''
+      const failedMsg = result.errors.length > 0 ? t('toast.importFailedSuffix', { count: result.errors.length }) : ''
       const isPartial = result.truncated || result.errors.length > 0
-      toast.showToast(`${result.count}枚を取り込みました${truncatedMsg}${failedMsg}`, isPartial ? 'warning' : 'success')
+      toast.showToast(tp('toast.imported', result.count) + truncatedMsg + failedMsg, isPartial ? 'warning' : 'success')
     } else if (result.errors.length > 0) {
-      toast.showToast(`取り込めませんでした（${result.errors.length}件）`, 'warning')
+      toast.showToast(t('toast.importAllFailed', { count: result.errors.length }), 'warning')
     }
   }
 
@@ -298,7 +300,6 @@ export default function App() {
   // グローバルキー（/・Ctrl+C コピー・Ctrl+V 取り込み）も専用フックに内包
   useGlobalKeys({
     searchInputRef,
-    setShowSettings: settings.setShowSettings,
     viewerIdx,
     activeImages,
     selectedIds: selection.selectedIds,
@@ -320,7 +321,7 @@ export default function App() {
   // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、
   // ドロップ完了後にまとめて届く。
   useEffect(() => window.api.onImagesDragTruncated(({ requested, copied }) =>
-    toast.showToast(`${requested}枚中${copied}枚のみドラッグしました（上限のため一部は対象外です）`, 'warning')
+    toast.showToast(t('toast.dragTruncated', { requested, copied }), 'warning')
   ), [])
 
   // ResizeObserver: measure grid wrapper width + offsetTop for virtualizer
@@ -388,9 +389,9 @@ export default function App() {
   }, [filters])
 
   const quickTagTargetLabel = useMemo(() => {
-    if (!quickTagTargetIds || quickTagTargetIds.length !== 1) return `${quickTagTargetIds?.length ?? 0}枚`
+    if (!quickTagTargetIds || quickTagTargetIds.length !== 1) return tp('detail.imageCount', quickTagTargetIds?.length ?? 0)
     const img = activeImages.find((x) => x.id === quickTagTargetIds[0])
-    return img?.title ? cleanTitle(img.title, settings.settings.titleStrip) : '1枚'
+    return img?.title ? cleanTitle(img.title, settings.settings.titleStrip) : tp('detail.imageCount', 1)
   }, [activeImages, quickTagTargetIds, settings.settings.titleStrip])
 
   // サムネイル右クリック: 未選択の画像なら単一選択に切り替えてからメニューを開く。
@@ -426,28 +427,28 @@ export default function App() {
     const items: MenuItem[] = []
     if (single && single.media_type !== 'video') {
       items.push({
-        label: 'コピー',
+        label: t('action.copy'),
         onClick: () => {
           window.api.clipboardCopyImage(single.id).then(
-            (ok) => toast.showToast(ok ? 'クリップボードにコピーしました' : '画像のコピーに失敗しました', ok ? 'success' : 'warning'),
-            (err) => { console.error('[copy] clipboard write failed', err); toast.showToast('画像のコピーに失敗しました', 'warning') },
+            (ok) => toast.showToast(ok ? t('toast.copiedToClipboard') : t('toast.copyFailed'), ok ? 'success' : 'warning'),
+            (err) => { console.error('[copy] clipboard write failed', err); toast.showToast(t('toast.copyFailed'), 'warning') },
           )
         },
       })
     }
     if (single) {
-      items.push({ label: 'Explorerで開く', onClick: () => window.api.showInFolder(single.id) })
+      items.push({ label: t('action.showInFolder'), onClick: () => window.api.showInFolder(single.id) })
     }
     if (single) items.push(...getExtraContextMenuItems(single))
-    items.push({ label: 'エクスポート', onClick: () => selection.exportSelected() })
-    items.push({ label: '削除', onClick: () => selection.deleteSelected(), danger: true })
+    items.push({ label: t('action.export'), onClick: () => selection.exportSelected() })
+    items.push({ label: t('action.delete'), onClick: () => selection.deleteSelected(), danger: true })
     return items
   }, [ctxMenu, single, activeImages, selection, toast])
 
   const activeTask = useMemo(() => {
     if (tagger.taggerProgress !== null) {
       return {
-        label: 'AIモデルをダウンロード中',
+        label: t('task.modelDownloading'),
         detail: `${Math.round(tagger.taggerProgress * 100)}%`,
         progress: clamp01(tagger.taggerProgress),
         onCancel: tagger.handleTaggerCancelDownload,
@@ -456,7 +457,7 @@ export default function App() {
     if (tagger.retagProgress) {
       const { current, total } = tagger.retagProgress
       return {
-        label: '既存画像にAIタグ付け中',
+        label: t('task.retagging'),
         detail: `${current}/${total}`,
         progress: total > 0 ? clamp01(current / total) : 0,
         onCancel: tagger.handleTaggerRetagCancel,
@@ -465,7 +466,7 @@ export default function App() {
     if (shareImportProgress) {
       const { current, total } = shareImportProgress
       return {
-        label: 'ライブラリを読み込み中',
+        label: t('task.libraryImporting'),
         detail: `${current}/${total}`,
         progress: total > 0 ? clamp01(current / total) : 0,
         onCancel: () => window.api.shareImportCancel(),
@@ -476,7 +477,7 @@ export default function App() {
     const { current, total } = exportProgress
     return {
       // W-4: share 起点の進捗は SettingsModal の「エクスポート中...」と表示を揃える
-      label: exportKind === 'share' ? 'ライブラリをエクスポート中' : 'エクスポート中',
+      label: t(exportKind === 'share' ? 'task.libraryExporting' : 'task.exporting'),
       detail: `${current}/${total}`,
       progress: total > 0 ? clamp01(current / total) : 0,
       onCancel: exportKind === 'share' ? () => window.api.shareExportCancel() : () => window.api.imagesExportCancel(),
@@ -500,17 +501,17 @@ export default function App() {
       onDrop={handleFileDrop}>
       {fileDragging && (
         <div style={s.dropOverlay}>
-          <div style={s.dropOverlayText}>ドロップして取り込み</div>
+          <div style={s.dropOverlayText}>{t('drop.overlay')}</div>
         </div>
       )}
 
       {settings.updateVersion && !updateBannerDismissed && (
         <div style={s.updateBanner}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span>v{settings.updateVersion} の準備ができました</span>
-            <button style={s.updateBtn} onClick={() => settings.quitAndInstallUpdate()}>再起動して更新</button>
+            <span>{t('update.ready', { version: settings.updateVersion ?? '' })}</span>
+            <button style={s.updateBtn} onClick={() => settings.quitAndInstallUpdate()}>{t('update.restart')}</button>
           </div>
-          <button style={s.sidebarXBtn} onClick={() => setUpdateBannerDismissed(true)} title="今は更新しない"><XIcon size={13} /></button>
+          <button style={s.sidebarXBtn} onClick={() => setUpdateBannerDismissed(true)} title={t('update.later')}><XIcon size={13} /></button>
         </div>
       )}
       <div style={s.root}>
@@ -575,32 +576,51 @@ export default function App() {
             {imageList.images.length === 0 && !imageList.loading ? (
               <div style={s.empty}>
                 {filters.hasActiveFilter() ? (
+                  // 0件は「探し方が悪かった」状態なので、ここから抜ける手段を必ず添える。
+                  // 以前は見出し1行だけで、フィルタを外すにはツールバーまで戻る必要があった。
                   <>
-                    <div style={s.emptyTitle}>該当する画像がありません</div>
+                    <div style={s.emptyTitle}>{t('grid.noMatches')}</div>
+                    <div style={s.emptyHint}>{t('grid.noMatchesHint')}</div>
+                    <div style={s.emptyActions}>
+                      <button style={s.emptyBtn} onClick={() => filters.clearAllFilters()}>{t('grid.clearFilters')}</button>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <div style={s.emptyTitle}>まだ画像がありません</div>
+                    <div style={s.emptyTitle}>{t('grid.empty')}</div>
                     <div style={s.emptySteps}>
-                      <div>1. 拡張機能フォルダを Chrome に読み込みます</div>
-                      <div>2. 対応サイトで動画を開きます</div>
-                      <div>3. 取りたい場面で <strong style={{ color: 'var(--accent-text)' }}>{settings.settings.captureHotkey}</strong> を押します</div>
+                      <div>{t('onboarding.step1')}</div>
+                      <div>{t('onboarding.step2')}</div>
+                      <div>{t('onboarding.step3.before')}<strong style={{ color: 'var(--accent-text)' }}>{settings.settings.captureHotkey}</strong>{t('onboarding.step3.after')}</div>
                     </div>
                     <div style={s.emptyActions}>
-                      <button style={s.emptyBtn} onClick={() => window.api.showExtensionFolder()}>拡張機能フォルダを開く</button>
-                      <button style={{ ...s.emptyBtn, ...s.emptyBtnSub }} onClick={() => settings.setShowSettings(true)}>設定を開く</button>
+                      <button style={s.emptyBtn} onClick={() => window.api.showExtensionFolder()}>{t('onboarding.openExtensionFolder')}</button>
+                      <button style={{ ...s.emptyBtn, ...s.emptyBtnSub }} onClick={() => settings.setShowSettings(true)}>{t('shortcuts.openSettings')}</button>
                     </div>
-                    <div style={s.emptyHint}>または、フォルダや画像をここにドロップして取り込めます</div>
+                    <div style={s.emptyHint}>{t('onboarding.dropHint')}</div>
                   </>
                 )}
               </div>
+            ) : imageList.images.length === 0 && containerWidth > 0 ? (
+              // 初回ロード中。ここは以前まったくの空白で、画面下端の「読み込み中...」だけが
+              // 手掛かりだった（起動直後に一瞬「空のライブラリ」に見えていた）。実グリッドと
+              // 同じ列数・セル高でプレースホルダを敷き、レイアウトが飛ばないようにする。
+              <div role="status" aria-label={t('grid.ariaLoading')} aria-busy="true"
+                style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, ${cellWidth}px)`, columnGap: COL_GAP, rowGap: ROW_GAP }}>
+                {Array.from({ length: Math.min(columns * 3, 24) }, (_, i) => (
+                  <div key={i} style={{ ...s.skeletonCell, height: cellHeight, animationDelay: `${(i % columns) * 70}ms` }} />
+                ))}
+              </div>
             ) : containerWidth > 0 ? (
-              <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+              <div role="listbox" aria-label={t('grid.ariaLabel')} aria-multiselectable="true"
+                style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
                 {virtualItems.map((vRow) => {
                   const start = vRow.index * columns
                   const rowImages = imageList.images.slice(start, start + columns)
                   return (
-                    <div key={vRow.key}
+                    // 行は仮想スクロールの都合で挟まっているだけの入れ物。role="presentation" で
+                    // アクセシビリティツリーから外し、listbox の直下に option が並ぶ形を保つ。
+                    <div key={vRow.key} role="presentation"
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%',
                         transform: `translateY(${vRow.start - gridOffsetTop}px)`,
                         display: 'grid', gridTemplateColumns: `repeat(${columns}, ${cellWidth}px)`, columnGap: COL_GAP }}>
@@ -626,7 +646,9 @@ export default function App() {
             ) : null}
           </div>
           )}
-          {viewMode === 'grid' && imageList.loading && <div style={s.loadingMore}>読み込み中...</div>}
+          {/* 初回ロード（0件）中はスケルトンが同じことを伝えているので出さない。
+              ここは「続きを読み込んでいる」追記中だけの表示に絞る。 */}
+          {viewMode === 'grid' && imageList.loading && imageList.images.length > 0 && <div style={s.loadingMore}>{t('state.loading')}</div>}
           {(activeTask || toast.toasts.length > 0) && (
             <div style={s.toastStack}>
               {activeTask && (
@@ -635,7 +657,7 @@ export default function App() {
                     <span style={{ ...s.toastIndicator, ...s.toastInfoMark }} />
                     <span style={s.taskLabel}>{activeTask.label}</span>
                     <span style={s.taskDetail}>{activeTask.detail}</span>
-                    {activeTask.onCancel && <button style={s.taskCancelBtn} onClick={activeTask.onCancel}>中止</button>}
+                    {activeTask.onCancel && <button style={s.taskCancelBtn} onClick={activeTask.onCancel}>{t('action.stop')}</button>}
                   </div>
                   <div style={s.taskBarTrack}>
                     <div style={{ ...s.taskFill, width: `${Math.round(activeTask.progress * 100)}%` }} />
@@ -679,6 +701,7 @@ export default function App() {
             setIndex={setViewerIdx}
             total={viewMode === 'timeline' ? activeImages.length : (imageList.totalCount ?? activeImages.length)}
             titleStrip={settings.settings.titleStrip}
+            frameFps={settings.settings.frameFps}
             onToggleDetailPanel={() => setDetailPanelHiddenInViewer((v) => !v)}
           />
         )}
@@ -700,6 +723,7 @@ export default function App() {
             onUpdateCaptureNotify={settings.updateCaptureNotify}
             onUpdateShowAiTags={settings.updateShowAiTags}
             onUpdateTheme={settings.updateTheme}
+            onUpdateLanguage={settings.updateLanguage}
             onTaggerDownload={tagger.handleTaggerDownload}
             onTaggerCancelDownload={tagger.handleTaggerCancelDownload}
             onTaggerDelete={confirmTaggerDelete}
@@ -776,7 +800,7 @@ export default function App() {
           onClose={() => setQuickTagTargetIds(null)}
           onTagged={(tag, count) => {
             handleTagsChanged()
-            toast.showToast(count === 1 ? `タグ「${tag}」を追加しました` : `${count}枚にタグ「${tag}」を追加しました`, 'success')
+            toast.showToast(tp('toast.tagAdded', count, { tag }), 'success')
           }}
         />
       )}

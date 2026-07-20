@@ -57,6 +57,78 @@ function resetState(): void {
   recorder = null
 }
 
+// 画面キャプチャの取得。撮る対象（main が選んだディスプレイ）はどの経路でも同じ。
+//
+// getDisplayMedia を先に試す。ソースは main の setDisplayMediaRequestHandler が固定して
+// いるため、ここでは選択 UI は出ない。getDisplayMedia が拒否される環境（ユーザー操作を
+// 伴わない呼び出しが弾かれる等）でも録画そのものは失わせたくないので、旧来の
+// getUserMedia({ chromeMediaSource: 'desktop' }) を退避先として残す。
+//
+// カーソル除外はここでは達成できない。cursor:'never' は仕様上の制約だが Chromium が
+// 未実装で、未知の制約は例外にならず黙って無視される（crbug 41456762）。つまりどの経路
+// でもカーソルは合成される。実際の除外は拡張機能側（content.js の hideCursor）が
+// ページに cursor:none を当てて OS カーソル自体を消すことで行っている。制約自体は仕様
+// 準拠で無害なため、将来 Chromium が実装したときにそのまま効くよう残してある。
+//
+// fps: 取得フレームレートの上限。以前はどの経路にも制約が無く、実 fps は Chromium 任せ
+// だった（main から渡る fps は rVFC 非対応時のフォールバック interval でしか使われて
+// いなかった）。上限を明示しないと 24fps 素材でもコマの取りこぼしが起きうる。
+//
+// 下限（minFrameRate / frameRate.min）は敢えて指定しない。下限を付けると画面に変化が
+// 無い間もキャプチャが同じ絵を複製して吐き続け、ファイルサイズだけが膨らむ。上限だけ
+// 上げれば「変化したぶんは確実に拾い、変化しなければ吐かない」になる。
+async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
+  const maxFrameRate = Math.min(60, Math.max(1, fps || 60))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const videoConstraints = { cursor: 'never', frameRate: { max: maxFrameRate } } as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const videoMandatory = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate } } as any
+
+  try {
+    return { stream: await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints, audio: true }), audioFailed: false }
+  } catch (err) {
+    console.warn('[recorder] getDisplayMedia with audio failed', err)
+  }
+  // V-5 と同じ理由: ループバック音声はオーディオデバイス構成次第で失敗し、
+  // audio 同時要求だと映像まで巻き添えで録れなくなる。映像のみで一度リトライする。
+  try {
+    return { stream: await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints }), audioFailed: true }
+  } catch (err) {
+    console.warn('[recorder] getDisplayMedia video-only failed, falling back to desktop capture', err)
+  }
+
+  try {
+    return {
+      stream: await navigator.mediaDevices.getUserMedia({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        audio: { mandatory: { chromeMediaSource: 'desktop' } } as any,
+        video: videoMandatory,
+      }),
+      audioFailed: false,
+    }
+  } catch (err) {
+    console.warn('[recorder] audio+video getUserMedia failed, retrying video only', err)
+  }
+  return {
+    stream: await navigator.mediaDevices.getUserMedia({ video: videoMandatory }),
+    audioFailed: true,
+  }
+}
+
+// コーデック選択。アニメの線画・ベタ塗りは輪郭にモスキートノイズが出やすく、同じ
+// ビットレートなら VP9 の方が明確に有利なので VP9 を先に試す。VP9 が使えない環境
+// （ソフトウェアエンコーダ無効等）では従来どおり VP8 に落ちる。
+const MIME_CANDIDATES = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp8',
+]
+
+function pickMimeType(): string {
+  return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
+}
+
 window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   if (recorder && recorder.state !== 'inactive') return
   const token = ++recordingToken
@@ -65,36 +137,18 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   let stream: MediaStream
   let audioFailed = false
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      audio: { mandatory: { chromeMediaSource: 'desktop' } } as any,
-      video: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId }
-      } as any
-    })
+    const acquired = await acquireScreenStream(sourceId, fps)
+    stream = acquired.stream
+    audioFailed = acquired.audioFailed
   } catch (err) {
-    // V-5: Windows のループバック音声はオーディオデバイス構成によって失敗することがあり、
-    // その場合 audio+video 同時要求だと映像すら録れない。video のみで一度リトライする。
-    console.warn('[recorder] audio+video getUserMedia failed, retrying video only', err)
-    audioFailed = true
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId }
-        } as any
-      })
-    } catch (err2) {
-      console.error('[recorder] video-only getUserMedia also failed', err2)
-      window.recorderApi.reportError(
-        err2 instanceof DOMException && err2.name === 'NotAllowedError'
-          ? 'getUserMedia_not_allowed'
-          : 'getUserMedia_failed',
-        sessionId
-      )
-      return
-    }
+    console.error('[recorder] all screen capture paths failed', err)
+    window.recorderApi.reportError(
+      err instanceof DOMException && err.name === 'NotAllowedError'
+        ? 'getUserMedia_not_allowed'
+        : 'getUserMedia_failed',
+      sessionId
+    )
+    return
   }
   if (token !== recordingToken) {
     cleanup(stream, null, token)
@@ -180,11 +234,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
     frameTimer = setInterval(() => { if (rVfcRunning) drawFrame() }, intervalMs)
   }
 
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-    ? 'video/webm;codecs=vp8,opus'
-    : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-      ? 'video/webm;codecs=vp8'
-      : 'video/webm'
+  const mimeType = pickMimeType()
 
   const audioTracks = stream.getAudioTracks()
   const recordStream = audioTracks.length > 0

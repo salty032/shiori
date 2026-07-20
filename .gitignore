@@ -1,5 +1,10 @@
 node_modules/
 app/node_modules/
+
+# 同梱する ffmpeg 本体（92MB）。リポジトリには入れず app/scripts/fetch-ffmpeg.mjs で取得する。
+# ライセンス全文（ffmpeg-LICENSE.txt）は配布物に必要なのでコミットする。
+app/resources/ffmpeg.exe
+app/resources/.tmp-ffmpeg/
 app/dist/
 app/out/
 web-ext-artifacts/

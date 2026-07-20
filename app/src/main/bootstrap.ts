@@ -1,7 +1,7 @@
 import { app, dialog, globalShortcut, protocol, Menu, shell, session } from 'electron'
 import { extname, join } from 'path'
 import { stat } from 'fs/promises'
-import { createReadStream, appendFileSync, statSync, renameSync, rmSync } from 'fs'
+import { createReadStream, appendFileSync, statSync, renameSync, rmSync, mkdirSync } from 'fs'
 import { Readable } from 'stream'
 import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './ws-server'
 import {
@@ -28,7 +28,7 @@ import {
   handleTrusted, safeExternalUrl,
   createWindow
 } from './windows'
-import { createTray } from './tray'
+import { createTray, rebuildTrayMenu } from './tray'
 import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './startup'
 import {
   getLastTimecode, getLastTimecodeAt, setLastTimecode,
@@ -42,9 +42,10 @@ import { registerImportHandlers } from './ipc-import'
 import { optionalPositiveInteger } from './ipc-validation'
 import { sendBrowserNotice } from './browser-notice'
 import { decideVersionNotice } from './version-notice'
-import { RELEASE_NOTES } from '../shared/releaseNotes'
+import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
 import { waitForPreferredTimecode, type CaptureTimecode } from './timecode-request'
+import { t } from './i18n'
 
 // [DIAG] 一時計測 — タイトル欠け／話数欠けの原因切り分け用。調査後にまとめて削除する。
 let titleDiagPathLogged = false
@@ -102,12 +103,12 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
 
   const options = {
     type: 'warning' as const,
-    buttons: ['中止して更新', 'キャンセル'],
+    buttons: [t('dialog.updateBusy.proceed'), t('dialog.updateBusy.cancel')],
     defaultId: 1,
     cancelId: 1,
-    title: '更新の確認',
-    message: `${labels.join('・')}が進行中です`,
-    detail: '更新するとアプリが再起動し、進行中の処理は中断されます。'
+    title: t('dialog.updateBusy.title'),
+    message: t('dialog.updateBusy.message', { tasks: labels.join(t('list.separator')) }),
+    detail: t('dialog.updateBusy.detail')
   }
   const win = getMainWindow()
   const { response } = win
@@ -119,6 +120,27 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
 export function bootstrap(features: MainFeature[] = []): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
+
+  // 開発時は userData をインストール版から分離する。
+  //
+  // dev もパッケージ版も app 名が "Shiori" なので、既定では両者の userData が同じ
+  // %APPDATA%\Shiori を指す。userData は直後の requestSingleInstanceLock が使う鍵でも
+  // あるため、常駐中（openAtLogin）のインストール版がロックを握っていると、npm run dev
+  // で起動した dev 版がロックを取れずに即 quit し、代わりにインストール版が
+  // second-instance ハンドラで前面に出てくる。「dev したのに古い版が起動する」ように
+  // 見える現象の正体がこれで、インストール版が常駐しているかどうかで再現が変わる。
+  //
+  // 分離すればロックも DB も設定も独立するので、常駐したまま dev を起動できる。
+  // 開発中の操作で本番ライブラリを壊す心配も無くなる（代わりに dev 側のライブラリは空）。
+  // setPath は必ず requestSingleInstanceLock より前で呼ぶこと。後ろだと鍵が既定パスの
+  // ままロックが取られ、分離の意味が無くなる。
+  if (!app.isPackaged) {
+    const devUserData = join(app.getPath('appData'), `${app.getName()}-dev`)
+    // setPath は存在しないディレクトリを渡すと throw するため、先に作っておく。
+    mkdirSync(devUserData, { recursive: true })
+    app.setPath('userData', devUserData)
+    console.log('[Shiori][dev] userData:', devUserData)
+  }
 
   if (!app.requestSingleInstanceLock()) {
     app.quit()
@@ -260,8 +282,7 @@ export function bootstrap(features: MainFeature[] = []): void {
       console.error('[startup] initDb failed', err)
       dialog.showErrorBox(
         'Shiori',
-        'データベースを開けなかったため起動できませんでした。\n\n' +
-          '他のプロセスがファイルをロックしていないか確認するか、PCを再起動してから再度お試しください。'
+        t('error.dbOpen')
       )
       app.quit()
       return
@@ -347,9 +368,13 @@ export function bootstrap(features: MainFeature[] = []): void {
       // 実際に登録されているホットキーが食い違う」状態を作れてしまうため、ここで弾く。
       const { captureHotkey: _ignoredCaptureHotkey, ...safePatch } =
         (patch && typeof patch === 'object' ? patch : {}) as Partial<Settings>
+      const prevLang = loadSettings().language
       const merged = { ...loadSettings(), ...safePatch }
       saveSettings(merged)
       const saved = loadSettings()
+      // トレイメニューのラベルは生成時に文字列が焼き込まれるため、他の main 側文言と違い
+      // 言語変更に自動では追随しない。言語が実際に変わったときだけ組み直す。
+      if (saved.language !== prevLang) rebuildTrayMenu()
       setAllowedExtensionIds(saved.allowedExtensionIds)
       broadcastMessage({ type: 'settings', frameFps: saved.frameFps, frameFpsAuto: saved.frameFpsAuto, captureKey: captureHotkeyMainKey(saved.captureHotkey) })
     })
@@ -410,7 +435,7 @@ export function bootstrap(features: MainFeature[] = []): void {
         t: new Date().toISOString()
       })
       if (!tc || !hasCaptureTimecode || !canCaptureVideo()) {
-        sendBrowserNotice('warning', 'キャプチャ対象を検出できませんでした。対応サイトの動画ページを開き、Chrome 拡張機能が有効か確認してください。')
+        sendBrowserNotice('warning', t('notice.captureTargetNotFound'))
         throw new SilentCaptureAbort('No active browser video target')
       }
       return tc
@@ -432,7 +457,7 @@ export function bootstrap(features: MainFeature[] = []): void {
       const now = Date.now()
       if (now - lastBlackFrameNoticeAt < BLACK_FRAME_RENOTIFY_MS) return
       lastBlackFrameNoticeAt = now
-      sendBrowserNotice('warning', '映像が真っ黒に写っています。ブラウザの設定でハードウェアアクセラレーションをOFFにしてください。')
+      sendBrowserNotice('warning', t('notice.captureBlackScreen'))
     })
 
     onCaptureDone(async (imagePath, context) => {
@@ -464,13 +489,13 @@ export function bootstrap(features: MainFeature[] = []): void {
         autoTag: { path: thumbOk ? thumbPath : imagePath, reportError: true }
       })
       if (!result.ok) {
-        sendNotice('error', 'キャプチャの保存に失敗しました')
+        sendNotice('error', t('notice.captureSaveFailed'))
         // 保存失敗時はファイルを削除済み。capture:done の成功通知を出すと矛盾するため送らない
         return
       }
 
       if (loadSettings().captureNotify !== false) {
-        sendBrowserNotice('success', 'キャプチャを保存しました')
+        sendBrowserNotice('success', t('notice.captureSaved'))
       }
     })
 
@@ -480,7 +505,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     createWindow(reclaimHotkeysIfFree, isStartupLaunch())
     for (const feature of features) await feature.onReady?.()
     if (consumeCorruptSettingsNotice()) {
-      sendNoticeWhenRendererReady('error', '設定ファイルが破損していたため、デフォルト設定で起動しました。')
+      sendNoticeWhenRendererReady('error', t('notice.settingsCorrupt'))
     }
     // 自動アップデートはサイレント適用（終了時インストール）だと再起動後に何の表示もなく、
     // 更新されたのか判別できない。前回起動時のバージョンを設定に記録しておき、変わっていたら
@@ -489,7 +514,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     const currentVersion = app.getVersion()
     const previousRunVersion = loadSettings().lastRunVersion
     if (previousRunVersion !== currentVersion) {
-      const notice = decideVersionNotice(previousRunVersion, currentVersion, RELEASE_NOTES[currentVersion])
+      const notice = decideVersionNotice(previousRunVersion, currentVersion, releaseNotesFor(currentVersion, loadSettings().language))
       if (notice.kind === 'whatsNew') {
         whenRendererReady(() => sendToRenderer(CH.whatsNew, { version: notice.version, notes: notice.notes }))
       } else if (notice.kind === 'toast') {
@@ -501,7 +526,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     // 「キャプチャ対象を検出できませんでした」に化けるのを防ぐため、明示的に案内する。
     // EADDRINUSE は listen 後の非同期イベントで初めて分かるため、ここで購読しておく。
     onPortInUse(() => {
-      sendNoticeWhenRendererReady('error', `ポート${WS_PORT}が他のアプリに使用されているため、ブラウザ拡張と接続できません。`)
+      sendNoticeWhenRendererReady('error', t('notice.portInUse', { port: WS_PORT }))
     })
     registerHotkey(loadSettings().captureHotkey, (message) => {
       sendBrowserNotice('error', message)

@@ -21,20 +21,22 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 
 Shiori は動画クリップの録画後トリミング・サムネイル生成・尺の判定に FFmpeg を利用します。
 
-- 取得元: [ffmpeg-static](https://www.npmjs.com/package/ffmpeg-static)（npm ラッパー、GPL-3.0-or-later）が同梱する
-  Windows 向けバイナリ `ffmpeg.exe`
-- 同梱ビルド: **FFmpeg 6.1.1 essentials build（`gyan.dev`）**
-- ライセンス: **GNU General Public License v3（GPL v3）**
-- 用途: ffmpeg / ffprobe 相当機能によるトリミング・サムネイル・尺取得
+- 同梱ビルド: **`ffmpeg-n6.1.2-192-g78690eba61-win64-lgpl`**
+  （[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) の autobuild-2025-07-31-14-15 リリース）
+- ライセンス: **GNU Lesser General Public License v3（LGPL v3）**
+- ビルド構成: `--enable-version3` 付きの LGPL ビルドで、GPL を要求する構成要素
+  （`libx264` / `libx265` / `libxvid` / `libvidstab` / `librubberband` 等）は**すべて無効**です。
+  Shiori が利用するのは `libvpx`（VP8/VP9）・`libopus`・`mjpeg` と標準フィルタのみで、
+  いずれも LGPL ビルドに含まれます。
+- 用途: 録画クリップのトリミング・サムネイル生成・タイムラインストリップ生成・尺およびフレーム時刻の取得
 - 呼び出し形態: アプリ本体とは**リンクせず、独立した実行ファイルを子プロセスとして起動**して利用します。
   バイナリは**改変せず**そのまま同梱・再配布します。
-- ライセンス全文: 配布物に同梱される `ffmpeg.exe.LICENSE`（GPL v3 全文）および `ffmpeg.exe.README`（ビルド構成）を参照
-- 対応ソースコード: FFmpeg 6.1.1 のソースは [ffmpeg.org](https://ffmpeg.org/download.html) および
-  [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git)（タグ `n6.1.1`）から入手できます。
-  Windows ビルドの構成は [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) を参照してください。
-
-> GPL v3 は同ライセンスのバイナリを再配布する際、対応するソースコードの提供（または書面による申し出）を求めます。
-> Shiori 本体のライセンスとは独立した義務のため、配布形態の詳細は上記の入手先案内で満たしています。
+- ライセンス全文: 配布物に同梱される `ffmpeg-LICENSE.txt`（LGPL v3 全文）を参照
+- 対応ソースコード: 本バイナリに対応する FFmpeg のソースは
+  [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git) のコミット `78690eba61` から取得できます
+  （リリース系列は `n6.1.2`）。ビルドスクリプトおよびビルド環境の構成は
+  [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) で公開されています。
+  上記の手段でソースを入手できない場合は、リポジトリの Issue から連絡してください。
 
 ---
 

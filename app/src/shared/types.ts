@@ -1,5 +1,10 @@
 // Shared between main/preload and renderer. No DOM or Node APIs — pure data types only.
 
+// 表示言語。日英の 2 択に固定する（汎用のロケール解決は持たない）。
+// i18n/index.ts 側はここから読む。逆向きに import すると、型定義を使いたいだけの
+// モジュールが辞書 2 枚を巻き込むことになるため、定義元はこちらに置く。
+export type Lang = 'ja' | 'en'
+
 export type TagMode = 'and' | 'or'
 export type SortOrder = 'date_desc' | 'date_asc' | 'random'
 export type ImageTagSource = 'manual' | 'ai'
@@ -55,6 +60,10 @@ export type Settings = {
   serviceOrder: string[]
   showAiTags: boolean
   theme: Theme
+  // 表示言語。新規インストール時のみ OS ロケールから決まり（main/settings.ts の
+  // osDefaultLang）、以降はユーザーが設定画面で選んだ値をそのまま保持する。
+  // 既存の settings.json に language が無い場合は 'ja'（従来の挙動）へ倒す。
+  language: Lang
   // 前回起動時のアプリバージョン。起動時に現行バージョンと比較し、自動アップデートが
   // （サイレント適用も含め）行われたことを一度だけ通知するために使う。初回起動は null。
   lastRunVersion: string | null

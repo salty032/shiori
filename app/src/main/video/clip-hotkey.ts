@@ -1,5 +1,6 @@
 // 録画クリップ開始/停止用のグローバルホットキー登録。
 import { globalShortcut } from 'electron'
+import { t } from '../i18n'
 
 let currentClipHotkey = 'Alt+D'
 
@@ -7,7 +8,7 @@ export function registerClipHotkey(hotkey: string, onToggle: () => void, onError
   const ok = globalShortcut.register(hotkey, onToggle)
   if (!ok) {
     console.warn(`[clip] hotkey ${hotkey} registration failed`)
-    onError?.(`録画ホットキー ${hotkey} を登録できませんでした。他のアプリで使われている可能性があります。`)
+    onError?.(t('error.clipHotkeyRegisterFailed', { hotkey }))
   } else {
     currentClipHotkey = hotkey
     console.log(`[clip] hotkey registered: ${hotkey}`)

@@ -295,6 +295,29 @@ const SERVICE_PLAYER_UI = {
   ],
 }
 
+// 録画中にマウスカーソルが動画へ写り込むのを防ぐ。
+//
+// 画面キャプチャ側では消せない。カーソルはキャプチャ経路がフレームへ合成するもので、
+// getDisplayMedia の cursor:'never' 制約は Chromium が未実装のため黙って無視される
+// （crbug 41456762）。スクショが desktopCapturer のサムネイル取得でカーソル抜きなのに
+// 動画だけ写るのはこのため。
+//
+// 代わりにページ側で OS カーソル自体を消す。ポインタ配下の要素が cursor:none なら
+// システムカーソルが空になり、キャプチャ経路には合成すべき絵が存在しなくなる。
+// 録画対象は「ブラウザ内の video 要素の矩形」なので、写り込みうる位置＝このページ上であり
+// これで実用上ふさがる。
+//
+// プレーヤーは mousemove のたびに自前の cursor を再設定してくるため、個別要素への
+// inline 指定（applyTemporaryStyle）では上書きし返される。全要素へ !important で当てる
+// <style> 一枚にすることで、MAX_HIDDEN_ELEMENTS の上限とも無関係になる。
+// 撤去は restorePlayerUI の data-shiori-* 一括削除（ウォッチドッグ経由も含む）に任せる。
+function hideCursor() {
+  const styleEl = document.createElement('style')
+  styleEl.setAttribute('data-shiori-nocursor', '1')
+  styleEl.textContent = '*,*::before,*::after{cursor:none!important}'
+  document.head.appendChild(styleEl)
+}
+
 function hidePlayerUI() {
   restorePlayerUI()
   // 失敗・早期 return・post-capture 未達のいずれでも UI が固着しないよう、実際に隠す前に
@@ -303,6 +326,7 @@ function hidePlayerUI() {
     hiddenWatchdogTimer = null
     restorePlayerUI()
   }, HIDDEN_UI_WATCHDOG_MS)
+  hideCursor()
   const host = location.hostname.replace(/^www\./, '')
   startSuppressCaptureKey(host)
   const entry = SERVICE_PLAYER_UI[host]
@@ -493,7 +517,7 @@ function restorePlayerUI(options = {}) {
     hiddenWatchdogTimer = null
   }
   stopSuppressCaptureKey()
-  document.querySelectorAll('style[data-shiori-freeze], style[data-shiori-visrule]').forEach(el => el.remove())
+  document.querySelectorAll('style[data-shiori-freeze], style[data-shiori-visrule], style[data-shiori-nocursor]').forEach(el => el.remove())
   for (const [el, prop, saved, trans, anim, priority] of [...hiddenEls].reverse()) {
     el.style.removeProperty(prop)
     if (saved) el.style.setProperty(prop, saved, priority || '')

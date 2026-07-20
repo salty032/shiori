@@ -20,8 +20,8 @@ const MAX_IMPORT_FILES = 200
 // インポート動画の尺上限（秒）。録画クリップの上限と同じく著作権対策の割り切りで、
 // 設定でも緩和しない固定値。フルエピソードの取り込みを構造的に防ぐ。長尺トリマーの
 // 全フレームデコード待ち（U-1）もこの上限内なら実用的な時間で収まる。
-export const MAX_IMPORT_VIDEO_SECONDS = 60
-// 尺の丸め誤差で 60.0x 秒の動画を弾かないための許容幅。
+export const MAX_IMPORT_VIDEO_SECONDS = 30
+// 尺の丸め誤差で 30.0x 秒の動画を弾かないための許容幅。
 export const IMPORT_VIDEO_SECONDS_EPS = 0.5
 
 // 上限到達で列挙を打ち切った場合、呼び出し元がユーザーに「一部のみ取り込んだ」と

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ShowToast } from './useToast'
+import { t, tp } from '../i18n'
 
 export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
   const [taggerDoneKey, setTaggerDoneKey] = useState(0)
@@ -19,14 +20,14 @@ export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
     onTagsDone()
   }), [])
   useEffect(() => window.api.onTaggerError((msg) =>
-    showToast(`AIタグ付けでエラーが発生しました: ${msg}`, 'error')
+    showToast(t('toast.taggingError', { message: msg }), 'error')
   ), [])
   useEffect(() => window.api.onTaggerRetagProgress(setRetagProgress), [])
   useEffect(() => window.api.onTaggerRetagDone(({ tagged, canceled }) => {
     setRetagProgress(null)
     setTaggerDoneKey((k) => k + 1)
     onTagsDone()
-    showToast(canceled ? `${tagged}枚で中止しました` : `${tagged}枚にAIタグを付与しました`, canceled ? 'warning' : 'success')
+    showToast(canceled ? tp('toast.taggingStopped', tagged) : tp('toast.tagged', tagged), canceled ? 'warning' : 'success')
   }), [])
 
   async function handleTaggerDelete(): Promise<void> {
@@ -35,7 +36,7 @@ export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
     // AI由来のタグもDBから削除されるため、開いているDetailPanel・サイドバーのタグ一覧を再取得させる。
     setTaggerDoneKey((k) => k + 1)
     onTagsDone()
-    if (removedTags > 0) showToast(`AIタグ ${removedTags}件を削除しました`, 'info')
+    if (removedTags > 0) showToast(tp('toast.aiTagsRemoved', removedTags), 'info')
   }
 
   async function handleTaggerDownload(): Promise<void> {
@@ -47,7 +48,7 @@ export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
       console.error('Tagger download failed', err)
       const message = err instanceof Error ? err.message : String(err)
       if (!/abort|cancel/i.test(message)) {
-        showToast('AIモデルのダウンロードに失敗しました', 'error')
+        showToast(t('toast.modelDownloadFailed'), 'error')
       }
     } finally {
       setTaggerProgress(null)
@@ -57,7 +58,7 @@ export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
   async function handleTaggerCancelDownload(): Promise<void> {
     await window.api.taggerCancelDownload()
     setTaggerProgress(null)
-    showToast('AIモデルのダウンロードを中止しました', 'warning')
+    showToast(t('toast.modelDownloadCanceled'), 'warning')
   }
 
   // 進捗クリアとトーストは main 側の taggerRetagDone（canceled: true）を受けて

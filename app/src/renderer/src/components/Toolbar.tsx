@@ -5,17 +5,21 @@ import { serviceLabel } from '../services'
 import { XIcon, ChevronDownIcon } from './Icon'
 import { useSearchHistoryStore } from '../stores/searchHistoryStore'
 import { parseSearchQuery } from '../stores/imageQuery'
+import { useT } from '../i18n'
+import type { MessageKey } from '../../../shared/i18n'
 
 export type ViewMode = 'grid' | 'timeline'
 
-const SORT_LABELS: Record<string, string> = { date_desc: '新しい順', date_asc: '古い順', random: 'ランダム' }
+// ラベルは表示直前に t() で解決する。ここで文字列にしてしまうとモジュール読み込み時の
+// 言語で固定され、設定から切り替えても古いままになる。
+const SORT_LABEL_KEYS: Record<string, MessageKey> = { date_desc: 'sort.newest', date_asc: 'sort.oldest', random: 'sort.random' }
 const SEARCH_PREFIXES = [
-  { prefix: 'tag:', label: 'タグで絞り込み' },
-  { prefix: 'from:', label: '開始日を指定' },
-  { prefix: 'to:', label: '終了日を指定' },
-  { prefix: 'site:', label: 'サービスで絞り込み' },
-  { prefix: 'type:', label: '種類で絞り込み' },
-] as const
+  { prefix: 'tag:', labelKey: 'search.prefix.tag' },
+  { prefix: 'from:', labelKey: 'search.prefix.from' },
+  { prefix: 'to:', labelKey: 'search.prefix.to' },
+  { prefix: 'site:', labelKey: 'search.prefix.site' },
+  { prefix: 'type:', labelKey: 'search.prefix.type' },
+] as const satisfies readonly { prefix: string; labelKey: MessageKey }[]
 
 type ActiveFilter = {
   onRemove: () => void
@@ -28,6 +32,11 @@ type ForcedSuggestion = { prefix: SuggestionPrefix; search: string }
 // 素のキーワード入力の commitSearch（FTS 検索＋COUNT の IPC を伴う）をこの間隔でまとめる。
 // 演算子確定・Enter・チップ操作は即時のまま（下記 setSearchImmediate 経由）。
 const SEARCH_COMMIT_DEBOUNCE_MS = 200
+
+// サジェスト枠は tag/site/type/プレフィックスの4種が排他で1つだけ描画されるため、
+// id は使い回してよい（同時に2つ存在しない）。
+const SUGGESTIONS_ID = 'shiori-search-suggestions'
+const optionId = (index: number): string => `shiori-search-option-${index}`
 
 const TAG_PREFIX_RE = /(?:^|\s)tag:(\S*)$/i
 const SITE_PREFIX_RE = /(?:^|\s)site:(\S*)$/i
@@ -52,6 +61,7 @@ type Props = {
 export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   filters, searchTags, onRemoveSearchTag, searchInputRef, searching,
 }, ref) {
+  const { t } = useT()
   const searchHistory = useSearchHistoryStore((s) => s.history)
   const addSearchHistory = useSearchHistoryStore((s) => s.addSearch)
   const removeSearchHistory = useSearchHistoryStore((s) => s.removeSearch)
@@ -105,11 +115,12 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     if (!match) return []
     const partial = match[1].toLowerCase()
     if (partial === 'image' || partial === 'video' || partial === '画像' || partial === '動画') return []
-    return ([
-      { value: 'image', label: '画像' },
-      { value: 'video', label: '動画' },
-    ] as const).filter(({ value, label }) => value.startsWith(partial) || label.includes(partial))
-  }, [suggestionSearch, searchInteractionActive])
+    // label は現在の言語の訳語。日本語なら「画像」、英語なら 'Image' で前方一致できる。
+    return [
+      { value: 'image' as const, label: t('search.type.image') },
+      { value: 'video' as const, label: t('search.type.video') },
+    ].filter(({ value, label }) => value.startsWith(partial) || label.toLowerCase().includes(partial))
+  }, [suggestionSearch, searchInteractionActive, t])
 
   const prefixSuggestions = useMemo(() => {
     if (!searchFocused || filters.search.match(TAG_PREFIX_RE) || filters.search.match(SITE_PREFIX_RE) || filters.search.match(TYPE_PREFIX_RE) || filters.search.match(FROM_PREFIX_RE) || filters.search.match(TO_PREFIX_RE)) return []
@@ -291,7 +302,15 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </svg>
           )}
           <div style={s.searchInputInner}>
+            {/* ↑↓ で候補を送れる実装は元からあったが、支援技術には「ただのテキスト欄」に
+                見えていた。combobox として関連付け、今どの候補を指しているかを
+                aria-activedescendant で読み上げ側にも伝える。 */}
             <input ref={searchInputRef} className="shiori-search-input" style={s.searchInput} value={filters.search}
+              role="combobox"
+              aria-expanded={hasOpenMenu}
+              aria-controls={SUGGESTIONS_ID}
+              aria-autocomplete="list"
+              aria-activedescendant={hasOpenMenu && highlightedIndex >= 0 ? optionId(highlightedIndex) : undefined}
               onChange={(e) => {
                 setForcedSuggestion(null)
                 const next = e.target.value
@@ -344,21 +363,24 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                 else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightedIndex((i) => (i <= 0 ? activeSuggestions.length - 1 : i - 1)) }
                 else if (e.key === 'Enter' && highlightedIndex >= 0 && !e.nativeEvent.isComposing) { e.preventDefault(); activeSuggestions[highlightedIndex].onConfirm() }
               }}
-              placeholder={activeFilterChips.length > 0 ? '' : 'タイトルやメモを検索  / でフォーカス'}
-              title="/ で検索にフォーカス" />
+              placeholder={activeFilterChips.length > 0 ? '' : t('search.placeholder')}
+              title={t('search.focusHint')} />
           </div>
           {(filters.search || activeFilterChips.length > 0) && (
             <button style={s.searchWrapClear} onClick={() => {
               if (commitDebounceRef.current) { clearTimeout(commitDebounceRef.current); commitDebounceRef.current = null }
               setForcedSuggestion(null)
               filters.clearAllFilters()
-            }} title="検索をクリア"><XIcon size={11} strokeWidth={2.2} /></button>
+            }} title={t('search.clear')}><XIcon size={11} strokeWidth={2.2} /></button>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'tag' && (
-            <div ref={suggestionsRef} style={s.searchSuggestions}>
+            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.prefix.tag')} style={s.searchSuggestions}>
               {tagSuggestions.length > 0 ? tagSuggestions.map((tag, i) => (
                 <button
                   key={tag}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => { e.preventDefault(); confirmTag(tag) }}
@@ -366,15 +388,18 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                   <span style={s.searchSuggestionPlain}>{tag}</span>
                 </button>
               )) : (
-                <div style={s.searchSuggestionEmpty}>候補がありません</div>
+                <div style={s.searchSuggestionEmpty}>{t('search.noSuggestions')}</div>
               )}
             </div>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'site' && (
-            <div ref={suggestionsRef} style={s.searchSuggestions}>
+            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.prefix.site')} style={s.searchSuggestions}>
               {siteSuggestions.length > 0 ? siteSuggestions.map((host, i) => (
                 <button
                   key={host}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => {
@@ -386,15 +411,18 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                   <span style={s.searchSuggestionMeta}>{serviceLabel(host)}</span>
                 </button>
               )) : (
-                <div style={s.searchSuggestionEmpty}>候補がありません</div>
+                <div style={s.searchSuggestionEmpty}>{t('search.noSuggestions')}</div>
               )}
             </div>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'type' && typeSuggestions.length > 0 && (
-            <div ref={suggestionsRef} style={s.searchSuggestions}>
+            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.prefix.type')} style={s.searchSuggestions}>
               {typeSuggestions.map(({ value, label }, i) => (
                 <button
                   key={value}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => {
@@ -409,10 +437,13 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </div>
           )}
           {searchFocused && suggestionsVisible && activePrefix === null && (historySuggestions.length > 0 || prefixSuggestions.length > 0) && (
-            <div ref={suggestionsRef} style={s.searchPrefixMenu}>
-              {prefixSuggestions.map(({ prefix, label }, i) => (
+            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.placeholder')} style={s.searchPrefixMenu}>
+              {prefixSuggestions.map(({ prefix, labelKey }, i) => (
                 <button
                   key={prefix}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchPrefixItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => {
@@ -421,18 +452,21 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                   }}
                 >
                   <span style={s.searchSuggestionValue}>{prefix}</span>
-                  <span style={s.searchSuggestionMeta}>{label}</span>
+                  <span style={s.searchSuggestionMeta}>{t(labelKey)}</span>
                 </button>
               ))}
               {historySuggestions.length > 0 && (
                 <>
                   {prefixSuggestions.length > 0 && <div style={s.searchPrefixDivider} />}
-                  <div style={s.searchHistoryHeader}>最近の検索</div>
+                  <div style={s.searchHistoryHeader}>{t('search.recent')}</div>
                   {historySuggestions.map((h, i) => {
                     const idx = prefixSuggestions.length + i
                     return (
                       <button
                         key={`history:${h}`}
+                        id={optionId(idx)}
+                        role="option"
+                        aria-selected={idx === highlightedIndex}
                         className="shiori-menu-item"
                         style={{ ...s.searchPrefixItem, ...(idx === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                         onMouseDown={(e) => {
@@ -444,7 +478,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                         <span
                           style={s.searchHistoryRemove}
                           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); removeSearchHistory(h) }}
-                          title="履歴から削除"
+                          title={t('search.removeFromHistory')}
                         >
                           <XIcon size={10} strokeWidth={2} />
                         </span>
@@ -456,16 +490,18 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </div>
           )}
           {searchFocused && suggestionsVisible && activePrefix === null && prefixSuggestions.length === 0 && dateHint && (
-            <div style={s.searchPrefixMenu}>
+            /* 選択できる候補ではなく書式ガイドなので listbox ではなく status。
+               combobox の aria-controls が指す先が消えないよう id だけは共有する。 */
+            <div id={SUGGESTIONS_ID} role="status" style={s.searchPrefixMenu}>
               <div style={s.searchDateHint}>
-                日付で絞り込み — 例: 2026-01-01 / 2026-01 / 2026
+                {t('search.dateHint')}
               </div>
             </div>
           )}
         </div>
         <div ref={sortMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
           <button style={{ ...s.sortBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => setSortMenuOpen((v) => !v)}>
-            {SORT_LABELS[filters.sortOrder]} <ChevronDownIcon size={10} />
+            {t(SORT_LABEL_KEYS[filters.sortOrder]!)} <ChevronDownIcon size={10} />
           </button>
           {sortMenuOpen && (
             <div style={s.sortMenu}>
@@ -477,7 +513,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                     if (opt === 'random') filters.setShuffleSeed(Date.now())
                     filters.setSortOrder(opt)
                     setSortMenuOpen(false)
-                  }}>{SORT_LABELS[opt]}</button>
+                  }}>{t(SORT_LABEL_KEYS[opt]!)}</button>
               ))}
             </div>
           )}

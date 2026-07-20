@@ -3,13 +3,14 @@ import { readFile, unlink, mkdir } from 'fs/promises'
 import { dirname, join } from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
-import ffmpegStatic from 'ffmpeg-static'
-
+// ffmpeg は npm パッケージ経由ではなく resources に直接同梱する。
+// ffmpeg-static は GPL-3.0-or-later で公開されており、その JS を本体プロセスが require すると
+// Shiori 本体まで GPL の派生物と解される余地が生まれる（本体は proprietary ライセンス）。
+// 同梱バイナリも LGPL ビルド（--disable-libx264/x265/xvid ほか、GPL 必須要素なし）に揃えてある。
+// Shiori が使うのは libvpx / libopus / mjpeg だけなので機能上の差はない。
 function getFfmpegPath(): string {
-  const p = ffmpegStatic
-  if (!p) throw new Error('ffmpeg-static: binary not found')
-  if (app.isPackaged) return p.replace('app.asar', 'app.asar.unpacked')
-  return p
+  if (app.isPackaged) return join(process.resourcesPath, 'ffmpeg.exe')
+  return join(app.getAppPath(), 'resources', 'ffmpeg.exe')
 }
 
 const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000  // 5分
@@ -105,8 +106,19 @@ export async function trimWebm(
     '-i', inputPath,
     '-ss', String(inSec - preSeek),
     '-to', String(outSec - preSeek),
-    '-c:v', 'libvpx',
+    // 録画側は「アニメの線画・ベタ塗りは同じビットレートなら VP9 が明確に有利」という
+    // 理由で VP9 を優先している（recorder.ts の MIME_CANDIDATES）。ここが VP8 のままだと
+    // せっかく VP9 で録ったものをトリムのたびに VP8 へ焼き直すことになり、輪郭の
+    // モスキートノイズという避けたかった劣化をトリム工程で自ら持ち込んでしまう。
+    // 録画側と同じコーデックに揃える。
+    '-c:v', 'libvpx-vp9',
     '-b:v', '8M',
+    // VP9 は既定のままだと VP8 より大幅に遅く、尺次第で FFMPEG_TIMEOUT_MS に触れる。
+    // row-mt で行単位のマルチスレッドを有効にし、cpu-used で速度側へ寄せて実用域に収める
+    // （good/2 は画質をほぼ落とさずに速度を稼げる範囲）。
+    '-row-mt', '1',
+    '-deadline', 'good',
+    '-cpu-used', '2',
     '-c:a', 'libopus',
     '-avoid_negative_ts', 'make_zero',
     outPath
@@ -121,7 +133,14 @@ export async function getTimelineStrip(inputPath: string, duration: number, coun
     await runFfmpeg([
       '-y',
       '-i', inputPath,
-      '-vf', `fps=${fpsRate},scale=-1:40,tile=${count}x1`,
+      // tpad で最終フレームを尺いっぱいまで複製してから fps で抜く。
+      // 録画は「画面が変化したぶんだけ」フレームを吐く（recorder.ts の acquireScreenStream
+      // 参照）ため、末尾が静止したクリップでは最終フレームの PTS がコンテナの尺より
+      // かなり手前で終わる。実測例では尺 1.95s に対し最終フレームが 0.858s で、
+      // fps=count/duration で抜くと 15 タイル中 7 枚しか埋まらず右半分が黒くなっていた。
+      // stop_duration は多めに渡してよい（tile が count 枚揃った時点で -frames:v 1 が
+      // 打ち切るので、余分なフレームはデコードされない）。
+      '-vf', `tpad=stop_mode=clone:stop_duration=${duration},fps=${fpsRate},scale=-1:40,tile=${count}x1`,
       '-frames:v', '1',
       '-q:v', '8',
       tmpPath
