@@ -1,7 +1,7 @@
 import { app, dialog, globalShortcut, protocol, Menu, shell, session } from 'electron'
 import { extname, join } from 'path'
 import { stat } from 'fs/promises'
-import { createReadStream, appendFileSync, statSync, renameSync, rmSync, mkdirSync } from 'fs'
+import { createReadStream, mkdirSync } from 'fs'
 import { Readable } from 'stream'
 import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './ws-server'
 import {
@@ -46,38 +46,6 @@ import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
 import { waitForPreferredTimecode, type CaptureTimecode } from './timecode-request'
 import { t } from './i18n'
-
-// [DIAG] 一時計測 — タイトル欠け／話数欠けの原因切り分け用。調査後にまとめて削除する。
-let titleDiagPathLogged = false
-// [DIAG] クロップ見切れ調査は再現待ちで常用リリースに載せるため、tc 行（最頻 ~5秒間隔）で
-// ログが際限なく育たないよう、たまにサイズを確認して 20MB 超なら1世代だけ残してローテーションする。
-let diagWriteCount = 0
-const DIAG_LOG_MAX_BYTES = 20 * 1024 * 1024
-function parseDiag(json: string | null | undefined): unknown {
-  if (!json) return null
-  try { return JSON.parse(json) } catch { return json }
-}
-function writeTitleDiag(record: unknown): void {
-  try {
-    const file = join(app.getPath('userData'), 'title-diag.log')
-    if (!titleDiagPathLogged) {
-      titleDiagPathLogged = true
-      console.log('[Shiori][diag] title-diag log:', file)
-    }
-    if (++diagWriteCount % 200 === 0) {
-      try {
-        if (statSync(file).size > DIAG_LOG_MAX_BYTES) {
-          const old = join(app.getPath('userData'), 'title-diag.old.log')
-          rmSync(old, { force: true })
-          renameSync(file, old)
-        }
-      } catch { /* サイズ確認・ローテ失敗は追記継続を優先 */ }
-    }
-    appendFileSync(file, JSON.stringify(record) + '\n')
-  } catch (err) {
-    console.error('[Shiori][diag] failed to write title-diag log', err)
-  }
-}
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
 // 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
@@ -305,21 +273,6 @@ export function bootstrap(features: MainFeature[] = []): void {
         if (msg.focused) markFocusedTimecodeNow()
         // フォーカス中のタブを優先。フォーカスタイムコードが30秒以上届いていない場合は
         const accept = msg.focused || Date.now() - getLastFocusedTimecodeAt() > 30_000
-        // [DIAG] 一時計測 — クロップ見切れ調査: 届いた全 timecode の採否と座標を記録する。
-        // accept=false の行が「rect 更新の凍結」の証拠になる。調査後に削除。
-        writeTitleDiag({
-          k: 'tc',
-          t: new Date().toISOString(),
-          focused: msg.focused,
-          accept,
-          suppressed: shouldSuppressBrowserTargetUpdate(),
-          reqId: msg.requestId ?? null,
-          win: [msg.windowLeft, msg.windowTop, msg.windowWidth, msg.windowHeight, msg.innerWidth, msg.innerHeight],
-          rect: msg.videoRect,
-          fs: msg.fullscreen,
-          dpr: msg.devicePixelRatio,
-          host: (() => { try { return msg.url ? new URL(msg.url).hostname : null } catch { return null } })()
-        })
         if (accept) {
           setLastTimecode({ title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null })
         }
@@ -422,18 +375,6 @@ export function bootstrap(features: MainFeature[] = []): void {
       const tc = getLastTimecode()
       const timecodeAge = Date.now() - getLastTimecodeAt()
       const hasCaptureTimecode = latest !== null || timecodeAge <= CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS
-      // [DIAG] 一時計測 — 1キャプチャ＝1行を userData/title-diag.log に追記する。調査後に削除。
-      // content 側の内訳(diag)と main 側の判定(responded/usedFallback)を1行にまとめる。
-      writeTitleDiag({
-        reqId: requestId,
-        responded: latest !== null,
-        usedFallback: latest === null && timecodeAge <= CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS,
-        timecodeAge,
-        finalTitle: tc?.title ?? null,
-        url: tc?.url ?? null,
-        content: parseDiag(latest?.diagJson),
-        t: new Date().toISOString()
-      })
       if (!tc || !hasCaptureTimecode || !canCaptureVideo()) {
         sendBrowserNotice('warning', t('notice.captureTargetNotFound'))
         throw new SilentCaptureAbort('No active browser video target')

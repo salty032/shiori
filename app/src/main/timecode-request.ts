@@ -1,6 +1,6 @@
 import type { ExtensionMessage } from './ws-server'
 
-export type CaptureTimecode = { title: string; currentTime: number | null; url: string | null; diagJson?: string | null }
+export type CaptureTimecode = { title: string; currentTime: number | null; url: string | null }
 
 type Subscribe = (handler: (msg: ExtensionMessage) => void) => () => void
 
@@ -25,7 +25,7 @@ export function waitForPreferredTimecode(
     const timer = setTimeout(() => finish(fallback), timeoutMs)
     off = subscribe((msg) => {
       if (msg.type !== 'timecode' || msg.requestId !== requestId) return
-      const value = { title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null, diagJson: msg.diagJson ?? null }
+      const value = { title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null }
       if (msg.focused) finish(value)
       else fallback ??= value
     })

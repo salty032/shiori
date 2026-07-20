@@ -1,7 +1,6 @@
-import { app, globalShortcut, nativeImage, screen as electronScreen, desktopCapturer, type Display, type NativeImage } from 'electron'
+import { globalShortcut, nativeImage, screen as electronScreen, desktopCapturer, type Display, type NativeImage } from 'electron'
 import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
-import { appendFileSync } from 'fs'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { ensureCaptureSubDir } from './paths'
@@ -331,20 +330,6 @@ export async function captureScreen(): Promise<string> {
     if (browserWindow && videoRect) {
       const { width: ssW, height: ssH } = native.getSize()
       const crop = computeVideoCrop(ssW, ssH, electronDisplay)
-      // [DIAG] 一時計測 — クロップ見切れ調査: クロップ計算に実際に使った main 側の保持値
-      // （凍結されていればここに古い座標が現れる）と計算結果を記録する。調査後に削除。
-      try {
-        appendFileSync(join(app.getPath('userData'), 'title-diag.log'), JSON.stringify({
-          k: 'cap',
-          t: new Date().toISOString(),
-          frame: [ssW, ssH],
-          disp: [electronDisplay.bounds.x, electronDisplay.bounds.y, electronDisplay.bounds.width, electronDisplay.bounds.height, electronDisplay.scaleFactor],
-          win: browserWindow,
-          rect: videoRect,
-          fs: browserFullscreen,
-          crop
-        }) + '\n')
-      } catch { /* 計測失敗は本処理へ影響させない */ }
       if (crop) {
         const cropped = native.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h })
         if (isLikelyBlackFrame(cropped)) blackFrameHook?.()

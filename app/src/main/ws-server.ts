@@ -21,7 +21,7 @@ export const MAX_DEVICE_PIXEL_RATIO = 8
 export type VideoRect = { left: number; top: number; width: number; height: number }
 
 export type ExtensionMessage =
-  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; version?: string; diagJson?: string }
+  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; version?: string }
   | { type: 'ping' }
 
 // バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
@@ -200,9 +200,7 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
     fullscreen: msg.fullscreen === true,
-    version: typeof msg.version === 'string' ? msg.version.slice(0, MAX_VERSION_LENGTH) : undefined,
-    // [DIAG] 一時計測 — タイトル欠け／クロップ見切れ調査用の診断文字列。調査後に削除する。
-    diagJson: typeof msg.diagJson === 'string' ? msg.diagJson.slice(0, 2400) : undefined
+    version: typeof msg.version === 'string' ? msg.version.slice(0, MAX_VERSION_LENGTH) : undefined
   }
 }
 
