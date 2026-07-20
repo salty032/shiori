@@ -326,7 +326,7 @@ export function deleteImage(id: number): string | null {
 }
 
 // 一括削除の DB 側を 1 トランザクションにまとめる（B-7）。1枚ずつ IPC 往復していた旧経路は
-// 数千枚だと分単位になっていた。ゴミ箱移動（シェル）は非トランザクショナルな後始末として
+// 数千枚だと分単位になっていた。実ファイル削除は非トランザクショナルな後始末として
 // 呼び出し元（ipc-images.ts）が逐次ベストエフォートで行う。
 export function deleteImagesBulk(ids: number[]): void {
   if (ids.length === 0) return
@@ -515,6 +515,13 @@ export function listImagesForThumbCheck(): { id: number; filepath: string; thumb
 
 export function setThumbPath(id: number, thumbPath: string): void {
   prepare('UPDATE images SET thumb_path = ? WHERE id = ?').run(thumbPath, id)
+}
+
+// 孤立ファイル掃除用（sweep-orphans.ts）。DB が参照している実ファイルの一覧。
+// パス列だけを引き、id や captured_at は載せない（数万件で無駄に重くしないため）。
+export function listReferencedPaths(): { filepath: string; thumb_path: string | null }[] {
+  return prepare('SELECT filepath, thumb_path FROM images').all() as
+    { filepath: string; thumb_path: string | null }[]
 }
 
 export function listImagesWithThumb(): { id: number; thumb_path: string }[] {

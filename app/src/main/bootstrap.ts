@@ -14,8 +14,10 @@ import { registerCapturedMedia } from './captured-media'
 import type { MainFeature } from './feature'
 import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './settings'
 import { activeTaskLabels } from './busy'
-import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion, compareVersions } from './extension-updater'
+import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion } from './extension-updater'
+import { compareVersions } from './version'
 import { migrateThumbnailsToOwnDir } from './migrate-thumbnails'
+import { sweepOrphanFiles } from './sweep-orphans'
 import { initAutoUpdater, quitAndInstallUpdate } from './updater'
 import { resolveRealCapturePath, thumbPathFor } from './paths'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './hotkey'
@@ -265,6 +267,9 @@ export function bootstrap(features: MainFeature[] = []): void {
       return
     }
     migrateThumbnailsToOwnDir().catch((err) => console.warn('[migrate-thumb] failed', err))
+    // ファイル削除に失敗して DB から切り離された実ファイルの回収。ユーザーには見えず
+    // 自分で消す手段もないので、アプリ側で黙って片付ける（非致命・バックグラウンド）。
+    sweepOrphanFiles().catch((err) => console.warn('[sweep] failed', err))
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
     const wsSettings = loadSettings()
     onWsClientConnect((send) => {

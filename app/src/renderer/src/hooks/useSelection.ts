@@ -65,17 +65,17 @@ async function deleteImages(
   showProgress = true,
 ): Promise<void> {
   const idList = [...ids]
-  // DB 削除は main 側で 1 トランザクションにまとめ、ゴミ箱移動も main 側で逐次ベストエフォート
+  // DB 削除は main 側で 1 トランザクションにまとめ、ファイル削除も main 側で逐次ベストエフォート
   // 実行する（B-7）。件数が多いと時間がかかるため、少し待っても終わらない場合だけ
-  // 「ゴミ箱へ移動中...」を表示する（すぐ終わるなら出さずチラつきを避ける）。完了時は同じトースト
+  // 「削除中...」を表示する（すぐ終わるなら出さずチラつきを避ける）。完了時は同じトースト
   // （progressToastId）を updateToast で差し替える（トーストがスタック化されて以降、新規
-  // showToast だと「ゴミ箱へ移動中...」と完了メッセージが両方残ってしまうため）。
+  // showToast だと「削除中...」と完了メッセージが両方残ってしまうため）。
   let progressTimer: number | null = null
   let progressToastId: number | null = null
   if (showProgress) {
     progressTimer = window.setTimeout(() => {
       progressTimer = null
-      progressToastId = showToast(`${idList.length}枚をゴミ箱へ移動中...`, 'info', 60000)
+      progressToastId = showToast(`${idList.length}枚を削除中...`, 'info', 60000)
     }, 400)
   }
 
@@ -113,8 +113,8 @@ async function deleteImages(
     const failedIds = new Set(results.filter((result) => !result.ok).map((result) => result.id))
     onFailed?.(failedIds)
     const message = deletedIds.size > 0
-      ? `${deletedIds.size}枚をゴミ箱へ移動しました。${failedCount}枚は移動できませんでした。`
-      : '画像をゴミ箱へ移動できませんでした。ファイルの状態を確認してください。'
+      ? `${deletedIds.size}枚を削除しました。${failedCount}枚は削除できませんでした。`
+      : '画像を削除できませんでした。ファイルの状態を確認してください。'
     notify(message, failedCount === results.length ? 'error' : 'warning')
     return
   }
@@ -323,7 +323,7 @@ export function useSelection({
       console.error('[delete] failed', err)
       restoreImages(pending.snapshot)
       unmarkPendingDelete(pending.ids)
-      showToast('画像をゴミ箱へ移動できませんでした。ファイルの状態を確認してください。', 'error')
+      showToast('画像を削除できませんでした。ファイルの状態を確認してください。', 'error')
     })
   }
 
@@ -337,7 +337,7 @@ export function useSelection({
     if (pending.viewerRestoreId != null) viewerRestoreFollowIdRef.current = pending.viewerRestoreId
     restoreImages(pending.snapshot)
     restoreSelectionAfterUndo(pending.selectedBefore)
-    showToast('ゴミ箱への移動を取り消しました', 'info')
+    showToast('削除を取り消しました', 'info')
     return true
   }
 
@@ -376,7 +376,7 @@ export function useSelection({
     // ms はここだけ既定値（トーンごとの自動値）に任せず DELETE_UNDO_MS を明示する。
     // トーストの表示時間と「まだ元に戻せる」実際の猶予（上の setTimeout）を必ず一致させるため。
     pending.toastId = showToast(
-      ids.size === 1 ? '画像をゴミ箱へ移動しました' : `${ids.size}枚をゴミ箱へ移動しました`,
+      ids.size === 1 ? '画像を削除しました' : `${ids.size}枚を削除しました`,
       'success',
       DELETE_UNDO_MS,
       { label: '元に戻す', onClick: undoPendingDelete },
@@ -857,7 +857,7 @@ export function useSelection({
     // トレイの「終了」等でウィンドウごと畳まれる場合、この effect のクリーンアップは
     // JS コンテキストごと破棄されるため走らない。pagehide はウィンドウが閉じる過程で
     // React のアンマウントより前に確実に発火するので、Undo 猶予（4秒）の途中で
-    // 終了しても「ゴミ箱へ移動しました」の内容どおり削除が実行されるようにする
+    // 終了しても「削除しました」の内容どおり削除が実行されるようにする
     // （main 側の IPC ハンドラは応答を待たれなくても独立して完走する）。
     window.addEventListener('pagehide', flushPendingDelete)
     return () => {

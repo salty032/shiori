@@ -1,6 +1,6 @@
 // 画像一覧・件数・エクスポート・取得・タイトル/メモ更新・サムネ一括生成・削除の IPC ハンドラ。
-import { dialog, shell } from 'electron'
-import { access, stat, copyFile } from 'fs/promises'
+import { dialog } from 'electron'
+import { access, stat, copyFile, unlink } from 'fs/promises'
 import { basename, extname } from 'path'
 import { getMainWindow, handleTrusted, sendToRenderer } from './windows'
 import {
@@ -22,36 +22,43 @@ import { createImageThumb } from './image-thumb'
 import { getVideoThumbProvider } from './video-thumb-provider'
 import { createProgressThrottle } from './progress-throttle'
 import { beginTask, endTask } from './busy'
-// ゴミ箱への移動を並列投入しすぎると Windows のシェル操作が一時的に失敗するため絞る
+// 削除を並列投入しすぎると Windows のファイル操作が一時的に失敗するため絞る
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
-const DELETE_TRASH_CONCURRENCY = 4
+const DELETE_CONCURRENCY = 4
 
 let isThumbGen = false
 let isImagesExporting = false
 let isImagesExportCanceled = false
 
-// 削除確定（DB 行削除）後の後始末として、原本とサムネをゴミ箱へ移す。
+// 削除確定（DB 行削除）後の後始末として、原本とサムネをディスクから消す。
+//
+// 以前は shell.trashItem でゴミ箱へ移していたが、それだと「Shiori で消したのに空き容量が
+// 増えない」状態になり、容量を戻すのにユーザーが自分でゴミ箱を空ける必要があった。
+// 取り消しは削除確定前の猶予（useSelection.ts の DELETE_UNDO_MS）で既に成立していて、
+// ここへ来る時点で取り消し機会は過ぎている。以降はアプリが最後まで後始末する。
+//
 // DB 行は既に削除済みなので、ここでの失敗は巻き戻さず孤立ファイルとして残すだけ
-// （逆順で起きうるゴースト行を構造的に避ける設計）。ENOENT（既に無い）は正常系として黙殺する。
-async function trashImageFiles(
+// （逆順で起きうるゴースト行を構造的に避ける設計）。残っても次回起動の sweep-orphans が
+// 回収するため、ユーザーのディスクに居座り続けることはない。
+// ENOENT（既に無い）は正常系として黙殺する。
+async function removeImageFiles(
   image: { filepath: string; thumb_path: string | null },
   id: number,
   logLabel: string
 ): Promise<void> {
-  const trashOne = async (storedPath: string, kind: 'main' | 'thumb'): Promise<void> => {
+  const removeOne = async (storedPath: string, kind: 'main' | 'thumb'): Promise<void> => {
     const safe = await resolveRealCapturePath(storedPath)
     if (!safe) return
     try {
-      await stat(safe)
-      await shell.trashItem(safe)
+      await unlink(safe)
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.warn(`[${logLabel}] ${kind} file trash failed id=${id} (non-fatal, DB row already removed)`, err)
+        console.warn(`[${logLabel}] ${kind} file remove failed id=${id} (non-fatal, DB row already removed)`, err)
       }
     }
   }
-  await trashOne(image.filepath, 'main')
-  if (image.thumb_path) await trashOne(image.thumb_path, 'thumb')
+  await removeOne(image.filepath, 'main')
+  if (image.thumb_path) await removeOne(image.thumb_path, 'thumb')
 }
 
 // 1 枚分のサムネを生成して DB に記録する。成功したら true。動画は video-thumb-provider
@@ -224,14 +231,14 @@ export function registerImageHandlers(): void {
     const image = getImage(imageId)
     if (!image) return { ok: false, id: imageId, error: 'not found' }
     try {
-      // 1) まず DB 行を削除して確定させる。ここを先にすることで、原本/サムネのゴミ箱移動が
+      // 1) まず DB 行を削除して確定させる。ここを先にすることで、原本/サムネの削除が
       //    途中で失敗しても「DB行は消えたのにファイルだけ残る（孤立ファイル）」にしかならず、
       //    逆順（先にファイルを消す）だと起きうる「ファイルは消えたのに DB 行が残るゴースト表示」
       //    を構造的に避けられる。孤立ファイルは害がなく後で手動/再生成で掃除できるが、ゴースト
       //    行は一覧上にサムネ等が破損した項目として残り続け、ユーザーには直しようがない。
       deleteImage(imageId)
-      // 2) 原本・サムネをゴミ箱へ（非クリティカルな後始末。失敗しても DB 削除は巻き戻さない）。
-      await trashImageFiles(image, imageId, 'images:delete')
+      // 2) 原本・サムネを削除（非クリティカルな後始末。失敗しても DB 削除は巻き戻さない）。
+      await removeImageFiles(image, imageId, 'images:delete')
       return { ok: true, id: imageId }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -255,18 +262,18 @@ export function registerImageHandlers(): void {
       .map((id) => ({ ok: false, id, error: 'not found' }))
 
     // DB 行はまとめて 1 トランザクションで削除して確定させる（B-7）。単体削除と同じ理由で、
-    // ゴミ箱移動が後で失敗しても DB は戻さない（孤立ファイルは無害・ゴースト行は避けたい）。
+    // ファイル削除が後で失敗しても DB は戻さない（孤立ファイルは無害・ゴースト行は避けたい）。
     deleteImagesBulk(found.map((x) => x.id))
 
     let cursor = 0
     const worker = async (): Promise<void> => {
       while (cursor < found.length) {
         const { id, image } = found[cursor++]
-        await trashImageFiles(image, id, 'images:deleteBulk')
+        await removeImageFiles(image, id, 'images:deleteBulk')
         results.push({ ok: true, id })
       }
     }
-    await Promise.all(Array.from({ length: Math.min(DELETE_TRASH_CONCURRENCY, found.length) }, worker))
+    await Promise.all(Array.from({ length: Math.min(DELETE_CONCURRENCY, found.length) }, worker))
     return results
   })
 }

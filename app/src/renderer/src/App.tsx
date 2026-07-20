@@ -440,7 +440,7 @@ export default function App() {
     }
     if (single) items.push(...getExtraContextMenuItems(single))
     items.push({ label: 'エクスポート', onClick: () => selection.exportSelected() })
-    items.push({ label: 'ゴミ箱へ移動', onClick: () => selection.deleteSelected(), danger: true })
+    items.push({ label: '削除', onClick: () => selection.deleteSelected(), danger: true })
     return items
   }, [ctxMenu, single, activeImages, selection, toast])
 

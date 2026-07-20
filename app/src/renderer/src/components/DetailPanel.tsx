@@ -398,7 +398,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
           <div style={s.actions}>
             {getMediaActions(single)}
             <button style={s.showInFolderBtn} onClick={onExport}>エクスポート</button>
-            <button style={s.deleteActionBtn} onClick={onDelete}>ゴミ箱へ移動</button>
+            <button style={s.deleteActionBtn} onClick={onDelete}>削除</button>
           </div>
         </>
       ) : selectedIds.size === 0 ? (
@@ -463,7 +463,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
         </div>
         <div style={s.actions}>
           <button style={s.showInFolderBtn} onClick={onExport}>エクスポート</button>
-          <button style={s.deleteActionBtn} onClick={onDelete}>ゴミ箱へ移動</button>
+          <button style={s.deleteActionBtn} onClick={onDelete}>削除</button>
         </div>
         </>
       )}

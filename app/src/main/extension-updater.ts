@@ -1,6 +1,7 @@
 import { app, Notification } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync } from 'fs'
+import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs'
+import { compareVersions } from './version'
 
 export function bundledExtPath(): string {
   return app.isPackaged
@@ -21,22 +22,6 @@ export function readVersion(dir: string): string | null {
   }
 }
 
-export function compareVersions(a: string, b: string): number {
-  // "0.4.0-beta" のような非数値セグメントは Number() で NaN になり、NaN の引き算が
-  // 常に false 側（更新なし判定）に倒れる。NaN は 0 扱いにフォールバックする。
-  const toParts = (v: string): number[] => v.split('.').map((seg) => {
-    const n = Number(seg)
-    return Number.isFinite(n) ? n : 0
-  })
-  const pa = toParts(a)
-  const pb = toParts(b)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
-    if (diff !== 0) return diff
-  }
-  return 0
-}
-
 // サブフォルダ（将来のアイコンディレクトリ等）も取りこぼさないよう再帰コピーする。
 // フラット前提の copyFileSync だとディレクトリに当たって throw し、起動を巻き込む。
 function copyDir(src: string, dest: string, deferManifest = false): void {
@@ -50,10 +35,30 @@ function copyDir(src: string, dest: string, deferManifest = false): void {
   }
 }
 
+// copyDir は上書きと追加しかしないため、旧バージョンにあって新バージョンで消えたファイル
+// （リネーム前のスクリプトや使わなくなったアイコン等）がインストール先に残り続ける。
+// manifest に載っていなければ Chrome は読まないので実害はないが、更新のたびに溜まる一方
+// なのでバンドル側に存在しないものを消す。インストール先はバンドルの純粋なコピーで、
+// ユーザー生成物も Chrome の書き込みも無いため、消して失うものはない。
+// manifest.json は copyExtensionUpdate が最後に置く（コミットマーカー）ので除外する。
+function pruneExtras(src: string, dest: string): void {
+  for (const entry of readdirSync(dest, { withFileTypes: true })) {
+    if (entry.name === 'manifest.json') continue
+    const d = join(dest, entry.name)
+    if (!existsSync(join(src, entry.name))) {
+      rmSync(d, { recursive: true, force: true })
+      continue
+    }
+    if (entry.isDirectory()) pruneExtras(join(src, entry.name), d)
+  }
+}
+
 // manifest は更新完了のコミットマーカーとして最後に置く。途中でコピーに失敗しても
 // installedVersion は旧版のままなので、次回起動時に更新を再試行できる。
+// prune も manifest 配置より前に済ませ、中断時は次回起動でまるごとやり直させる。
 export function copyExtensionUpdate(src: string, dest: string): void {
   copyDir(src, dest, true)
+  pruneExtras(src, dest)
   copyFileSync(join(src, 'manifest.json'), join(dest, 'manifest.json'))
 }
 

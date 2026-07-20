@@ -32,7 +32,7 @@ export interface ShioriApi {
   updateImageTitle: (id: number, title: string) => Promise<void>
   updateImageMemo: (id: number, memo: string) => Promise<void>
   deleteImage: (id: number) => Promise<DeleteImageResult>
-  // DB 削除は main 側で 1 トランザクションにまとめる（B-7）。ゴミ箱移動はサーバ側で
+  // DB 削除は main 側で 1 トランザクションにまとめる（B-7）。ファイル削除はサーバ側で
   // 逐次ベストエフォート実行し、id ごとの成否を deleteImage と同じ形で返す。
   deleteImagesBulk: (ids: number[]) => Promise<DeleteImageResult[]>
   // 画像を他アプリへドラッグ&ドロップで渡す（main が OS のドラッグを開始する）。
