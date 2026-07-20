@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode } from '../types'
-import { font, color } from '../styles'
+import { font, color, modal } from '../styles'
 import { buildAccelerator } from '../utils'
 import { SUPPORTED_SERVICES, alpha, serviceColor } from '../services'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
@@ -31,6 +31,8 @@ type Props = {
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
 }
+
+const CLOSE_MS = 110
 
 // M-4: 表示ラベルと状態識別子を分離する（ラベル文言の変更が型・状態キーの変更を兼ねないように）。
 type TabId = 'general' | 'capture' | 'tag' | 'data'
@@ -152,17 +154,21 @@ export default function SettingsModal(p: Props) {
     if (raw && value >= 1 && value <= 60) p.onUpdateFrameFps(value)
   }
 
+  const [closing, setClosing] = useState(false)
+
   function closeSettings(): void {
+    if (closing) return
     flushPendingFps()
-    p.onClose()
+    setClosing(true)
+    window.setTimeout(p.onClose, CLOSE_MS)
   }
 
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef, true)
 
   return (
-    <div style={s.overlay} onMouseDown={closeSettings}>
-      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={closeSettings}>
+      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div style={s.header}>
           <span id="settings-modal-title" style={s.title}>設定</span>
           <button style={s.close} onClick={closeSettings} title="閉じる"><XIcon size={17} /></button>
@@ -525,8 +531,8 @@ export default function SettingsModal(p: Props) {
 
 // 各種設定スロットが見た目を揃えるために再利用する共通スタイル。
 export const s: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(var(--scrim-rgb), 0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
-  panel: { background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: 4, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
+  overlay: { ...modal.overlay, background: 'rgba(var(--scrim-rgb), 0.88)', zIndex: 2000, padding: 0 },
+  panel: { ...modal.panel, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
   sidebar: { width: 124, padding: '8px 10px', gap: 2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
   tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: 3, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },

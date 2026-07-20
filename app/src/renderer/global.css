@@ -150,10 +150,29 @@ button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
   border-radius: 999px;
 }
 
+/* Sidebar のボタン/タグチップ用ホバーフィードバック。inline style で背景色を
+   指定している要素が多く、CSS の background を :hover で上書きしようとしても
+   inline の詳細度に負けて効かない。inset box-shadow でオーバーレイを重ねる方式
+   にすることで、背景色や選択状態（active）を問わず一律に効かせる。 */
+.shiori-hover-tint {
+  transition: box-shadow 0.12s ease;
+}
+.shiori-hover-tint:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 999px rgba(var(--text-rgb), 0.08);
+}
+
 /* アプリ全体のアニメーション定義はここに一元化する（各コンポーネントで個別注入しない）。
    マイクロインタラクション専用: transform / opacity のみで、レイアウトを動かさない。 */
-@keyframes shioriViewerIn  { from { opacity: 0; transform: scale(0.97) } to { opacity: 1; transform: scale(1) } }
-@keyframes shioriViewerOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.97) } }
+/* Viewer と中央モーダル（ConfirmDialog/WhatsNewModal/SettingsModal）共通のポップイン/アウト */
+@keyframes shioriPopIn  { from { opacity: 0; transform: scale(0.97) } to { opacity: 1; transform: scale(1) } }
+@keyframes shioriPopOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.97) } }
+/* 中央モーダルのスクリム（背景の暗幕）の出現/消滅 */
+@keyframes shioriOverlayIn  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes shioriOverlayOut { from { opacity: 1 } to { opacity: 0 } }
+/* ContextMenu/ShortcutsFlyout などアンカー付きポップオーバーの出現/消滅。
+   ContextMenu は再オープン動線があるため出現のみ使う（本体側のコメント参照）。 */
+@keyframes shioriPopoverIn  { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes shioriPopoverOut { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-4px) } }
 @keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 2px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 3px rgba(84,214,168,0.55) } }
 /* NEW バッジが消える際のフェードアウト */
 @keyframes shioriNewBadgeOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.78) } }

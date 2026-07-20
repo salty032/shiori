@@ -25,6 +25,13 @@ export const color = {
   dangerBg: 'rgba(var(--danger-rgb), 0.08)',
 } as const
 
+// ConfirmDialog/WhatsNewModal/SettingsModal で重複していた overlay/panel の基本形を集約。
+// スクリム濃度・zIndex・panel のサイズは各モーダルでスプレッド上書きする前提（C-1）。
+export const modal: Record<string, CSSProperties> = {
+  overlay: { position: 'fixed' as const, inset: 0, zIndex: 7000, background: 'rgba(var(--scrim-rgb), 0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: 4, boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
+}
+
 const LABEL_HEIGHT = 22
 
 export const s: Record<string, CSSProperties> = {
@@ -121,7 +128,7 @@ export const s: Record<string, CSSProperties> = {
   smartFolderRow: { width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, cursor: 'grab' },
   smartFolderRowDragging: { position: 'relative' as const, zIndex: 5, opacity: 0.85, background: 'var(--bg-surface-hover)', border: '1px solid var(--border-strong)', borderRadius: 3, boxShadow: '0 10px 24px rgba(var(--scrim-rgb), 0.5)', cursor: 'grabbing' },
   smartFolderInsertLine: { height: 2, margin: '2px 0', borderRadius: 2, background: 'var(--accent)', boxShadow: '0 0 0 1px rgba(var(--accent-rgb), 0.18)', transition: 'opacity .08s ease' },
-  smartFolderBtn: { flex: 1, minWidth: 0, minHeight: 32, display: 'flex', alignItems: 'center', gap: 7, padding: '6px 9px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const },
+  smartFolderBtn: { flex: 1, minWidth: 0, minHeight: 32, display: 'flex', alignItems: 'center', gap: 7, padding: '6px 9px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   smartFolderDeleteBtn: { width: 32, height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, lineHeight: 1 },
   smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.46)', color: 'var(--accent-text)' },
   siteGroup: { display: 'flex', flexDirection: 'column' as const, gap: 3, marginTop: 18 },
@@ -140,7 +147,7 @@ export const s: Record<string, CSSProperties> = {
   searchPrefixDivider: { height: 1, margin: '4px 0', background: 'rgba(var(--hairline-rgb), 0.22)' },
   searchHistoryRemove: { flexShrink: 0, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: 4, color: 'var(--text-muted)', borderRadius: 3 },
   sidebarTagList: { display: 'flex', flexWrap: 'wrap' as const, gap: 6 },
-  sidebarTagChip: { maxWidth: '100%', minHeight: 30, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.6)', border: '1px solid var(--border-default)', borderRadius: 999, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const },
+  sidebarTagChip: { maxWidth: '100%', minHeight: 30, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.6)', border: '1px solid var(--border-default)', borderRadius: 999, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   sidebarTagChipText: { display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   // 由来ごとに色相を固定（手動=緑・AI=藍）。非選択=点線＋薄い色、選択=実線＋濃い色。
   // 色の濃淡に加えて「点線/実線」という非色の手掛かりでも選択状態を分け、選択で別色相に化けないよう
@@ -158,7 +165,7 @@ export const s: Record<string, CSSProperties> = {
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid rgba(var(--border-rgb), 0.85)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: 7 },
   sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'var(--bg-inset-strong)', border: '1px solid rgba(var(--hairline-rgb), 0.3)', borderRadius: 5, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: 6 },
-  gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start' },
+  gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
   sidebarXBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   // 通知と進捗タスクを同じ下中央スタックにまとめる。完了通知と進行中タスクが

@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { SHORTCUT_GROUPS } from '../shortcuts'
 import { font } from '../styles'
 
+const CLOSE_MS = 100
+
 type Props = {
   anchorEl: HTMLElement | null
   onClose: () => void
@@ -13,6 +15,7 @@ type Props = {
 export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null)
+  const [closing, setClosing] = useState(false)
 
   useLayoutEffect(() => {
     if (!anchorEl) return
@@ -20,17 +23,23 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
     setPos({ left: rect.right + 10, bottom: Math.max(12, window.innerHeight - rect.bottom) })
   }, [anchorEl])
 
+  function close(): void {
+    if (closing) return
+    setClosing(true)
+    window.setTimeout(onClose, CLOSE_MS)
+  }
+
   useEffect(() => {
     const onPointerDown = (e: MouseEvent): void => {
       const target = e.target as Node
       if (panelRef.current?.contains(target)) return
       if (anchorEl?.contains(target)) return
-      onClose()
+      close()
     }
     // 表示中は背後のグリッドへキーを流さない（Escape で裏の選択まで解除されるのを防ぐ）。
     const onKey = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') close()
     }
     window.addEventListener('mousedown', onPointerDown, true)
     window.addEventListener('keydown', onKey, true)
@@ -38,10 +47,11 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
       window.removeEventListener('mousedown', onPointerDown, true)
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [onClose, anchorEl])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, anchorEl, closing])
 
   return (
-    <div ref={panelRef} style={{ ...s.flyout, left: pos?.left ?? 0, bottom: pos?.bottom ?? 0, visibility: pos ? 'visible' : 'hidden' }}>
+    <div ref={panelRef} style={{ ...s.flyout, left: pos?.left ?? 0, bottom: pos?.bottom ?? 0, visibility: pos ? 'visible' : 'hidden', animation: closing ? 'shioriPopoverOut 0.1s ease-out forwards' : 'shioriPopoverIn 0.1s ease-out' }}>
       <div style={s.heading}>ショートカット</div>
       {SHORTCUT_GROUPS.map((group) => (
         <div key={group.title} style={s.group}>
@@ -62,7 +72,7 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  flyout: { position: 'fixed' as const, width: 260, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const },
+  flyout: { position: 'fixed' as const, width: 260, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
   heading: { fontSize: font.sm, fontWeight: 800, color: 'var(--accent-text)' },
   group: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
   groupTitle: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },

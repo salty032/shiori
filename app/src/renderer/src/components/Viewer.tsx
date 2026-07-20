@@ -278,7 +278,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, onT
   const title = img.title ? cleanTitle(img.title, titleStrip) : ''
 
   return (
-    <div ref={viewerRef} style={{ ...s.viewer, animation: closing ? 'shioriViewerOut 0.11s ease-out forwards' : 'shioriViewerIn 0.15s ease-out' }} onClick={close}>
+    <div ref={viewerRef} style={{ ...s.viewer, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} onClick={close}>
       <div style={s.viewerTopBar} onClick={(e) => e.stopPropagation()}>
         <div style={s.viewerTitle} title={title}>{title}</div>
         <div style={s.viewerActions}>

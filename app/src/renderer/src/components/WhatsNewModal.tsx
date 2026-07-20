@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { font } from '../styles'
+import { useEffect, useRef, useState } from 'react'
+import { font, modal } from '../styles'
 import { XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+
+const CLOSE_MS = 110
 
 type Props = {
   version: string
@@ -10,6 +12,7 @@ type Props = {
 }
 
 export default function WhatsNewModal({ version, notes, onClose }: Props) {
+  const [closing, setClosing] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   useFocusTrap(panelRef, true)
@@ -18,6 +21,12 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
     closeBtnRef.current?.focus()
   }, [])
 
+  function close(): void {
+    if (closing) return
+    setClosing(true)
+    window.setTimeout(onClose, CLOSE_MS)
+  }
+
   useEffect(() => {
     // 背後のグリッド（useSelection の window keydown ハンドラ）に Ctrl+A/Escape/Ctrl+Z 等が
     // 素通りしないよう、ConfirmDialog と同様に document capture で全キーを止める。
@@ -25,19 +34,20 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
       e.stopPropagation()
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        close()
       }
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closing])
 
   return (
-    <div style={s.overlay} onMouseDown={onClose}>
-      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="whats-new-title">
+    <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={close}>
+      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="whats-new-title">
         <div style={s.header}>
           <div id="whats-new-title" style={s.title}>{`Shiori v${version} の変更点`}</div>
-          <button ref={closeBtnRef} style={s.closeBtn} onClick={onClose} title="閉じる"><XIcon size={16} /></button>
+          <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title="閉じる"><XIcon size={16} /></button>
         </div>
         <ul style={s.list}>
           {notes.map((note, i) => (
@@ -45,7 +55,7 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
           ))}
         </ul>
         <div style={s.actions}>
-          <button style={s.closeAction} onClick={onClose}>閉じる</button>
+          <button style={s.closeAction} onClick={close}>閉じる</button>
         </div>
       </div>
     </div>
@@ -53,8 +63,8 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, zIndex: 7000, background: 'rgba(var(--scrim-rgb), 0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: 4, boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
+  overlay: modal.overlay,
+  panel: modal.panel,
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 18px 12px', borderBottom: '1px solid var(--border-default)' },
   title: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.xl, fontWeight: 800, lineHeight: 1.35 },
   closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },

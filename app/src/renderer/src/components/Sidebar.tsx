@@ -242,6 +242,7 @@ export default function Sidebar({
             <span>スマートフォルダ</span>
             {!filters.creatingFolder && (
               <button
+                className="shiori-hover-tint"
                 onClick={() => { if (canCreateSmartFolder) filters.setCreatingFolder(true) }}
                 disabled={!canCreateSmartFolder}
                 style={{ ...s.smartFolderHeaderAddBtn, ...(canCreateSmartFolder ? {} : s.smartFolderHeaderAddBtnDisabled) }}
@@ -264,6 +265,7 @@ export default function Sidebar({
                 }}
               />
               <button
+                className="shiori-hover-tint"
                 onClick={() => filters.newFolderName.trim() && filters.saveSmartFolder(filters.newFolderName)}
                 disabled={!filters.newFolderName.trim()}
                 style={{ ...s.smartFolderAddIconBtn, opacity: filters.newFolderName.trim() ? 1 : 0.45 }}
@@ -285,6 +287,7 @@ export default function Sidebar({
                     : {}),
                 }}>
                 <button
+                  className="shiori-hover-tint"
                   onClick={() => {
                     if (smartFolderDraggedRef.current) { smartFolderDraggedRef.current = false; return }
                     filters.activeSmartFolderId === folder.id ? filters.clearAllFilters() : filters.loadSmartFolder(folder)
@@ -298,6 +301,7 @@ export default function Sidebar({
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{folder.name}</span>
                 </button>
                 <button
+                  className="shiori-hover-tint"
                   onClick={() => onDeleteSmartFolder(folder)}
                   style={s.smartFolderDeleteBtn}
                   title={`${folder.name}を削除`}>
@@ -324,13 +328,13 @@ export default function Sidebar({
                     合算で判定する（U-1）。buildImageQuery はマージ後の全タグに tagMode を
                     適用するので、クエリロジック側の変更は不要。 */}
                 {[...new Set([...filters.tagFilters, ...searchTags])].length >= 2 && (
-                  <button onClick={() => filters.setTagMode((m) => m === 'and' ? 'or' : 'and')}
+                  <button className="shiori-hover-tint" onClick={() => filters.setTagMode((m) => m === 'and' ? 'or' : 'and')}
                     style={{ ...s.tagModeBtn, color: filters.tagMode === 'and' ? 'var(--success)' : 'var(--warning)' }}>
                     {filters.tagMode === 'and' ? 'AND' : 'OR'}
                   </button>
                 )}
                 {(filters.tagFilters.length > 0 || searchTags.length > 0) && (
-                  <button onClick={() => {
+                  <button className="shiori-hover-tint" onClick={() => {
                     filters.setTagFilters([])
                     // searchTags 由来のタグは検索欄の tag:xxx トークンなので、まとめて1回で
                     // 剥がす（onRemoveSearchTag を複数回呼ぶと毎回同じ古い filters.search を
@@ -352,7 +356,7 @@ export default function Sidebar({
                   ? (aiOnly ? s.sidebarTagChipAiActive : s.sidebarTagChipActive)
                   : (aiOnly ? s.sidebarTagChipAi : s.sidebarTagChipManual)
                 return (
-                  <button key={tag}
+                  <button key={tag} className="shiori-hover-tint"
                     onClick={() => {
                       // 解除は由来(スマートフォルダ由来のtagFilters／検索テキスト由来)を問わず両方から外す。
                       // 追加は検索欄のテキストに tag:xxx として書き込む — 検索欄と表示を一致させ、
@@ -382,7 +386,7 @@ export default function Sidebar({
               })}
             </div>
             {hiddenTagCount > 0 && (
-              <button style={s.sidebarMoreBtn} onClick={() => setShowAllTags((v) => !v)}>
+              <button className="shiori-hover-tint" style={s.sidebarMoreBtn} onClick={() => setShowAllTags((v) => !v)}>
                 {/* UX-5: 「付けたタグが出てこない」を防ぐため、隠れている理由（枚数しきい値未満）を明示する */}
                 {showAllTags ? '折りたたむ' : `+${hiddenTagCount}（${SIDEBAR_TAG_MIN_COUNT}枚未満）表示`}
               </button>
@@ -426,12 +430,12 @@ export default function Sidebar({
           </div>
         </div>
         <div style={s.sidebarBottom}>
-          <button style={{ ...s.gearBtn, color: settingsActive ? 'var(--accent-text)' : 'var(--text-secondary)' }}
+          <button className="shiori-hover-tint" style={{ ...s.gearBtn, color: settingsActive ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={onToggleSettings}>
             <SettingsIcon size={16} />
             <span style={{ fontSize: font.base, fontWeight: 800 }}>設定</span>
           </button>
-          <button ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
+          <button className="shiori-hover-tint" ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={() => setShowShortcuts((v) => !v)} title="ショートカット一覧">
             <HelpCircleIcon size={16} />
           </button>

@@ -82,6 +82,11 @@ export default function ContextMenu({ x, y, items, onClose, initialHighlight = -
 
   return (
     <div ref={menuRef} style={{ ...s.menu, left: pos?.left ?? x, top: pos?.top ?? y, visibility: pos ? 'visible' : 'hidden' }} data-keep-selection>
+      {/* useLayoutEffect が pos を確定するまで visibility:hidden で非表示のため、
+          animation はブラウザの最初の paint より前（未計測状態）から仕込まれても
+          実際に見える時点では既に pos 確定後 = アニメ開始位置がズレることはない。
+          閉じアニメは入れない: 別サムネイルの右クリックで旧メニューを閉じ、続く
+          contextmenu が新しい位置で開き直す動線（1アクション移動）を壊すため。 */}
       {items.map((it, i) => (
         <div key={it.label}>
           {i > 0 && it.danger && !items[i - 1].danger && <div style={s.separator} />}
@@ -100,7 +105,7 @@ export default function ContextMenu({ x, y, items, onClose, initialHighlight = -
 }
 
 const s: Record<string, React.CSSProperties> = {
-  menu: { position: 'fixed' as const, width: 'max-content' as const, minWidth: 84, maxWidth: 280, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, padding: '4px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', zIndex: 4000 },
+  menu: { position: 'fixed' as const, width: 'max-content' as const, minWidth: 84, maxWidth: 280, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, padding: '4px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', zIndex: 4000, transformOrigin: 'top', animation: 'shioriPopoverIn 0.1s ease-out' },
   item: { display: 'block', width: '100%', boxSizing: 'border-box' as const, padding: '6px 10px', background: 'none', border: 'none', borderRadius: 2, color: 'var(--text-primary)', fontSize: font.base, fontWeight: 700, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
   danger: { color: color.danger },
   itemHighlighted: { background: 'rgba(var(--text-rgb), 0.08)' },
