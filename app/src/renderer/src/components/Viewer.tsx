@@ -303,7 +303,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       </div>
       <div style={s.viewerMediaStack}>
         {img.media_type === 'video' ? (
-          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={frameFps} showRateLoop preloadFrameTable onVideoClick={handleVideoClick} />
+          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable onVideoClick={handleVideoClick} />
         ) : (
           <img
             ref={imgRef}

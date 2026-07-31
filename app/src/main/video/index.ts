@@ -14,9 +14,13 @@ import { registerVideoHandlers } from './ipc-video'
 import { registerRecorderIpc } from './recorder-ipc'
 import { registerClipHotkey, changeClipHotkey } from './clip-hotkey'
 import { finishRecordingState, handleClipHotkey, isCurrentlyRecording } from './recording'
-import { extractThumb, getVideoDuration } from './ffmpeg'
+import { extractThumb, getVideoMeta, getVideoFramePts } from './ffmpeg'
 
-setVideoThumbProvider({ extractThumb, getVideoDuration })
+setVideoThumbProvider({
+  extractThumb,
+  getVideoMeta,
+  countFrames: async (videoPath) => (await getVideoFramePts(videoPath)).length
+})
 
 export const videoFeature: MainFeature = {
   registerIpc() {

@@ -30,7 +30,13 @@ interface RawShareEntry {
   captured_at?: unknown
   media_type?: unknown
   duration?: unknown
+  fps?: unknown
 }
+
+// fps は表示用の付随情報であり、duration のような著作権対策の判定には使わない。
+// 手編集された値を弾く必要は薄いが、明らかにおかしい値（負・非有限・現実的でない高値）を
+// そのまま表示に出さないよう緩く検証する。
+const MAX_REASONABLE_FPS = 120
 
 export interface ParsedShareEntry {
   file: string
@@ -45,6 +51,7 @@ export interface ParsedShareEntry {
   memo: string | null
   mediaType: 'image' | 'video'
   duration: number | null
+  fps: number | null
 }
 
 // 戻り値: 成功時は ParsedShareEntry、検証エラー時は { error }、file フィールドが
@@ -106,6 +113,9 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     mediaType: isVideo ? 'video' : 'image',
     duration: isVideo && typeof entry.duration === 'number' && Number.isFinite(entry.duration) && entry.duration > 0
       ? entry.duration
+      : null,
+    fps: isVideo && typeof entry.fps === 'number' && Number.isFinite(entry.fps) && entry.fps > 0 && entry.fps <= MAX_REASONABLE_FPS
+      ? entry.fps
       : null,
   }
 }

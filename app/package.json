@@ -18,6 +18,10 @@
     "ext:sign": "npx --yes web-ext@10 sign --source-dir=../extension --artifacts-dir=../web-ext-artifacts --channel=unlisted",
     "package": "npm run icons && npm run verify && electron-vite build && electron-builder --win --x64",
     "release": "npm run icons && npm run verify && electron-vite build && electron-builder --win --x64 --publish always",
+    "demo-manifest": "node scripts/build-demo-manifest.mjs",
+    "web:dev": "npm run demo-manifest && vite --config vite.web.config.ts",
+    "web:build": "npm run demo-manifest && vite build --config vite.web.config.ts",
+    "web:preview": "vite preview --config vite.web.config.ts",
     "fetch-ffmpeg": "node scripts/fetch-ffmpeg.mjs",
     "postinstall": "node scripts/fetch-ffmpeg.mjs && electron-rebuild -f -w better-sqlite3 -w onnxruntime-node"
   },

@@ -1,0 +1,59 @@
+name: Deploy web demo
+
+# GitHub Pages へ Web デモ版（app/web + src/renderer）を公開する。
+# デスクトップ本体のビルドとは無関係で、main への push で毎回作り直す。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages への公開に必要な最小権限。
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開は 1 本ずつ。走行中のデプロイは待たせる（途中で打ち切ると Pages が中途半端に残る）。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # --ignore-scripts で postinstall（ffmpeg の取得と better-sqlite3 /
+      # onnxruntime-node の rebuild）を飛ばす。Web デモは renderer だけをビルドするので
+      # ネイティブモジュールも Electron 本体も要らない。
+      - run: npm ci --ignore-scripts
+
+      - run: npm run web:build
+        env:
+          # プロジェクトページ（https://<user>.github.io/<repo>/）の base パス。
+          DEMO_BASE: /${{ github.event.repository.name }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist-web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

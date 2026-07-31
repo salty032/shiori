@@ -73,21 +73,40 @@ export async function getVideoFramePts(inputPath: string): Promise<number[]> {
   return pts
 }
 
-export async function getVideoDuration(inputPath: string): Promise<number | null> {
-  // Duration 行は入力オープン直後に stderr へ出力されるため、出力先を指定せず即座に
-  // 非ゼロ終了させる（`-f null -` で最後までデコードするのは無駄）。runFfmpegCollect は
-  // 終了コードを問わず stderr を返す設計なのでそのまま機能する。
+// 尺・fps をまとめて取る軽い解析。Duration 行・fps 表記のどちらも入力オープン直後の
+// stderr に出るため、出力先を指定せず即座に非ゼロ終了させる（`-f null -` で最後まで
+// デコードするのは無駄）。runFfmpegCollect は終了コードを問わず stderr を返す設計。
+export async function getVideoMeta(inputPath: string): Promise<{ duration: number | null; fps: number | null }> {
   const { stderr } = await runFfmpegCollect([
     '-hide_banner',
     '-i', inputPath
   ])
-  const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr)
-  if (!m) return null
-  const hours = Number(m[1])
-  const minutes = Number(m[2])
-  const seconds = Number(m[3])
-  const duration = hours * 3600 + minutes * 60 + seconds
-  return Number.isFinite(duration) && duration > 0 ? duration : null
+
+  const durationMatch = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr)
+  let duration: number | null = null
+  if (durationMatch) {
+    const hours = Number(durationMatch[1])
+    const minutes = Number(durationMatch[2])
+    const seconds = Number(durationMatch[3])
+    const total = hours * 3600 + minutes * 60 + seconds
+    duration = Number.isFinite(total) && total > 0 ? total : null
+  }
+
+  // "Stream #0:0(...): Video: ..., 23.98 fps, ..." の fps を拾う。tbr（タイムベース由来の
+  // 推定値）にはフォールバックしない。実フレームレートとずれることがあり、誤った数字を
+  // 出すより空欄の方がよい。
+  const streamLine = /Stream #\d+:\d+.*?: Video:.*$/m.exec(stderr)?.[0]
+  const fpsMatch = streamLine ? /([\d.]+)\s*fps/.exec(streamLine) : null
+  const fps = fpsMatch ? Number(fpsMatch[1]) : null
+
+  return {
+    duration,
+    fps: fps != null && Number.isFinite(fps) && fps > 0 ? fps : null
+  }
+}
+
+export async function getVideoDuration(inputPath: string): Promise<number | null> {
+  return (await getVideoMeta(inputPath)).duration
 }
 
 export async function trimWebm(

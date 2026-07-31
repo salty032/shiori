@@ -284,6 +284,7 @@ export const ja = {
   'detail.editTitle': 'タイトルを編集',
   'detail.timecode': '動画時刻',
   'detail.duration': '長さ',
+  'detail.fps': 'FPS',
   'detail.memo': 'メモ',
   'detail.memoUnsaved': '未保存',
   'detail.memoSaving': '保存中...',
@@ -401,4 +402,9 @@ export const ja = {
   'settings.creditTagger': '自動タグ付け: ',
   'settings.creditVideo': '動画処理: ',
   'settings.creditsHint': '各ライセンスの詳細は配布物に同梱の NOTICE.md を参照してください。',
+
+  // ── Web デモ版（GitHub Pages）専用 ────────────────────────────
+  // デスクトップ本体には存在しない画面なので、他の領域からは参照されない。
+  'demo.welcome': 'Web デモ版です。表示・検索・タグ編集は実際に動きますが、キャプチャや録画などデスクトップ機能は使えません。編集内容はリロードで消えます。',
+  'demo.unavailable': 'デモ版では利用できません（デスクトップアプリの機能です）',
 } as const

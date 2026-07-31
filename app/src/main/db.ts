@@ -91,6 +91,17 @@ export function initDb(): void {
       FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
       FOREIGN KEY (tag_id)   REFERENCES tags(id)   ON DELETE CASCADE
     );
+    -- 録画クリップのフレーム表。素材の1コマごとに「素材上の時刻」と「ファイル内の
+    -- 何枚目に写っているか」を持つ。コマ送りを素材の実コマへ揃えるための土台。
+    --
+    -- images に持たせず別テーブルにするのは、1クリップで数百〜千数百要素の JSON になり、
+    -- グリッド一覧のような images を舐めるクエリを不必要に重くするため。
+    -- image_id を主キーにすることで 1 クリップ 1 行を保証する。
+    CREATE TABLE IF NOT EXISTS video_frames (
+      image_id INTEGER PRIMARY KEY,
+      data     TEXT NOT NULL,
+      FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+    );
     CREATE INDEX IF NOT EXISTS idx_images_captured_at ON images(captured_at);
     CREATE INDEX IF NOT EXISTS idx_image_tags_image   ON image_tags(image_id);
     CREATE INDEX IF NOT EXISTS idx_image_tags_tag     ON image_tags(tag_id);
@@ -102,6 +113,7 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN thumb_path TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN media_type TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN duration REAL')
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN fps REAL')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN host TEXT')
   addColumnIfMissing("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'capture'")
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_host ON images(host)')
@@ -193,6 +205,7 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"memo"',
   '"media_type"',
   '"duration"',
+  '"fps"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -202,8 +215,8 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   try { if (params.url) host = new URL(params.url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
   const source = params.source ?? 'capture'
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, thumb_path, host, source)
-     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @thumb_path, @host, @source)`
+    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source)
+     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source)`
   )
   const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source })
   return Number(result.lastInsertRowid)
@@ -515,6 +528,20 @@ export function listImagesForThumbCheck(): { id: number; filepath: string; thumb
 
 export function setThumbPath(id: number, thumbPath: string): void {
   prepare('UPDATE images SET thumb_path = ? WHERE id = ?').run(thumbPath, id)
+}
+
+// fps 未計測の動画（この機能を追加する前に録画・取り込み済みだった行、または録画時の
+// フレーム数検証に失敗した行）を起動時バックフィルの対象にする（backfillFps、ipc-images.ts）。
+export function listImagesMissingFps(): { id: number; filepath: string; duration: number | null }[] {
+  return prepare(
+    `SELECT id, filepath, duration FROM images
+     WHERE media_type = 'video' AND fps IS NULL
+     ORDER BY captured_at DESC`
+  ).all() as { id: number; filepath: string; duration: number | null }[]
+}
+
+export function setFps(id: number, fps: number): void {
+  prepare('UPDATE images SET fps = ? WHERE id = ?').run(fps, id)
 }
 
 // 孤立ファイル掃除用（sweep-orphans.ts）。DB が参照している実ファイルの一覧。

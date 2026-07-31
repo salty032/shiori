@@ -174,7 +174,7 @@ describe('buildImageQuery', () => {
 function makeRow(overrides: Partial<ImageRow>): ImageRow {
   return {
     id: 1, filepath: '/a.png', captured_at: 1000, title: null, current_time: null,
-    url: null, colors: null, memo: null, media_type: null, duration: null,
+    url: null, colors: null, memo: null, media_type: null, duration: null, fps: null,
     thumb_path: null, source: 'capture',
     ...overrides,
   }

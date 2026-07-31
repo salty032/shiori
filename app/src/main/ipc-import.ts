@@ -93,6 +93,7 @@ export function registerImportHandlers(): void {
         memo: null,
         media_type: 'image',
         duration: null,
+        fps: null,
         thumb_path: thumbOk ? thumbFile : null,
         source: 'import',
       },
@@ -156,9 +157,13 @@ export function registerImportHandlers(): void {
         // 超過・判定不能なら無駄なコピーもせず弾く。判定不能を許すと長尺のすり抜け余地が
         // 残るため、尺を取れなかった動画も弾く（正常な短尺がまれに巻き添えになる割り切り）。
         let importedDuration: number | null = null
+        let importedFps: number | null = null
         if (isVideo) {
-          try { importedDuration = await getVideoThumbProvider().getVideoDuration(rawPath) }
-          catch { importedDuration = null }
+          try {
+            const meta = await getVideoThumbProvider().getVideoMeta(rawPath)
+            importedDuration = meta.duration
+            importedFps = meta.fps
+          } catch { importedDuration = null }
           if (importedDuration == null) { errors.push(`duration unknown: ${basename(rawPath)}`); continue }
           if (importedDuration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
             errors.push(`too long (${Math.round(importedDuration)}s > ${MAX_IMPORT_VIDEO_SECONDS}s): ${basename(rawPath)}`)
@@ -181,6 +186,7 @@ export function registerImportHandlers(): void {
         let height: number | null = null
         let thumbFile: string | null = null
         let duration: number | null = null
+        let fps: number | null = null
         if (isImage) {
           try {
             const size = nativeImage.createFromPath(destFile).getSize()
@@ -195,8 +201,9 @@ export function registerImportHandlers(): void {
           try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbFile = tf } catch (err) {
             console.warn('[import] extractThumb failed', err)
           }
-          // 尺はコピー前に元ファイルで判定済み（上の尺上限チェック）。再プローブしない。
+          // 尺・fps はコピー前に元ファイルで判定済み（上の尺上限チェック）。再プローブしない。
           duration = importedDuration
+          fps = importedFps
         }
 
         const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image'
@@ -216,6 +223,7 @@ export function registerImportHandlers(): void {
             memo: null,
             media_type: mediaType,
             duration,
+            fps,
             thumb_path: thumbFile,
             source: 'import',
           },

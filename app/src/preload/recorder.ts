@@ -11,10 +11,18 @@ contextBridge.exposeInMainWorld('recorderApi', {
   },
   getCrop: (streamW: number, streamH: number) =>
     ipcRenderer.invoke('recorder:getCrop', streamW, streamH),
-  sendDone: (webm: ArrayBuffer, duration: number, sessionId: number) => {
-    ipcRenderer.send('recorder:done', webm, duration, sessionId)
+  // drawnAt: 供給した各フレームが画面から取り込まれた時刻（epoch ミリ秒）。
+  // 配信ページ側から届く素材のコマ時刻と突き合わせ、素材のコマとファイル内の
+  // フレームを対応付けるために使う。
+  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[]) => {
+    ipcRenderer.send('recorder:done', webm, duration, frameCount, sessionId, drawnAt)
   },
   reportError: (msg: string, sessionId: number) => {
     ipcRenderer.send('recorder:error', msg, sessionId)
+  },
+  // キャプチャフレームの時刻情報を main へ返す。レコーダーは非表示ウィンドウで
+  // console の出口が無いため、計測結果はこの経路でしか取り出せない。
+  reportProbe: (info: string) => {
+    ipcRenderer.send('recorder:probe', info)
   }
 })

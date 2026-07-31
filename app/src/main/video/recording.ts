@@ -6,6 +6,7 @@ import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRec
 import { loadSettings } from '../settings'
 import { isMainWindowFocused } from '../windows'
 import { getRecorderWindow, createRecorderWindow, setPendingDisplaySource } from './recorder-window'
+import { startFrameFeed, stopFrameFeed, logFeedStats } from './frame-feed'
 import { setTrayRecording } from '../tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../timecode'
 import { sendBrowserNotice } from '../browser-notice'
@@ -161,11 +162,14 @@ export async function startRecording(): Promise<void> {
     const maxSeconds = settings.clipMaxSeconds ?? 30
 
     isRecording = true
+    // pre-capture より先に始める。content.js は pre-capture を受けた時点でコマ通知を
+    // 出し始めるため、こちらの受け口が後だと最初の数コマを取りこぼす。
+    startFrameFeed()
     // 録画中はプレーヤー UI を隠したままにする。content.js は「post-capture が届かないまま
     // UI が固着する」のを防ぐ強制復元タイマーを持っており、その既定値（8秒）はスクショ
     // 前提の長さなので、録画では途中で UI が戻ってしまう。録画の長さ＋停止処理のぶんを
     // 明示して渡し、正常に撮り切るまで隠したままにする。
-    broadcastMessage({ type: 'pre-capture', holdMs: (maxSeconds + UI_HOLD_MARGIN_SEC) * 1000 })
+    broadcastMessage({ type: 'pre-capture', holdMs: (maxSeconds + UI_HOLD_MARGIN_SEC) * 1000, video: true })
     shell.beep()
     const tc = getLastTimecode()
     recordingMeta = {
@@ -225,6 +229,10 @@ export function finishRecordingState(): void {
   const wasRecording = isRecording
   isRecording = false
   recordingMeta = null
+  if (wasRecording) {
+    stopFrameFeed()
+    logFeedStats()
+  }
   // 預けた画面ソースを解放する。残しておくと、次の録画が何らかの理由で
   // setPendingDisplaySource を通らずに始まったとき、前回の（別ディスプレイかもしれない）
   // 画面をそのまま撮ってしまう。

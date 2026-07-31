@@ -81,7 +81,7 @@ import { registerShareHandlers } from './ipc-share'
 import { setVideoThumbProvider } from './video-thumb-provider'
 
 const extractThumbMock = vi.fn(async () => {})
-const getVideoDurationMock = vi.fn(async (): Promise<number | null> => null)
+const getVideoMetaMock = vi.fn(async (): Promise<{ duration: number | null; fps: number | null }> => ({ duration: null, fps: null }))
 
 describe('share:import - 動画の30秒上限（著作権対策）', () => {
   beforeEach(() => {
@@ -96,14 +96,15 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     registerCapturedMedia.mockResolvedValue({ ok: true, id: 1 })
     extractThumbMock.mockClear()
     extractThumbMock.mockResolvedValue(undefined)
-    getVideoDurationMock.mockClear()
-    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoDuration: getVideoDurationMock })
+    getVideoMetaMock.mockClear()
+    getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
+    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoMeta: getVideoMetaMock, countFrames: vi.fn() })
     metadataContent = JSON.stringify({ version: 1, file: 'clip.webm', captured_at: 1700000000000 })
     registerShareHandlers()
   })
 
   it('尺が上限(30秒+誤差0.5秒)を超える動画は登録を拒否し、コピー済みファイルを削除する', async () => {
-    getVideoDurationMock.mockResolvedValue(31)
+    getVideoMetaMock.mockResolvedValue({ duration: 31, fps: null })
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 
@@ -115,7 +116,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   })
 
   it('尺が取得できない（null）動画は登録を拒否する', async () => {
-    getVideoDurationMock.mockResolvedValue(null)
+    getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 
@@ -125,7 +126,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   })
 
   it('誤差込みの境界値(30.5秒ちょうど)は登録する', async () => {
-    getVideoDurationMock.mockResolvedValue(30.5)
+    getVideoMetaMock.mockResolvedValue({ duration: 30.5, fps: null })
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 
@@ -136,7 +137,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   })
 
   it('境界超過(30.51秒)は拒否する', async () => {
-    getVideoDurationMock.mockResolvedValue(30.51)
+    getVideoMetaMock.mockResolvedValue({ duration: 30.51, fps: null })
     const handler = handlers.get('share:import')!
     const result = await handler({}) as { count: number; errors: string[] }
 

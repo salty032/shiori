@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- デスクトップ版（src/renderer/index.html）の CSP から capfile: を外し、同一オリジンの
+         同梱アセットを許可した版。connect-src はデモ素材の目録 manifest.json の取得に使う。 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Shiori — アニメキャプチャ専用画像管理ツールの Web デモ" />
+    <title>Shiori — Web デモ</title>
+  </head>
+  <body>
+    <div id="root" data-loading></div>
+    <!-- ルート(app/web)の外を指すとdevサーバーが解決できないため、エントリはこの階層に置く。
+         global.css も main.tsx 側で import する（詳細は main.tsx 冒頭のコメント）。 -->
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

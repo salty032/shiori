@@ -29,3 +29,8 @@ jobs:
       # 拡張機能はテストが薄い領域（1,100 行超の JS）なので、manifest / API 誤用を
       # web-ext lint で機械チェックする。
       - run: npm run ext:lint
+
+      # Web デモ版（GitHub Pages）は renderer を別 Vite 設定でビルドし直す。IPC 契約の
+      # ズレは verify の typecheck が拾うが、Vite 設定やエントリの破損は実際にビルドしないと
+      # 分からず、放置すると pages.yml のデプロイで初めて落ちる。ここで一緒に潰す。
+      - run: npm run web:build

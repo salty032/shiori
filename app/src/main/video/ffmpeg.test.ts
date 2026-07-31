@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { trimWebm, getVideoDuration } from './ffmpeg'
+import { trimWebm, getVideoDuration, getVideoMeta } from './ffmpeg'
 
 function runFfmpegSync(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -63,5 +63,44 @@ describe('trimWebm', () => {
     expect(duration).not.toBeNull()
     expect(duration as number).toBeGreaterThan(1.5)
     expect(duration as number).toBeLessThan(2.5)
+  }, 30_000)
+})
+
+describe('getVideoMeta', () => {
+  let dir: string
+  let srcPath: string
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'shiori-ffmpeg-meta-test-'))
+    srcPath = join(dir, 'src10fps.webm')
+    // rate=10 の testsrc から fps を実際に抽出できることを確認する（stream 行の
+    // "NN fps" 表記。tbr へのフォールバックはしない仕様なので、素材の fps とタイムベース
+    // が一致するこの単純なケースでは両者が同値になり、フォールバック有無の違いは
+    // このテストだけでは切り分けられない点に留意）。
+    await runFfmpegSync([
+      '-y',
+      '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=10',
+      '-c:v', 'libvpx',
+      srcPath
+    ])
+  }, 30_000)
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('duration と fps を同じ実行から取得する', async () => {
+    const meta = await getVideoMeta(srcPath)
+    expect(meta.duration).not.toBeNull()
+    expect(meta.duration as number).toBeGreaterThan(1.5)
+    expect(meta.duration as number).toBeLessThan(2.5)
+    expect(meta.fps).not.toBeNull()
+    expect(meta.fps as number).toBeCloseTo(10, 0)
+  }, 30_000)
+
+  it('存在しないファイルでは duration・fps とも null', async () => {
+    const meta = await getVideoMeta(join(dir, 'does-not-exist.webm'))
+    expect(meta.duration).toBeNull()
+    expect(meta.fps).toBeNull()
   }, 30_000)
 })

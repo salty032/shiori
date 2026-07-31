@@ -97,7 +97,7 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
   it('recorder:done: sessionId が一致しなければ無視する（新しい録画を保存確定させない）', async () => {
     isCurrentRecordingSession.mockReturnValue(false)
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 5, 999)
+    await handler({}, new ArrayBuffer(10), 5, 120, 999)
     expect(finishRecordingState).not.toHaveBeenCalled()
     expect(registerCapturedMedia).not.toHaveBeenCalled()
   })
@@ -105,7 +105,7 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
   it('recorder:done: sessionId が一致すれば通常どおり保存する', async () => {
     isCurrentRecordingSession.mockReturnValue(true)
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 5, 1)
+    await handler({}, new ArrayBuffer(10), 5, 120, 1)
     expect(finishRecordingState).toHaveBeenCalled()
     expect(registerCapturedMedia).toHaveBeenCalled()
   })
@@ -124,16 +124,61 @@ describe('recorder:done - duration 上限（多層防御）', () => {
 
   it('上限(40秒)ちょうどは保存する', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 40, 1)
+    await handler({}, new ArrayBuffer(10), 40, 960, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
     expect(sendNotice).not.toHaveBeenCalled()
   })
 
   it('上限(40秒)超は拒否し保存しない', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 40.1, 1)
+    await handler({}, new ArrayBuffer(10), 40.1, 960, 1)
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(finishRecordingState).toHaveBeenCalled()
     expect(sendNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
+  })
+})
+
+describe('recorder:done - fps の算出とベストエフォート方針', () => {
+  beforeEach(() => {
+    handlers.clear()
+    finishRecordingState.mockClear()
+    isCurrentRecordingSession.mockClear()
+    isCurrentRecordingSession.mockReturnValue(true)
+    sendNotice.mockClear()
+    registerCapturedMedia.mockClear()
+    registerRecorderIpc()
+  })
+
+  function insertedFps(): number | null {
+    const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { fps: number | null } }
+    return insertArg.insert.fps
+  }
+
+  it('正常なフレーム数から fps を算出して保存する', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 240, 1)
+    expect(registerCapturedMedia).toHaveBeenCalled()
+    expect(insertedFps()).toBe(24)
+  })
+
+  it('フレーム数が不正（NaN）でも fps を null にしてクリップ保存は続行する', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, NaN, 1)
+    expect(registerCapturedMedia).toHaveBeenCalled()
+    expect(insertedFps()).toBeNull()
+  })
+
+  it('フレーム数が負でも fps を null にしてクリップ保存は続行する', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, -5, 1)
+    expect(registerCapturedMedia).toHaveBeenCalled()
+    expect(insertedFps()).toBeNull()
+  })
+
+  it('フレーム数が過大（多層防御の上限超え）でも fps を null にしてクリップ保存は続行する', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 10 * 120 + 1, 1)
+    expect(registerCapturedMedia).toHaveBeenCalled()
+    expect(insertedFps()).toBeNull()
   })
 })

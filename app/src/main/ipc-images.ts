@@ -6,7 +6,8 @@ import { getMainWindow, handleTrusted, sendToRenderer } from './windows'
 import {
   listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts,
   getImage, deleteImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
-  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath
+  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath,
+  listImagesMissingFps, setFps
 } from './db'
 import {
   MAX_EXPORT_IDS,
@@ -97,6 +98,50 @@ export async function backfillThumbnails(): Promise<void> {
     }
   } finally {
     isThumbGen = false
+  }
+}
+
+let isFpsBackfilling = false
+
+// fps 未計測の動画（listImagesMissingFps、db.ts）に実測値を補完する。この機能を追加する
+// 前に録画・取り込み済みだったクリップは fps が NULL のまま残るため、起動時に1本ずつ
+// 解析して埋める。backfillThumbnails と同じくマーカーは持たず、毎起動対象行を数える形に
+// する（埋まった後は該当行が無いので即座に終わる）。
+//
+// getVideoMeta（ffmpeg -i だけの軽い解析）ではなく countFrames（フルデコード）を使う。
+// 自前録画は「画面が変化したフレームだけ」を可変間隔で書き出す可変フレームレートの webm
+// で、ffmpeg の -i がコンテナに固定 fps を見出せず "NN fps" 表記自体を出さないケースが
+// 実機で確認された（tbr のみ）。新規録画時に fps を実フレーム数(frameCount)/duration で
+// 直接算出しているのと同じ定義に揃えるには、遡及側もフルデコードでフレーム数を数える
+// しかない。コストは高いが1クリップ1回・バックグラウンドなので許容する。
+//
+// duration は上書きしない。ここは表示用の fps だけを埋める処理で、60秒上限判定に使った
+// duration を実体からの再取得値で動かす理由が無い。
+//
+// renderer の画像一覧は起動直後に一度取得したスナップショットで、この処理が裏で書き換える
+// DB の値を自動では拾わない。1件埋めるたびに fpsBackfilled を飛ばし、renderer 側
+// （useCaptureSync 等と同じ購読パターン）が patchImage で該当行だけ更新する。
+export async function backfillFps(): Promise<void> {
+  if (isFpsBackfilling) return
+  isFpsBackfilling = true
+  try {
+    for (const { id, filepath, duration } of listImagesMissingFps()) {
+      if (duration == null || duration <= 0) continue
+      try {
+        const resolved = await resolveRealCapturePath(filepath)
+        if (!resolved) continue
+        const frameCount = await getVideoThumbProvider().countFrames(resolved)
+        if (frameCount > 0) {
+          const fps = Math.round((frameCount / duration) * 100) / 100
+          setFps(id, fps)
+          sendToRenderer(CH.fpsBackfilled, { id, fps })
+        }
+      } catch (err) {
+        console.warn(`[fps-backfill] skip id=${id}`, err)
+      }
+    }
+  } finally {
+    isFpsBackfilling = false
   }
 }
 

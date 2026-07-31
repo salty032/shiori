@@ -23,6 +23,7 @@ export type ImageRow = {
   memo: string | null
   media_type: 'image' | 'video' | null
   duration: number | null
+  fps: number | null
   thumb_path: string | null
   source: ImageSource
 }

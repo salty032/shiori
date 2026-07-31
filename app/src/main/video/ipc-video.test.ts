@@ -13,6 +13,7 @@ const mockImage = {
   filepath: '/mock/captures/cap_1.webm',
   media_type: 'video' as const,
   duration: 10,
+  fps: 23.92,
   title: null,
   current_time: null,
   url: null,
@@ -76,5 +77,13 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     // サムネなしで登録される
     const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { thumb_path: string | null } }
     expect(insertArg.insert.thumb_path).toBeNull()
+  })
+
+  it('元クリップの fps をそのまま引き継ぐ（トリムしても表示が消えない）', async () => {
+    const handler = handlers.get('video:trim')!
+    await handler({}, 1, 2, 8)
+
+    const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { fps: number | null } }
+    expect(insertArg.insert.fps).toBe(23.92)
   })
 })

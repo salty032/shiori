@@ -8,14 +8,118 @@ interface RecorderApi {
   onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number; sessionId: number }) => void) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
-  sendDone: (webm: ArrayBuffer, duration: number, sessionId: number) => void
+  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[]) => void
   reportError: (msg: string, sessionId: number) => void
+  reportProbe: (info: string) => void
 }
 
 declare global {
   interface Window {
     recorderApi: RecorderApi
   }
+}
+
+// requestVideoFrameCallback が渡すメタデータのうち、ここで使う可能性のあるもの。
+// 標準では captureTime（そのフレームが取り込み元で撮られた時刻）が定義されているが、
+// getDisplayMedia 経由の画面キャプチャで実際に載るかは実装依存なので optional で受ける。
+type CaptureFrameMeta = {
+  mediaTime: number
+  captureTime?: number
+  expectedDisplayTime?: number
+  presentationTime?: number
+  presentedFrames?: number
+}
+
+// --- 計測: キャプチャフレームに撮影時刻が載るかの確認 ---
+//
+// 素材のコマ（配信ページ側が知っている）と、実際に撮れた絵（こちら側）を後から
+// 突き合わせるには「そのフレームがいつ画面から取り込まれたか」が要る。captureTime が
+// 載れば未知数なしで対応付けられる。載らない場合は now からの推定になり、
+// 画面キャプチャ経路の遅延ぶんだけ不確かさが残る。
+const CAPTURE_PROBE_SAMPLES = 150
+let probeKeys: string[] | null = null
+let probeLags: number[] = []
+let probeHasCaptureTime = 0
+let probeFirst: string[] = []
+let probeSent = false
+// 供給が頭打ちになっている場所の切り分け用。
+// callbacks はキャプチャ側からフレームが届いた回数、drawn は実際に記録へ積んだ枚数。
+// 両者がほぼ同じなら詰まっているのはキャプチャ側で、callbacks だけ多いなら
+// 同じ絵が繰り返し届いている（＝こちらの重複判定が落としている）ことになる。
+let probeCallbacks = 0
+let probeDrawn = 0
+let probeFirstCallbackAt = 0
+let probeLastCallbackAt = 0
+let probeTotalsSent = false
+let probeSourceSize = ''
+
+function resetCaptureProbe(): void {
+  probeKeys = null
+  probeLags = []
+  probeHasCaptureTime = 0
+  probeFirst = []
+  probeSent = false
+  probeCallbacks = 0
+  probeDrawn = 0
+  probeFirstCallbackAt = 0
+  probeLastCallbackAt = 0
+  probeTotalsSent = false
+  probeSourceSize = ''
+}
+
+function probeCaptureFrame(now?: number, meta?: CaptureFrameMeta): void {
+  if (now !== undefined) {
+    probeCallbacks++
+    if (probeFirstCallbackAt === 0) probeFirstCallbackAt = now
+    probeLastCallbackAt = now
+  }
+  if (probeSent || !meta || now === undefined) return
+  if (!probeKeys) probeKeys = Object.keys(meta)
+  if (probeFirst.length < 3) {
+    probeFirst.push(JSON.stringify({
+      now: Math.round(now * 100) / 100,
+      captureTime: meta.captureTime,
+      expectedDisplayTime: meta.expectedDisplayTime,
+      presentationTime: meta.presentationTime,
+      mediaTime: meta.mediaTime
+    }))
+  }
+  if (typeof meta.captureTime === 'number') {
+    probeHasCaptureTime++
+    probeLags.push(now - meta.captureTime)
+  }
+  // 計測用のサンプルは頭打ちにする（長い録画で際限なく溜めない）。
+  // 送信は録画終了時の1回だけにまとめ、コンソールで1行を探せば済むようにする。
+  if (probeLags.length > CAPTURE_PROBE_SAMPLES) probeLags.shift()
+}
+
+function sendCaptureProbe(): void {
+  if (probeSent) return
+  probeSent = true
+  const parts: string[] = []
+
+  // 供給が頭打ちになっている場所の切り分け。callbacks がキャプチャ側から届いた回数、
+  // drawn が実際に記録へ積んだ枚数。両者が近ければ詰まっているのはキャプチャ側で、
+  // callbacks だけ多ければ同じ絵が繰り返し届いている。
+  const spanSec = (probeLastCallbackAt - probeFirstCallbackAt) / 1000
+  if (spanSec > 0) {
+    parts.push(`RATE span ${spanSec.toFixed(2)}s / callbacks ${probeCallbacks} (${(probeCallbacks / spanSec).toFixed(1)}/s) / drawn ${probeDrawn} (${(probeDrawn / spanSec).toFixed(1)}/s) / dropped as duplicate ${probeCallbacks - probeDrawn}`)
+  } else {
+    parts.push(`RATE unavailable (callbacks ${probeCallbacks})`)
+  }
+  if (probeSourceSize) parts.push(`capture size ${probeSourceSize}`)
+
+  parts.push(`metadata keys: ${probeKeys ? probeKeys.join(',') : '(none)'}`)
+  parts.push(`captureTime present on ${probeHasCaptureTime} frames`)
+  if (probeLags.length >= 10) {
+    const s = [...probeLags].sort((a, b) => a - b)
+    const med = s[s.length >> 1]
+    const p5 = s[Math.round((s.length - 1) * 0.05)]
+    const p95 = s[Math.round((s.length - 1) * 0.95)]
+    // 中央値は一定オフセットなので害が無い。効くのは p5..p95 の幅（ばらつき）。
+    parts.push(`capture lag (now - captureTime): median ${med.toFixed(1)}ms, p5..p95 spread ${(p95 - p5).toFixed(1)}ms, range ${s[0].toFixed(1)}..${s[s.length - 1].toFixed(1)}ms`)
+  }
+  try { window.recorderApi.reportProbe(parts.join(' || ')) } catch { /* 計測なので失敗は無視 */ }
 }
 
 let recorder: MediaRecorder | null = null
@@ -36,6 +140,11 @@ let currentSessionId = 0
 // 一切触らない。それをせずに一律クリアすると、旧セッションの中断処理が新セッションの
 // 描画ループ・自動停止タイマーを巻き込んで止めてしまうレースになる。
 function cleanup(stream: MediaStream | null, cs: MediaStream | null, token: number): void {
+  // 計測結果の送信はトークン判定の外に置く。停止は recordingToken を進めてから
+  // recorder.stop() を呼ぶため、onstop 経由でここへ来た時点で token は必ず古く、
+  // 下のブロックに入れると通常の停止では一度も送られない。送信自体は冪等。
+  sendCaptureProbe()
+
   if (token === recordingToken) {
     rVfcRunning = false
     if (frameTimer) {
@@ -79,8 +188,12 @@ function resetState(): void {
 // 上げれば「変化したぶんは確実に拾い、変化しなければ吐かない」になる。
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
   const maxFrameRate = Math.min(60, Math.max(1, fps || 60))
+  // ideal を併記して「上限まで欲しい」ことを明示する。max だけだと Chromium は
+  // 「そこまでは許す」としか受け取らず、実際の供給は都合で落とされる（実測 33.6fps）。
+  // 素材 24fps に対し供給が 33.6fps しかないと、素材 1 コマぶんの表示区間に 1 枚も
+  // 撮れていない箇所が約 5% 生じ、そこで絵の変化を撮り逃してコマ打ちの数が狂う。
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const videoConstraints = { cursor: 'never', frameRate: { max: maxFrameRate } } as any
+  const videoConstraints = { cursor: 'never', frameRate: { ideal: maxFrameRate, max: maxFrameRate } } as any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const videoMandatory = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate } } as any
 
@@ -180,6 +293,8 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   const streamW = settings.width ?? 1920
   const streamH = settings.height ?? 1080
 
+  probeSourceSize = `screen ${streamW}x${streamH}`
+
   const crop = await window.recorderApi.getCrop(streamW, streamH)
   if (token !== recordingToken) {
     cleanup(stream, null, token)
@@ -224,6 +339,8 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
     return
   }
 
+  resetCaptureProbe()
+
   // captureStream(0) disables automatic sampling. We request frames manually so
   // the cropped output follows the captured source frame timing.
   const cs = canvas.captureStream(0)
@@ -232,9 +349,25 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   const csTrack = cs.getVideoTracks()[0] as any
 
   rVfcRunning = true
-  const drawFrame = (): void => {
+  // 実際に記録へ供給したフレームの枚数。実測 fps（frameCount / duration）を main 側で
+  // 算出するために録画終了時に渡す。重複供給を弾いた後の回数なので、素材として
+  // 別物だったフレーム数と一致する（下の scheduleFrame 参照）。
+  let frameCount = 0
+  // 供給した各フレームが「いつ画面から取り込まれたか」（epoch ミリ秒）。
+  //
+  // 録画後に、配信ページ側が知っている素材のコマ時刻と突き合わせて「素材のコマ N は
+  // このファイルの何枚目か」を決めるために使う。captureTime は rVFC のメタデータで、
+  // 文書ごとに原点の違う performance 時刻なので、timeOrigin を足して epoch へ直してから
+  // 渡す（配信ページ側とは別プロセスのため、この変換をしないと比較できない）。
+  const drawnAt: number[] = []
+  const drawFrame = (captureTime?: number): void => {
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
     csTrack.requestFrame()
+    drawnAt.push(captureTime === undefined
+      ? Date.now()
+      : performance.timeOrigin + captureTime)
+    frameCount++
+    probeDrawn++
   }
   // 直前に供給した動画フレームの mediaTime。同じ値なら供給しない。
   //
@@ -246,12 +379,13 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   // 2 コマ打ちの「同じ絵が 2 枚」は素材上で別フレーム（mediaTime が異なる）なので、
   // この判定では落ちない。落ちるのは同一フレームの重複供給だけ。
   let lastDrawnMediaTime = -1
-  const scheduleFrame = (_now?: number, meta?: { mediaTime: number }): void => {
+  const scheduleFrame = (now?: number, meta?: CaptureFrameMeta): void => {
     if (!rVfcRunning) return
+    probeCaptureFrame(now, meta)
     const mediaTime = meta?.mediaTime
     if (mediaTime === undefined || mediaTime !== lastDrawnMediaTime) {
       if (mediaTime !== undefined) lastDrawnMediaTime = mediaTime
-      drawFrame()
+      drawFrame(meta?.captureTime)
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(video as any).requestVideoFrameCallback(scheduleFrame)
@@ -327,7 +461,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
       const blob = await fixWebmDuration(rawBlob, duration * 1000)
 
       const webmBuf = await blob.arrayBuffer()
-      window.recorderApi.sendDone(webmBuf, duration, sessionId)
+      window.recorderApi.sendDone(webmBuf, duration, frameCount, sessionId, drawnAt)
     } catch (err) {
       console.error('[recorder] finalize failed', err)
       window.recorderApi.reportError('finalize_failed', sessionId)

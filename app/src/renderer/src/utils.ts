@@ -167,8 +167,20 @@ export function formatTime(sec: number | null): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
+// メディア URL の解決口。既定は Electron の capfile:// プロトコル（bootstrap.ts が処理する）。
+// Web デモ版は capfile:// を持てないため、起動時に web/mockApi.ts が同梱アセットの URL を
+// 返す関数へ差し替える。features/registry.ts と同じく「コアは差し替え口だけ知る」形にして、
+// 呼び出し側（ThumbCell / Viewer / VideoPlayer）は分岐を持たない。
+type MediaUrlResolver = (id: number, kind: 'media' | 'thumb') => string
+let mediaUrlResolver: MediaUrlResolver | null = null
+
+export function setMediaUrlResolver(fn: MediaUrlResolver): void {
+  mediaUrlResolver = fn
+}
+
 // capfile:// プロトコルでメディア本体／サムネを取得する URL を組み立てる。
 export function mediaUrl(id: number, kind: 'media' | 'thumb' = 'media'): string {
+  if (mediaUrlResolver) return mediaUrlResolver(id, kind)
   return `capfile://img?id=${id}&kind=${kind}`
 }
 

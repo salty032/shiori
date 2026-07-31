@@ -120,6 +120,7 @@ export function buildCoreApi(): ShioriApi {
     taggerRemoveTagBulk: (imageIds: number[], tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTagBulk, imageIds, tagName),
     taggerRemoveTagFromAll: (tagName: string): Promise<number> => ipcRenderer.invoke(CH.taggerRemoveTagFromAll, tagName),
     onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
+    onFpsBackfilled: (cb: (data: { id: number; fps: number }) => void) => listen(CH.fpsBackfilled, cb),
     onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),
     onTaggerError: (cb: (msg: string) => void) => listen<string>(CH.taggerError, cb),
 

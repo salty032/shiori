@@ -97,7 +97,7 @@ export function registerShareHandlers(): void {
           tags: item.manualTags,
           memo: item.memo,
           captured_at: item.captured_at,
-          ...(item.media_type === 'video' ? { media_type: 'video', duration: item.duration } : {}),
+          ...(item.media_type === 'video' ? { media_type: 'video', duration: item.duration, fps: item.fps } : {}),
         })
       }
       const lines: string[] = []
@@ -212,6 +212,10 @@ export function registerShareHandlers(): void {
           }
 
           let duration: number | null = null
+          // fps は表示用の付随情報なので duration と違い、実体からの再取得はしない
+          // （手編集バイパスの心配がある duration と異なり、不正値は share-entry.ts の
+          // 検証で null に落ちるだけで実害が無い。ffmpeg 実行を1回減らせる）。
+          let fps: number | null = parsed.fps
           if (parsed.mediaType === 'video') {
             // サムネがバンドルに含まれていなければここで生成する。duration は
             // metadata.jsonl の値を信頼せず実体から取り直す（手編集・旧バージョンの
@@ -222,8 +226,14 @@ export function registerShareHandlers(): void {
                 console.warn('[share:import] extractThumb failed', err)
               }
             }
-            try { duration = await getVideoThumbProvider().getVideoDuration(destFile) } catch (err) {
-              console.warn('[share:import] getVideoDuration failed', err)
+            try {
+              const meta = await getVideoThumbProvider().getVideoMeta(destFile)
+              duration = meta.duration
+              // duration が実体不一致で再取得されるのに対し、fps はバンドル値が検証済みなら
+              // 優先する。バンドルに無ければ実体からの値で補う。
+              if (fps == null) fps = meta.fps
+            } catch (err) {
+              console.warn('[share:import] getVideoMeta failed', err)
             }
             // 通常のファイル取り込み（ipc-import.ts）と同じ尺上限を適用する。ここを素通りさせると
             // metadata.jsonl を手編集した共有バンドル経由で著作権対策の30秒上限を回避できてしまう。
@@ -250,6 +260,7 @@ export function registerShareHandlers(): void {
               memo: parsed.memo,
               media_type: parsed.mediaType,
               duration,
+              fps,
               thumb_path: thumbDest,
               source: 'import',
             },

@@ -300,6 +300,10 @@ export default function App() {
   // （文面が無いバージョンでは main 側が上の app:notice トーストにフォールバックする）。
   useEffect(() => window.api.onWhatsNew(setWhatsNew), [])
 
+  // 既存クリップへの fps 遡及埋め（backfillFps, main/ipc-images.ts）は起動後バックグラウンドで
+  // 進む。画像一覧は起動時取得のスナップショットなので、後から書き換わった行をこれで反映する。
+  useEffect(() => window.api.onFpsBackfilled(({ id, fps }) => patchImage(id, { fps })), [patchImage])
+
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
   // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、
   // ドロップ完了後にまとめて届く。

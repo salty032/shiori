@@ -7,6 +7,9 @@ app/resources/ffmpeg.exe
 app/resources/.tmp-ffmpeg/
 app/dist/
 app/out/
+# Web デモ版のビルド成果物と、ビルド時に生成する素材目録
+app/dist-web/
+app/demo-assets/manifest.json
 web-ext-artifacts/
 extension/.amo-upload-uuid
 *.tsbuildinfo

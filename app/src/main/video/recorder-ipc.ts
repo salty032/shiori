@@ -11,6 +11,7 @@ import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
+import { logMatchResult } from './frame-feed'
 import { registerCapturedMedia } from '../captured-media'
 import { t } from '../i18n'
 
@@ -20,6 +21,17 @@ const MAX_WEBM_BYTES = 1024 * 1024 * 1024 // 1GB
 // 遅延分だけ余裕を持たせた値。renderer が改ざん・誤動作しても、この値を超える尺の
 // クリップを保存させない（多層防御。settings.ts 側が一次の上限）。
 const MAX_CLIP_DURATION_SEC = 40
+// フレーム数の妥当性上限。取得は acquireScreenStream 側で 60fps に上限しているが、
+// renderer の改ざん・誤動作に対する多層防御として余裕を持たせた値で判定する。
+const MAX_FRAME_RATE_FOR_VALIDATION = 120
+// fps は情報表示用であり、これが取れないことを理由にクリップ保存を失敗させない
+// （サムネ生成と同じベストエフォート方針）。小数第2位で丸める：23.976 と 24 の差が
+// 消えない程度に、かつ桁が読める粒度。
+function computeFps(frameCount: number, duration: number): number | null {
+  if (!Number.isInteger(frameCount) || frameCount <= 0) return null
+  if (frameCount > duration * MAX_FRAME_RATE_FOR_VALIDATION) return null
+  return Math.round((frameCount / duration) * 100) / 100
+}
 
 function formatClipDuration(seconds: number): string {
   const s = Math.round(seconds)
@@ -30,6 +42,15 @@ export function registerRecorderIpc(): void {
   ipcMain.handle('recorder:getCrop', (event, streamW: number, streamH: number) => {
     if (!isTrustedRecorderSender(event)) return null
     return computeVideoCrop(streamW, streamH)
+  })
+
+  // 画面キャプチャ側フレームの時刻情報の計測結果。素材のコマと撮れた絵を後から
+  // 突き合わせるには「そのフレームがいつ画面から取り込まれたか」が要るため、
+  // captureTime が実際に載るかをここで確認する。
+  ipcMain.on('recorder:probe', (event, info: string) => {
+    if (!isTrustedRecorderSender(event)) return
+    if (typeof info !== 'string') return
+    console.log(`[capture-probe] ${info.slice(0, 4000)}`)
   })
 
   ipcMain.on('recorder:error', (event, msg: string, sessionId: number) => {
@@ -62,7 +83,7 @@ export function registerRecorderIpc(): void {
     }
   })
 
-  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, sessionId: number) => {
+  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[]) => {
     if (!isTrustedRecorderSender(event)) return
     // recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、現在のセッションと
     // 一致しない完了通知は無視する。新しい録画を誤って確定・保存させない。
@@ -82,8 +103,20 @@ export function registerRecorderIpc(): void {
       return
     }
 
+    const fps = computeFps(frameCount, duration)
+
     const meta = getRecordingMeta()
     finishRecordingState()
+
+    // 素材のコマと撮れたフレームの対応付けが成立しているかの検証。
+    // renderer 破損に備え、数値の配列であることを確認してから使う。
+    if (Array.isArray(drawnAt) && drawnAt.length > 0 &&
+        drawnAt.length <= MAX_CLIP_DURATION_SEC * MAX_FRAME_RATE_FOR_VALIDATION &&
+        drawnAt.every((t) => Number.isFinite(t))) {
+      logMatchResult(drawnAt)
+    } else {
+      console.warn('[frame-match] no usable capture timestamps from recorder')
+    }
 
     const webm = Buffer.from(webmAB)
 
@@ -114,6 +147,7 @@ export function registerRecorderIpc(): void {
           memo: null,
           media_type: 'video',
           duration,
+          fps,
           thumb_path: thumbPath
         },
         filePath: webmPath,

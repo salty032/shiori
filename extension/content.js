@@ -53,9 +53,10 @@ function startFrameTracker(video) {
   stopFrameTracker()
   frameTrackVideo = video
   let prev = null
-  const onFrame = (_now, meta) => {
+  const onFrame = (now, meta) => {
     if (frameTrackVideo !== video || !document.contains(video)) { stopFrameTracker(); return }
     lastFrameTime = meta.mediaTime
+    reportFrame(now, meta)
     // フレーム間隔は連続再生中のみ計測（ステップ中のシーク差分で汚さない）
     if (prev !== null && !video.paused) {
       const d = meta.mediaTime - prev
@@ -74,6 +75,36 @@ function startFrameTracker(video) {
     frameTrackId = video.requestVideoFrameCallback(onFrame)
   }
   frameTrackId = video.requestVideoFrameCallback(onFrame)
+}
+
+// 録画中だけ、素材のコマが1つ進むたびに main へ通知する。
+//
+// この通知が必要な理由：録画側（recorder.ts）が rVFC を回しているのは「画面キャプチャ
+// ストリーム」の video であって、その mediaTime はキャプチャ側の時計なので、素材の絵が
+// 同じでも必ず別の値になる。結果、素材が 24fps でも 37fps 分のフレームが記録され、
+// コマ送りが素材のコマと対応しない。素材の実コマを知っているのはこちら側だけ。
+//
+// 送るのは素材自身のタイムライン上の時刻(mediaTime)と、そのコマが画面に出る絶対時刻。
+// expectedDisplayTime は「実際に表示される時刻」で、コールバック実行時刻(now)より
+// 素材の提示タイミングに近いため優先する。performance.timeOrigin を足して epoch 基準に
+// 直すことで、別プロセスである main 側の時計と比較できるようにする。
+let reportingFrames = false
+function startFrameReporting() {
+  reportingFrames = true
+  const video = getVideo()
+  if (video) startFrameTracker(video)   // 冪等。録画開始時にループが止まっていても確実に回す
+}
+function stopFrameReporting() {
+  reportingFrames = false
+}
+function reportFrame(now, meta) {
+  if (!reportingFrames || !port) return
+  const display = Number.isFinite(meta.expectedDisplayTime) ? meta.expectedDisplayTime : now
+  try {
+    port.postMessage({ type: 'frame', mediaTime: meta.mediaTime, displayAt: performance.timeOrigin + display })
+  } catch {
+    reportingFrames = false   // 拡張コンテキスト無効化。次の録画で張り直る
+  }
 }
 
 // rVFC ベースの自己補正フレームステップ。
@@ -291,7 +322,9 @@ const SERVICE_PLAYER_UI = {
   ],
 }
 
-// 録画中にマウスカーソルが動画へ写り込むのを防ぐ。
+// 録画中にマウスカーソルが動画へ写り込むのを防ぐ。hidePlayerUI から video:true の
+// pre-capture のときだけ呼ばれる（スクショは desktopCapturer のサムネイル取得で
+// そもそもカーソルが写らないため、消す必要も効果もない）。
 //
 // 画面キャプチャ側では消せない。カーソルはキャプチャ経路がフレームへ合成するもので、
 // getDisplayMedia の cursor:'never' 制約は Chromium が未実装のため黙って無視される
@@ -314,7 +347,7 @@ function hideCursor() {
   document.head.appendChild(styleEl)
 }
 
-function hidePlayerUI(holdMs) {
+function hidePlayerUI(holdMs, isVideo) {
   restorePlayerUI()
   // 失敗・早期 return・post-capture 未達のいずれでも UI が固着しないよう、実際に隠す前に
   // 最後の砦の強制復元を仕込む（隠した要素が 0 でも restorePlayerUI は安全な no-op）。
@@ -322,7 +355,7 @@ function hidePlayerUI(holdMs) {
     hiddenWatchdogTimer = null
     restorePlayerUI()
   }, holdMs || HIDDEN_UI_WATCHDOG_MS)
-  hideCursor()
+  if (isVideo) hideCursor()
   const host = location.hostname.replace(/^www\./, '')
   startSuppressCaptureKey(host)
   const entry = SERVICE_PLAYER_UI[host]
@@ -965,7 +998,8 @@ function normalizePortMessage(msg) {
     const holdMs = Number(msg.holdMs)
     return {
       type: 'pre-capture',
-      holdMs: Number.isFinite(holdMs) && holdMs > 0 ? Math.min(holdMs, MAX_UI_HOLD_MS) : undefined
+      holdMs: Number.isFinite(holdMs) && holdMs > 0 ? Math.min(holdMs, MAX_UI_HOLD_MS) : undefined,
+      video: msg.video === true
     }
   }
   if (msg.type === 'post-capture') return { type: 'post-capture' }
@@ -1035,9 +1069,12 @@ function connectPort() {
       settingsCaptureKey = safeMsg.captureKey
     } else if (safeMsg.type === 'pre-capture') {
       clearShioriNotice()
-      hidePlayerUI(safeMsg.holdMs)
+      hidePlayerUI(safeMsg.holdMs, safeMsg.video)
       cleanVideoFrame()
+      // 動画クリップ録画のときだけコマ通知を出す（スクショは1枚なので不要）
+      if (safeMsg.video) startFrameReporting()
     } else if (safeMsg.type === 'post-capture') {
+      stopFrameReporting()
       scheduleRestorePlayerUI()
     } else if (safeMsg.type === 'notice') {
       showShioriNotice(safeMsg.level, safeMsg.message)

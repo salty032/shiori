@@ -318,14 +318,24 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
             </div>
             {(single.current_time != null || single.media_type === 'video') && (
               <div style={s.metaHalf}>
-                <div style={s.metaRow}>
+                {/* 動画時刻は1段目・列1に単独配置、長さ・フレームレートは2段目に1列ずつ。
+                    span + justify-content で伸ばす形だと、動画時刻だけラベル・値の間隔や
+                    行の縦幅が2段目と揃わず浮いて見えたため、3項目とも同じ「列1つぶんの
+                    metaRow」に統一し、grid の行・列だけを明示的に指定する。 */}
+                <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 1 }}>
                   <span style={s.label}>{t('detail.timecode')}</span>
                   <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
                 </div>
                 {single.media_type === 'video' && (
-                  <div style={s.metaRow}>
+                  <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 2 }}>
                     <span style={s.label}>{t('detail.duration')}</span>
                     <span style={s.value}>{single.duration != null ? formatTime(single.duration) : '—'}</span>
+                  </div>
+                )}
+                {single.media_type === 'video' && (
+                  <div style={{ ...s.metaRow, gridColumn: 2, gridRow: 2 }}>
+                    <span style={s.label}>{t('detail.fps')}</span>
+                    <span style={{ ...s.value, whiteSpace: 'nowrap' }}>{single.fps != null ? `${single.fps}fps` : '—'}</span>
                   </div>
                 )}
               </div>
@@ -498,8 +508,9 @@ const s: Record<string, React.CSSProperties> = {
   meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid var(--border-default)', paddingBottom: 8 },
-  // 動画時刻／長さの2項目を並べる箱。項目の分離はここの列間だけで取る。
-  metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, alignItems: 'start', padding: '2px 0 3px' },
+  // 動画時刻・長さ・フレームレートを並べる箱。列間（項目の分離）は広めに、行間は
+  // タイトなままにする（rowGap を columnGap と同じにすると動画時刻の段だけ縦に間延びして見える）。
+  metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 32, rowGap: 8, alignItems: 'start', padding: '2px 0 3px' },
   // 値は右端に揃える（tabular-nums と合わせて桁が縦に揃う）。左寄せでラベルに隣接させると
   // 値の開始位置がラベルの文字数に左右され、項目ごとに揃わなくなる。
   // ペアの分離は距離ではなく metaHalf の列間で取ること。

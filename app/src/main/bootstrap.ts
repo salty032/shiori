@@ -34,7 +34,7 @@ import {
   getLastTimecode, getLastTimecodeAt, setLastTimecode,
   getLastFocusedTimecodeAt, markFocusedTimecodeNow
 } from './timecode'
-import { registerImageHandlers, backfillThumbnails } from './ipc-images'
+import { registerImageHandlers, backfillThumbnails, backfillFps } from './ipc-images'
 import { registerDragHandlers, cleanupDragTempDir } from './ipc-drag'
 import { registerTaggerHandlers } from './ipc-tagger'
 import { registerShareHandlers } from './ipc-share'
@@ -260,6 +260,9 @@ export function bootstrap(features: MainFeature[] = []): void {
     // 自分で消す手段もないので、アプリ側で黙って片付ける（非致命・バックグラウンド）。
     sweepOrphanFiles().catch((err) => console.warn('[sweep] failed', err))
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
+    // 既存クリップ（この機能を追加する前に録画・取り込み済みのもの）は fps が NULL の
+    // ままなので、起動時にバックグラウンドで1本ずつ解析して埋める（非致命）。
+    backfillFps().catch((err) => console.warn('[fps-backfill] failed', err))
     const wsSettings = loadSettings()
     onWsClientConnect((send) => {
       const s = loadSettings()
@@ -422,6 +425,7 @@ export function bootstrap(features: MainFeature[] = []): void {
           colors: null,
           memo: null,
           media_type: 'image',
+          fps: null,
           duration: null,
           thumb_path: thumbOk ? thumbPath : null
         },

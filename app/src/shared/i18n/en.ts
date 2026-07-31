@@ -295,6 +295,7 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.editTitle': 'Edit title',
   'detail.timecode': 'Timecode',
   'detail.duration': 'Length',
+  'detail.fps': 'FPS',
   'detail.memo': 'Notes',
   'detail.memoUnsaved': 'Unsaved',
   'detail.memoSaving': 'Saving…',
@@ -412,4 +413,7 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.creditTagger': 'Auto tagging: ',
   'settings.creditVideo': 'Video processing: ',
   'settings.creditsHint': 'See NOTICE.md included with the download for full license details.',
+
+  'demo.welcome': 'This is the web demo. Browsing, search and tag editing really work, but desktop features such as capture and recording do not. Edits are lost on reload.',
+  'demo.unavailable': 'Not available in the demo (desktop app feature)',
 }

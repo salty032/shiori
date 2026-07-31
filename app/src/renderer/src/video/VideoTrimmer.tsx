@@ -80,7 +80,10 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     ? (outIdx + 1 < framePts.length ? framePts[outIdx + 1] : dur)
     : outSec
 
-  const fps = Math.max(1, settings.frameFps || 30)
+  // フレームテーブルが取れないときの刻み幅。クリップの実測 fps（image.fps）が
+  // あればそれを優先する（settings.frameFps はクリップの実態と無関係なグローバル既定値
+  // でしかない）。
+  const fps = Math.max(1, image.fps ?? settings.frameFps ?? 30)
   const step = 1 / fps  // rVFC フォールバック用
 
   const canTrim = !ptsLoading && exportOutSec - inSec >= 0.1 && dur > 0

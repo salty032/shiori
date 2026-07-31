@@ -142,6 +142,9 @@ export function registerVideoHandlers(): void {
           memo: null,
           media_type: 'video',
           duration: outSec - inSec,
+          // トリムは切り出すだけでフレームレートは変わらないので、元クリップの実測値を
+          // そのまま引き継ぐ（ここを引き継がないと、トリムした瞬間に fps 表示が消える）。
+          fps: image.fps,
           thumb_path: thumbSaved,
           source: image.source
         },

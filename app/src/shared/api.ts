@@ -25,6 +25,9 @@ export interface ShioriApi {
   onExportProgress: (cb: (data: { current: number; total: number }) => void) => () => void
   getImage: (id: number) => Promise<ImageRow | null>
   onCapture: (cb: (data: CaptureData) => void) => () => void
+  // 起動時バックグラウンドの fps 遡及埋め（backfillFps, ipc-images.ts）が1件埋めるたびに届く。
+  // 画像一覧は初回取得時点のスナップショットなので、後から書き換わった値をこれで反映する。
+  onFpsBackfilled: (cb: (data: { id: number; fps: number }) => void) => () => void
   onOpenSettings: (cb: () => void) => () => void
   onAppNotice: (cb: (data: AppNotice) => void) => () => void
   onWhatsNew: (cb: (data: WhatsNewData) => void) => () => void
@@ -162,6 +165,7 @@ export const CH = {
   exportProgress: 'export:progress',
   // push (main 竊・renderer)
   captureDone: 'capture:done',
+  fpsBackfilled: 'fps:backfilled',
   openSettings: 'open-settings',
   appNotice: 'app:notice',
   whatsNew: 'app:whatsNew',

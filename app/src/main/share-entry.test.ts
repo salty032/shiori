@@ -63,6 +63,24 @@ describe('parseShareEntry', () => {
     expect((missing as { duration: number | null }).duration).toBeNull()
   })
 
+  it('動画エントリの fps は正の有限値かつ現実的な上限内のみ受け付ける（手編集の不正値は落とす）', () => {
+    const ok = parseShareEntry(JSON.stringify({ file: 'a.webm', fps: 23.92 }), NOW)
+    expect((ok as { fps: number | null }).fps).toBe(23.92)
+    const negative = parseShareEntry(JSON.stringify({ file: 'a.webm', fps: -1 }), NOW)
+    expect((negative as { fps: number | null }).fps).toBeNull()
+    const tooHigh = parseShareEntry(JSON.stringify({ file: 'a.webm', fps: 99999 }), NOW)
+    expect((tooHigh as { fps: number | null }).fps).toBeNull()
+    const wrongType = parseShareEntry(JSON.stringify({ file: 'a.webm', fps: '24' }), NOW)
+    expect((wrongType as { fps: number | null }).fps).toBeNull()
+    const missing = parseShareEntry(JSON.stringify({ file: 'a.webm' }), NOW)
+    expect((missing as { fps: number | null }).fps).toBeNull()
+  })
+
+  it('画像エントリでは fps を持たせない（video 限定）', () => {
+    const result = parseShareEntry(JSON.stringify({ file: 'a.png', fps: 24 }), NOW)
+    expect((result as { fps: number | null }).fps).toBeNull()
+  })
+
   it('正常な最小エントリを正しく正規化する', () => {
     const result = parseShareEntry(JSON.stringify({ file: 'cap_1.png', title: 'Title', current_time: 12.5 }), NOW)
     expect(result).toMatchObject({

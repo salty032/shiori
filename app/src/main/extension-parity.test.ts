@@ -3,7 +3,7 @@ import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import {
   MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
-  MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD,
+  MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MAX_EPOCH_MS,
   MIN_SCREEN_SIZE, MAX_SCREEN_SIZE, MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO,
 } from './ws-server'
 import { NAMED_CAPTURE_KEY_VALUES } from '../shared/hotkey'
@@ -45,6 +45,7 @@ describe('extension との定数パリティ（M-1）', () => {
     expect(extractConst(backgroundJs, 'MAX_SCREEN_SIZE')).toBe(MAX_SCREEN_SIZE)
     expect(extractConst(backgroundJs, 'MIN_DEVICE_PIXEL_RATIO')).toBe(MIN_DEVICE_PIXEL_RATIO)
     expect(extractConst(backgroundJs, 'MAX_DEVICE_PIXEL_RATIO')).toBe(MAX_DEVICE_PIXEL_RATIO)
+    expect(extractConst(backgroundJs, 'MAX_EPOCH_MS')).toBe(MAX_EPOCH_MS)
   })
 
   it('background.js の NAMED_CAPTURE_KEYS が shared/hotkey.ts の正規化後キー名と一致する', () => {

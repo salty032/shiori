@@ -17,12 +17,20 @@ export const MIN_SCREEN_SIZE = 1
 export const MAX_SCREEN_SIZE = 20_000
 export const MIN_DEVICE_PIXEL_RATIO = 0.25
 export const MAX_DEVICE_PIXEL_RATIO = 8
+// コマ通知の displayAt（epoch ミリ秒）の妥当上限。西暦 2100 年相当。
+// 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま時刻計算に入ると、
+// コマの対応付けが黙って狂うため入口で落とす。
+export const MAX_EPOCH_MS = 4_102_444_800_000
 
 export type VideoRect = { left: number; top: number; width: number; height: number }
 
 export type ExtensionMessage =
   | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; version?: string }
   | { type: 'ping' }
+  // 録画中に配信ページ側から届く、素材の1コマぶんの通知。
+  // mediaTime は素材自身のタイムライン上の秒、displayAt はそのコマが画面に出る epoch ミリ秒。
+  // 画面キャプチャ側の時計とは無関係で、素材の実コマを知る唯一の経路。
+  | { type: 'frame'; mediaTime: number; displayAt: number }
 
 // バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
 // セキュリティ上重要な値ではなく、拡張側とのパリティ対象にもしない（UX-9）。
@@ -160,6 +168,11 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   if (!parsed || typeof parsed !== 'object') return null
   const msg = parsed as Record<string, unknown>
   if (msg.type === 'ping') return { type: 'ping' }
+  if (msg.type === 'frame') {
+    const mediaTime = boundedNumber(msg.mediaTime, 0, MAX_TIMECODE_SECONDS)
+    const displayAt = boundedNumber(msg.displayAt, 0, MAX_EPOCH_MS)
+    return mediaTime == null || displayAt == null ? null : { type: 'frame', mediaTime, displayAt }
+  }
   if (msg.type !== 'timecode') return null
 
   const currentTime = msg.currentTime === null ? null : boundedNumber(msg.currentTime, 0, MAX_TIMECODE_SECONDS)

@@ -19,6 +19,10 @@ const MIN_SCREEN_SIZE = 1
 const MAX_SCREEN_SIZE = 20000
 const MIN_DEVICE_PIXEL_RATIO = 0.25
 const MAX_DEVICE_PIXEL_RATIO = 8
+// コマ通知の displayAt（epoch ミリ秒）の妥当上限。西暦 2100 年相当。
+// 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま main 側の
+// 時刻計算に入ると、コマの対応付けが黙って狂うため入口で落とす。
+const MAX_EPOCH_MS = 4102444800000
 // プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理のマージンを
 // 十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。
 const MAX_UI_HOLD_MS = 120000
@@ -85,6 +89,14 @@ function safeRect(value) {
 function normalizePortMessage(msg) {
   if (!msg || typeof msg !== 'object') return null
   if (msg.type === 'ping') return { type: 'ping' }
+  // 録画中に content.js が送る素材のコマ通知。mediaTime は素材のタイムライン上の秒、
+  // displayAt はそのコマが画面に出る epoch ミリ秒。録画のコマ供給を駆動する値なので、
+  // 欠けた値・範囲外は中継せず落とす（黙って 0 を送ると全コマの対応がずれる）。
+  if (msg.type === 'frame') {
+    const mediaTime = boundedNumber(msg.mediaTime, 0, MAX_TIMECODE_SECONDS)
+    const displayAt = boundedNumber(msg.displayAt, 0, MAX_EPOCH_MS)
+    return mediaTime == null || displayAt == null ? null : { type: 'frame', mediaTime, displayAt }
+  }
   if (msg.type !== 'timecode') return null
 
   const currentTime = msg.currentTime === null ? null : boundedNumber(msg.currentTime, 0, MAX_TIMECODE_SECONDS)
@@ -141,7 +153,11 @@ function normalizeServerMessage(data) {
   if (msg.type === 'connected') return { type: 'connected' }
   // holdMs: プレーヤー UI を隠したままにする上限（録画では録画の長さぶん伸ばす）。
   // 省略時は content.js 側の既定にフォールバックする。
-  if (msg.type === 'pre-capture') return { type: 'pre-capture', holdMs: clampHoldMs(msg.holdMs) }
+  // video: true のときだけ content.js は OS カーソルを消す（スクショはカーソルが
+  // そもそもキャプチャに写らないため消す必要が無い）。
+  if (msg.type === 'pre-capture') {
+    return { type: 'pre-capture', holdMs: clampHoldMs(msg.holdMs), video: msg.video === true }
+  }
   if (msg.type === 'post-capture') return { type: 'post-capture' }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
