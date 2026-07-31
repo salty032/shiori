@@ -21,7 +21,7 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 
 Shiori は動画クリップの録画後トリミング・サムネイル生成・尺の判定に FFmpeg を利用します。
 
-- 同梱ビルド: **`ffmpeg-n6.1.2-192-g78690eba61-win64-lgpl`**
+- 同梱ビルド: **`ffmpeg-n6.1.2-192-g78690eba61-win64-lgpl-6.1`**
   （[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) の autobuild-2025-07-31-14-15 リリース）
 - ライセンス: **GNU Lesser General Public License v3（LGPL v3）**
 - ビルド構成: `--enable-version3` 付きの LGPL ビルドで、GPL を要求する構成要素

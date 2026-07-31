@@ -116,13 +116,15 @@ keeps running even when you close the window.
 
 ## What it works with
 
-On the major HTML5-video-based streaming sites, Shiori helps with automatic title and
-timecode capture, still capture, clip recording, and `Shift+←/→` frame stepping.
+Automatic title and timecode capture, temporary hiding of the player UI, and `Shift+←/→`
+frame stepping work **only on the services the browser extension explicitly declares support
+for**. On any other site the extension is not loaded and does nothing.
 
-For some sites, title capture and the temporary hiding of the player UI are tuned to match
-that site's page structure.
+The supported services are listed in the extension's `manifest.json`. Title capture and UI
+hiding are tuned per site to match its page structure, so adding an arbitrary site to that
+list is not enough to make it work.
 
-> A site changing its page structure may temporarily break capture.
+> Even on a supported service, a change to the site's page structure may temporarily break capture.
 > Use Shiori within the terms of service of each site (see "Disclaimer").
 
 ---
