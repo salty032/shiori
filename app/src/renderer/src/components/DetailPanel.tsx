@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageRow, ImageTagSource, Settings } from '../types'
-import { cleanTitle, siteName, formatTime, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
+import { cleanTitle, siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
 import { font, color, s as commonStyles } from '../styles'
 import TagEditor from './TagEditor'
 import TagSuggestInput from './TagSuggestInput'
@@ -76,6 +76,18 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const pendingMemoSaveRef = useRef<PendingMemoSave | null>(null)
   const activeImageIdRef = useRef<number | null>(single?.id ?? null)
   const prevTaggerDoneKeyRef = useRef(taggerDoneKey)
+
+  // 撮り逃したコマの注記。画面キャプチャの供給が素材のコマ数の2倍に届かないと、
+  // 自分の表示区間内に絵が無いコマが生じる。同じ絵が続く区間なら実害は無いが、
+  // 絵の変わり目に当たるとコマ打ちの数を誤るため、あるときだけ静かに知らせる。
+  const uncapturedNote = useMemo(() => {
+    const missing = single?.uncaptured_frames
+    if (single?.media_type !== 'video' || missing == null || missing <= 0) return null
+    // 割合は fps と尺から推定できるが、素材のコマ総数が最も素直なので duration*fps を使う。
+    const total = single.fps && single.duration ? single.fps * single.duration : 0
+    const ratio = total > 0 ? missing / total : 0
+    return { text: t('detail.uncapturedFrames', { count: String(missing) }), severe: ratio > 0.05 }
+  }, [single, t])
 
   const [bulkTagMap, setBulkTagMap] = useState<Map<string, BulkTagEntry>>(new Map())
   const [bulkTagInput, setBulkTagInput] = useState('')
@@ -335,7 +347,17 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 {single.media_type === 'video' && (
                   <div style={{ ...s.metaRow, gridColumn: 2, gridRow: 2 }}>
                     <span style={s.label}>{t('detail.fps')}</span>
-                    <span style={{ ...s.value, whiteSpace: 'nowrap' }}>{single.fps != null ? `${single.fps}fps` : '—'}</span>
+                    <span style={{ ...s.value, whiteSpace: 'nowrap' }}>
+                      {single.fps != null ? `${formatFps(single.fps)}fps` : '—'}
+                    </span>
+                    {/* 撮り逃したコマがある場合だけ添える。0 枚なら何も出さない（大半はこちら）。
+                        絵の変わり目に当たるとコマ打ちの数を誤るため、黙って隠さない。
+                        割合が大きいときだけ色を付けて、数え直しが要ることを示す。 */}
+                    {uncapturedNote && (
+                      <span style={{ ...s.value, fontSize: 11, whiteSpace: 'nowrap', color: uncapturedNote.severe ? 'var(--warn-text, #d98324)' : 'var(--muted-text, #888)' }}>
+                        {uncapturedNote.text}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

@@ -11,8 +11,9 @@ import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
-import { logMatchResult } from './frame-feed'
+import { logMatchResult, buildFrameTable, getSourceFps } from './frame-feed'
 import { registerCapturedMedia } from '../captured-media'
+import { saveVideoFrames, setUncapturedFrames } from '../db'
 import { t } from '../i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
@@ -42,15 +43,6 @@ export function registerRecorderIpc(): void {
   ipcMain.handle('recorder:getCrop', (event, streamW: number, streamH: number) => {
     if (!isTrustedRecorderSender(event)) return null
     return computeVideoCrop(streamW, streamH)
-  })
-
-  // 画面キャプチャ側フレームの時刻情報の計測結果。素材のコマと撮れた絵を後から
-  // 突き合わせるには「そのフレームがいつ画面から取り込まれたか」が要るため、
-  // captureTime が実際に載るかをここで確認する。
-  ipcMain.on('recorder:probe', (event, info: string) => {
-    if (!isTrustedRecorderSender(event)) return
-    if (typeof info !== 'string') return
-    console.log(`[capture-probe] ${info.slice(0, 4000)}`)
   })
 
   ipcMain.on('recorder:error', (event, msg: string, sessionId: number) => {
@@ -103,20 +95,22 @@ export function registerRecorderIpc(): void {
       return
     }
 
-    const fps = computeFps(frameCount, duration)
+    // 素材の実 fps が分かるならそれを使う。frameCount/duration は「画面キャプチャが
+    // 何枚寄越したか」でしかなく素材とは無関係な値になる（23.976fps の素材で 37fps 等）。
+    // 取れないとき（拡張未接続・非対応サイト）だけ従来の算出へ退避する。
+    const fps = getSourceFps() ?? computeFps(frameCount, duration)
 
     const meta = getRecordingMeta()
     finishRecordingState()
 
-    // 素材のコマと撮れたフレームの対応付けが成立しているかの検証。
-    // renderer 破損に備え、数値の配列であることを確認してから使う。
-    if (Array.isArray(drawnAt) && drawnAt.length > 0 &&
-        drawnAt.length <= MAX_CLIP_DURATION_SEC * MAX_FRAME_RATE_FOR_VALIDATION &&
-        drawnAt.every((t) => Number.isFinite(t))) {
-      logMatchResult(drawnAt)
-    } else {
-      console.warn('[frame-match] no usable capture timestamps from recorder')
-    }
+    // 素材のコマと撮れたフレームの対応付け。renderer 破損に備え、数値の配列で
+    // あることを確認してから使う。ここが得られなくてもクリップ保存は続行する
+    // （コマ精度の無い従来どおりのクリップとして残る方が、保存失敗より良い）。
+    const usableDrawnAt = Array.isArray(drawnAt) && drawnAt.length > 0 &&
+      drawnAt.length <= MAX_CLIP_DURATION_SEC * MAX_FRAME_RATE_FOR_VALIDATION &&
+      drawnAt.every((t) => Number.isFinite(t))
+    const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
+    logMatchResult(frameTable)
 
     const webm = Buffer.from(webmAB)
 
@@ -157,6 +151,16 @@ export function registerRecorderIpc(): void {
       if (!result.ok) {
         sendNotice('error', t('notice.clipSaveFailed'))
         return
+      }
+      // フレーム表は保存できなくてもクリップ自体は成立する（コマ送りが従来動作に
+      // 落ちるだけ）。ここで失敗させて保存済みのクリップを巻き戻す方が損失が大きい。
+      if (frameTable) {
+        try {
+          saveVideoFrames(result.id, frameTable.matches)
+          setUncapturedFrames(result.id, frameTable.matches.filter((m) => !m.captured).length)
+        } catch (err) {
+          console.error('[clip] saveVideoFrames failed', err)
+        }
       }
       if (loadSettings().clipNotify !== false) {
         sendBrowserNotice('success', t('notice.clipSaved', { duration: formatClipDuration(duration) }))

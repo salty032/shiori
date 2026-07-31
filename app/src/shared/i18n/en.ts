@@ -296,6 +296,7 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.timecode': 'Timecode',
   'detail.duration': 'Length',
   'detail.fps': 'FPS',
+  'detail.uncapturedFrames': '{count} frames missed',
   'detail.memo': 'Notes',
   'detail.memoUnsaved': 'Unsaved',
   'detail.memoSaving': 'Saving…',

@@ -263,3 +263,9 @@ export function buildTimeline(images: ImageRow[], titleStrip: string[], sortOrde
   }
   return { groups, ordered }
 }
+
+// fps の表示。23.976023… のような値を 23.976 に、24.000 を 24 にする。
+// 末尾の 0 を落とすのは、24fps 素材が「24.000fps」と出ると精度を主張しすぎるため。
+export function formatFps(fps: number): string {
+  return String(Math.round(fps * 1000) / 1000)
+}

@@ -5,10 +5,9 @@
 // 素材から 36.9fps 分のフレームが記録されていた）、配信ページの video の rVFC は
 // 素材のコマごとにちょうど1回だけ発火する。その通知をここへ集約する。
 //
-// 現段階では収集と統計の出力のみを行い、録画の挙動は変えていない。
-// 「通知が届いてから画面を1枚取るまでの遅延のばらつき」がコマ間隔の半分
-// （23.976fps なら 20.8ms）を超えると隣のコマを撮ってしまうため、駆動源を差し替える
-// 前にここで実測して設計の前提を確認する。
+// 通知は届くまでに数十〜数百ms 遅れることがあるため、リアルタイムでフレーム供給を
+// 駆動するのではなく、録画後に時刻で突き合わせる。displayAt はコマが画面に出た瞬間に
+// ページ側で刻まれるので、通知が遅れても値は正しいまま残る。
 import { onExtensionMessage } from '../ws-server'
 
 export interface SourceFrame {
@@ -140,12 +139,6 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   }
 }
 
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return NaN
-  const i = Math.min(sorted.length - 1, Math.max(0, Math.round((sorted.length - 1) * q)))
-  return sorted[i]
-}
-
 // 素材のコマ周期を最小二乗で推定する。
 // mediaTime を 1ms 単位に丸めて返すサービスがあるため（YouTube で確認）、間隔の中央値を
 // 周期とみなすと真の値（41.708ms に対し中央値 42ms）とずれ、コマ数を重ねるほど誤差が
@@ -177,81 +170,80 @@ function fitGrid(mediaTimes: number[]): { periodMs: number; residualRmsMs: numbe
   }
 }
 
-// 段階②の実測用。駆動源を差し替える前に、設計の前提が成り立つかを数字で確認する。
+// トリムした新クリップ用にフレーム表を作り直す。
 //
-// 出力は英語。dev.bat のコンソールは Shift-JIS のため、日本語を出すと文字化けして読めない。
-export function logFeedStats(): void {
-  const L = (s: string): void => console.log(`[frame-feed] ${s}`)
-  if (frames.length === 0) {
-    L('no frames received (extension not connected / unsupported site / tab hidden)')
-    return
+// フレーム表が持つのは「元ファイルの何枚目か」なので、切り出すとその番号は使えなくなる
+// （先頭が削られて全体がずれ、再エンコードで枚数自体も変わりうる）。そこで一度
+// 元ファイルの時刻へ戻し、切り出し範囲で絞ってから、新ファイルの時刻列へ対応付け直す。
+//
+// これをやらないとトリムした瞬間にコマ精度が失われる。切り出した箇所こそ細かく見たい
+// はずなので、そこで精度が落ちるのは本末転倒になる。
+export function sliceFrameTable(
+  table: FrameMatch[],
+  originalPts: number[],
+  trimmedPts: number[],
+  inSec: number
+): FrameMatch[] {
+  if (table.length === 0 || originalPts.length === 0 || trimmedPts.length === 0) return []
+  // 境界ちょうどのコマを取りこぼさないための許容幅。1コマ（最短でも 1/120 秒）より
+  // 十分小さく、浮動小数点の誤差より十分大きい値。
+  const EPS = 0.001
+  const lastPts = trimmedPts[trimmedPts.length - 1]
+
+  const out: FrameMatch[] = []
+  for (const f of table) {
+    if (f.frameIndex < 0 || f.frameIndex >= originalPts.length) continue
+    const shifted = originalPts[f.frameIndex] - inSec
+    if (shifted < -EPS || shifted > lastPts + EPS) continue
+    out.push({ mediaTime: f.mediaTime, frameIndex: nearestPtsIndex(trimmedPts, shifted), captured: f.captured })
   }
-
-  const delays = frames.map((f) => f.receivedAt - f.displayAt)
-  const sorted = [...delays].sort((a, b) => a - b)
-  const median = quantile(sorted, 0.5)
-  // 中央 90% の幅。単発の外れ値に振られずに「普段どれだけ揺れるか」を見る。
-  const spread90 = quantile(sorted, 0.95) - quantile(sorted, 0.05)
-
-  const grid = fitGrid(frames.map((f) => f.mediaTime))
-
-  L('---- source frame feed ----')
-  L(`frames: ${frames.length}`)
-  L(`delay: median ${median.toFixed(1)}ms, p5..p95 spread ${spread90.toFixed(1)}ms, full range ${sorted[0].toFixed(1)}..${sorted[sorted.length - 1].toFixed(1)}ms`)
-
-  if (!grid) {
-    L('too few frames to estimate the source grid')
-    L('---------------------------')
-    return
-  }
-
-  const fps = 1000 / grid.periodMs
-  const margin = grid.periodMs / 2
-  L(`source: ${fps.toFixed(4)}fps (frame ${grid.periodMs.toFixed(4)}ms), grid residual ${grid.residualRmsMs.toFixed(3)}ms, dropped by player ${grid.drops}`)
-
-  // 本当に効く指標はここ。一定の遅れは全コマが等しくずれるだけでコマ打ちの数え方を
-  // 壊さないので、判定は「中央値からどれだけ外れたか」で行う。半コマ（±margin）を
-  // 超えた通知は、その瞬間だけ隣のコマを撮る危険がある。
-  const risky: number[] = []
-  delays.forEach((d, i) => { if (Math.abs(d - median) > margin) risky.push(i) })
-
-  if (risky.length === 0) {
-    L(`outliers beyond +-${margin.toFixed(1)}ms: none`)
-  } else {
-    // 立ち上がりに集中しているのか録画中に散らばっているのかで意味が正反対になる。
-    // 前者なら最初の数コマを捨てれば済むが、後者はその箇所のコマ打ちが壊れる。
-    const startupCount = risky.filter((i) => i < 24).length
-    const pct = (risky.length / delays.length) * 100
-    L(`outliers beyond +-${margin.toFixed(1)}ms: ${risky.length} (${pct.toFixed(1)}%), of which ${startupCount} within the first 24 frames`)
-    L(`outlier positions: ${risky.slice(0, 40).join(',')}${risky.length > 40 ? ' ...' : ''}`)
-    L(`worst deviations: ${risky.slice(0, 8).map((i) => `#${i}:${(delays[i] - median).toFixed(0)}ms`).join(' ')}`)
-  }
-
-  // 立ち上がり（最初の24コマ＝約1秒）を除いた定常状態での危険コマ数が実質の判定材料。
-  const steadyRisky = risky.filter((i) => i >= 24).length
-  const verdict = steadyRisky === 0
-    ? 'OK - steady state is clean, outliers (if any) are startup only'
-    : steadyRisky <= delays.length * 0.005
-      ? 'MARGINAL - rare mid-recording outliers, needs frame-index correction'
-      : 'FAIL - outliers scattered through the recording, switch to offline matching'
-  L(`verdict: ${verdict}`)
-  L('---------------------------')
+  return out
 }
 
-// 段階③の検証用。素材のコマと撮れたフレームの対応付けが成立したかを数字で出す。
-export function logMatchResult(drawnAt: number[]): void {
-  const L = (s: string): void => console.log(`[frame-match] ${s}`)
-  const result = matchFrames(frames, drawnAt)
+// pts の中で t に最も近い要素の添字。pts は昇順。
+function nearestPtsIndex(pts: number[], t: number): number {
+  let lo = 0, hi = pts.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (pts[mid] < t) lo = mid + 1
+    else hi = mid
+  }
+  // lo は t 以上の最初の位置。1 つ手前の方が近ければそちらを選ぶ。
+  if (lo > 0 && Math.abs(pts[lo - 1] - t) <= Math.abs(pts[lo] - t)) return lo - 1
+  return lo
+}
+
+// 収集した素材のコマから、素材の実 fps を推定する。
+// 中央値ではなく回帰で出す（1ms 丸めで返すサービスがあり、中央値だと真の値とずれる）。
+export function getSourceFps(): number | null {
+  const grid = fitGrid(frames.map((f) => f.mediaTime))
+  if (!grid || !(grid.periodMs > 0)) return null
+  const fps = 1000 / grid.periodMs
+  if (!(fps >= 1 && fps <= 240)) return null
+  // 小数第3位まで残す。23.976 と 23.98 は別物として扱いたいので 2 桁では足りない。
+  return Math.round(fps * 1000) / 1000
+}
+
+// 収集済みのコマ通知と撮影時刻から、保存用のフレーム表を作る。
+export function buildFrameTable(drawnAt: number[]): MatchResult | null {
+  return matchFrames(frames, drawnAt)
+}
+
+// 録画ごとに、素材のコマをどれだけ撮れたかを1行だけ残す。
+//
+// 画面キャプチャの供給は素材のコマ数の2倍に届かないため（実測 33〜41枚/秒）、
+// 数%のコマは自分の表示区間内に絵が無い。絵の変わり目に当たるとコマ打ちの数を誤るので、
+// どの録画でどれだけ落ちたかを後から追えるようにしておく。
+//
+// 出力は英語。dev.bat のコンソールは Shift-JIS のため日本語は文字化けする。
+export function logMatchResult(result: MatchResult | null): void {
   if (!result) {
-    L(`cannot match (source frames: ${frames.length}, drawn frames: ${drawnAt.length})`)
+    console.log('[frame-match] no frame table (extension not connected / unsupported site)')
     return
   }
-  L('---- source/capture matching ----')
-  L(`source frames: ${result.sourceFrames}, drawn frames: ${result.drawnFrames} (oversampling x${(result.drawnFrames / result.sourceFrames).toFixed(2)})`)
-  L(`capture offset: ${result.offsetMs}ms`)
   const missing = result.matches.filter((m) => !m.captured).length
-  // 1.00 なら素材の全コマに専用の絵がある＝コマ送り1回で必ず絵が変わる。
-  // 下回るぶんは直前のコマの絵を流用しており、そこが絵の変わり目だとコマ打ちを誤る。
-  L(`source frames with their own captured picture: ${(result.capturedRatio * 100).toFixed(1)}% (${missing} reuse the previous frame)`)
-  L('---------------------------------')
+  console.log(
+    `[frame-match] source ${result.sourceFrames} frames, captured ${(result.capturedRatio * 100).toFixed(1)}%` +
+    ` (${missing} reuse the previous picture), capture offset ${result.offsetMs}ms`
+  )
 }

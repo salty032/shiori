@@ -24,6 +24,10 @@ export type ImageRow = {
   media_type: 'image' | 'video' | null
   duration: number | null
   fps: number | null
+  // 素材のコマのうち、専用の絵を撮れなかった枚数。
+  // 録画クリップにしか意味が無く、静止画・取り込み・従来のクリップでは付かないため任意。
+  // null/undefined は「コマ精度の情報が無い」を意味する。
+  uncaptured_frames?: number | null
   thumb_path: string | null
   source: ImageSource
 }

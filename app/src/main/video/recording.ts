@@ -6,7 +6,7 @@ import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRec
 import { loadSettings } from '../settings'
 import { isMainWindowFocused } from '../windows'
 import { getRecorderWindow, createRecorderWindow, setPendingDisplaySource } from './recorder-window'
-import { startFrameFeed, stopFrameFeed, logFeedStats } from './frame-feed'
+import { startFrameFeed, stopFrameFeed } from './frame-feed'
 import { setTrayRecording } from '../tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../timecode'
 import { sendBrowserNotice } from '../browser-notice'
@@ -185,10 +185,9 @@ export async function startRecording(): Promise<void> {
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,
       // 取得フレームレートの上限（recorder.ts の acquireScreenStream に渡す）。
-      // 30 だと 30fps でエンコードされた配信を 30fps で取り込む際に位相ズレで
-      // コマが落ちうる。60 に上げても実際に吐かれるのは「画面が変化したぶん」だけ
-      // （captureStream(0) + requestFrame の手動供給）なので、動きの無い場面で
-      // ファイルサイズが倍になるわけではない。
+      // 上限を上げても実際の供給は 33〜41枚/秒で頭打ちになる（実測）が、上限を下げると
+      // その分だけ確実に減るので 60 のままにしておく。素材のコマとの対応付けは
+      // frame-feed.ts が録画後に時刻で突き合わせて行う。
       fps: 60,
       maxSeconds,
       sessionId
@@ -229,10 +228,7 @@ export function finishRecordingState(): void {
   const wasRecording = isRecording
   isRecording = false
   recordingMeta = null
-  if (wasRecording) {
-    stopFrameFeed()
-    logFeedStats()
-  }
+  if (wasRecording) stopFrameFeed()
   // 預けた画面ソースを解放する。残しておくと、次の録画が何らかの理由で
   // setPendingDisplaySource を通らずに始まったとき、前回の（別ディスプレイかもしれない）
   // 画面をそのまま撮ってしまう。

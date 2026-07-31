@@ -285,6 +285,7 @@ export const ja = {
   'detail.timecode': '動画時刻',
   'detail.duration': '長さ',
   'detail.fps': 'FPS',
+  'detail.uncapturedFrames': '{count}コマ未取得',
   'detail.memo': 'メモ',
   'detail.memoUnsaved': '未保存',
   'detail.memoSaving': '保存中...',

@@ -116,6 +116,11 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN fps REAL')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN host TEXT')
   addColumnIfMissing("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'capture'")
+  // 素材のコマのうち、自分の表示区間内に絵を撮れなかった枚数。
+  // 画面キャプチャの供給が素材の2倍に届かないと発生し、絵の変わり目に当たると
+  // コマ打ちの数を誤る。研究用途では黙って間違えるのが最悪なので数として保持し、
+  // 詳細パネルに出す。NULL はコマ精度の情報が無いクリップ（従来のもの・非対応サイト）。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN uncaptured_frames INTEGER')
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_host ON images(host)')
   // カーソルページング・ホスト絞り込み・エクスポートで使う複合インデックス
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_cat       ON images(captured_at, id)')
@@ -206,6 +211,7 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"media_type"',
   '"duration"',
   '"fps"',
+  '"uncaptured_frames"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -540,6 +546,10 @@ export function listImagesMissingFps(): { id: number; filepath: string; duration
   ).all() as { id: number; filepath: string; duration: number | null }[]
 }
 
+export function setUncapturedFrames(id: number, count: number): void {
+  prepare('UPDATE images SET uncaptured_frames = ? WHERE id = ?').run(count, id)
+}
+
 export function setFps(id: number, fps: number): void {
   prepare('UPDATE images SET fps = ? WHERE id = ?').run(fps, id)
 }
@@ -584,4 +594,62 @@ export function listImagesForExport(): ExportRow[] {
     tagsByImageId.set(image_id, arr)
   }
   return images.map((img) => ({ ...img, manualTags: tagsByImageId.get(img.id) ?? [] }))
+}
+
+// --- 録画クリップのフレーム表 ---
+//
+// 素材の1コマごとに「素材上の時刻」と「ファイル内の何枚目に写っているか」を持つ。
+// これがあるとコマ送りを素材の実コマ単位で動かせる（無い場合はファイルのフレームを
+// そのまま辿るため、素材のコマとは対応しない）。
+//
+// captured=false は「そのコマ専用の絵が無く、直前のコマの絵を流用している」印。
+// 画面キャプチャの供給が素材の2倍に届かないと数%発生し、絵の変わり目に当たると
+// コマ打ちの数を誤るため、黙って潰さずフラグとして残してユーザーへ見せる。
+export interface StoredFrame {
+  mediaTime: number
+  frameIndex: number
+  captured: boolean
+}
+
+// 直列化は DB アクセスから切り離した純粋関数にする。better-sqlite3 は Electron の ABI で
+// ビルドされ素の Node からは読めないため、実 DB を張るテストが書けない。壊れると
+// コマ送りが静かに従来動作へ落ちる箇所なので、ここだけでも検証できる形にしておく。
+//
+// 配列の配列で持つ。1クリップで千数百要素になるため、キー名を繰り返さない。
+export function encodeFrames(frames: StoredFrame[]): string {
+  return JSON.stringify(frames.map((f) => [f.mediaTime, f.frameIndex, f.captured ? 1 : 0]))
+}
+
+// 壊れた行・想定外の形は null（＝表が無い）として扱い、従来のフレーム走査へ退避させる。
+// 半端に解釈してコマ送りが不可解に狂うより、精度を諦めて動く方がよい。
+export function decodeFrames(data: string): StoredFrame[] | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null
+  const out: StoredFrame[] = []
+  for (const item of parsed) {
+    if (!Array.isArray(item) || item.length < 3) return null
+    const [mediaTime, frameIndex, captured] = item
+    if (typeof mediaTime !== 'number' || !Number.isFinite(mediaTime)) return null
+    if (!Number.isInteger(frameIndex) || frameIndex < 0) return null
+    out.push({ mediaTime, frameIndex, captured: captured === 1 })
+  }
+  return out
+}
+
+export function saveVideoFrames(imageId: number, frames: StoredFrame[]): void {
+  if (frames.length === 0) return
+  prepare('INSERT OR REPLACE INTO video_frames (image_id, data) VALUES (?, ?)').run(imageId, encodeFrames(frames))
+}
+
+export function getVideoFrames(imageId: number): StoredFrame[] | null {
+  const row = prepare('SELECT data FROM video_frames WHERE image_id = ?').get(imageId) as { data: string } | undefined
+  if (!row) return null
+  const frames = decodeFrames(row.data)
+  if (!frames) console.warn('[db] video_frames row is unusable, falling back to raw frame order', { imageId })
+  return frames
 }

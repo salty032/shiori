@@ -19,10 +19,5 @@ contextBridge.exposeInMainWorld('recorderApi', {
   },
   reportError: (msg: string, sessionId: number) => {
     ipcRenderer.send('recorder:error', msg, sessionId)
-  },
-  // キャプチャフレームの時刻情報を main へ返す。レコーダーは非表示ウィンドウで
-  // console の出口が無いため、計測結果はこの経路でしか取り出せない。
-  reportProbe: (info: string) => {
-    ipcRenderer.send('recorder:probe', info)
   }
 })

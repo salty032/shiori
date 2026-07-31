@@ -3,12 +3,13 @@ import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted } from '../windows'
-import { getImage, getImageTags } from '../db'
+import { getImage, getImageTags, getVideoFrames, saveVideoFrames, setUncapturedFrames } from '../db'
 import { optionalPositiveInteger } from '../ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../paths'
 import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
 import { VIDEO_CH } from '../../shared/api.video'
 import { registerCapturedMedia } from '../captured-media'
+import { sliceFrameTable } from './frame-feed'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
 const trimmingIds = new Set<number>()
@@ -52,9 +53,22 @@ export function registerVideoHandlers(): void {
       const realPath = await resolveRealCapturePath(image.filepath)
       if (!realPath) return []
       const pts = await getVideoFramePts(realPath)
-      // 失敗・タイムアウト（[]）はキャッシュせず、次回に再取得の余地を残す。
-      if (pts.length > 0) setCachedFramePts(validId, pts)
-      return pts
+      if (pts.length === 0) return []   // 失敗・タイムアウトはキャッシュせず再取得の余地を残す
+
+      // フレーム表があれば、素材のコマ単位の並びへ差し替える。
+      //
+      // ファイルのフレームをそのまま辿ると、画面キャプチャが吐いた枚数（実測 33〜37枚/秒）
+      // でコマ送りすることになり、素材のコマ（23.976fps 等）とは対応しない。表があれば
+      // 「素材のコマ N が写っているフレーム」の PTS だけを、素材の順で並べ直せる。
+      // 撮れなかったコマは直前と同じ PTS になり、絵が変わらないまま1コマ進む。
+      const table = getVideoFrames(validId)
+      const sourcePts = table
+        ?.filter((f) => f.frameIndex >= 0 && f.frameIndex < pts.length)
+        .map((f) => pts[f.frameIndex])
+      const result = sourcePts && sourcePts.length > 0 ? sourcePts : pts
+
+      setCachedFramePts(validId, result)
+      return result
     } catch { return [] }
   })
 
@@ -155,6 +169,26 @@ export function registerVideoHandlers(): void {
       })
       if (!result.ok) {
         return { ok: false, error: String(result.error instanceof Error ? result.error.message : result.error).slice(0, 200) }
+      }
+
+      // フレーム表を切り出して引き継ぐ。これをやらないとトリムした瞬間にコマ送りが
+      // 素材のコマから外れる（切り出した箇所こそ細かく見たいはずなので致命的）。
+      // 失敗してもトリム自体は成立するため、ベストエフォートで進める。
+      try {
+        const table = getVideoFrames(validId)
+        if (table && table.length > 0) {
+          const [originalPts, trimmedPts] = await Promise.all([
+            getVideoFramePts(realPath),
+            getVideoFramePts(webmOut)
+          ])
+          const sliced = sliceFrameTable(table, originalPts, trimmedPts, inSec)
+          if (sliced.length > 0) {
+            saveVideoFrames(result.id, sliced)
+            setUncapturedFrames(result.id, sliced.filter((f) => !f.captured).length)
+          }
+        }
+      } catch (err) {
+        console.warn('[video:trim] failed to carry over the frame table', err)
       }
 
       return { ok: true, newId: result.id }
