@@ -20,15 +20,19 @@ function isValidCaptureKey(k) {
 // 自動検出時はフレーム間隔（秒, float）を直接保持し、整数fps丸めによる
 // 23.976/29.97 などのドリフトを避ける
 let measuredFrameDur = null
-function getFrameSec() {
-  if (settingsFpsAuto && measuredFrameDur) return measuredFrameDur
-  return 1 / settingsFps
-}
+
+// 実測フレーム間隔を採用するのに要るサンプル数。中央値を取るので外れ値1つは無害な一方、
+// 溜まるまでは推定値（1/settingsFps, 既定24）で動くため、60fps 素材だと刻みが 2.5 倍になる。
+// 少ないほどその窓が短くなる（3サンプル＝24fpsで0.125秒・60fpsで0.05秒の再生）。
+const MIN_FRAME_SAMPLES = 3
 
 // rVFC で常時トラッキングする「現在表示中フレーム」の mediaTime（秒）。
 // 再生中は毎フレーム更新され、一時停止した瞬間の値＝表示中フレームの開始時刻になる。
 // フレームステップはこれを基準にするため、停止直後の1ステップ目から正確に1フレーム動ける。
 let lastFrameTime = null
+// lastFrameTime が rVFC の実測ではなくコマ送りの楽観更新（推定）で入った値か。
+// 推定値は実コマの先頭とは限らないため、コマ長の実測にも着地判定にも使わない。
+let lastFrameTimeEstimated = false
 
 // 常時 rVFC ループ: lastFrameTime の追従と、再生中のフレーム間隔の実測を兼ねる
 let frameTrackId = null
@@ -45,6 +49,7 @@ function stopFrameTracker() {
 function resetFrameTracking() {
   measuredFrameDur = null
   lastFrameTime = null
+  lastFrameTimeEstimated = false
   frameDiffs = []
 }
 function startFrameTracker(video) {
@@ -56,6 +61,7 @@ function startFrameTracker(video) {
   const onFrame = (now, meta) => {
     if (frameTrackVideo !== video || !document.contains(video)) { stopFrameTracker(); return }
     lastFrameTime = meta.mediaTime
+    lastFrameTimeEstimated = false
     reportFrame(now, meta)
     // フレーム間隔は連続再生中のみ計測（ステップ中のシーク差分で汚さない）
     if (prev !== null && !video.paused) {
@@ -63,7 +69,7 @@ function startFrameTracker(video) {
       if (d > 0.005 && d < 0.12) {
         frameDiffs.push(d)
         if (frameDiffs.length > 60) frameDiffs.shift()
-        if (frameDiffs.length >= 12) {
+        if (frameDiffs.length >= MIN_FRAME_SAMPLES) {
           const sorted = [...frameDiffs].sort((a, b) => a - b)
           const median = sorted[Math.floor(sorted.length / 2)]
           const fps = 1 / median
@@ -107,10 +113,7 @@ function reportFrame(now, meta) {
   }
 }
 
-// rVFC ベースの自己補正フレームステップ。
-// 表示中フレームの mediaTime(lastFrameTime)を基準に、隣接フレーム表示区間の中央へシークする。
-// 着地後 rVFC が返す実 mediaTime を lastFrameTime に反映するため、fps が多少不正確でも
-// 1ステップ＝確実に1フレームになり、累積ドリフトが発生しない。
+// コマ送り関連の再生制御。
 // Netflix は独自プレイヤーが <video> の状態と再生制御を管理しており、content script から
 // currentTime 直書きや pause を行うと再生状態が崩れることがある。そのため Netflix だけは
 // main world に注入したブリッジ(netflix-main.js)経由で、ページ側の通常の再生制御に寄せる。
@@ -125,34 +128,149 @@ function pauseVideo(video) {
   if (isNetflix()) netflixCmd('pause')
   else { try { video.pause() } catch {} }
 }
+// 実際にシークした時刻（クランプ・ms丸め後）を返す。呼び出し側はこれを比べて
+// 「これ以上伸ばしても位置が変わらない」（尺の端）を検出する。
 function seekVideo(video, timeSec) {
   let t = Math.max(0, timeSec)
   // 末尾付近での前方コマ送りは尺を超えた ms を内部 API に渡しうる（Netflix ブリッジ側で
   // 不定挙動になる報告あり）。duration が有限なら僅かに手前でクランプしておく。
   if (Number.isFinite(video.duration)) t = Math.max(0, Math.min(video.duration - 0.1, t))
-  if (isNetflix()) netflixCmd('seek', Math.round(t * 1000))
-  else video.currentTime = t
+  if (isNetflix()) {
+    const ms = Math.round(t * 1000)
+    netflixCmd('seek', ms)
+    return ms / 1000
+  }
+  video.currentTime = t
+  return t
 }
 
-function stepFrame(video, dir) {
-  const dt = getFrameSec()
-  // lastFrameTime が現在位置から乖離していれば（外部シーク等）currentTime を基準にし直す
-  const anchor = (lastFrameTime !== null && Math.abs(lastFrameTime - video.currentTime) <= dt * 1.5)
-    ? lastFrameTime
-    : video.currentTime
-  const target = dir > 0 ? anchor + dt * 1.5 : anchor - dt * 0.5
-  seekVideo(video, target)
-  // 楽観更新（連打でシーク完了前に次キーが来ても進めるよう移動先フレーム開始を推定）。
-  // rVFC 着地時に実測 mediaTime で上書き補正される。
-  lastFrameTime = Math.max(0, anchor + dir * dt)
-  if ('requestVideoFrameCallback' in video) {
-    video.requestVideoFrameCallback((_now, meta) => {
-      lastFrameTime = meta.mediaTime
-      sendTimecode({ force: true })
-    })
-  } else {
-    sendTimecode({ force: true })
+// コマ送りの刻み（秒）。実測があればそれを使うが、これは**狙いを置く初手の位置決め**にしか
+// 使わない。1コマ動いたかどうかは着地の実 mediaTime で決める（下記 planFrameStep）。
+function getFrameSec() {
+  if (settingsFpsAuto && measuredFrameDur) return measuredFrameDur
+  return 1 / settingsFps
+}
+
+// コマ送りの探索に使う定数。対応 fps の範囲（10〜120fps）は startFrameTracker が
+// 実測値を採用する条件と揃えてある。
+const STEP_PROBE_SEC = 1 / 120       // 上限120fpsのコマ長。これ以下しか進めないシークは必ず同じコマに留まる
+const STEP_MAX_FRAME_SEC = 1 / 10    // 下限10fpsのコマ長。ここまで伸ばして動かなければ諦める
+const STEP_SAME_FRAME_SEC = 0.001    // mediaTime の変化がこれ未満なら同じコマ
+const STEP_SEED_RATIO = 0.9          // 初手を見積もりコマ長の何割手前に置くか（実測の揺らぎ分の余裕）
+const STEP_MAX_ATTEMPTS = 16         // 基準確定1 + 初手1 + STEP_PROBE_SEC 刻みで上限まで伸ばす回数
+const STEP_LANDING_TIMEOUT_MS = 120  // 同じコマへのシークで rVFC が発火しない環境の保険
+
+// 1ステップの初期計画（純粋関数）。
+//
+// 「1コマ先の表示区間の中央」を一発で狙う方式は、見積もりが実際のコマ長より大きいと
+// 黙ってコマを飛ばす（24fps 見積もりで 60fps 素材なら3コマ）。しかも着地は必ず狙い以内に
+// 収まるので、飛んだことを着地値からは検出できない。そこで**必ず「下から」詰める**。
+// 1刻みを対応上限120fpsのコマ長（STEP_PROBE_SEC）にすると、まだ同じコマに居る位置から
+// 1刻み伸ばした先は最悪でも隣のコマ止まりになるため、素材の fps を知らないまま確実に
+// 1コマだけ動ける。見積もりは初手をコマ長の少し手前へ置く「近道」にだけ使う（通常2回で着地）。
+//
+// 後退はコマ先頭から僅かに戻せば必ず直前のコマなので、初手から最小刻みでよい（1回で着地）。
+// 基準が実コマの先頭か分からないとき（外部シーク直後など）は、まず現在位置へシークして
+// 表示中コマの先頭を確定させてから本番の1手に入る（resolving）。
+function initialFrameStep(dir, base, dur, exact) {
+  if (!exact) return { dir, base, dur, exact, resolving: true, seeded: false, offset: 0, attempt: 0, target: null }
+  const seed = Math.min(Math.max(dur * STEP_SEED_RATIO, STEP_PROBE_SEC), STEP_MAX_FRAME_SEC)
+  return {
+    dir, base, dur, exact,
+    resolving: false,
+    seeded: dir > 0,                                     // 初手が「同じコマ内」と保証できない置き方か
+    offset: (dir > 0 ? seed : STEP_PROBE_SEC) * dir,
+    attempt: 0,
+    target: null
   }
+}
+
+// 着地した実 mediaTime から次の一手を決める（純粋関数）。landed=null は
+// 「新しい絵が提示されなかった」＝同じコマのまま。
+// frameDur は「隣り合うコマの間隔だと確定した実測値」（下から詰めた着地のときだけ返る）。
+function planFrameStep(step, landed) {
+  if (step.resolving) {
+    // 表示中コマの先頭が分かったので、そこを基準に取り直して本番の1手へ。
+    const resolved = initialFrameStep(step.dir, landed === null ? step.base : landed, step.dur, landed !== null)
+    return { done: false, frameDur: null, next: { ...resolved, resolving: false, attempt: step.attempt + 1, target: step.target } }
+  }
+  const progress = landed === null ? 0 : (landed - step.base) * step.dir
+  if (progress <= STEP_SAME_FRAME_SEC) {
+    // まだ同じコマ。1刻みだけ伸ばす（伸ばし幅が最短コマ長以下なので隣を飛び越さない）。
+    const width = Math.abs(step.offset) + STEP_PROBE_SEC
+    if (width > STEP_MAX_FRAME_SEC || step.attempt + 1 >= STEP_MAX_ATTEMPTS) return { done: true, frameDur: null }
+    return { done: false, frameDur: null, next: { ...step, seeded: false, offset: width * step.dir, attempt: step.attempt + 1 } }
+  }
+  if (step.seeded) {
+    // 見積もりから置いた初手でいきなり動いた＝見積もりが実際のコマ長以上だった。
+    // 隣のコマとは限らない（何コマ飛んだかは着地値からは分からない）ので、下から詰め直す。
+    return { done: false, frameDur: null, next: { ...step, seeded: false, offset: STEP_PROBE_SEC * step.dir, attempt: step.attempt + 1 } }
+  }
+  // 下から詰めた末に動いた＝隣のコマ。基準が実コマの先頭なら差はそのままコマ長の実測値。
+  return { done: true, frameDur: step.exact ? progress : null }
+}
+
+// rVFC ベースの自己補正フレームステップ。
+// 表示中フレームの mediaTime(lastFrameTime)を基準に隣のコマへシークし、着地時に rVFC が
+// 返す実 mediaTime で「本当に1コマだけ動いたか」を検証して、外れていれば同じステップの中で
+// 詰め直す（initialFrameStep / planFrameStep）。fps の見積もりが外れていても
+// 1ステップ＝確実に1コマになり、累積ドリフトも発生しない。
+let stepSeq = 0
+let stepLandingTimer = null
+
+function stepFrame(video, dir) {
+  const seq = ++stepSeq
+  if (stepLandingTimer) { clearTimeout(stepLandingTimer); stepLandingTimer = null }
+  const dur = getFrameSec()
+  // lastFrameTime が現在位置から乖離していれば（外部シーク等）currentTime を基準にし直す。
+  const nearCurrent = lastFrameTime !== null && Math.abs(lastFrameTime - video.currentTime) <= dur * 1.5
+  const base = nearCurrent ? lastFrameTime : video.currentTime
+  // 楽観更新で入った推定値は実コマの先頭とは限らないので、currentTime へ落ちたときと同じく
+  // 「先頭が未確定」として扱う（着地からコマ長を実測してよいのは先頭が確定しているときだけ）。
+  const exact = nearCurrent && !lastFrameTimeEstimated
+  // 楽観更新（連打でシーク完了前に次キーが来ても進めるよう移動先フレーム開始を推定）。
+  // 着地時に実測 mediaTime で上書き補正される。推定値だと分かるよう印を付け、
+  // これを基準にしたステップでは着地差をコマ長の実測値として採用しない。
+  lastFrameTime = Math.max(0, base + dir * dur)
+  lastFrameTimeEstimated = true
+  runStepAttempt(video, seq, initialFrameStep(dir, base, dur, exact))
+}
+
+function runStepAttempt(video, seq, step) {
+  const target = seekVideo(video, step.base + step.offset)
+  if (!('requestVideoFrameCallback' in video)) {
+    sendTimecode({ force: true })
+    return
+  }
+  // 尺の端でクランプされて前回と同じ位置になったら、これ以上伸ばしても動かない
+  if (step.target !== null && Math.abs(target - step.target) < 1e-6) {
+    sendTimecode({ force: true })
+    return
+  }
+  step.target = target
+  let settled = false
+  let cbId = null
+  const onLand = (landed) => {
+    if (settled) return
+    settled = true
+    if (stepLandingTimer) { clearTimeout(stepLandingTimer); stepLandingTimer = null }
+    if (cbId !== null) { try { video.cancelVideoFrameCallback(cbId) } catch {} }
+    if (seq !== stepSeq) return  // 新しいステップに追い越された。この着地は捨てる
+    if (landed !== null) { lastFrameTime = landed; lastFrameTimeEstimated = false }
+    const verdict = planFrameStep(step, landed)
+    if (verdict.frameDur !== null && settingsFpsAuto && measuredFrameDur === null
+      && verdict.frameDur >= STEP_PROBE_SEC && verdict.frameDur <= STEP_MAX_FRAME_SEC) {
+      // 探索で確定した隣接コマ間隔は実測値。再生中の中央値が入るまでの暫定として採る。
+      measuredFrameDur = verdict.frameDur
+    }
+    if (verdict.done) {
+      sendTimecode({ force: true })
+      return
+    }
+    runStepAttempt(video, seq, verdict.next)
+  }
+  cbId = video.requestVideoFrameCallback((_now, meta) => { cbId = null; onLand(meta.mediaTime) })
+  stepLandingTimer = setTimeout(() => { stepLandingTimer = null; onLand(null) }, STEP_LANDING_TIMEOUT_MS)
 }
 
 let port = null
