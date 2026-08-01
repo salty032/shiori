@@ -73,6 +73,7 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
   const restoreImages = vi.fn()
   const setViewerId = vi.fn()
   const scrollToIndex = vi.fn()
+  const onLibraryChanged = vi.fn()
 
   const options: UseSelectionOptions = {
     images,
@@ -87,11 +88,12 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
     removeImages,
     restoreImages,
     gridActiveRef: { current: true },
+    onLibraryChanged,
     ...overrides,
   }
 
   const { result, unmount } = renderHook((props: UseSelectionOptions) => useSelection(props), { initialProps: options })
-  return { result, unmount, images, showToast, updateToast, dismissToast, removeImages, restoreImages, setViewerId, scrollToIndex }
+  return { result, unmount, images, showToast, updateToast, dismissToast, removeImages, restoreImages, setViewerId, scrollToIndex, onLibraryChanged }
 }
 
 beforeEach(() => {
@@ -298,6 +300,38 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
     })
 
     expect(window.api.deleteImagesBulk).toHaveBeenCalledWith([images[0].id])
+  })
+
+  it('削除が確定したらサイドバーの集計を取り直す（消した画像のタグが残らない）', async () => {
+    vi.useFakeTimers()
+    const images = makeImages(1)
+    const { result, onLibraryChanged } = setup({ images })
+
+    act(() => result.current.selectIndex(0))
+    act(() => { result.current.deleteSelected() })
+
+    // 猶予中はまだ DB に反映されていないので取り直さない
+    expect(onLibraryChanged).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(4000)
+
+    expect(onLibraryChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('猶予中にUndoしたら集計は取り直さない（DBは変わっていない）', async () => {
+    vi.useFakeTimers()
+    const images = makeImages(3)
+    const { result, showToast, onLibraryChanged } = setup({ images })
+
+    act(() => result.current.selectIndex(0))
+    act(() => { result.current.deleteSelected() })
+
+    const mockShowToast = showToast as unknown as ReturnType<typeof vi.fn>
+    const action = mockShowToast.mock.calls[0][3] as { onClick: () => void }
+    act(() => action.onClick())
+
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(onLibraryChanged).not.toHaveBeenCalled()
   })
 
   it('deleteImagesBulkが失敗したら部分復元される（N-3回帰）', async () => {

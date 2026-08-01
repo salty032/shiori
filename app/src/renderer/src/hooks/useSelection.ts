@@ -6,6 +6,7 @@ import { markPendingDelete, unmarkPendingDelete } from '../stores/imageStore'
 import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterStore'
 import { buildImageQuery } from '../stores/imageQuery'
 import { useExportStore } from '../stores/exportStore'
+import { useLatestRef } from './useLatestRef'
 import { MAX_BULK_IDS } from '../../../shared/constants'
 import { t, tp, currentLocale } from '../i18n'
 
@@ -144,6 +145,10 @@ export interface UseSelectionOptions {
   // グリッド表示中のみ true。矩形選択はグリッドでは仮想リスト用の座標計算、
   // タイムラインでは実 DOM のサムネイル矩形を使って当たり判定する。
   gridActiveRef: React.MutableRefObject<boolean>
+  // 削除が DB に確定した後のサイドバー再取得（タグ一覧・サービス一覧）。画像が消えれば
+  // その画像にしか付いていなかったタグ・サービスはライブラリから消えるが、renderer が
+  // 持っている集計は起動時・タグ操作時にしか更新されないため、ここで明示的に取り直す。
+  onLibraryChanged: () => void
 }
 
 export function useSelection({
@@ -159,6 +164,7 @@ export function useSelection({
   removeImages,
   restoreImages,
   gridActiveRef,
+  onLibraryChanged,
 }: UseSelectionOptions) {
   const [selectedIds, setSelectedIdsState] = useState<Set<number>>(new Set())
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
@@ -202,6 +208,9 @@ export function useSelection({
   }
   const latestRef = useRef({ selectedIds, images, viewerIdx })
   useEffect(() => { latestRef.current = { selectedIds, images, viewerIdx } })
+  // 削除の確定は猶予タイマー・pagehide（空依存 effect）からも走るため、そのときの
+  // クロージャに固まった古い関数ではなく常に最新のものを呼ぶ。
+  const libraryChangedRef = useLatestRef(onLibraryChanged)
   const pendingDeleteRef = useRef<{
     ids: Set<number>
     snapshot: RemovedImagesSnapshot
@@ -319,6 +328,11 @@ export function useSelection({
       restoreImages(pending.snapshot)
       unmarkPendingDelete(pending.ids)
       showToast(t('toast.deleteFailed'), 'error')
+    }).then(() => {
+      // 成否によらず取り直す。一部だけ削除できた場合も集計は変わっており、全滅した場合も
+      // 「取り直した結果が同じ」だけで害はない。ここを成功時だけにすると、部分失敗の
+      // 経路でサイドバーが古いままになる。
+      libraryChangedRef.current()
     })
   }
 

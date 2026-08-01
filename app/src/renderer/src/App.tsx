@@ -106,8 +106,11 @@ export default function App() {
   // useSelection はグリッド/タイムラインで矩形選択の当たり判定を切り替えるため最新の viewMode を ref で参照する。
   const gridActiveRef = useLatestRef(viewMode === 'grid')
 
-  // キャプチャ/クリップボード取り込みでライブラリが変わったときのサイドバー再取得。
-  const onLibraryChanged = (): void => { filters.refreshSites() }
+  // ライブラリの中身が変わったとき（キャプチャ/取り込み/削除）のサイドバー再取得。
+  // タグ一覧も一緒に取り直す。サイドバーのタグは「ライブラリに今あるタグ」なので、
+  // 画像が消えればその画像にしか付いていなかったタグも消えるのが正しい表示だが、
+  // タグ操作以外では取り直していなかったため、全部消した後もタグだけが残っていた。
+  const onLibraryChanged = (): void => { filters.refreshSites(); filters.refreshTags() }
 
   useEffect(() => { localStorage.setItem('shiori-view-mode', viewMode) }, [viewMode])
 
@@ -199,6 +202,7 @@ export default function App() {
     removeImages,
     restoreImages,
     gridActiveRef,
+    onLibraryChanged,
   })
 
   useEffect(() => {
