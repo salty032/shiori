@@ -16,7 +16,8 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { trimWebm, getVideoDuration, getVideoMeta } from './ffmpeg'
+import { trimWebm, getVideoDuration, getVideoMeta, getFrameSignatures, getVideoFramePts, SIGNATURE_GRID } from './ffmpeg'
+import { signaturesDiffer } from './frame-verify'
 
 function runFfmpegSync(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -63,6 +64,80 @@ describe('trimWebm', () => {
     expect(duration).not.toBeNull()
     expect(duration as number).toBeGreaterThan(1.5)
     expect(duration as number).toBeLessThan(2.5)
+  }, 30_000)
+})
+
+// 撮り逃したコマの検証（frame-verify.ts）が読む署名の取り出し。
+// 判定ロジック自体は frame-verify.test.ts が持つので、ここでは「ffmpeg から意図した形で
+// 取り出せているか」だけを実バイナリで確かめる。
+describe('getFrameSignatures', () => {
+  let dir: string
+  let srcPath: string
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'shiori-ffmpeg-sig-test-'))
+    srcPath = join(dir, 'half.webm')
+    // 前半1秒が黒・後半1秒が白の 20 フレーム。静止区間と切り替わりの両方を含む。
+    await runFfmpegSync([
+      '-y',
+      '-f', 'lavfi', '-i', 'color=c=black:d=1:s=320x240:r=10',
+      '-f', 'lavfi', '-i', 'color=c=white:d=1:s=320x240:r=10',
+      '-filter_complex', '[0:v][1:v]concat=n=2:v=1',
+      '-c:v', 'libvpx',
+      srcPath
+    ])
+  }, 30_000)
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  // 録画クリップは可変フレームレート。既定のままだと ffmpeg が一定フレームレートへ
+  // 揃えるためにフレームを複製し、署名の添字がファイルのフレーム番号からずれる
+  // （実際に踏んだ: 298 枚のクリップが 537 枚として読まれ、検証結果が丸ごと無意味になった）。
+  // 一定フレームレートの素材では再現しないため、可変フレームレートのファイルで固定する。
+  it('可変フレームレートでもフレームを複製しない（署名の添字がずれない）', async () => {
+    const vfrPath = join(dir, 'vfr.webm')
+    // 10fps の素材から中間4フレームを落とす＝タイムスタンプが飛んだ 16 枚のファイル
+    await runFfmpegSync([
+      '-y',
+      '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=10',
+      '-vf', "select='not(between(n,3,6))'",
+      '-fps_mode', 'passthrough',
+      '-c:v', 'libvpx',
+      vfrPath
+    ])
+    const [sigs, pts] = await Promise.all([getFrameSignatures(vfrPath), getVideoFramePts(vfrPath)])
+    expect(pts.length).toBe(16)
+    expect(sigs.length).toBe(pts.length)
+  }, 60_000)
+
+  it('1フレームにつき 32x32 のグレースケール1枚を返す', async () => {
+    const sigs = await getFrameSignatures(srcPath)
+    expect(sigs.length).toBeGreaterThan(0)
+    expect(sigs[0].length).toBe(SIGNATURE_GRID * SIGNATURE_GRID)
+  }, 60_000)
+
+  // フレーム表の frameIndex は「ファイル内の何枚目か」なので、署名の添字がそれとずれると
+  // 別のコマの絵を比べて判定することになる。両者が同じデコード結果を数えていることを固定する。
+  it('署名の枚数が PTS の数と一致する（フレーム表の添字と揃う）', async () => {
+    const [sigs, pts] = await Promise.all([getFrameSignatures(srcPath), getVideoFramePts(srcPath)])
+    expect(sigs.length).toBe(pts.length)
+  }, 60_000)
+
+  it('静止区間では変化を検出せず、切り替わりだけを検出する', async () => {
+    const sigs = await getFrameSignatures(srcPath)
+    const changes: number[] = []
+    for (let i = 1; i < sigs.length; i++) {
+      if (signaturesDiffer(sigs[i - 1], sigs[i])) changes.push(i)
+    }
+    // 黒→白の1回だけ。静止している 9 フレームぶんの隣接比較は全て「変化なし」になる。
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toBe(Math.floor(sigs.length / 2))
+  }, 60_000)
+
+  it('存在しないファイルでは失敗する（黙って空を返して未検証扱いに化けさせない）', async () => {
+    await expect(getFrameSignatures(join(dir, 'does-not-exist.webm'))).rejects.toThrow()
   }, 30_000)
 })
 

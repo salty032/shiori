@@ -8,9 +8,9 @@ vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/user
 import { encodeFrames, decodeFrames, type StoredFrame } from './db'
 
 const frames: StoredFrame[] = [
-  { mediaTime: 0, frameIndex: 0, captured: true },
-  { mediaTime: 0.0417083, frameIndex: 2, captured: true },
-  { mediaTime: 0.0834166, frameIndex: 2, captured: false }
+  { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
+  { mediaTime: 0.0417083, frameIndex: 2, captured: true, verified: 'unknown' },
+  { mediaTime: 0.0834166, frameIndex: 2, captured: false, verified: 'changed' }
 ]
 
 describe('フレーム表の直列化', () => {
@@ -20,11 +20,40 @@ describe('フレーム表の直列化', () => {
 
   it('千コマ規模でも往復できる（60秒クリップ相当）', () => {
     const many: StoredFrame[] = Array.from({ length: 1440 }, (_, i) => ({
-      mediaTime: i / 23.976, frameIndex: Math.floor(i * 1.4), captured: i % 20 !== 0
+      mediaTime: i / 23.976, frameIndex: Math.floor(i * 1.4), captured: i % 20 !== 0, verified: 'unknown' as const
     }))
     const back = decodeFrames(encodeFrames(many))!
     expect(back).toHaveLength(1440)
     expect(back[1439]).toEqual(many[1439])
+  })
+
+  // 検証結果（4要素目）は後から足したもの。既存クリップの行は3要素しか無いため、
+  // ここが読めなくなると過去の録画のコマ送りが丸ごと従来動作へ落ちる。
+  it('検証結果を持たない古い行（3要素）も読める。未検証として扱う', () => {
+    const back = decodeFrames('[[0,0,1],[0.042,2,0]]')!
+    expect(back).toHaveLength(2)
+    expect(back[0].verified).toBe('unknown')
+    expect(back[1]).toEqual({ mediaTime: 0.042, frameIndex: 2, captured: false, verified: 'unknown' })
+  })
+
+  it('検証結果を往復できる', () => {
+    const back = decodeFrames(encodeFrames([
+      { mediaTime: 0, frameIndex: 0, captured: false, verified: 'same' },
+      { mediaTime: 0.042, frameIndex: 1, captured: false, verified: 'changed' }
+    ]))!
+    expect(back.map((f) => f.verified)).toEqual(['same', 'changed'])
+  })
+
+  it('verified を省いて保存したら未検証として読み戻る', () => {
+    const back = decodeFrames(encodeFrames([{ mediaTime: 0, frameIndex: 0, captured: true }]))!
+    expect(back[0].verified).toBe('unknown')
+  })
+
+  // 検証結果は補助情報。見慣れないコードが入っていても、コマ送りの土台である
+  // mediaTime/frameIndex まで巻き添えで捨てない（未検証へ落として使い続ける）。
+  it('検証結果のコードが想定外でも表は捨てず、未検証として扱う', () => {
+    const back = decodeFrames('[[0,0,1,9]]')!
+    expect(back[0]).toEqual({ mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' })
   })
 
   it('mediaTime の精度が落ちない（コマの同定に使うため）', () => {

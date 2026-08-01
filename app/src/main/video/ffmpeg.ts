@@ -51,6 +51,80 @@ function runFfmpegCollect(args: string[]): Promise<{ stderr: string; timedOut: b
   })
 }
 
+// stdout をバイナリのまま集める（rawvideo の取り出し用）。stderr も返す
+// （showinfo を挟んで「デコードされた実フレーム数」を数えるため）。
+function runFfmpegCollectStdout(args: string[]): Promise<{ stdout: Buffer; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    let bin: string
+    try { bin = getFfmpegPath() } catch (err) { reject(err); return }
+    const proc = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const chunks: Buffer[] = []
+    let stderr = ''
+    const timer = setTimeout(() => {
+      proc.kill()
+      reject(new Error('ffmpeg timeout'))
+    }, FFMPEG_TIMEOUT_MS)
+    proc.stdout?.on('data', (d: Buffer) => { chunks.push(d) })
+    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve({ stdout: Buffer.concat(chunks), stderr })
+      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-1000)}`))
+    })
+    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+  })
+}
+
+// 1辺のセル数。撮り逃したコマの前後で「絵が変わったか」を判定するためだけの解像度で、
+// 元の絵を復元する用途ではない。細かくするほどエンコードのノイズを拾って「変わった」に
+// 倒れやすくなり、粗くするほど小さな変化（口パク等）を見落とす。32 は 1920x1080 に対して
+// 1セル 60x34px 相当で、キャラの口ほどの領域でも複数セルが動く粒度。
+export const SIGNATURE_GRID = 32
+const SIGNATURE_BYTES = SIGNATURE_GRID * SIGNATURE_GRID
+
+// クリップの全フレームを 32x32 のグレースケールへ落として取り出す。
+//
+// 録画中ではなく録画後に行う。唯一の制約資源である画面キャプチャの供給レート
+// （実測 31枚/秒）を、解析のために1枚たりとも削りたくないため。フル デコードを伴うので
+// 保存後のバックグラウンド処理として呼ぶこと。
+export async function getFrameSignatures(inputPath: string): Promise<Uint8Array[]> {
+  // flags=area: 縮小時に領域平均を取る。既定の bilinear だと間引きに近い挙動になり、
+  // 面積の小さい変化がセルの値にほとんど出ない。
+  //
+  // -fps_mode passthrough は必須。録画クリップは可変フレームレートで、既定のまま
+  // rawvideo へ出すと ffmpeg が一定フレームレートへ揃えるためにフレームを複製する
+  // （実測: 実フレーム 16 枚のクリップが 20 枚になり、dup=4 と報告された）。
+  // 複製が混ざると署名の添字がファイルのフレーム番号とずれ、フレーム表の frameIndex で
+  // 引いたときに別のコマの絵を比べることになる＝検証結果が丸ごと無意味になる。
+  // showinfo はフィルタなので、フレームレート調整（muxer 側）より前の「デコードされた
+  // 実フレーム」を1行ずつ出す。取り出した署名の枚数と突き合わせれば、複製が混ざったことを
+  // その場で検出できる。ここが静かにずれると別のコマの絵で検証してしまい、結果は
+  // もっともらしいまま無意味になる（実際に踏んだ）。1回のデコードで両方の数が取れる。
+  const { stdout, stderr } = await runFfmpegCollectStdout([
+    '-hide_banner',
+    '-i', inputPath,
+    '-an',
+    '-fps_mode', 'passthrough',
+    '-vf', `showinfo,scale=${SIGNATURE_GRID}:${SIGNATURE_GRID}:flags=area,format=gray`,
+    '-f', 'rawvideo',
+    '-'
+  ])
+  const count = Math.floor(stdout.length / SIGNATURE_BYTES)
+  const decoded = stderr.match(/pts_time:/g)?.length ?? 0
+  if (decoded > 0 && count !== decoded) {
+    // 呼び出し元（verify-clip.ts）は例外を「検証できなかった」として扱い、未検証のまま残す。
+    // ずれた署名で判定を書き込むより、判定しない方がよい。
+    throw new Error(
+      `getFrameSignatures: frame count mismatch (rawvideo ${count}, decoded ${decoded}) for ${inputPath}`
+    )
+  }
+  const out: Uint8Array[] = []
+  for (let i = 0; i < count; i++) {
+    out.push(new Uint8Array(stdout.subarray(i * SIGNATURE_BYTES, (i + 1) * SIGNATURE_BYTES)))
+  }
+  return out
+}
+
 // showinfo フィルタで各フレームの pts_time を取得する
 export async function getVideoFramePts(inputPath: string): Promise<number[]> {
   const { stderr, timedOut } = await runFfmpegCollect([

@@ -4,12 +4,50 @@ export {}
 
 type CropRect = { x: number; y: number; w: number; h: number }
 
+// 供給の内訳（main の capture-diag.ts が受け取って1行のログにする）。
+// 「キャプチャ本体が寄越していないのか、寄越しているのに rVFC が観測を飛ばしたのか」を
+// 切り分けるための計測値で、録画の成否には一切関与しない。
+type CaptureDiag = {
+  callbacks: number
+  presented: number
+  skippedByCallback: number
+  duplicateSuppressed: number
+  totalVideoFrames: number | null
+  droppedVideoFrames: number | null
+}
+
+// 供給レートの計測（開発時のみ。supply-bench.ts 参照）。
+// 「キャプチャ本体」「canvas への描画」「エンコード」のどれが上限を決めているかを
+// 切り分けるため、段階を変えながら一定時間の供給枚数を数える。
+type BenchStage = 'capture' | 'draw' | 'encode'
+// ticker: 画面の隅を毎フレーム書き換えてキャプチャを誘発する。透明度だけを変えた3段階を
+// 比べることで、「キャプチャが反応するのは目に見える変化なのか、ウィンドウ内容の書き換え
+// そのものなのか」を切り分ける。invisible で効くなら、記録に一切写り込まずに供給を増やせる。
+type TickerMode = 'visible' | 'faint' | 'invisible'
+type BenchVariant = { name: string; stage: BenchStage; maxWidth?: number; maxFrameRate?: number; ticker?: TickerMode }
+type BenchResult = {
+  name: string
+  seconds: number
+  /** rVFC が呼ばれた回数 */
+  frames: number
+  /** そのうち mediaTime が直前と異なったもの＝別フレームとして届いた枚数 */
+  distinct: number
+  /** video 要素が受け取った総数（getVideoPlaybackQuality） */
+  totalVideoFrames: number | null
+  /** 実際に得られたストリームの解像度 */
+  width: number
+  height: number
+  error?: string
+}
+
 interface RecorderApi {
   onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number; sessionId: number }) => void) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
-  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[]) => void
+  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
   reportError: (msg: string, sessionId: number) => void
+  onBench: (cb: (data: { variants: BenchVariant[]; seconds: number }) => void) => void
+  sendBenchResult: (results: BenchResult[]) => void
 }
 
 declare global {
@@ -31,6 +69,9 @@ type CaptureFrameMeta = {
 
 let recorder: MediaRecorder | null = null
 let rVfcRunning = false
+// 供給を引き上げるためのティッカー（下の startCaptureTicker 参照）。
+let tickerRaf: number | null = null
+let tickerEl: HTMLCanvasElement | null = null
 let mediaStream: MediaStream | null = null
 let canvasStream: MediaStream | null = null
 let stopTimer: ReturnType<typeof setTimeout> | null = null
@@ -46,9 +87,52 @@ let currentSessionId = 0
 // 一致しないとき（＝自分より新しいセッションが既に走り出しているとき）はこれらを
 // 一切触らない。それをせずに一律クリアすると、旧セッションの中断処理が新セッションの
 // 描画ループ・自動停止タイマーを巻き込んで止めてしまうレースになる。
+// 画面キャプチャの供給を引き上げる。
+//
+// キャプチャの枚数は「画面が変化した回数」で決まる（supply-bench.ts で実測。パイプラインの
+// 段階を外しても解像度を 1/3 にしても増えず、画面の変化が少ないほど減る）。素材 24fps に
+// 必要なのは 2 倍の約 48枚/秒だが、プレーヤーUIを隠して録画している間は 26〜33枚/秒しか
+// 出ず、5〜8% のコマが自分の絵を持てなかった。
+//
+// このウィンドウ（1x1 px・最前面）の中身を毎フレーム書き換えるだけで、ブラウザの描画回数と
+// 無関係にキャプチャを走らせられる。実測 29.2 → 50.2枚/秒。
+//
+// **塗るのは完全に透明（alpha=0）にすること。** 反応しているのは合成後の見た目ではなく
+// ウィンドウ内容の書き換えそのもので、不透明(50.8)・微か(50.6)・透明(50.2)で効果は変わらない。
+// 不透明にすると全画面再生時の切り出し範囲に入り、記録の左上に点滅が残ってしまう。
+function startCaptureTicker(): void {
+  stopCaptureTicker()
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  canvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px'
+  document.body.appendChild(canvas)
+  tickerEl = canvas
+  const ctx = canvas.getContext('2d')
+  let on = false
+  const tick = (): void => {
+    on = !on
+    if (ctx) {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = on ? 'rgba(255,255,255,0)' : 'rgba(0,0,0,0)'
+      ctx.fillRect(0, 0, 1, 1)
+    }
+    tickerRaf = requestAnimationFrame(tick)
+  }
+  tickerRaf = requestAnimationFrame(tick)
+}
+
+function stopCaptureTicker(): void {
+  if (tickerRaf !== null) cancelAnimationFrame(tickerRaf)
+  tickerRaf = null
+  tickerEl?.remove()
+  tickerEl = null
+}
+
 function cleanup(stream: MediaStream | null, cs: MediaStream | null, token: number): void {
   if (token === recordingToken) {
     rVfcRunning = false
+    stopCaptureTicker()
     if (frameTimer) {
       clearInterval(frameTimer)
       frameTimer = null
@@ -251,6 +335,8 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   const csTrack = cs.getVideoTracks()[0] as any
 
   rVfcRunning = true
+  // 供給を引き上げるティッカーを回す。録画中だけで十分なのでここで開始し、cleanup で止める。
+  startCaptureTicker()
   // 実際に記録へ供給したフレームの枚数。実測 fps（frameCount / duration）を main 側で
   // 算出するために録画終了時に渡す。重複供給を弾いた後の回数なので、素材として
   // 別物だったフレーム数と一致する（下の scheduleFrame 参照）。
@@ -280,12 +366,32 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   // 2 コマ打ちの「同じ絵が 2 枚」は素材上で別フレーム（mediaTime が異なる）なので、
   // この判定では落ちない。落ちるのは同一フレームの重複供給だけ。
   let lastDrawnMediaTime = -1
+  // 供給の実測（診断専用。録画そのものには影響しない）。
+  //
+  // rVFC は「フレームが提示された」ごとに呼ばれる建前だが、提示が詰まるとコールバックは
+  // 飛ばされ、presentedFrames だけが一気に進む。つまり「rVFC が呼ばれた回数」は
+  // キャプチャが寄越した枚数とは限らない。飛んだぶんを数えておけば、撮り逃しの原因が
+  // 供給不足なのか観測漏れなのかを録画1本で切り分けられる。
+  let callbacks = 0
+  let presentedFirst: number | null = null
+  let presentedLast: number | null = null
+  let skippedByCallback = 0
+  let duplicateSuppressed = 0
   const scheduleFrame = (now?: number, meta?: CaptureFrameMeta): void => {
     if (!rVfcRunning) return
+    callbacks++
+    const presented = meta?.presentedFrames
+    if (typeof presented === 'number') {
+      if (presentedFirst === null) presentedFirst = presented
+      else if (presentedLast !== null && presented > presentedLast + 1) skippedByCallback += presented - presentedLast - 1
+      presentedLast = presented
+    }
     const mediaTime = meta?.mediaTime
     if (mediaTime === undefined || mediaTime !== lastDrawnMediaTime) {
       if (mediaTime !== undefined) lastDrawnMediaTime = mediaTime
       drawFrame(meta?.captureTime)
+    } else {
+      duplicateSuppressed++
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(video as any).requestVideoFrameCallback(scheduleFrame)
@@ -308,10 +414,15 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
 
   let rec: MediaRecorder
   try {
+    // 映像は 12Mbps。ティッカーで供給が 29→50枚/秒 に増えたぶん、8Mbps のままだと
+    // 1フレームあたりのビット数が 4 割痩せ、アニメの線画にモスキートノイズが出る。
+    // フレームレートが上がると隣接フレームが似るぶんフレーム間予測が効くので、
+    // 枚数の比（1.7倍）ほどは要らない。1.5倍で元の画質水準に戻る見当。
+    //
     // 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
-    // 映像に 8Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
+    // 映像に 12Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
     // 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
-    rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 192_000 })
+    rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 192_000 })
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
     cleanup(stream, cs, token)
@@ -360,8 +471,18 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
       // MediaRecorder WebM output may lack duration metadata, which breaks seeking.
       const blob = await fixWebmDuration(rawBlob, duration * 1000)
 
+      // video 要素が「受け取った枚数」。rVFC 越しに観測した枚数と比べることで、
+      // キャプチャ本体の供給量そのものが分かる（受け取り ≈ 供給 なら増やす余地は無い）。
+      const quality = typeof video.getVideoPlaybackQuality === 'function' ? video.getVideoPlaybackQuality() : null
       const webmBuf = await blob.arrayBuffer()
-      window.recorderApi.sendDone(webmBuf, duration, frameCount, sessionId, drawnAt)
+      window.recorderApi.sendDone(webmBuf, duration, frameCount, sessionId, drawnAt, {
+        callbacks,
+        presented: presentedFirst !== null && presentedLast !== null ? presentedLast - presentedFirst + 1 : 0,
+        skippedByCallback,
+        duplicateSuppressed,
+        totalVideoFrames: quality?.totalVideoFrames ?? null,
+        droppedVideoFrames: quality?.droppedVideoFrames ?? null
+      })
     } catch (err) {
       console.error('[recorder] finalize failed', err)
       window.recorderApi.reportError('finalize_failed', sessionId)
@@ -384,6 +505,150 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
       if (rec.state === 'recording') rec.stop()
     }, maxSeconds * 1000)
   }
+})
+
+// ── 供給レートの計測 ────────────────────────────────────────────────
+//
+// 録画もファイル保存も伴わない。段階（capture / draw / encode）を変えながら一定時間
+// 供給枚数を数え、上限を決めているのがどこかを切り分ける。
+//
+// 実測で分かっていること: rVFC の観測漏れは 0、video 要素が受け取った総数も
+// コールバック回数とほぼ同数（capture-diag.ts）。つまり「読み出し方」ではないところまでは
+// 絞れているが、キャプチャ本体・描画・エンコード・そもそも画面が変化していない、の
+// どれなのかはまだ分かっていない。ここを埋めるための計測。
+async function runBenchVariant(variant: BenchVariant, seconds: number): Promise<BenchResult> {
+  const base: BenchResult = {
+    name: variant.name, seconds, frames: 0, distinct: 0, totalVideoFrames: null, width: 0, height: 0
+  }
+  let stream: MediaStream | null = null
+  let cs: MediaStream | null = null
+  let rec: MediaRecorder | null = null
+  // 録画本体のティッカー（モジュール変数）とは別物。計測はそれ自体が条件なので独立に持つ。
+  let benchTickerRaf: number | null = null
+  let benchTickerEl: HTMLCanvasElement | null = null
+  const video = document.createElement('video')
+  try {
+    // 画面の隅（このレコーダーウィンドウは 1x1 px で画面左上に常駐している）を毎フレーム
+    // 書き換える。キャプチャが画面の変化に駆動されているなら、ブラウザの描画回数とは無関係に
+    // キャプチャを走らせられる——そのフレームには動画領域の最新状態も一緒に写る。
+    //
+    // 変えるのは不透明度だけにして、他の条件を揃える。alpha=0（完全に透明）でも供給が増えるなら、
+    // 記録に一切写り込まずに済む。増えないなら、目に見える変化が必要だと分かる。
+    if (variant.ticker) {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1
+      canvas.height = 1
+      canvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px'
+      document.body.appendChild(canvas)
+      benchTickerEl = canvas
+      const tctx = canvas.getContext('2d')
+      const alpha = variant.ticker === 'visible' ? 1 : variant.ticker === 'faint' ? 0.02 : 0
+      let on = false
+      const tick = (): void => {
+        on = !on
+        if (tctx) {
+          tctx.clearRect(0, 0, 1, 1)
+          tctx.fillStyle = on ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`
+          tctx.fillRect(0, 0, 1, 1)
+        }
+        benchTickerRaf = requestAnimationFrame(tick)
+      }
+      benchTickerRaf = requestAnimationFrame(tick)
+    }
+    // 録画時と同じ経路（getDisplayMedia）。解像度・フレームレートだけ変えて比較する。
+    // 音声は要求しない — 計測したいのは映像の供給枚数で、音声の有無で失敗要因を増やしたくない。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const videoConstraints: any = { frameRate: { ideal: variant.maxFrameRate ?? 60, max: variant.maxFrameRate ?? 60 } }
+    if (variant.maxWidth) videoConstraints.width = { max: variant.maxWidth }
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints })
+
+    const track = stream.getVideoTracks()[0]
+    const settings = track.getSettings()
+    base.width = settings.width ?? 0
+    base.height = settings.height ?? 0
+
+    video.srcObject = stream
+    video.muted = true
+    await video.play()
+
+    let ctx: CanvasRenderingContext2D | null = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let csTrack: any = null
+    if (variant.stage !== 'capture') {
+      const crop = await window.recorderApi.getCrop(base.width, base.height)
+      const w = crop?.w ?? base.width
+      const h = crop?.h ?? base.height
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      ctx = canvas.getContext('2d')
+      cs = canvas.captureStream(0)
+      csTrack = cs.getVideoTracks()[0]
+      if (variant.stage === 'encode') {
+        rec = new MediaRecorder(cs, { mimeType: pickMimeType(), videoBitsPerSecond: 8_000_000 })
+        // 溜め込まないよう捨てる。計測したいのはエンコードの負荷であって出力ではない。
+        rec.ondataavailable = () => {}
+        rec.start(100)
+      }
+      // 描画は録画時と同じ「切り出して等倍で描く」形にする（拡大縮小のコストを混ぜない）。
+      const sx = crop?.x ?? 0
+      const sy = crop?.y ?? 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(video as any).__benchDraw = () => {
+        ctx?.drawImage(video, sx, sy, w, h, 0, 0, w, h)
+        csTrack?.requestFrame()
+      }
+    }
+
+    await new Promise<void>((resolve) => {
+      let lastMediaTime = -1
+      let running = true
+      const tick = (_now?: number, meta?: CaptureFrameMeta): void => {
+        if (!running) return
+        base.frames++
+        if (meta?.mediaTime === undefined || meta.mediaTime !== lastMediaTime) {
+          base.distinct++
+          if (meta?.mediaTime !== undefined) lastMediaTime = meta.mediaTime
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(video as any).__benchDraw?.()
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(video as any).requestVideoFrameCallback(tick)
+      }
+      if ('requestVideoFrameCallback' in video) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(video as any).requestVideoFrameCallback(tick)
+      }
+      setTimeout(() => { running = false; resolve() }, seconds * 1000)
+    })
+
+    base.totalVideoFrames = typeof video.getVideoPlaybackQuality === 'function'
+      ? video.getVideoPlaybackQuality().totalVideoFrames
+      : null
+  } catch (err) {
+    base.error = String(err instanceof Error ? err.message : err).slice(0, 120)
+  } finally {
+    if (benchTickerRaf !== null) cancelAnimationFrame(benchTickerRaf)
+    benchTickerEl?.remove()
+    try { if (rec && rec.state !== 'inactive') rec.stop() } catch {}
+    cs?.getTracks().forEach((t) => t.stop())
+    stream?.getTracks().forEach((t) => t.stop())
+    video.srcObject = null
+  }
+  return base
+}
+
+window.recorderApi.onBench(async ({ variants, seconds }) => {
+  // 録画中は触らない（ストリームを二重に掴んで録画を壊さない）。
+  if (recorder && recorder.state !== 'inactive') {
+    window.recorderApi.sendBenchResult([])
+    return
+  }
+  const results: BenchResult[] = []
+  for (const variant of variants) {
+    results.push(await runBenchVariant(variant, seconds))
+  }
+  window.recorderApi.sendBenchResult(results)
 })
 
 window.recorderApi.onStop(() => {

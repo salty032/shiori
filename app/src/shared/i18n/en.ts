@@ -72,6 +72,7 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.recordingDataInvalid': 'The recording was damaged, so it could not be saved.',
   'notice.clipSaveFailed': 'Could not save the clip',
   'notice.clipSaved': 'Clip saved ({duration})',
+  'notice.clipSavedWithMissed': 'Clip saved ({duration}, {count} frames missed)',
   'notice.videoNotDetected':
     'No video found. Open a video page on a supported site and check that the browser extension is enabled.',
   'notice.recorderPrepareFailed': 'Could not start the recorder. Please try again.',
@@ -297,6 +298,10 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.duration': 'Length',
   'detail.fps': 'FPS',
   'detail.uncapturedFrames': '{count} frames missed',
+  'detail.ambiguousFrames': '{count} frames need review',
+  'detail.ambiguousFramesHint':
+    '{missed} frames have no picture of their own, and {ambiguous} of them show a change between ' +
+    'the surrounding captures. Which frame the change belongs to cannot be determined, so check these when counting.',
   'detail.memo': 'Notes',
   'detail.memoUnsaved': 'Unsaved',
   'detail.memoSaving': 'Saving…',

@@ -14,10 +14,18 @@ contextBridge.exposeInMainWorld('recorderApi', {
   // drawnAt: 供給した各フレームが画面から取り込まれた時刻（epoch ミリ秒）。
   // 配信ページ側から届く素材のコマ時刻と突き合わせ、素材のコマとファイル内の
   // フレームを対応付けるために使う。
-  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[]) => {
-    ipcRenderer.send('recorder:done', webm, duration, frameCount, sessionId, drawnAt)
+  // diag: 供給の実測値（診断ログ専用。main 側の capture-diag.ts が検証して使う）。
+  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: unknown) => {
+    ipcRenderer.send('recorder:done', webm, duration, frameCount, sessionId, drawnAt, diag)
   },
   reportError: (msg: string, sessionId: number) => {
     ipcRenderer.send('recorder:error', msg, sessionId)
+  },
+  // 供給レートの計測（開発時のみ。main の supply-bench.ts が駆動する）。
+  onBench: (cb: (data: unknown) => void) => {
+    ipcRenderer.on('recorder:bench', (_e, data) => cb(data))
+  },
+  sendBenchResult: (results: unknown) => {
+    ipcRenderer.send('recorder:benchResult', results)
   }
 })

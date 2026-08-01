@@ -1,6 +1,6 @@
 // 動画機能（録画クリップ・トリミング）のエントリ。full 版の bootstrap にのみ渡される
 // MainFeature 実装。capture ソースドロップではこのディレクトリごと削除する。
-import { session, globalShortcut } from 'electron'
+import { app, session, globalShortcut } from 'electron'
 import type { MainFeature } from '../feature'
 import { loadSettings, saveSettings } from '../settings'
 import { sendBrowserNotice } from '../browser-notice'
@@ -13,6 +13,7 @@ import { getRecorderWindow, createRecorderWindow } from './recorder-window'
 import { registerVideoHandlers } from './ipc-video'
 import { registerRecorderIpc } from './recorder-ipc'
 import { registerClipHotkey, changeClipHotkey } from './clip-hotkey'
+import { registerSupplyBench } from './supply-bench'
 import { finishRecordingState, handleClipHotkey, isCurrentlyRecording } from './recording'
 import { extractThumb, getVideoMeta, getVideoFramePts } from './ffmpeg'
 
@@ -71,6 +72,9 @@ export const videoFeature: MainFeature = {
       }
     )
     createRecorderWindow(finishRecordingState)
+
+    // 供給レートの計測は開発時のみ。配布物にホットキーも計測経路も足さない。
+    if (!app.isPackaged) registerSupplyBench()
 
     // ホットキーは起動時に一度だけ登録するため、起動時に他アプリが同じキーを
     // 握っていると登録に失敗したまま復帰しない。ウィンドウフォーカス時に

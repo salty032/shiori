@@ -118,18 +118,48 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
     expect(matchFrames(makeSource(10), [])).toBeNull()
   })
 
-  it('撮影フレームが素材より早く尽きても破綻せず、以降を未取得として扱う', () => {
-    // 録画停止の前後で、素材のコマ通知だけが先に届いて撮影が尽きる状況。
-    // 尽きた先を「撮れた」と偽らないことが重要（そこだけ絵が止まる）。
+  it('撮影が先に尽きたら、その先のコマは表に入れない（撮り逃しとして数えない）', () => {
+    // 録画停止の前後で、素材のコマ通知だけが届き続ける状況。コマ通知の受け口は録画停止の
+    // 処理が終わるまで生きているため、必ず起きる。
+    //
+    // これらは撮り逃したのではなく最初から録画の外なので、表からも枚数からも外す。
+    // 残すと「撮り逃し」が録画停止後の長さに比例して水増しされ、詳細パネルの
+    // 「N コマ要確認」が実態とかけ離れる。
     const result = matchFrames(makeSource(120), makeDrawn(20, 0))!
-    expect(result.matches).toHaveLength(120)
-    const tail = result.matches.slice(25)
-    expect(tail.every((m) => !m.captured)).toBe(true)
-    // フレーム番号は範囲内に収まり、後戻りしない
+    expect(result.matches.length).toBeLessThan(30)
+    expect(result.outsideRecording).toBeGreaterThan(80)
+    // 残ったコマのフレーム番号は範囲内に収まり、後戻りしない
     result.matches.forEach((m, i) => {
       expect(m.frameIndex).toBeLessThan(20)
       expect(m.frameIndex).toBeGreaterThanOrEqual(0)
       if (i > 0) expect(m.frameIndex).toBeGreaterThanOrEqual(result.matches[i - 1].frameIndex)
     })
+  })
+
+  it('録画が始まる前に表示し終えたコマも表に入れない', () => {
+    // 受け口は録画開始より前に立ち上げる（最初の数コマを取りこぼさないため）。
+    // その間のコマは録画されていないので、撮り逃しではなく範囲外として外す。
+    const source = makeSource(60)
+    // 撮影は素材の 20 コマ目あたりから始まったことにする
+    const drawn = makeDrawn(200, 0).map((t) => t + 20 * (1000 / 24))
+    const result = matchFrames(source, drawn)!
+    expect(result.outsideRecording).toBeGreaterThan(10)
+    expect(result.matches.length).toBeLessThan(50)
+  })
+
+  it('同じコマの重複通知を畳む（撮り逃しに数えない）', () => {
+    // ページ側の rVFC は同じフレームの再提示でもう一度発火しうる。畳まないと 2 つ目が
+    // 必ず「専用の絵が無い」と判定され、撮り逃しの数を水増しする。
+    const source = makeSource(40)
+    const withDuplicates = source.flatMap((f, i) =>
+      // 5 コマにつき 1 回、同じ mediaTime の通知が 8ms 後にもう一度届いたことにする
+      i % 5 === 0 ? [f, { ...f, displayAt: f.displayAt + 8 }] : [f]
+    )
+    const plain = matchFrames(source, makeDrawn(400, 0))!
+    const duped = matchFrames(withDuplicates, makeDrawn(400, 0))!
+    expect(duped.duplicateReports).toBe(8)
+    // 畳んだ結果、重複が無かった場合と同じ表になる
+    expect(duped.matches).toEqual(plain.matches)
+    expect(duped.capturedRatio).toBe(plain.capturedRatio)
   })
 })

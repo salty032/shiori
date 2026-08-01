@@ -28,6 +28,10 @@ export type ImageRow = {
   // 録画クリップにしか意味が無く、静止画・取り込み・従来のクリップでは付かないため任意。
   // null/undefined は「コマ精度の情報が無い」を意味する。
   uncaptured_frames?: number | null
+  // 上記のうち「前後で絵が変わっており、どのコマで変わったか特定できない」枚数。
+  // 撮り逃しの大半は同じ絵が続く区間で実害が無いため、本当に確認が要る枚数だけをこちらに持つ。
+  // null/undefined は「まだ検証していない」（保存直後・検証失敗・従来のクリップ）。
+  ambiguous_frames?: number | null
   thumb_path: string | null
   source: ImageSource
 }

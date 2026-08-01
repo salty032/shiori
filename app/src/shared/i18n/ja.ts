@@ -61,6 +61,7 @@ export const ja = {
   'notice.recordingDataInvalid': '録画データが不正なため保存できませんでした。',
   'notice.clipSaveFailed': 'クリップの保存に失敗しました',
   'notice.clipSaved': 'クリップを保存しました（{duration}）',
+  'notice.clipSavedWithMissed': 'クリップを保存しました（{duration}・{count}コマ未取得）',
   'notice.videoNotDetected':
     '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',
@@ -286,6 +287,10 @@ export const ja = {
   'detail.duration': '長さ',
   'detail.fps': 'FPS',
   'detail.uncapturedFrames': '{count}コマ未取得',
+  'detail.ambiguousFrames': '{count}コマ要確認',
+  'detail.ambiguousFramesHint':
+    '専用の絵が無いコマが{missed}個あり、うち{ambiguous}個は前後で絵が変わっています。' +
+    'その区間のどのコマで変わったかは特定できないため、コマ打ちを数えるときは確認してください。',
   'detail.memo': 'メモ',
   'detail.memoUnsaved': '未保存',
   'detail.memoSaving': '保存中...',

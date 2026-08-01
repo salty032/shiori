@@ -10,8 +10,10 @@ import { sendBrowserNotice } from '../browser-notice'
 import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
+import { verifyClipFrames } from './verify-clip'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
 import { logMatchResult, buildFrameTable, getSourceFps } from './frame-feed'
+import { logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../captured-media'
 import { saveVideoFrames, setUncapturedFrames } from '../db'
 import { t } from '../i18n'
@@ -75,7 +77,7 @@ export function registerRecorderIpc(): void {
     }
   })
 
-  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[]) => {
+  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: unknown) => {
     if (!isTrustedRecorderSender(event)) return
     // recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、現在のセッションと
     // 一致しない完了通知は無視する。新しい録画を誤って確定・保存させない。
@@ -98,7 +100,8 @@ export function registerRecorderIpc(): void {
     // 素材の実 fps が分かるならそれを使う。frameCount/duration は「画面キャプチャが
     // 何枚寄越したか」でしかなく素材とは無関係な値になる（23.976fps の素材で 37fps 等）。
     // 取れないとき（拡張未接続・非対応サイト）だけ従来の算出へ退避する。
-    const fps = getSourceFps() ?? computeFps(frameCount, duration)
+    const sourceFps = getSourceFps()
+    const fps = sourceFps ?? computeFps(frameCount, duration)
 
     const meta = getRecordingMeta()
     finishRecordingState()
@@ -111,6 +114,14 @@ export function registerRecorderIpc(): void {
       drawnAt.every((t) => Number.isFinite(t))
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
     logMatchResult(frameTable)
+    // 撮り逃しの原因を「供給不足」と「観測漏れ」に切り分けるための実測ログ（1録画1行）。
+    // 素材の周期が分かるときだけ「素材1コマより長く空いた回数」も併記する。
+    if (usableDrawnAt) {
+      logSupplyDiag(
+        summarizeSupply(drawnAt, duration, sourceFps ? 1000 / sourceFps : null),
+        parseCaptureDiag(diag)
+      )
+    }
 
     const webm = Buffer.from(webmAB)
 
@@ -154,16 +165,25 @@ export function registerRecorderIpc(): void {
       }
       // フレーム表は保存できなくてもクリップ自体は成立する（コマ送りが従来動作に
       // 落ちるだけ）。ここで失敗させて保存済みのクリップを巻き戻す方が損失が大きい。
+      const missedFrames = frameTable ? frameTable.matches.filter((m) => !m.captured).length : 0
       if (frameTable) {
         try {
           saveVideoFrames(result.id, frameTable.matches)
-          setUncapturedFrames(result.id, frameTable.matches.filter((m) => !m.captured).length)
+          setUncapturedFrames(result.id, missedFrames)
+          // 撮り逃しが1コマも無いなら検証する対象が無い（大半のクリップはここで終わる）。
+          // 待たずに投げっぱなしにする — 保存の完了通知を遅らせないため。
+          if (missedFrames > 0) void verifyClipFrames(result.id, webmPath, frameTable.matches)
         } catch (err) {
           console.error('[clip] saveVideoFrames failed', err)
         }
       }
       if (loadSettings().clipNotify !== false) {
-        sendBrowserNotice('success', t('notice.clipSaved', { duration: formatClipDuration(duration) }))
+        // 撮り逃したコマがあるときは枚数も添える。この場で分かれば撮り直せるが、後から
+        // 詳細パネルで気づいても撮り直せる場面はもう終わっている。0 枚なら従来どおり
+        // 何も足さない（大半はこちら。常に数字を出すと通知が読み飛ばされる）。
+        sendBrowserNotice('success', missedFrames > 0
+          ? t('notice.clipSavedWithMissed', { duration: formatClipDuration(duration), count: String(missedFrames) })
+          : t('notice.clipSaved', { duration: formatClipDuration(duration) }))
       }
     } catch (err) {
       console.error('[clip] save failed', err)

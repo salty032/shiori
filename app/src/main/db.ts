@@ -121,6 +121,11 @@ export function initDb(): void {
   // コマ打ちの数を誤る。研究用途では黙って間違えるのが最悪なので数として保持し、
   // 詳細パネルに出す。NULL はコマ精度の情報が無いクリップ（従来のもの・非対応サイト）。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN uncaptured_frames INTEGER')
+  // 上記のうち「前後で絵が変わっており、どのコマで変わったか特定できない」枚数。
+  // 撮り逃したコマの大半は同じ絵が続く区間に当たっており実害が無い。それを区別せず
+  // 全部を「未取得」と出すと、本当に数え直しが要る数コマが埋もれる。
+  // NULL は「まだ検証していない」（保存直後・検証に失敗したクリップ・従来の行）。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN ambiguous_frames INTEGER')
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_host ON images(host)')
   // カーソルページング・ホスト絞り込み・エクスポートで使う複合インデックス
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_cat       ON images(captured_at, id)')
@@ -212,6 +217,7 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"duration"',
   '"fps"',
   '"uncaptured_frames"',
+  '"ambiguous_frames"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -334,12 +340,20 @@ export function getImage(id: number): ImageRowBase | null {
   return row ? normalizeImageRow(row) as ImageRowBase : null
 }
 
+// どの画像にも付かなくなった tags 行を落とす。image_tags は画像削除で消えるが tags 自体は
+// 残るため（deleteAllAiTags のコメントと同じ理由）、放置すると削除を繰り返すたびに tags
+// テーブルだけが肥大化する。画像削除の直後に同じトランザクション内で呼ぶ。
+function pruneOrphanTags(): void {
+  prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM image_tags)').run()
+}
+
 export function deleteImage(id: number): string | null {
   return db.transaction(() => {
     const row = prepare('SELECT filepath FROM images WHERE id = ?').get(id) as { filepath: string } | undefined
     if (!row) return null
     prepare('DELETE FROM image_tags WHERE image_id = ?').run(id)
     prepare('DELETE FROM images WHERE id = ?').run(id)
+    pruneOrphanTags()
     return row.filepath
   })()
 }
@@ -356,6 +370,8 @@ export function deleteImagesBulk(ids: number[]): void {
       delTags.run(id)
       delImg.run(id)
     }
+    // 孤児タグの掃除はループ内ではなく最後に1回だけ（件数に比例して重くならないように）。
+    pruneOrphanTags()
   })()
 }
 
@@ -550,6 +566,12 @@ export function setUncapturedFrames(id: number, count: number): void {
   prepare('UPDATE images SET uncaptured_frames = ? WHERE id = ?').run(count, id)
 }
 
+// 検証で「絵が変わっていて特定できない」と分かったコマ数。検証を通していないクリップと
+// 「検証したが0コマだった」クリップを区別する必要があるため、0 も明示的に書く。
+export function setAmbiguousFrames(id: number, count: number): void {
+  prepare('UPDATE images SET ambiguous_frames = ? WHERE id = ?').run(count, id)
+}
+
 export function setFps(id: number, fps: number): void {
   prepare('UPDATE images SET fps = ? WHERE id = ?').run(fps, id)
 }
@@ -603,21 +625,37 @@ export function listImagesForExport(): ExportRow[] {
 // そのまま辿るため、素材のコマとは対応しない）。
 //
 // captured=false は「そのコマ専用の絵が無く、直前のコマの絵を流用している」印。
-// 画面キャプチャの供給が素材の2倍に届かないと数%発生し、絵の変わり目に当たると
-// コマ打ちの数を誤るため、黙って潰さずフラグとして残してユーザーへ見せる。
+// 画面キャプチャの供給が素材のコマ数の2倍に届かないと発生する。24fps 素材では供給が足りる
+// ようになった（recorder.ts の startCaptureTicker、実測 100%）が、30/60fps 素材や高負荷時は
+// 依然足りない。絵の変わり目に当たるとコマ打ちの数を誤るため、黙って潰さず印として残す。
+//
+// verified は撮り逃したコマ（captured=false）を録画後に検証した結果（frame-verify.ts）。
+//   'unknown' … 未検証（保存直後・検証失敗・従来の行）
+//   'same'    … 前後のキャプチャで絵が変わっていない。流用は正しく、実害が無いと確定
+//   'changed' … 前後で絵が変わっている。どのコマで変わったかは特定できない＝要確認
+// captured=true のコマでは意味を持たない（常に 'unknown'）。
+export type FrameVerify = 'unknown' | 'same' | 'changed'
+
 export interface StoredFrame {
   mediaTime: number
   frameIndex: number
   captured: boolean
+  verified?: FrameVerify
 }
+
+// 直列化時のコード。文字列をそのまま並べると1クリップ千数百要素ぶん嵩む。
+const VERIFY_CODE: Record<FrameVerify, number> = { unknown: 0, same: 1, changed: 2 }
+const VERIFY_NAME: FrameVerify[] = ['unknown', 'same', 'changed']
 
 // 直列化は DB アクセスから切り離した純粋関数にする。better-sqlite3 は Electron の ABI で
 // ビルドされ素の Node からは読めないため、実 DB を張るテストが書けない。壊れると
 // コマ送りが静かに従来動作へ落ちる箇所なので、ここだけでも検証できる形にしておく。
 //
 // 配列の配列で持つ。1クリップで千数百要素になるため、キー名を繰り返さない。
+// 4 要素目（検証結果）は後から足したもの。3 要素しか無い古い行も読めるようにしてあるため
+// （decodeFrames の length チェックは >= 3 のまま）、既存のクリップは未検証として扱われる。
 export function encodeFrames(frames: StoredFrame[]): string {
-  return JSON.stringify(frames.map((f) => [f.mediaTime, f.frameIndex, f.captured ? 1 : 0]))
+  return JSON.stringify(frames.map((f) => [f.mediaTime, f.frameIndex, f.captured ? 1 : 0, VERIFY_CODE[f.verified ?? 'unknown']]))
 }
 
 // 壊れた行・想定外の形は null（＝表が無い）として扱い、従来のフレーム走査へ退避させる。
@@ -636,7 +674,11 @@ export function decodeFrames(data: string): StoredFrame[] | null {
     const [mediaTime, frameIndex, captured] = item
     if (typeof mediaTime !== 'number' || !Number.isFinite(mediaTime)) return null
     if (!Number.isInteger(frameIndex) || frameIndex < 0) return null
-    out.push({ mediaTime, frameIndex, captured: captured === 1 })
+    // 検証結果は補助情報なので、見慣れないコードが入っていても表ごと捨てはしない
+    // （コマ送りの土台である mediaTime/frameIndex まで巻き添えで失う方が損失が大きい）。
+    // 未検証として扱えば、表示は「検証していない」に落ちるだけで嘘にはならない。
+    const verified = item.length >= 4 ? VERIFY_NAME[item[3] as number] ?? 'unknown' : 'unknown'
+    out.push({ mediaTime, frameIndex, captured: captured === 1, verified })
   }
   return out
 }

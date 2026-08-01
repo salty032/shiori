@@ -10,6 +10,7 @@ import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDur
 import { VIDEO_CH } from '../../shared/api.video'
 import { registerCapturedMedia } from '../captured-media'
 import { sliceFrameTable } from './frame-feed'
+import { verifyClipFrames } from './verify-clip'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
 const trimmingIds = new Set<number>()
@@ -184,7 +185,12 @@ export function registerVideoHandlers(): void {
           const sliced = sliceFrameTable(table, originalPts, trimmedPts, inSec)
           if (sliced.length > 0) {
             saveVideoFrames(result.id, sliced)
-            setUncapturedFrames(result.id, sliced.filter((f) => !f.captured).length)
+            const missed = sliced.filter((f) => !f.captured).length
+            setUncapturedFrames(result.id, missed)
+            // 撮り逃しの検証は元クリップの結果を流用せず、新しいファイルで取り直す。
+            // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
+            // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。
+            if (missed > 0) void verifyClipFrames(result.id, webmOut, sliced)
           }
         }
       } catch (err) {
