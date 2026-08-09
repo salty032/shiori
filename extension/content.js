@@ -216,11 +216,16 @@ function planFrameStep(step, landed) {
 // 詰め直す（initialFrameStep / planFrameStep）。fps の見積もりが外れていても
 // 1ステップ＝確実に1コマになり、累積ドリフトも発生しない。
 let stepSeq = 0
-let stepLandingTimer = null
+// 実行中アテンプトの後始末（着地待ちタイマーの解除と rVFC の取り消し）。**着地待ちタイマーを
+// モジュール変数で共有してはいけない**：遅れて届いた古いステップの着地が、新しいステップの
+// 張ったタイマーまで消してしまい、「同じコマへのシークでは rVFC が発火しない」環境で新しい
+// 手が待ちっぱなしになる（連打すると1手が黙って不発になり、押した回数とコマ数が食い違う）。
+// タイマーはアテンプトのローカルに持ち、追い越し時はこの関数経由で自分の分だけ畳む。
+let abortStepAttempt = null
 
 function stepFrame(video, dir) {
   const seq = ++stepSeq
-  if (stepLandingTimer) { clearTimeout(stepLandingTimer); stepLandingTimer = null }
+  if (abortStepAttempt) abortStepAttempt()
   const dur = getFrameSec()
   // lastFrameTime が現在位置から乖離していれば（外部シーク等）currentTime を基準にし直す。
   const nearCurrent = lastFrameTime !== null && Math.abs(lastFrameTime - video.currentTime) <= dur * 1.5
@@ -250,11 +255,19 @@ function runStepAttempt(video, seq, step) {
   step.target = target
   let settled = false
   let cbId = null
+  let landingTimer = null
+  const cleanup = () => {
+    if (landingTimer !== null) { clearTimeout(landingTimer); landingTimer = null }
+    if (cbId !== null) { try { video.cancelVideoFrameCallback(cbId) } catch {}; cbId = null }
+    if (abortStepAttempt === abort) abortStepAttempt = null
+  }
+  // 追い越されたときの畳み方。cancelVideoFrameCallback は既に発火待ちのコールバックまでは
+  // 止められないので、settled を立てて着地そのものを無効化する（後から届いても何もしない）。
+  const abort = () => { settled = true; cleanup() }
   const onLand = (landed) => {
     if (settled) return
     settled = true
-    if (stepLandingTimer) { clearTimeout(stepLandingTimer); stepLandingTimer = null }
-    if (cbId !== null) { try { video.cancelVideoFrameCallback(cbId) } catch {} }
+    cleanup()
     if (seq !== stepSeq) return  // 新しいステップに追い越された。この着地は捨てる
     if (landed !== null) { lastFrameTime = landed; lastFrameTimeEstimated = false }
     const verdict = planFrameStep(step, landed)
@@ -270,7 +283,8 @@ function runStepAttempt(video, seq, step) {
     runStepAttempt(video, seq, verdict.next)
   }
   cbId = video.requestVideoFrameCallback((_now, meta) => { cbId = null; onLand(meta.mediaTime) })
-  stepLandingTimer = setTimeout(() => { stepLandingTimer = null; onLand(null) }, STEP_LANDING_TIMEOUT_MS)
+  landingTimer = setTimeout(() => { landingTimer = null; onLand(null) }, STEP_LANDING_TIMEOUT_MS)
+  abortStepAttempt = abort
 }
 
 let port = null
