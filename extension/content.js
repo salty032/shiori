@@ -158,7 +158,8 @@ const STEP_MAX_FRAME_SEC = 1 / 10    // 下限10fpsのコマ長。ここまで�
 const STEP_SAME_FRAME_SEC = 0.001    // mediaTime の変化がこれ未満なら同じコマ
 const STEP_SEED_RATIO = 0.9          // 初手を見積もりコマ長の何割手前に置くか（実測の揺らぎ分の余裕）
 const STEP_MAX_ATTEMPTS = 16         // 基準確定1 + 初手1 + STEP_PROBE_SEC 刻みで上限まで伸ばす回数
-const STEP_LANDING_TIMEOUT_MS = 120  // 同じコマへのシークで rVFC が発火しない環境の保険
+const STEP_LANDING_TIMEOUT_MS = 120  // seeked すら来ない場合の最後の砦
+const STEP_SETTLE_FRAMES = 2         // seeked 後、新しい絵の提示を待つ描画フレーム数
 
 // 1ステップの初期計画（純粋関数）。
 //
@@ -190,8 +191,24 @@ function initialFrameStep(dir, base, dur, exact) {
 // frameDur は「隣り合うコマの間隔だと確定した実測値」（下から詰めた着地のときだけ返る）。
 function planFrameStep(step, landed) {
   if (step.resolving) {
+    if (landed === null) {
+      // 表示中コマの先頭を確定できなかった。基準確定のシークは定義上いま表示しているコマの
+      // 中へ着くので、**同じコマへのシークでは新しい絵が提示されない環境ではここが常に無反応
+      // になる**（＝連打のたびに必ず通る道）。ここで打ち切ると押した1手が黙って消えるため、
+      // 諦めずに現在位置から下から詰めて隣のコマへ入る。基準がコマ先頭とは限らないので
+      // 着地差はコマ長の実測値には採らない（exact は false のまま）が、1刻みが最短コマ長
+      // 以下である以上「1手＝ちょうど1コマ」は変わらない。
+      return {
+        done: false,
+        frameDur: null,
+        next: {
+          ...step, resolving: false, seeded: false, exact: false,
+          offset: STEP_PROBE_SEC * step.dir, attempt: step.attempt + 1
+        }
+      }
+    }
     // 表示中コマの先頭が分かったので、そこを基準に取り直して本番の1手へ。
-    const resolved = initialFrameStep(step.dir, landed === null ? step.base : landed, step.dur, landed !== null)
+    const resolved = initialFrameStep(step.dir, landed, step.dur, true)
     return { done: false, frameDur: null, next: { ...resolved, resolving: false, attempt: step.attempt + 1, target: step.target } }
   }
   const progress = landed === null ? 0 : (landed - step.base) * step.dir
@@ -256,8 +273,12 @@ function runStepAttempt(video, seq, step) {
   let settled = false
   let cbId = null
   let landingTimer = null
+  let settleRaf = null
+  let onSeeked = null
   const cleanup = () => {
     if (landingTimer !== null) { clearTimeout(landingTimer); landingTimer = null }
+    if (settleRaf !== null) { cancelAnimationFrame(settleRaf); settleRaf = null }
+    if (onSeeked) { video.removeEventListener('seeked', onSeeked); onSeeked = null }
     if (cbId !== null) { try { video.cancelVideoFrameCallback(cbId) } catch {}; cbId = null }
     if (abortStepAttempt === abort) abortStepAttempt = null
   }
@@ -283,6 +304,30 @@ function runStepAttempt(video, seq, step) {
     runStepAttempt(video, seq, verdict.next)
   }
   cbId = video.requestVideoFrameCallback((_now, meta) => { cbId = null; onLand(meta.mediaTime) })
+  // 「新しい絵は出なかった」の判定を、固定待ち時間ではなく実イベントで出す。
+  //
+  // 前進の初手は狙って同じコマの中へ着けるため、同じコマへのシークで rVFC が発火しない
+  // 環境では毎手この判定が要る（＝ここの速さがコマ送り全体の体感を決める）。必要なのは
+  // 「シークが終わったのに新しい絵が来ない」の確認だけなので、seeked を待ってから描画
+  // STEP_SETTLE_FRAMES 回ぶんだけ猶予を置く。新しい絵が出るなら seeked の直後の提示で
+  // 来るので、これで取りこぼさずに数十msで結論が出る。
+  //
+  // 早合点しても壊れないことは刻み方が保証している：仮に本当は動いていたのに「動いて
+  // いない」と判定しても、次に伸ばす幅は最短コマ長以下（STEP_PROBE_SEC）なので隣のコマを
+  // 飛び越さない。遅れて届いた rVFC も次アテンプトの着地として実 mediaTime で評価される。
+  const settleTick = () => {
+    settleRaf = null
+    if (settled) return
+    if (--settleFramesLeft <= 0) { onLand(null); return }
+    settleRaf = requestAnimationFrame(settleTick)
+  }
+  let settleFramesLeft = STEP_SETTLE_FRAMES
+  onSeeked = () => {
+    if (settled || settleRaf !== null) return
+    settleRaf = requestAnimationFrame(settleTick)
+  }
+  video.addEventListener('seeked', onSeeked)
+  // seeked が来ない環境・シークが成立しない場面（Netflix ブリッジ無反応など）の最後の砦。
   landingTimer = setTimeout(() => { landingTimer = null; onLand(null) }, STEP_LANDING_TIMEOUT_MS)
   abortStepAttempt = abort
 }
