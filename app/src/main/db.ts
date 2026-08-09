@@ -161,12 +161,20 @@ export function initDb(): void {
   // タイトル/メモに対しても従来の LIKE 部分一致に近い挙動を保てる。
   //
   // 索引する列は title/memo ではなく search_text（正規化済み・詳細は docs/SEARCH-NORMALIZE.md）。
-  // 旧スキーマ（title/memo を直接索引していた版、テーブル名 images_fts）は列構成が違うので
-  // 使わなくなる。DROP はするが、**同じ名前で作り直してはいけない**：実際に確認したところ、
-  // 同一コネクション内で FTS5 仮想テーブルを DROP 直後に同名・別カラム構成で再 CREATE すると、
-  // シャドウテーブルが壊れて以降の書き込みが SQLITE_CORRUPT_VTAB で失敗する
-  // （better-sqlite3 3.x + SQLite のこの版で実機再現・確認済み）。新スキーマは
-  // images_fts_v2 という別名にして、この地雷を踏まないようにする。
+  // 旧スキーマ（title/memo を直接索引していた版、テーブル名 images_fts）は列構成が違うので使わない。
+  //
+  // 新スキーマを images_fts_v2 という別名にしてあるのは、**旧トリガーと新テーブルの食い違いを
+  // 構造的に起こさないため**。同じ名前で作り替えると、DROP TABLE では消えない旧トリガー
+  // （title/memo を INSERT する版）が一瞬でも新しい1列テーブルに向く窓ができ、その間の書き込みが
+  // 落ちる。名前を分ければ、旧トリガーが残っていても向き先は消えた旧テーブルのままで、
+  // 新旧が混ざらない。トリガー自体も下で3系統とも作り直している。
+  //
+  // 注：ここには当初「同名で再 CREATE すると FTS5 のシャドウテーブルが壊れ、以降の書き込みが
+  // SQLITE_CORRUPT_VTAB で失敗する」と書いてあったが、**その現象は隔離環境で再現しなかった**
+  // （旧構成で作った FTS5 を DROP → 同名・別カラム構成で CREATE → 書き込み・検索・トリガー更新・
+  // integrity_check まで、この版の better-sqlite3 で全て正常）。壊れたように見えたのは上の
+  // トリガー食い違いの方だと考えられる。別名にする判断自体は据え置く（実害が無く、旧版へ
+  // 戻したときも旧 images_fts が独立に作り直されるため）。
   db.exec('DROP TABLE IF EXISTS images_fts')
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS images_fts_v2 USING fts5(
