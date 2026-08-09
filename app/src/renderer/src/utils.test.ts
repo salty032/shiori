@@ -49,6 +49,29 @@ describe('splitHighlight', () => {
   it('一致しない場合は全体を非マッチで返す', () => {
     expect(splitHighlight('こんにちは', 'xyz')).toEqual([{ text: 'こんにちは', match: false }])
   })
+
+  it('半角カナ・全角英数・カタカナ/ひらがなの表記ゆれもハイライトする', () => {
+    expect(splitHighlight('ﾄﾞｷﾄﾞｷ試着', 'ドキドキ')).toEqual([
+      { text: 'ﾄﾞｷﾄﾞｷ', match: true },
+      { text: '試着', match: false },
+    ])
+    expect(splitHighlight('リズと青い鳥', 'りずと')).toEqual([
+      { text: 'リズと', match: true },
+      { text: '青い鳥', match: false },
+    ])
+  })
+
+  it('マッチの前後にある、正規化で消える文字（空白・記号）はハイライトへ巻き込まない', () => {
+    expect(splitHighlight('【推しの子】第1話', '推しの子')).toEqual([
+      { text: '【', match: false },
+      { text: '推しの子', match: true },
+      { text: '】第1話', match: false },
+    ])
+  })
+
+  it('正規化して空になるクエリ（記号のみ）は分割しない', () => {
+    expect(splitHighlight('こんにちは', '%_')).toEqual([{ text: 'こんにちは', match: false }])
+  })
 })
 
 describe('siteName', () => {

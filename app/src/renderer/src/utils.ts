@@ -1,5 +1,6 @@
 import type { ImageRow, ImageTag, ImageTagSource } from './types'
 import { MAX_BULK_IDS, MAX_TAG_LENGTH } from '../../shared/constants'
+import { normalizeSearchText } from '../../shared/normalize'
 
 export { MAX_TAG_LENGTH }
 
@@ -109,25 +110,70 @@ export function cleanTitle(title: string | null, patterns: string[]): string {
 
 export type TextSegment = { text: string; match: boolean }
 
+// text をコードポイント境界だけで区切った、元文字列側のオフセット一覧（サロゲートペアを
+// 割らないため）。offsets[k] は k 番目のコードポイントの直前のオフセット。
+function codepointOffsets(text: string): number[] {
+  const offsets: number[] = [0]
+  let offset = 0
+  for (const ch of text) { offset += ch.length; offsets.push(offset) }
+  return offsets
+}
+
+// 正規化後の位置 normPos に対応する元文字列側の境界を二分探索で求める。
+// normalizeSearchText(text.slice(0, i)).length は i について単調非減少なので二分探索できる
+// （文字ごとに正規化して足し合わせる方式は使えない。半角カナ+濁点→1文字のような合成は
+// 前後の文字の組み合わせに依存し、実際の部分文字列を正規化しないと再現できないため）。
+//
+// upper=true（マッチ開始側）: その位置まで正規化後の長さが変わらない文字（例:
+// 単語の前のスペース、記号）を手前の非マッチ側へ残す。
+// upper=false（マッチ終了側）: 逆に後ろの非マッチ側へ残す。
+// 半角カナの濁点合成のように、正規化後の1文字が複数の元文字にまたがる場合は境界が
+// 最大1文字ずれうるが、ハイライトの見た目だけの問題で検索結果の件数には影響しない。
+function mapNormalizedIndex(text: string, offsets: number[], normPos: number, upper: boolean): number {
+  const lenAt = (k: number): number => normalizeSearchText(text.slice(0, offsets[k])).length
+  let lo = 0
+  let hi = offsets.length - 1
+  if (upper) {
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (lenAt(mid) <= normPos) lo = mid
+      else hi = mid - 1
+    }
+  } else {
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (lenAt(mid) >= normPos) hi = mid
+      else lo = mid + 1
+    }
+  }
+  return offsets[lo]
+}
+
 // 検索キーワードにヒットした箇所をハイライト表示するための分割。DB 側の検索（FTS trigram /
-// LIKE）と同じ「大文字小文字を無視した部分一致」に合わせ、最初の1箇所だけでなく全ての
-// 出現箇所を分割する。query が空なら分割せず全体を非マッチとして返す。
+// LIKE）と同じ normalizeSearchText を通してから当てるため、半角カナ・全角英数・カタカナ/
+// ひらがな・記号や空白の有無といった表記ゆれもハイライトされる（docs/SEARCH-NORMALIZE.md）。
+// 最初の1箇所だけでなく全ての出現箇所を分割する。query が正規化して空になる（未入力・
+// 記号のみ）なら分割せず全体を非マッチとして返す。
 export function splitHighlight(text: string, query: string): TextSegment[] {
-  const q = query.trim()
+  const q = normalizeSearchText(query)
   if (!q) return [{ text, match: false }]
-  const lowerText = text.toLowerCase()
-  const lowerQuery = q.toLowerCase()
+  const normText = normalizeSearchText(text)
+  const offsets = codepointOffsets(text)
   const segments: TextSegment[] = []
-  let cursor = 0
-  while (cursor < text.length) {
-    const idx = lowerText.indexOf(lowerQuery, cursor)
-    if (idx === -1) {
-      segments.push({ text: text.slice(cursor), match: false })
+  let textCursor = 0
+  let normCursor = 0
+  while (normCursor <= normText.length) {
+    const normIdx = normText.indexOf(q, normCursor)
+    if (normIdx === -1) {
+      if (textCursor < text.length) segments.push({ text: text.slice(textCursor), match: false })
       break
     }
-    if (idx > cursor) segments.push({ text: text.slice(cursor, idx), match: false })
-    segments.push({ text: text.slice(idx, idx + q.length), match: true })
-    cursor = idx + q.length
+    const startIdx = mapNormalizedIndex(text, offsets, normIdx, true)
+    const endIdx = mapNormalizedIndex(text, offsets, normIdx + q.length, false)
+    if (startIdx > textCursor) segments.push({ text: text.slice(textCursor, startIdx), match: false })
+    if (endIdx > startIdx) segments.push({ text: text.slice(startIdx, endIdx), match: true })
+    textCursor = Math.max(textCursor, endIdx)
+    normCursor = normIdx + q.length
   }
   return segments.length > 0 ? segments : [{ text, match: false }]
 }

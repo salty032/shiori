@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
 import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase, ImageTag, TagWithCount } from '../shared/types'
+import { normalizeSearchText, SEARCH_NORMALIZE_VERSION } from '../shared/normalize'
 
 let db: Database.Database
 const MAX_LIST_LIMIT = 200
@@ -37,6 +38,13 @@ const FTS_MIN_LEN = 3
 // エスケープだけ気をつければよい。
 function ftsPhraseQuery(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
+}
+
+// search_text 列の中身。title/memo それぞれを正規化して1列にまとめる（アプリは列を
+// 指定した検索をしていないため分ける意味が無い）。挿入・タイトル/メモ更新の3経路から
+// 呼ぶ（詳細は docs/SEARCH-NORMALIZE.md）。
+function buildSearchText(title: string | null | undefined, memo: string | null | undefined): string {
+  return `${normalizeSearchText(title ?? '')}\n${normalizeSearchText(memo ?? '')}`
 }
 
 function addColumnIfMissing(sql: string): void {
@@ -102,6 +110,14 @@ export function initDb(): void {
       data     TEXT NOT NULL,
       FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
     );
+    -- ライブラリの中身ではなく「この DB に何をどう適用済みか」を持つ小さな表。
+    -- 列の有無やテーブルの有無を見れば分かるもの（＝この DB の既存の「見て直す」idiom で
+    -- 済むもの）はここに書かない。書くのは、見ただけでは分からない適用状態だけ
+    -- （現在は search_text をどの正規化ルールで作ったか）。
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_images_captured_at ON images(captured_at);
     CREATE INDEX IF NOT EXISTS idx_image_tags_image   ON image_tags(image_id);
     CREATE INDEX IF NOT EXISTS idx_image_tags_tag     ON image_tags(tag_id);
@@ -121,6 +137,10 @@ export function initDb(): void {
   // コマ打ちの数を誤る。研究用途では黙って間違えるのが最悪なので数として保持し、
   // 詳細パネルに出す。NULL はコマ精度の情報が無いクリップ（従来のもの・非対応サイト）。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN uncaptured_frames INTEGER')
+  // 検索用の正規化済みテキスト（"normalize(title)\nnormalize(memo)"）。SQLite に NFKC も
+  // Unicode プロパティ判定も無いため、正規化は書き込み側（insertImage/updateImageTitle/
+  // updateImageMemo）の JS で行い、結果をここへ書く（docs/SEARCH-NORMALIZE.md）。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN search_text TEXT')
   // 上記のうち「前後で絵が変わっており、どのコマで変わったか特定できない」枚数。
   // 撮り逃したコマの大半は同じ絵が続く区間に当たっており実害が無い。それを区別せず
   // 全部を「未取得」と出すと、本当に数え直しが要る数コマが埋もれる。
@@ -134,36 +154,76 @@ export function initDb(): void {
   // タグ絞り込みで source + tag_id を同時に参照するケース向け
   db.exec('CREATE INDEX IF NOT EXISTS idx_image_tags_src_tag ON image_tags(source, tag_id)')
 
-  // title/memo 検索用の FTS5 仮想テーブル（外部コンテンツ = images）。ライブラリが数万件規模に
+  // search_text 検索用の FTS5 仮想テーブル（外部コンテンツ = images）。ライブラリが数万件規模に
   // なっても LIKE '%...%' のような毎回フルスキャンにならないよう、検索専用のインデックスを持つ。
   // トークナイザは trigram を使う：unicode61 だと分かち書きされない日本語がまるごと1トークンに
   // なり部分一致検索が壊れるため、文字3-gram単位でインデックスする trigram の方が、日本語混じりの
   // タイトル/メモに対しても従来の LIKE 部分一致に近い挙動を保てる。
-  const ftsExisted = !!prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='images_fts'").get()
+  //
+  // 索引する列は title/memo ではなく search_text（正規化済み・詳細は docs/SEARCH-NORMALIZE.md）。
+  // 旧スキーマ（title/memo を直接索引していた版、テーブル名 images_fts）は列構成が違うので
+  // 使わなくなる。DROP はするが、**同じ名前で作り直してはいけない**：実際に確認したところ、
+  // 同一コネクション内で FTS5 仮想テーブルを DROP 直後に同名・別カラム構成で再 CREATE すると、
+  // シャドウテーブルが壊れて以降の書き込みが SQLITE_CORRUPT_VTAB で失敗する
+  // （better-sqlite3 3.x + SQLite のこの版で実機再現・確認済み）。新スキーマは
+  // images_fts_v2 という別名にして、この地雷を踏まないようにする。
+  db.exec('DROP TABLE IF EXISTS images_fts')
   db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS images_fts USING fts5(
-      title, memo, content='images', content_rowid='id', tokenize='trigram'
+    CREATE VIRTUAL TABLE IF NOT EXISTS images_fts_v2 USING fts5(
+      search_text, content='images', content_rowid='id', tokenize='trigram'
     );
-    CREATE TRIGGER IF NOT EXISTS images_fts_ai AFTER INSERT ON images BEGIN
-      INSERT INTO images_fts(rowid, title, memo) VALUES (new.id, new.title, new.memo);
-    END;
-    CREATE TRIGGER IF NOT EXISTS images_fts_ad AFTER DELETE ON images BEGIN
-      INSERT INTO images_fts(images_fts, rowid, title, memo) VALUES('delete', old.id, old.title, old.memo);
-    END;
   `)
-  // title/memo に限らず全ての UPDATE（サムネ backfill・host backfill 等）で発火する旧トリガーが
-  // 既存 DB に残っている可能性があるため、毎回 DROP してから title/memo 限定版で作り直す（N-1）。
+  // 列構成やトリガー条件の変更を確実に反映するため、3系統とも毎回 DROP してから作り直す。
   // 冪等なので何度実行しても害はない。
   db.exec(`
+    DROP TRIGGER IF EXISTS images_fts_ai;
+    CREATE TRIGGER images_fts_ai AFTER INSERT ON images BEGIN
+      INSERT INTO images_fts_v2(rowid, search_text) VALUES (new.id, new.search_text);
+    END;
+    DROP TRIGGER IF EXISTS images_fts_ad;
+    CREATE TRIGGER images_fts_ad AFTER DELETE ON images BEGIN
+      INSERT INTO images_fts_v2(images_fts_v2, rowid, search_text) VALUES('delete', old.id, old.search_text);
+    END;
     DROP TRIGGER IF EXISTS images_fts_au;
-    CREATE TRIGGER images_fts_au AFTER UPDATE OF title, memo ON images BEGIN
-      INSERT INTO images_fts(images_fts, rowid, title, memo) VALUES('delete', old.id, old.title, old.memo);
-      INSERT INTO images_fts(rowid, title, memo) VALUES (new.id, new.title, new.memo);
+    CREATE TRIGGER images_fts_au AFTER UPDATE OF search_text ON images BEGIN
+      INSERT INTO images_fts_v2(images_fts_v2, rowid, search_text) VALUES('delete', old.id, old.search_text);
+      INSERT INTO images_fts_v2(rowid, search_text) VALUES (new.id, new.search_text);
     END;
   `)
-  // 新規作成時（＝既存ユーザーのアップグレード直後）だけ既存行を一括で流し込む。
-  if (!ftsExisted) {
-    db.exec('INSERT INTO images_fts(rowid, title, memo) SELECT id, title, memo FROM images')
+  // search_text 未計算の行（列を足した直後の既存ユーザー・旧FTSからの移行・書き込み経路の
+  // 漏れ）を起動のたびに埋める。上の au トリガー経由で images_fts_v2 にも自動で反映されるため、
+  // images_fts_v2 への一括流し込みを別に行う必要はない。
+  //
+  // 加えて、正規化ルール（normalizeSearchText）を変えたときは**未計算の行だけでは足りない**。
+  // 既存の行は古いルールで作った文字列を持ったまま残るのに、検索語は新ルールで正規化される
+  // ため、同じ語が「古い行には当たらないが新しい行には当たる」状態になる。当たり外れが行ごと
+  // に変わるのは、この機能が潰そうとしている「説明の付かない検索結果」そのもの。ルールの版が
+  // 上がっていたら全行作り直す（SEARCH_NORMALIZE_VERSION の値だけが判断材料）。
+  const appliedNormalizeVersion = (
+    prepare("SELECT value FROM app_meta WHERE key = 'search_normalize_version'").get() as
+      { value: string } | undefined
+  )?.value
+  const rebuildAllSearchText = appliedNormalizeVersion !== String(SEARCH_NORMALIZE_VERSION)
+  const pendingSearch = prepare(
+    rebuildAllSearchText
+      ? 'SELECT id, title, memo FROM images'
+      : 'SELECT id, title, memo FROM images WHERE search_text IS NULL'
+  ).all() as { id: number; title: string | null; memo: string | null }[]
+  if (pendingSearch.length > 0) {
+    const setSearchText = prepare('UPDATE images SET search_text = ? WHERE id = ?')
+    db.transaction(() => {
+      for (const { id, title, memo } of pendingSearch) {
+        setSearchText.run(buildSearchText(title, memo), id)
+      }
+    })()
+  }
+  // 版の記録は作り直しが終わってから。途中で落ちた場合は記録が残らず、次回起動でやり直す
+  // （拡張の同期で manifest.json を最後に置くのと同じ、コミットマーカーの置き方）。
+  if (rebuildAllSearchText) {
+    prepare(
+      `INSERT INTO app_meta (key, value) VALUES ('search_normalize_version', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    ).run(String(SEARCH_NORMALIZE_VERSION))
   }
 
   // 既存レコードの host を backfill（初回のみ実行される）
@@ -226,11 +286,12 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   let host: string | null = null
   try { if (params.url) host = new URL(params.url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
   const source = params.source ?? 'capture'
+  const searchText = buildSearchText(params.title, params.memo)
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source)
-     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source)`
+    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source, search_text)
+     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
   )
-  const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source })
+  const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source, search_text: searchText })
   return Number(result.lastInsertRowid)
 }
 
@@ -248,13 +309,19 @@ export function buildImageFilter(f: ImageFilter): { where: string; params: unkno
   const conds: string[] = []
   const params: unknown[] = []
   if (f.search) {
-    if (f.search.length >= FTS_MIN_LEN) {
-      conds.push('id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?)')
-      params.push(ftsPhraseQuery(f.search))
-    } else {
-      const s = `%${escapeLike(f.search)}%`
-      conds.push("(title LIKE ? ESCAPE '\\' OR memo LIKE ? ESCAPE '\\')")
-      params.push(s, s)
+    // 検索語も保存側と同じ normalizeSearchText を通してから当てる。長さ判定は正規化後の
+    // 長さで行う（正規化前が3文字以上でも、空白や記号が落ちて trigram を作れない長さに
+    // 縮む入力があるため）。正規化で空文字になった（記号だけを打った等）場合は絞り込み
+    // 自体を付けない — 0件にするより素直。
+    const q = normalizeSearchText(f.search)
+    if (q) {
+      if (q.length >= FTS_MIN_LEN) {
+        conds.push('id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?)')
+        params.push(ftsPhraseQuery(q))
+      } else {
+        conds.push("search_text LIKE ? ESCAPE '\\'")
+        params.push(`%${escapeLike(q)}%`)
+      }
     }
   }
   if (f.after != null) { conds.push('captured_at >= ?'); params.push(f.after) }
@@ -515,7 +582,9 @@ export function listTagCounts(): Record<string, number> {
 }
 
 export function updateImageTitle(id: number, title: string): void {
-  prepare('UPDATE images SET title = ? WHERE id = ?').run(title || null, id)
+  const row = prepare('SELECT memo FROM images WHERE id = ?').get(id) as { memo: string | null } | undefined
+  const searchText = buildSearchText(title || null, row?.memo ?? null)
+  prepare('UPDATE images SET title = ?, search_text = ? WHERE id = ?').run(title || null, searchText, id)
 }
 
 export function removeImageTag(imageId: number, tagName: string): void {
@@ -525,7 +594,9 @@ export function removeImageTag(imageId: number, tagName: string): void {
 }
 
 export function updateImageMemo(id: number, memo: string): void {
-  prepare('UPDATE images SET memo = ? WHERE id = ?').run(memo || null, id)
+  const row = prepare('SELECT title FROM images WHERE id = ?').get(id) as { title: string | null } | undefined
+  const searchText = buildSearchText(row?.title ?? null, memo || null)
+  prepare('UPDATE images SET memo = ?, search_text = ? WHERE id = ?').run(memo || null, searchText, id)
 }
 
 // 起動時の補完用（S4-2）。サムネ未生成の行だけを返す。全件返して 1 枚ずつ実ファイルの

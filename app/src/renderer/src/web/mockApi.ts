@@ -21,6 +21,7 @@ import type {
 } from '../types'
 import { t } from '../i18n'
 import { setMediaUrlResolver } from '../utils'
+import { normalizeSearchText } from '../../../shared/normalize'
 import { loadDemoLibrary } from './manifest'
 
 // vite.web.config.ts の define がビルド時に app/package.json の version を埋める。
@@ -70,12 +71,16 @@ export async function installMockApi(): Promise<void> {
   }
 
   // db.ts の buildImageFilter を写した絞り込み。FTS は持たないので検索は
-  // title / memo の部分一致に統一する（デモ規模では体感差が出ない）。
+  // title / memo の部分一致に統一する（デモ規模では体感差が出ない）。search_text 相当を
+  // その場で組み立て、db.ts と同じ normalizeSearchText を通してから当てる
+  // （docs/SEARCH-NORMALIZE.md）。
   function matches(row: ImageRow, f: ImageQuery): boolean {
     if (f.search) {
-      const needle = f.search.toLowerCase()
-      const haystack = `${row.title ?? ''}\n${row.memo ?? ''}`.toLowerCase()
-      if (!haystack.includes(needle)) return false
+      const needle = normalizeSearchText(f.search)
+      if (needle) {
+        const haystack = normalizeSearchText(`${row.title ?? ''}\n${row.memo ?? ''}`)
+        if (!haystack.includes(needle)) return false
+      }
     }
     if (f.after != null && row.captured_at < f.after) return false
     if (f.toDate != null && row.captured_at >= f.toDate) return false

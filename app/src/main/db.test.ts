@@ -12,26 +12,31 @@ describe('buildImageFilter', () => {
     expect(buildImageFilter({})).toEqual({ where: '', params: [] })
   })
 
-  it('search は3文字以上なら FTS(images_fts) の MATCH で、値はダブルクォートでフレーズ化する', () => {
+  it('search は3文字以上なら FTS(images_fts_v2) の MATCH で、値はダブルクォートでフレーズ化する', () => {
     const result = buildImageFilter({ search: 'cat' })
-    expect(result.where).toBe('WHERE id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?)')
+    expect(result.where).toBe('WHERE id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?)')
     expect(result.params).toEqual(['"cat"'])
   })
 
-  it('search 内の " はフレーズ内で "" にエスケープされる', () => {
-    const result = buildImageFilter({ search: '100%_a\\b "quoted"' })
-    expect(result.params).toEqual(['"100%_a\\b ""quoted"""'])
+  it('search は保存側（search_text）と同じ normalizeSearchText を通してから当てる（半角カナ・全角英数等の表記ゆれを吸収。docs/SEARCH-NORMALIZE.md）', () => {
+    const result = buildImageFilter({ search: 'ﾄﾞｷﾄﾞｷ' })
+    expect(result.params).toEqual(['"どきどき"'])
   })
 
-  it('search が3文字未満なら title/memo の OR 条件（LIKE）にフォールバックする', () => {
+  it('search が3文字未満なら search_text の LIKE にフォールバックする', () => {
     const result = buildImageFilter({ search: 'ab' })
-    expect(result.where).toBe(`WHERE (title LIKE ? ESCAPE '\\' OR memo LIKE ? ESCAPE '\\')`)
-    expect(result.params).toEqual(['%ab%', '%ab%'])
+    expect(result.where).toBe(`WHERE search_text LIKE ? ESCAPE '\\'`)
+    expect(result.params).toEqual(['%ab%'])
   })
 
-  it('search が3文字未満のとき % _ はリテラルとして \\ エスケープされる', () => {
-    const result = buildImageFilter({ search: '%_' })
-    expect(result.params).toEqual(['%\\%\\_%', '%\\%\\_%'])
+  it('長さ判定は正規化後の長さで行う（空白が落ちて3文字未満に縮む入力は LIKE 側へ落ちる）', () => {
+    const result = buildImageFilter({ search: 'a b' })
+    expect(result.where).toBe(`WHERE search_text LIKE ? ESCAPE '\\'`)
+    expect(result.params).toEqual(['%ab%'])
+  })
+
+  it('正規化して空文字になる入力（記号だけ等）は絞り込み自体を付けない（0件にするより素直）', () => {
+    expect(buildImageFilter({ search: '%_' })).toEqual({ where: '', params: [] })
   })
 
   it('site は host の完全一致（renderer 側のチップ表示条件と揃える。BUG-6）', () => {
@@ -81,7 +86,7 @@ describe('buildImageFilter', () => {
   it('複数条件は AND で連結される（宣言順: search, after/before系, toDate, site, tags）', () => {
     const result = buildImageFilter({ search: 'cat', site: 'example.com' })
     expect(result.where).toBe(
-      'WHERE id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) AND host = ?'
+      'WHERE id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?) AND host = ?'
     )
     expect(result.params).toEqual(['"cat"', 'example.com'])
   })
