@@ -42,6 +42,7 @@ function constant(name: string): number {
 const LANDING_TIMEOUT_MS = constant('STEP_LANDING_TIMEOUT_MS')
 const SETTLE_FRAMES = constant('STEP_SETTLE_FRAMES')
 const PROBE_SEC = constant('STEP_PROBE_SEC')
+const SEEK_START_MS = constant('STEP_SEEK_START_MS')
 
 const SRC_FPS = 24
 const FRAME = 1 / SRC_FPS
@@ -65,12 +66,14 @@ function createHarness(opts: { frameSec?: number } = {}) {
   let nextCbId = 0
   const frameCbs = new Map<number, FrameCb>()
   const seekedListeners = new Set<() => void>()
+  const seekingListeners = new Set<() => void>()
   let rafs: (() => void)[] = []
   let nextRafId = 0
 
   const video = {
     currentTime: 0,
     duration: 100,
+    seeking: false,
     requestVideoFrameCallback(cb: FrameCb): number {
       const id = ++nextCbId
       frameCbs.set(id, cb)
@@ -81,9 +84,11 @@ function createHarness(opts: { frameSec?: number } = {}) {
     },
     addEventListener(type: string, fn: () => void): void {
       if (type === 'seeked') seekedListeners.add(fn)
+      if (type === 'seeking') seekingListeners.add(fn)
     },
     removeEventListener(type: string, fn: () => void): void {
       if (type === 'seeked') seekedListeners.delete(fn)
+      if (type === 'seeking') seekingListeners.delete(fn)
     }
   }
 
@@ -148,8 +153,15 @@ return {
     latestFrameCallback(): FrameCb | undefined {
       return frameCbs.get(nextCbId)
     },
+    /** シーク開始（seeking）。要求が受け付けられたことを表す。 */
+    startSeek(): void {
+      video.seeking = true
+      for (const fn of [...seekingListeners]) fn()
+    },
     /** シーク完了（seeked）。新しい絵が出るかどうかとは独立に返る。 */
     completeSeek(): void {
+      if (!video.seeking) h.startSeek()
+      video.seeking = false
       for (const fn of [...seekedListeners]) fn()
     },
     /** 描画フレームを1回進める。 */
@@ -235,17 +247,43 @@ describe('コマ送り1手の進行（extension/content.js）', () => {
     h.seedLastFrame(0)
     h.stepFrame(h.video, 1)
 
+    // タイマーを一切進めないまま（＝固定待ちに落ちずに）次のシークへ入っていること。
     h.settleWithoutNewFrame()
-    // タイマーを一切進めないまま次のシークへ入っていること。
     expect(h.seeks).toHaveLength(2)
-    expect(vi.getTimerCount()).toBe(1)   // 最後の砦のタイマーは張り替えられて1本だけ
   })
 
-  it('seeked が来ない環境でも、最後の砦のタイマーで1手は進む', () => {
+  it('シークが黙って捨てられたら、待たずに次の刻みへ進む（Netflix の細かいシーク）', () => {
+    const h = createHarness()
+    h.seedLastFrame(0)
+    h.stepFrame(h.video, 1)
+    expect(h.seeks).toHaveLength(1)
+
+    // Netflix は同じコマの中への細かいシークを黙って捨てる。seeking も seeked も来ず、
+    // video.seeking も立たない。最後の砦（120ms）まで待つと1手ごとにそれが乗る。
+    vi.advanceTimersByTime(SEEK_START_MS)
+    expect(h.seeks).toHaveLength(2)
+  })
+
+  it('シークが始まっていれば、開始待ちの締め切りでは打ち切らない', () => {
     const h = createHarness()
     h.seedLastFrame(0)
     h.stepFrame(h.video, 1)
 
+    h.startSeek()                       // 受け付けられた（完了はまだ）
+    vi.advanceTimersByTime(SEEK_START_MS)
+    expect(h.seeks).toHaveLength(1)     // 進行中のシークに次を重ねない
+
+    h.completeSeek()
+    for (let i = 0; i < SETTLE_FRAMES; i++) h.drawFrame()
+    expect(h.seeks).toHaveLength(2)
+  })
+
+  it('シークは始まったのに完了通知が来ない場合は、最後の砦のタイマーで進む', () => {
+    const h = createHarness()
+    h.seedLastFrame(0)
+    h.stepFrame(h.video, 1)
+
+    h.startSeek()   // 受け付けられたので開始待ちの締め切りは効かない
     vi.advanceTimersByTime(LANDING_TIMEOUT_MS)
     expect(h.seeks).toHaveLength(2)
   })

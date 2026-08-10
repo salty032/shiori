@@ -160,6 +160,7 @@ const STEP_SEED_RATIO = 0.9          // 初手を見積もりコマ長の何割�
 const STEP_MAX_ATTEMPTS = 16         // 基準確定1 + 初手1 + STEP_PROBE_SEC 刻みで上限まで伸ばす回数
 const STEP_LANDING_TIMEOUT_MS = 120  // seeked すら来ない場合の最後の砦
 const STEP_SETTLE_FRAMES = 2         // seeked 後、新しい絵の提示を待つ描画フレーム数
+const STEP_SEEK_START_MS = 40        // シークが始まった気配（seeking）を待つ上限。実測5msに対する余裕
 
 // 1ステップの初期計画（純粋関数）。
 //
@@ -275,10 +276,14 @@ function runStepAttempt(video, seq, step) {
   let landingTimer = null
   let settleRaf = null
   let onSeeked = null
+  let onSeeking = null
+  let seekStartTimer = null
   const cleanup = () => {
     if (landingTimer !== null) { clearTimeout(landingTimer); landingTimer = null }
+    if (seekStartTimer !== null) { clearTimeout(seekStartTimer); seekStartTimer = null }
     if (settleRaf !== null) { cancelAnimationFrame(settleRaf); settleRaf = null }
     if (onSeeked) { video.removeEventListener('seeked', onSeeked); onSeeked = null }
+    if (onSeeking) { video.removeEventListener('seeking', onSeeking); onSeeking = null }
     if (cbId !== null) { try { video.cancelVideoFrameCallback(cbId) } catch {}; cbId = null }
     if (abortStepAttempt === abort) abortStepAttempt = null
   }
@@ -327,7 +332,29 @@ function runStepAttempt(video, seq, step) {
     settleRaf = requestAnimationFrame(settleTick)
   }
   video.addEventListener('seeked', onSeeked)
-  // seeked が来ない環境・シークが成立しない場面（Netflix ブリッジ無反応など）の最後の砦。
+
+  // 要求したシークがそもそも始まらなかった場合は、待たずに「同じコマのまま」と結論する。
+  //
+  // Netflix は独自プレイヤー経由でシークするが、**同じコマの中への細かいシークを黙って
+  // 捨てる**（実測：40ms のシークは位置が1msも動かず seeking も来ない。一方 500ms の
+  // シークは seeking が 5ms で来て正確に着地する）。前進の初手は狙って同じコマ内へ置く
+  // ため、Netflix では毎手これに当たり、最後の砦の 120ms をまるまる待っていた。
+  //
+  // seeking が来ないことに加えて video.seeking も見るのは、イベントの配送が一瞬詰まった
+  // だけの場合に「無視された」と早合点しないため（シーク中なら状態は必ず true になる）。
+  // 早合点しても刻み方が飛び越しを防ぐが、Netflix では進行中のシークに次を重ねることに
+  // なり無駄が増えるので、状態でもう一段確かめる。
+  onSeeking = () => {
+    if (seekStartTimer !== null) { clearTimeout(seekStartTimer); seekStartTimer = null }
+  }
+  video.addEventListener('seeking', onSeeking)
+  seekStartTimer = setTimeout(() => {
+    seekStartTimer = null
+    if (settled || video.seeking) return
+    onLand(null)
+  }, STEP_SEEK_START_MS)
+
+  // seeked が来ない環境（シークは始まったが完了通知が届かない等）の最後の砦。
   landingTimer = setTimeout(() => { landingTimer = null; onLand(null) }, STEP_LANDING_TIMEOUT_MS)
   abortStepAttempt = abort
 }
