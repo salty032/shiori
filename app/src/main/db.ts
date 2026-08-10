@@ -60,6 +60,17 @@ function addColumnIfMissing(sql: string): void {
   }
 }
 
+// FTS5 の索引と content テーブル（images）が食い違ったときに出るエラーか。
+//
+// メッセージは "database disk image is malformed" で、DB ファイルそのものの破損と区別が
+// 付かない（実際には DB は健全で `integrity_check` も通る）。見分けが付くのはエラーコードだけ
+// で、仮想テーブル由来なら SQLITE_CORRUPT_VTAB になる。索引を作り直せば直る種類の故障なので、
+// ファイル破損として諦めるのではなく復旧を試みるために判別する。
+function isCorruptVtabError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null &&
+    (err as { code?: unknown }).code === 'SQLITE_CORRUPT_VTAB'
+}
+
 export function initDb(): void {
   stmtCache.clear()
   db = new Database(join(app.getPath('userData'), 'Shiori.db'))
@@ -212,6 +223,40 @@ export function initDb(): void {
       { value: string } | undefined
   )?.value
   const rebuildAllSearchText = appliedNormalizeVersion !== String(SEARCH_NORMALIZE_VERSION)
+
+  // FTS5 の索引を content テーブル（images）から丸ごと作り直す。
+  //
+  // 外部コンテンツの FTS5 は索引を自分で持ち、content 側とはトリガーでしか同期しない。
+  // 何らかの理由で両者が食い違うと、`_au` / `_ad` トリガーの 'delete'（old.search_text の
+  // トークンを索引から消す操作）が「索引に無いものを消す」ことになり、**SQLITE_CORRUPT_VTAB
+  // ＝ database disk image is malformed で書き込みが全て失敗する**。DB 自体は健全で
+  // `integrity_check` も通るため、この状態は外からは壊れて見えない。
+  //
+  // 実際に踏んだ（2026-08-10）：images.search_text は全行 NULL なのに索引には中身が残っており、
+  // 起動時の search_text 書き直しが毎回この例外で落ちて、アプリが起動できなくなっていた。
+  // 版の記録（app_meta）は書き直しの後に置くコミットマーカーなので、一度こうなると
+  // 毎起動で同じ失敗を繰り返して自力では抜けられない。
+  const rebuildFtsIndex = (): void => {
+    try {
+      db.exec("INSERT INTO images_fts_v2(images_fts_v2) VALUES('rebuild')")
+    } catch (err) {
+      // 索引の作り直しすら通らないなら、仮想テーブルごと作り直す（中身は content から
+      // 復元されるので失われるものは無い）。
+      console.warn('[db] FTS rebuild failed, recreating the table', err)
+      db.exec('DROP TABLE IF EXISTS images_fts_v2')
+      db.exec(`
+        CREATE VIRTUAL TABLE images_fts_v2 USING fts5(
+          search_text, content='images', content_rowid='id', tokenize='trigram'
+        );
+      `)
+      db.exec("INSERT INTO images_fts_v2(images_fts_v2) VALUES('rebuild')")
+    }
+  }
+
+  // 正規化ルールの版が上がったなら、索引の中身は結局すべて作り直しになる。書き直しの前に
+  // ここで作り直しておけば、食い違いが残っていても以降の UPDATE が安全に通る。
+  if (rebuildAllSearchText) rebuildFtsIndex()
+
   const pendingSearch = prepare(
     rebuildAllSearchText
       ? 'SELECT id, title, memo FROM images'
@@ -219,11 +264,22 @@ export function initDb(): void {
   ).all() as { id: number; title: string | null; memo: string | null }[]
   if (pendingSearch.length > 0) {
     const setSearchText = prepare('UPDATE images SET search_text = ? WHERE id = ?')
-    db.transaction(() => {
+    const writeAll = db.transaction(() => {
       for (const { id, title, memo } of pendingSearch) {
         setSearchText.run(buildSearchText(title, memo), id)
       }
-    })()
+    })
+    try {
+      writeAll()
+    } catch (err) {
+      // 版が据え置きのまま食い違いが生じた場合（上の rebuild を通っていない経路）の保険。
+      // 索引を作り直してから一度だけやり直す。ここで諦めると起動できないまま詰むため、
+      // 「壊れた索引を直して進む」方を選ぶ。
+      if (!isCorruptVtabError(err)) throw err
+      console.warn('[db] search_text write hit a corrupt FTS index; rebuilding the index and retrying', err)
+      rebuildFtsIndex()
+      writeAll()
+    }
   }
   // 版の記録は作り直しが終わってから。途中で落ちた場合は記録が残らず、次回起動でやり直す
   // （拡張の同期で manifest.json を最後に置くのと同じ、コミットマーカーの置き方）。
@@ -631,12 +687,18 @@ export function setThumbPath(id: number, thumbPath: string): void {
   prepare('UPDATE images SET thumb_path = ? WHERE id = ?').run(thumbPath, id)
 }
 
-// fps 未計測の動画（この機能を追加する前に録画・取り込み済みだった行、または録画時の
-// フレーム数検証に失敗した行）を起動時バックフィルの対象にする（backfillFps、ipc-images.ts）。
+// fps 未計測の動画を起動時バックフィルの対象にする（backfillFps、ipc-images.ts）。
+//
+// **録画クリップ（source='capture'）は対象外。** fps 列が意味するのは素材のフレームレートで、
+// 録画クリップのそれは拡張から届くコマ通知でしか分からない（recorder-ipc.ts の getSourceFps）。
+// ファイルを解析して得られるのは画面キャプチャの供給レート（50枚/秒前後）で、素材とは
+// 無関係な数字になる。ここで埋めると、録画時に「素材の fps が取れなかったので空欄にした」
+// 判断を起動のたびに上書きして、誤った数字を復活させることになる。
+// 対象は取り込み動画（source='import'）— こちらはファイルそのものが素材なので解析値が正しい。
 export function listImagesMissingFps(): { id: number; filepath: string; duration: number | null }[] {
   return prepare(
     `SELECT id, filepath, duration FROM images
-     WHERE media_type = 'video' AND fps IS NULL
+     WHERE media_type = 'video' AND fps IS NULL AND source != 'capture'
      ORDER BY captured_at DESC`
   ).all() as { id: number; filepath: string; duration: number | null }[]
 }
@@ -765,6 +827,18 @@ export function decodeFrames(data: string): StoredFrame[] | null {
 export function saveVideoFrames(imageId: number, frames: StoredFrame[]): void {
   if (frames.length === 0) return
   prepare('INSERT OR REPLACE INTO video_frames (image_id, data) VALUES (?, ?)').run(imageId, encodeFrames(frames))
+}
+
+// フレーム表を破棄し、「コマ精度の情報が無い」状態（列は NULL）へ戻す。
+//
+// 表の frameIndex がファイル内の実フレームと対応していないと分かったときに使う。
+// 半端に残すとコマ送りが黙って別のコマの絵を出すため、精度を諦めて従来のフレーム走査へ
+// 退避させる方がよい（decodeFrames が壊れた行を null で返すのと同じ判断）。
+// 枚数（uncaptured_frames / ambiguous_frames）も表と一緒に無効化する — 表が信用できない以上、
+// そこから数えた「N コマ要確認」も根拠を失っているため。
+export function dropVideoFrames(id: number): void {
+  prepare('DELETE FROM video_frames WHERE image_id = ?').run(id)
+  prepare('UPDATE images SET uncaptured_frames = NULL, ambiguous_frames = NULL WHERE id = ?').run(id)
 }
 
 export function getVideoFrames(imageId: number): StoredFrame[] | null {
