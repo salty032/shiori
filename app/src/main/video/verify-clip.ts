@@ -1,23 +1,94 @@
-// 保存済みクリップに対する撮り逃しコマの検証（起動部）。
+// 保存済みクリップのフレーム表を、実ファイルと突き合わせて確かめる（起動部）。
 //
-// 判定そのものは frame-verify.ts（純関数）が持つ。こちらは ffmpeg でフレームの署名を
-// 取り出し、結果を DB へ書き戻すところだけを受け持つ。録画とトリミングの両方から
-// 同じ経路で呼べるように独立させてある。
+// やることは 2 つ。
+//   1. フレーム表の土台（frameIndex がファイル内の実フレーム番号と一致すること）の確認
+//   2. 撮り逃したコマに実害があるかの検証（判定そのものは frame-verify.ts の純関数）
+//
+// ffmpeg でフレームの署名と表示時刻を取り出し、結果を DB へ書き戻すところだけを受け持つ。
+// 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
-import { logVerifyResult, verifyFrameTable } from './frame-verify'
-import { saveVideoFrames, setAmbiguousFrames, type StoredFrame } from '../db'
+import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
+import { dropVideoFrames, saveVideoFrames, setAmbiguousFrames, setUncapturedFrames, type StoredFrame } from '../db'
 
-// クリップを保存し終えてから走らせる。フル デコードを伴うので数秒かかることがあり、
-// 完了を待たせるとその間ホットキーが効かず次の場面を撮り逃す。検証は「表示に出る注記が
-// 後から精密になる」だけの後追い処理なので、失敗しても保存済みのクリップには影響させない。
-export async function verifyClipFrames(imageId: number, videoPath: string, table: StoredFrame[]): Promise<void> {
+/**
+ * クリップを保存し終えてから走らせる。フル デコードを伴うので数秒かかることがあり、
+ * 完了を待たせるとその間ホットキーが効かず次の場面を撮り逃す。表示に出る注記が後から
+ * 精密になるだけの後追い処理なので、失敗しても保存済みのクリップには影響させない。
+ *
+ * @param drawnAt 録画時に供給した各フレームの取り込み時刻。渡すと 1. の照合を行う。
+ *   トリミング経路は表の frameIndex を切り出し後の PTS 列から作り直しており、定義上ずれない
+ *   ので null を渡す。
+ */
+export async function verifyClipFrames(
+  imageId: number,
+  videoPath: string,
+  table: StoredFrame[],
+  drawnAt: number[] | null
+): Promise<void> {
   try {
-    const signatures = await getFrameSignatures(videoPath)
+    const { signatures, pts } = await getFrameSignatures(videoPath)
     if (signatures.length === 0) {
       logVerifyResult(null)
       return
     }
-    const result = verifyFrameTable(table, signatures)
+
+    let frames = table
+
+    // 表の frameIndex は「requestFrame を呼んだ回数」の添字で、ファイル内のデコード実フレームの
+    // 添字と一致することが全ての前提になっている。MediaRecorder はエンコードに詰まると
+    // フレームを落とすが、値は範囲内に収まるので他のどの検査にも引っかからない（別のコマの絵を
+    // 正しい絵として黙って出し続けることになる）。
+    if (drawnAt !== null && signatures.length !== drawnAt.length) {
+      // 枚数の差だけでは「末尾が足りない」のか「途中で落ちた」のか区別が付かない。
+      // 時刻で対応が崩れる位置を割り出して、根拠を持って分ける。
+      const paired = Math.min(drawnAt.length, pts.length)
+      const divergeAt = findFrameDivergence(drawnAt, pts)
+      if (divergeAt < paired) {
+        // 崩れの正体を 1 本の録画で切り分けるための診断。
+        // 供給時刻とファイル内 PTS の「先頭からのずれ」を並べる。読み方:
+        //   ある位置から供給 1 回ぶん（実測 17.8ms）の階段が末尾まで続く → そこで落ちている
+        //   外れても数枚で 0 付近へ戻る → 一過性の揺らぎ。対応は保たれている（崩れではない）
+        // 実測（2026-08-10）では先頭で -7.5 / -15.0ms の外れが出て 3 枚目で戻り、末尾は 0.7ms
+        // だった。**この形は崩れではない**ので findFrameDivergence は持続を見て判定する。
+        const shiftAt = (i: number): string =>
+          (drawnAt[i] - drawnAt[0] - (pts[i] - pts[0]) * 1000).toFixed(1)
+        const head = Array.from({ length: Math.min(8, paired) }, (_, i) => shiftAt(i)).join(', ')
+        const around = [divergeAt - 2, divergeAt - 1, divergeAt, divergeAt + 1, divergeAt + 2]
+          .filter((i) => i >= 0 && i < paired)
+          .map((i) => `${i}:${shiftAt(i)}`)
+          .join(' ')
+        const tail = paired > 3
+          ? [paired - 3, paired - 2, paired - 1].map((i) => `${i}:${shiftAt(i)}`).join(' ')
+          : ''
+        console.error(
+          `[frame-verify] frame correspondence breaks at index ${divergeAt}` +
+          ` (supplied ${drawnAt.length}, file has ${signatures.length}).` +
+          ` head shift [${head}]ms | around break [${around}]ms | tail [${tail}]ms.` +
+          ' Dropping the frame table (frame stepping falls back to raw file frames).'
+        )
+        dropVideoFrames(imageId)
+        return
+      }
+      // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
+      const kept = frames.filter((f) => f.frameIndex < signatures.length)
+      if (kept.length === 0) {
+        dropVideoFrames(imageId)
+        return
+      }
+      console.warn(
+        `[frame-verify] file is short by ${drawnAt.length - signatures.length} frame(s) at the end` +
+        ` (supplied ${drawnAt.length}, file has ${signatures.length});` +
+        ` correspondence holds up to the end, so ${frames.length - kept.length} trailing frame(s) were trimmed.`
+      )
+      frames = kept
+      saveVideoFrames(imageId, frames)
+      setUncapturedFrames(imageId, frames.filter((f) => !f.captured).length)
+    }
+
+    // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
+    if (frames.every((f) => f.captured)) return
+
+    const result = verifyFrameTable(frames, signatures)
     saveVideoFrames(imageId, result.frames)
     setAmbiguousFrames(imageId, result.ambiguous)
     logVerifyResult(result)

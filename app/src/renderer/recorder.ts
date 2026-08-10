@@ -12,6 +12,28 @@ type CaptureDiag = {
   presented: number
   skippedByCallback: number
   duplicateSuppressed: number
+  /**
+   * captureTime が rVFC のメタデータに載らず Date.now() へ退避した枚数。
+   *
+   * 素材のコマとファイル内フレームの対応付けは「ページ側がコマを出した時刻」と
+   * 「こちらがそのコマを取り込んだ時刻」の差を一定と見なして補正している
+   * （frame-feed.ts の offsetMs）。captureTime はフレームが取り込まれた時刻そのものだが、
+   * getDisplayMedia 経由で載るかは実装依存で、載らなければコールバック実行時刻へ落ちる。
+   * この2つは意味が違うので、混在すると「遅延が一定」という前提自体が崩れる。
+   * 0 か全数かのどちらかであることを確かめるために数える。
+   */
+  captureTimeMissing: number
+  /**
+   * このウィンドウの performance 時刻を epoch へ直した値と、壁時計との差（ミリ秒）。
+   * `(performance.timeOrigin + performance.now()) - Date.now()`。
+   *
+   * drawnAt はここの `timeOrigin + captureTime`、配信ページ側の displayAt は Chrome 側の
+   * `timeOrigin + expectedDisplayTime` で、**別プロセスの単調時計を各々の epoch へ直した値**。
+   * timeOrigin は文書の生成時刻で固定される一方 now() は単調時計で進むので、壁時計との差は
+   * 文書の寿命ぶん開く。両プロセスでこの差が違えば、差はそのまま offsetMs に乗る
+   * （録画ごとにオフセットが振れる理由の候補。frame-feed.ts の ReportDelay と対で読む）。
+   */
+  clockSkewMs: number
   totalVideoFrames: number | null
   droppedVideoFrames: number | null
 }
@@ -348,9 +370,12 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
   // 文書ごとに原点の違う performance 時刻なので、timeOrigin を足して epoch へ直してから
   // 渡す（配信ページ側とは別プロセスのため、この変換をしないと比較できない）。
   const drawnAt: number[] = []
+  // captureTime が載らず Date.now() へ退避した枚数（CaptureDiag 参照）。
+  let captureTimeMissing = 0
   const drawFrame = (captureTime?: number): void => {
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
     csTrack.requestFrame()
+    if (captureTime === undefined) captureTimeMissing++
     drawnAt.push(captureTime === undefined
       ? Date.now()
       : performance.timeOrigin + captureTime)
@@ -480,6 +505,8 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
         presented: presentedFirst !== null && presentedLast !== null ? presentedLast - presentedFirst + 1 : 0,
         skippedByCallback,
         duplicateSuppressed,
+        captureTimeMissing,
+        clockSkewMs: performance.timeOrigin + performance.now() - Date.now(),
         totalVideoFrames: quality?.totalVideoFrames ?? null,
         droppedVideoFrames: quality?.droppedVideoFrames ?? null
       })

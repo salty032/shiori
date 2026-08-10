@@ -56,6 +56,8 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     presented: 1210,
     skippedByCallback: 10,
     duplicateSuppressed: 96,
+    captureTimeMissing: 0,
+    clockSkewMs: -12.5,
     totalVideoFrames: 1400,
     droppedVideoFrames: 3
   }
@@ -68,6 +70,21 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     const diag = parseCaptureDiag({ ...valid, totalVideoFrames: null, droppedVideoFrames: undefined })
     expect(diag?.totalVideoFrames).toBeNull()
     expect(diag?.droppedVideoFrames).toBeNull()
+  })
+
+  it('captureTime の計数が欠けていても診断ごとは捨てない（補助項目）', () => {
+    // 対応付けの前提を確かめるための追加項目で、これが無くても供給の診断は成立する。
+    const diag = parseCaptureDiag({ ...valid, captureTimeMissing: undefined })
+    expect(diag).not.toBeNull()
+    expect(diag?.captureTimeMissing).toBeNull()
+    expect(diag?.callbacks).toBe(1200)
+  })
+
+  it('時計のずれが欠けていても診断ごとは捨てない（補助項目）', () => {
+    // オフセットが振れる理由の切り分け用で、これが無くても供給の診断は成立する。
+    const diag = parseCaptureDiag({ ...valid, clockSkewMs: undefined })
+    expect(diag).not.toBeNull()
+    expect(diag?.clockSkewMs).toBeNull()
   })
 
   it('必須の計数が欠けている・数値でないなら診断なしとして扱う', () => {

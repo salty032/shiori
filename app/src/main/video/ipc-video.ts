@@ -190,7 +190,11 @@ export function registerVideoHandlers(): void {
             // 撮り逃しの検証は元クリップの結果を流用せず、新しいファイルで取り直す。
             // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
             // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。
-            if (missed > 0) void verifyClipFrames(result.id, webmOut, sliced)
+            //
+            // 枚数照合（第4引数）は不要なので null。切り出し後の表は trimmedPts の添字から
+            // 作り直しており、その trimmedPts は新ファイルを ffmpeg でデコードして得たもの
+            // なので、定義上ファイル内のフレーム数と一致する。
+            if (missed > 0) void verifyClipFrames(result.id, webmOut, sliced, null)
           }
         }
       } catch (err) {

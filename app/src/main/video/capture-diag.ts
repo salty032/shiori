@@ -11,6 +11,7 @@
 // presentedFrames の飛びと video 要素が受け取った総数を数えて持ち帰る（CaptureDiag）。
 //
 // ここはその数値を1行のログにまとめるための計算だけを持つ純関数。
+import type { ReportDelay } from './frame-feed'
 
 /** レコーダーウィンドウが録画中に数えた供給の内訳（recorder.ts が組み立てる） */
 export interface CaptureDiag {
@@ -22,6 +23,21 @@ export interface CaptureDiag {
   skippedByCallback: number
   /** 同じ動画フレームの重複提示として供給を見送った回数 */
   duplicateSuppressed: number
+  /**
+   * captureTime が rVFC のメタデータに載らず Date.now() へ退避した枚数
+   * （取れなければ null。診断が無いだけで録画には影響しない）。
+   *
+   * 素材のコマとの対応付けは「ページがコマを出した時刻」と「こちらが取り込んだ時刻」の差を
+   * 一定と見なして補正している。captureTime は取り込み時刻そのものだが、Date.now() は
+   * コールバック実行時刻で意味が違う。混ざると「遅延が一定」という前提が崩れるため、
+   * 0 か全数かのどちらかであることを確かめる。
+   */
+  captureTimeMissing: number | null
+  /**
+   * レコーダーウィンドウの performance 時刻（epoch 換算）と壁時計の差（ミリ秒。取れなければ null）。
+   * `logClockDiag` の説明を参照。
+   */
+  clockSkewMs: number | null
   /** video 要素が受け取ったフレーム総数（getVideoPlaybackQuality。取れなければ null） */
   totalVideoFrames: number | null
   /** そのうち表示に間に合わず捨てられた枚数 */
@@ -94,9 +110,39 @@ export function logSupplyDiag(summary: SupplySummary | null, diag: CaptureDiag |
   const supply = diag
     ? ` | rVFC callbacks ${diag.callbacks} (presented ${diag.presented}, skipped ${diag.skippedByCallback},` +
       ` duplicate ${diag.duplicateSuppressed}), element received ${diag.totalVideoFrames ?? 'n/a'}` +
-      ` dropped ${diag.droppedVideoFrames ?? 'n/a'}`
+      ` dropped ${diag.droppedVideoFrames ?? 'n/a'}` +
+      // 0 なら全フレームが取り込み時刻（captureTime）を持てている＝対応付けの前提が成り立つ。
+      // 全数なら Date.now()（コールバック実行時刻）に落ちており、遅延の性質が変わる。
+      // 途中の値なら 2 種類の時刻が混ざっていて最も悪い（一定オフセットで補正できない）。
+      ` | captureTime missing ${diag.captureTimeMissing ?? 'n/a'}`
     : ''
   console.log(`[capture-supply] drawn ${summary.drawnPerSec.toFixed(1)}/s (${gaps})${supply}`)
+}
+
+// 2 つの時計の基準を 1 行にまとめる（1録画1行。出力は英語）。
+//
+// **オフセット（frame-feed.ts の offsetMs）が録画ごとに振れる理由を切り分けるための実測。**
+// 突き合わせている 2 つの時刻は、どちらも別プロセスの単調時計を各々の epoch へ直した値：
+//   displayAt = 配信ページ(Chrome)の timeOrigin + expectedDisplayTime
+//   drawnAt   = レコーダー(Electron)の timeOrigin + captureTime
+// timeOrigin は文書の生成時刻で固定される一方 now() は単調時計で進むため、壁時計との差は
+// 文書の寿命ぶん開く。**両者で差が違えば、その差はそのまま offsetMs に乗る。**
+//
+// 読み方:
+//   report delay min が -30ms より負に大きい → ページ側の時計がずれている
+//     （転送の遅れは 0 以上、expectedDisplayTime が未来を指すぶんも 1〜2 vsync ＝ 16〜33ms まで。
+//      それを超える負値はこの 2 つでは説明できない）
+//   recorder skew が 0 から離れている        → レコーダー側の時計がずれている
+//   両者の差が録画ごとの offset の振れと一致  → 振れの正体は時計の基準差。実遅延は定数として
+//                                             確定でき、探索は ±(素材コマ/2) に絞れる
+export function logClockDiag(delay: ReportDelay | null, diag: CaptureDiag | null): void {
+  const page = delay
+    ? `page report delay min ${delay.minMs.toFixed(1)}ms p50 ${delay.medianMs.toFixed(1)}ms (${delay.count} reports)`
+    : 'page report delay n/a'
+  const rec = diag && diag.clockSkewMs !== null
+    ? `recorder perf-epoch - wall clock ${diag.clockSkewMs.toFixed(1)}ms`
+    : 'recorder perf-epoch - wall clock n/a'
+  console.log(`[clock-base] ${page} | ${rec}`)
 }
 
 // レコーダー（別プロセス）から届く診断値の検証。壊れていても録画の保存は続けたいので、
@@ -115,6 +161,9 @@ export function parseCaptureDiag(value: unknown): CaptureDiag | null {
     presented,
     skippedByCallback,
     duplicateSuppressed,
+    // 診断の補助項目なので、欠けていても診断全体は捨てない（totalVideoFrames と同じ扱い）。
+    captureTimeMissing: num(v.captureTimeMissing),
+    clockSkewMs: num(v.clockSkewMs),
     totalVideoFrames: num(v.totalVideoFrames),
     droppedVideoFrames: num(v.droppedVideoFrames)
   }

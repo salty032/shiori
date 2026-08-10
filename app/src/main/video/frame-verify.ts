@@ -44,6 +44,67 @@ export function signaturesDiffer(a: Uint8Array, b: Uint8Array): boolean {
   return false
 }
 
+/**
+ * 供給した時刻列（drawnAt）とファイル内フレームの表示時刻（pts）を突き合わせ、
+ * **対応が崩れる最初の位置**を返す。崩れなければ min(drawnAt.length, pts.length) を返す。
+ *
+ * フレーム表の `frameIndex` は「requestFrame を呼んだ回数」の添字なので、ファイル内の
+ * フレームと 1 対 1 で対応していることが前提になっている。実測では MediaRecorder が
+ * 1〜2 枚少ないファイルを吐くことがあり（停止時に未エンコードのフレームが残るとみられる）、
+ * その場合に**どこで対応が切れたのか**を知る必要がある。
+ *
+ * - 末尾だけ足りない → そこまでの対応は正しいので、表の末尾を切れば残りは使える
+ * - 途中で切れている → それ以降の frameIndex は全てずれている
+ *
+ * この 2 つは枚数の差だけでは区別できない。「1〜2 枚だから末尾だろう」と決めつけるのは
+ * この機能が避けるべき推測そのものなので、時刻で判定する。両者は原点の違う時計だが、
+ * 先頭からの相対時刻にすれば原点は消え、同じ実時間のレートで進む。1 枚落ちるとその位置から
+ * 先は供給 1 回ぶん（実測 17.8ms）ずれるので、供給間隔より十分小さい許容幅で検出できる。
+ *
+ * **判定に必要なのは「ずれが続くこと」で、一度外れたことではない。** 実測（2026-08-10）では
+ * ファイル先頭で -7.5 / -15.0ms の外れが出た後 3 枚目で 0 付近へ戻り、末尾は 0.7ms だった
+ * ——つまり対応は最後まで成立していたのに、「最初に許容幅を超えた位置」で判定していた頃は
+ * これを崩れと読んで**対応の取れている表を毎回捨てていた**。1 枚落ちればそこから先は永久に
+ * ずれたままなので、続く数枚も外れているときだけ崩れとみなす。
+ *
+ * @param toleranceMs 省略時は供給間隔の中央値の半分（最低 5ms）。requestFrame の呼び出し時刻と
+ *   captureTime は処理時間ぶん揺らぐため、その揺らぎより大きく、供給 1 回ぶんより小さく取る。
+ */
+export function findFrameDivergence(drawnAt: number[], pts: number[], toleranceMs?: number): number {
+  const n = Math.min(drawnAt.length, pts.length)
+  if (n < 2) return n
+
+  const tolerance = toleranceMs ?? Math.max(5, medianGapMs(drawnAt) / 2)
+  const offBy = (i: number): number =>
+    Math.abs(drawnAt[i] - drawnAt[0] - (pts[i] - pts[0]) * 1000)
+  for (let i = 1; i < n; i++) {
+    if (offBy(i) <= tolerance) continue
+    // 続く数枚も外れていなければ一過性の揺らぎ。1 枚でも戻れば対応は保たれている。
+    let sustained = true
+    for (let j = i + 1; j < Math.min(n, i + SUSTAINED_RUN); j++) {
+      if (offBy(j) <= tolerance) { sustained = false; break }
+    }
+    if (sustained) return i
+  }
+  return n
+}
+
+// 「崩れ」とみなすのに必要な連続枚数。実測の一過性の外れは 2 枚で戻ったので、それより
+// 十分長く、末尾近くで落ちた場合でも判定が残る程度に短く取る。
+const SUSTAINED_RUN = 5
+
+// 供給間隔の中央値。時刻が逆行した標本は捨てる（capture-diag.ts の summarizeSupply と同じ理由）。
+function medianGapMs(drawnAt: number[]): number {
+  const gaps: number[] = []
+  for (let i = 1; i < drawnAt.length; i++) {
+    const gap = drawnAt[i] - drawnAt[i - 1]
+    if (gap >= 0) gaps.push(gap)
+  }
+  if (gaps.length === 0) return 0
+  gaps.sort((a, b) => a - b)
+  return gaps[gaps.length >> 1]
+}
+
 export interface VerifyResult {
   /** 検証結果を書き込んだフレーム表（入力と同じ長さ・同じ順序） */
   frames: StoredFrame[]

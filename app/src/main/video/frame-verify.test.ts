@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 // db.ts は electron の app.getPath を import 時点で読むため、型のみの参照でもモックが要る。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { signaturesDiffer, verifyFrameTable } from './frame-verify'
+import { findFrameDivergence, signaturesDiffer, verifyFrameTable } from './frame-verify'
 import type { StoredFrame } from '../db'
 
 const GRID = 32 * 32
@@ -116,5 +116,82 @@ describe('verifyFrameTable（撮り逃したコマの分類）', () => {
     const original = table.map((f) => ({ ...f }))
     verifyFrameTable(table, [flat(100), flat(100), flat(160)])
     expect(table).toEqual(original)
+  })
+})
+
+describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が崩れる位置）', () => {
+  // 実測に近い供給間隔（p50 17.8ms）。決定的な擬似ジッタを乗せる。
+  const GAP_MS = 17.8
+  const T0 = 1_700_000_000_000
+
+  function makeDrawn(count: number, jitterMs = 0): number[] {
+    let seed = 4242
+    return Array.from({ length: count }, (_, i) => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      const jitter = jitterMs === 0 ? 0 : ((seed / 0x7fffffff) * 2 - 1) * jitterMs
+      return T0 + i * GAP_MS + jitter
+    })
+  }
+
+  // 供給時刻から、ファイル内フレームの表示時刻（秒・原点は別）を作る。
+  // 原点をずらすのは実物と同じ条件にするため（先頭からの相対で比較すれば消える）。
+  function ptsFrom(drawnAt: number[]): number[] {
+    return drawnAt.map((t) => (t - drawnAt[0]) / 1000 + 12.345)
+  }
+
+  it('全フレームが対応していれば崩れない', () => {
+    const drawn = makeDrawn(200, 2)
+    expect(findFrameDivergence(drawn, ptsFrom(drawn))).toBe(200)
+  })
+
+  it('末尾が足りないだけなら、短い方の長さまで崩れない', () => {
+    // MediaRecorder の停止時に未エンコードのフレームが残るケース（実測 -1〜-2 枚）。
+    const drawn = makeDrawn(200, 2)
+    const pts = ptsFrom(drawn).slice(0, 198)
+    expect(findFrameDivergence(drawn, pts)).toBe(198)
+  })
+
+  it('途中で 1 枚落ちたら、その位置を返す', () => {
+    // 落ちた位置から先は供給 1 回ぶんずれるので、そこで検出できる。
+    // 末尾欠落（表を切って使える）と途中欠落（捨てるしかない）を分ける判定そのもの。
+    for (const dropAt of [1, 120]) {
+      const drawn = makeDrawn(200, 2)
+      const pts = ptsFrom(drawn)
+      pts.splice(dropAt, 1)
+      expect(findFrameDivergence(drawn, pts), `dropAt=${dropAt}`).toBe(dropAt)
+    }
+  })
+
+  it('先頭の一過性の外れは崩れとみなさない（2026-08-10 の実測を再現）', () => {
+    // 実測: shift が 0.0 / -7.5 / -15.0 と外れた後、3 枚目で +2.2 へ戻り、末尾は +0.7 だった。
+    // **対応は最後まで成立している**のに、「最初に許容幅を超えた位置」で判定していた頃は
+    // ここを崩れと読み、取れている表を毎回捨てていた（コマ精度が失われる主因）。
+    // 外れ幅は許容幅（8.9ms）を超え、供給 1 回ぶん（17.8ms）に迫る大きさ。
+    const drawn = makeDrawn(200, 2)
+    const pts = ptsFrom(drawn)
+    pts[1] += 7.5 / 1000
+    pts[2] += 15 / 1000
+    expect(findFrameDivergence(drawn, pts)).toBe(200)
+  })
+
+  it('末尾の直前で落ちても検出する（一過性と区別しつつ取りこぼさない）', () => {
+    const drawn = makeDrawn(200, 2)
+    const pts = ptsFrom(drawn)
+    pts.splice(198, 1)
+    expect(findFrameDivergence(drawn, pts)).toBe(198)
+  })
+
+  it('現実的なジッタでは誤検出しない（供給間隔の半分を許容幅にする）', () => {
+    // requestFrame の呼び出し時刻と captureTime は処理時間ぶん揺らぐ。その揺らぎで
+    // 「崩れた」と誤判定すると、正常なクリップのフレーム表まで捨ててしまう。
+    for (const jitter of [0, 1, 2, 3]) {
+      const drawn = makeDrawn(300, jitter)
+      expect(findFrameDivergence(drawn, ptsFrom(drawn)), `jitter=${jitter}ms`).toBe(300)
+    }
+  })
+
+  it('標本が 1 枚以下なら判定しない', () => {
+    expect(findFrameDivergence([], [])).toBe(0)
+    expect(findFrameDivergence([T0], [0])).toBe(1)
   })
 })

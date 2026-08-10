@@ -107,33 +107,40 @@ describe('getFrameSignatures', () => {
       '-c:v', 'libvpx',
       vfrPath
     ])
-    const [sigs, pts] = await Promise.all([getFrameSignatures(vfrPath), getVideoFramePts(vfrPath)])
+    const [{ signatures }, pts] = await Promise.all([getFrameSignatures(vfrPath), getVideoFramePts(vfrPath)])
     expect(pts.length).toBe(16)
-    expect(sigs.length).toBe(pts.length)
+    expect(signatures.length).toBe(pts.length)
   }, 60_000)
 
   it('1フレームにつき 32x32 のグレースケール1枚を返す', async () => {
-    const sigs = await getFrameSignatures(srcPath)
-    expect(sigs.length).toBeGreaterThan(0)
-    expect(sigs[0].length).toBe(SIGNATURE_GRID * SIGNATURE_GRID)
+    const { signatures } = await getFrameSignatures(srcPath)
+    expect(signatures.length).toBeGreaterThan(0)
+    expect(signatures[0].length).toBe(SIGNATURE_GRID * SIGNATURE_GRID)
   }, 60_000)
 
   // フレーム表の frameIndex は「ファイル内の何枚目か」なので、署名の添字がそれとずれると
   // 別のコマの絵を比べて判定することになる。両者が同じデコード結果を数えていることを固定する。
   it('署名の枚数が PTS の数と一致する（フレーム表の添字と揃う）', async () => {
-    const [sigs, pts] = await Promise.all([getFrameSignatures(srcPath), getVideoFramePts(srcPath)])
-    expect(sigs.length).toBe(pts.length)
+    const [{ signatures }, pts] = await Promise.all([getFrameSignatures(srcPath), getVideoFramePts(srcPath)])
+    expect(signatures.length).toBe(pts.length)
+  }, 60_000)
+
+  // 自分が返す PTS は、別経路の getVideoFramePts と一致していなければならない。
+  // これがずれると、供給時刻との突き合わせ（findFrameDivergence）が誤った基準で判定する。
+  it('署名と同じデコードから取った PTS が getVideoFramePts と一致する', async () => {
+    const [own, viaShowinfo] = await Promise.all([getFrameSignatures(srcPath), getVideoFramePts(srcPath)])
+    expect(own.pts).toEqual(viaShowinfo)
   }, 60_000)
 
   it('静止区間では変化を検出せず、切り替わりだけを検出する', async () => {
-    const sigs = await getFrameSignatures(srcPath)
+    const { signatures } = await getFrameSignatures(srcPath)
     const changes: number[] = []
-    for (let i = 1; i < sigs.length; i++) {
-      if (signaturesDiffer(sigs[i - 1], sigs[i])) changes.push(i)
+    for (let i = 1; i < signatures.length; i++) {
+      if (signaturesDiffer(signatures[i - 1], signatures[i])) changes.push(i)
     }
     // 黒→白の1回だけ。静止している 9 フレームぶんの隣接比較は全て「変化なし」になる。
     expect(changes).toHaveLength(1)
-    expect(changes[0]).toBe(Math.floor(sigs.length / 2))
+    expect(changes[0]).toBe(Math.floor(signatures.length / 2))
   }, 60_000)
 
   it('存在しないファイルでは失敗する（黙って空を返して未検証扱いに化けさせない）', async () => {

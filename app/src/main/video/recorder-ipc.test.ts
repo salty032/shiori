@@ -57,6 +57,17 @@ vi.mock('./ffmpeg', () => ({
   extractThumb: vi.fn(async () => {})
 }))
 
+// fps 列に入るのは「素材のフレームレート」だけで、その唯一の供給元が getSourceFps
+// （拡張から届くコマ通知の回帰推定）。ここを差し替えて、取れた場合・取れない場合の
+// 両方を確かめる。
+const getSourceFps = vi.fn<() => number | null>(() => null)
+vi.mock('./frame-feed', () => ({
+  getSourceFps: () => getSourceFps(),
+  buildFrameTable: vi.fn(() => null),
+  logMatchResult: vi.fn(),
+  getReportDelay: vi.fn(() => null)
+}))
+
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))
 vi.mock('../captured-media', () => ({
   registerCapturedMedia: (params: unknown) => registerCapturedMedia(params)
@@ -138,7 +149,7 @@ describe('recorder:done - duration 上限（多層防御）', () => {
   })
 })
 
-describe('recorder:done - fps の算出とベストエフォート方針', () => {
+describe('recorder:done - fps に入るのは素材のフレームレートだけ', () => {
   beforeEach(() => {
     handlers.clear()
     finishRecordingState.mockClear()
@@ -146,6 +157,8 @@ describe('recorder:done - fps の算出とベストエフォート方針', () =>
     isCurrentRecordingSession.mockReturnValue(true)
     sendNotice.mockClear()
     registerCapturedMedia.mockClear()
+    getSourceFps.mockReset()
+    getSourceFps.mockReturnValue(null)
     registerRecorderIpc()
   })
 
@@ -154,31 +167,33 @@ describe('recorder:done - fps の算出とベストエフォート方針', () =>
     return insertArg.insert.fps
   }
 
-  it('正常なフレーム数から fps を算出して保存する', async () => {
+  it('素材の fps が分かればそれを保存する', async () => {
+    getSourceFps.mockReturnValue(23.976)
     const handler = handlers.get('recorder:done')!
     await handler({}, new ArrayBuffer(10), 10, 240, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
-    expect(insertedFps()).toBe(24)
+    expect(insertedFps()).toBe(23.976)
   })
 
-  it('フレーム数が不正（NaN）でも fps を null にしてクリップ保存は続行する', async () => {
+  it('素材の fps が取れなければ空欄にする（画面キャプチャの供給レートで埋めない）', async () => {
+    // 10秒で240枚＝24枚/秒だが、これは画面キャプチャが寄越した枚数であって素材の fps では
+    // ない。以前はここを退避先にしていたため、詳細パネルに素材のものと読める数字が出ていた。
+    // コマ打ちを数える用途では、空欄より誤った数字の方が害が大きい。
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, NaN, 1)
+    await handler({}, new ArrayBuffer(10), 10, 240, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
     expect(insertedFps()).toBeNull()
   })
 
-  it('フレーム数が負でも fps を null にしてクリップ保存は続行する', async () => {
-    const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, -5, 1)
-    expect(registerCapturedMedia).toHaveBeenCalled()
-    expect(insertedFps()).toBeNull()
-  })
-
-  it('フレーム数が過大（多層防御の上限超え）でも fps を null にしてクリップ保存は続行する', async () => {
-    const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 10 * 120 + 1, 1)
-    expect(registerCapturedMedia).toHaveBeenCalled()
-    expect(insertedFps()).toBeNull()
+  it('供給枚数が不正な値でも fps に影響せず、クリップ保存は続行する', async () => {
+    // fps は情報表示用であり、これが取れないことを理由に保存を失敗させない
+    // （サムネ生成と同じベストエフォート方針）。
+    for (const frameCount of [NaN, -5, 10 * 120 + 1]) {
+      registerCapturedMedia.mockClear()
+      const handler = handlers.get('recorder:done')!
+      await handler({}, new ArrayBuffer(10), 10, frameCount, 1)
+      expect(registerCapturedMedia, `frameCount=${frameCount}`).toHaveBeenCalled()
+      expect(insertedFps(), `frameCount=${frameCount}`).toBeNull()
+    }
   })
 })

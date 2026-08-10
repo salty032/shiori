@@ -12,8 +12,8 @@ import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
-import { logMatchResult, buildFrameTable, getSourceFps } from './frame-feed'
-import { logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
+import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay } from './frame-feed'
+import { logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../captured-media'
 import { saveVideoFrames, setUncapturedFrames } from '../db'
 import { t } from '../i18n'
@@ -27,14 +27,6 @@ const MAX_CLIP_DURATION_SEC = 40
 // フレーム数の妥当性上限。取得は acquireScreenStream 側で 60fps に上限しているが、
 // renderer の改ざん・誤動作に対する多層防御として余裕を持たせた値で判定する。
 const MAX_FRAME_RATE_FOR_VALIDATION = 120
-// fps は情報表示用であり、これが取れないことを理由にクリップ保存を失敗させない
-// （サムネ生成と同じベストエフォート方針）。小数第2位で丸める：23.976 と 24 の差が
-// 消えない程度に、かつ桁が読める粒度。
-function computeFps(frameCount: number, duration: number): number | null {
-  if (!Number.isInteger(frameCount) || frameCount <= 0) return null
-  if (frameCount > duration * MAX_FRAME_RATE_FOR_VALIDATION) return null
-  return Math.round((frameCount / duration) * 100) / 100
-}
 
 function formatClipDuration(seconds: number): string {
   const s = Math.round(seconds)
@@ -97,11 +89,15 @@ export function registerRecorderIpc(): void {
       return
     }
 
-    // 素材の実 fps が分かるならそれを使う。frameCount/duration は「画面キャプチャが
-    // 何枚寄越したか」でしかなく素材とは無関係な値になる（23.976fps の素材で 37fps 等）。
-    // 取れないとき（拡張未接続・非対応サイト）だけ従来の算出へ退避する。
+    // fps 列が意味するのは**素材のフレームレート**（研究用途で意味を持つのはこちらだけ）。
+    //
+    // frameCount/duration は「画面キャプチャが何枚寄越したか」でしかなく、素材とは無関係な
+    // 値になる（23.976fps の素材に対し 50 枚/秒前後）。以前はこれを退避先にしていたが、
+    // 詳細パネルに「50fps の素材」と読める数字が出てしまい、コマ打ちを数える用途では
+    // 誤解が実害になる。素材の fps が取れないとき（拡張未接続・非対応サイト）は空欄のまま
+    // にする — getVideoMeta が tbr にフォールバックしないのと同じ方針。
     const sourceFps = getSourceFps()
-    const fps = sourceFps ?? computeFps(frameCount, duration)
+    const fps = sourceFps
 
     const meta = getRecordingMeta()
     finishRecordingState()
@@ -112,16 +108,24 @@ export function registerRecorderIpc(): void {
     const usableDrawnAt = Array.isArray(drawnAt) && drawnAt.length > 0 &&
       drawnAt.length <= MAX_CLIP_DURATION_SEC * MAX_FRAME_RATE_FOR_VALIDATION &&
       drawnAt.every((t) => Number.isFinite(t))
+    // 探索の窓を素材 1 コマ幅に閉じてあるので、オフセットの曖昧さが残っても表のずれは
+    // 1 コマ未満に収まる。**以前あった「飽和したら表ごと捨てる」措置は不要になったので撤去した**
+    // （供給が均一な録画ほどコマ精度を失う副作用の方が大きい）。疑わしい点の判定と警告は
+    // frame-feed 側（offsetVerdict / logMatchResult）に集約してある。
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
     logMatchResult(frameTable)
     // 撮り逃しの原因を「供給不足」と「観測漏れ」に切り分けるための実測ログ（1録画1行）。
     // 素材の周期が分かるときだけ「素材1コマより長く空いた回数」も併記する。
+    const parsedDiag = parseCaptureDiag(diag)
     if (usableDrawnAt) {
       logSupplyDiag(
         summarizeSupply(drawnAt, duration, sourceFps ? 1000 / sourceFps : null),
-        parseCaptureDiag(diag)
+        parsedDiag
       )
     }
+    // 突き合わせている 2 つの時刻の基準がどれだけずれているか（logClockDiag 参照）。
+    // 表が作れなかった録画（拡張未接続など）でも出す。
+    logClockDiag(getReportDelay(), parsedDiag)
 
     const webm = Buffer.from(webmAB)
 
@@ -170,9 +174,12 @@ export function registerRecorderIpc(): void {
         try {
           saveVideoFrames(result.id, frameTable.matches)
           setUncapturedFrames(result.id, missedFrames)
-          // 撮り逃しが1コマも無いなら検証する対象が無い（大半のクリップはここで終わる）。
+          // 撮り逃しの有無にかかわらず走らせる。撮り逃しが 0 でも、表の frameIndex が
+          // ファイル内の実フレームと一致しているかの照合は必要だから（一致しなければ
+          // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、
+          // それだと「最も精度が良く見えるクリップ」ほど照合されないことになる。
           // 待たずに投げっぱなしにする — 保存の完了通知を遅らせないため。
-          if (missedFrames > 0) void verifyClipFrames(result.id, webmPath, frameTable.matches)
+          void verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt)
         } catch (err) {
           console.error('[clip] saveVideoFrames failed', err)
         }

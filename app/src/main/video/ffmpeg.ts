@@ -87,7 +87,20 @@ const SIGNATURE_BYTES = SIGNATURE_GRID * SIGNATURE_GRID
 // 録画中ではなく録画後に行う。唯一の制約資源である画面キャプチャの供給レート
 // （実測 31枚/秒）を、解析のために1枚たりとも削りたくないため。フル デコードを伴うので
 // 保存後のバックグラウンド処理として呼ぶこと。
-export async function getFrameSignatures(inputPath: string): Promise<Uint8Array[]> {
+export interface FrameSignatures {
+  /** 各フレームを 32x32 グレースケールへ落とした署名。添字はファイル内のフレーム番号 */
+  signatures: Uint8Array[]
+  /**
+   * 各フレームの表示時刻（秒）。showinfo の pts_time をそのまま拾う。
+   *
+   * 署名と同じ 1 回のデコードで取れるので、フレーム表の frameIndex が本当にこのファイルの
+   * フレームと対応しているかを時刻で突き合わせるのに使う（frame-verify.ts の
+   * findFrameDivergence）。別途 getVideoFramePts を呼ぶとデコードがもう 1 周増える。
+   */
+  pts: number[]
+}
+
+export async function getFrameSignatures(inputPath: string): Promise<FrameSignatures> {
   // flags=area: 縮小時に領域平均を取る。既定の bilinear だと間引きに近い挙動になり、
   // 面積の小さい変化がセルの値にほとんど出ない。
   //
@@ -110,19 +123,22 @@ export async function getFrameSignatures(inputPath: string): Promise<Uint8Array[
     '-'
   ])
   const count = Math.floor(stdout.length / SIGNATURE_BYTES)
-  const decoded = stderr.match(/pts_time:/g)?.length ?? 0
-  if (decoded > 0 && count !== decoded) {
+  const pts: number[] = []
+  const re = /pts_time:(\d+(?:\.\d+)?)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(stderr)) !== null) pts.push(parseFloat(m[1]))
+  if (pts.length > 0 && count !== pts.length) {
     // 呼び出し元（verify-clip.ts）は例外を「検証できなかった」として扱い、未検証のまま残す。
     // ずれた署名で判定を書き込むより、判定しない方がよい。
     throw new Error(
-      `getFrameSignatures: frame count mismatch (rawvideo ${count}, decoded ${decoded}) for ${inputPath}`
+      `getFrameSignatures: frame count mismatch (rawvideo ${count}, decoded ${pts.length}) for ${inputPath}`
     )
   }
-  const out: Uint8Array[] = []
+  const signatures: Uint8Array[] = []
   for (let i = 0; i < count; i++) {
-    out.push(new Uint8Array(stdout.subarray(i * SIGNATURE_BYTES, (i + 1) * SIGNATURE_BYTES)))
+    signatures.push(new Uint8Array(stdout.subarray(i * SIGNATURE_BYTES, (i + 1) * SIGNATURE_BYTES)))
   }
-  return out
+  return { signatures, pts }
 }
 
 // showinfo フィルタで各フレームの pts_time を取得する

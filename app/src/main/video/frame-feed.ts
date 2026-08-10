@@ -26,14 +26,29 @@ const MAX_FRAMES = 8000
 let collecting = false
 let frames: SourceFrame[] = []
 let unsubscribe: (() => void) | null = null
+// 上限に達したことを1録画につき1回だけ知らせるための印。
+let capReported = false
 
 export function startFrameFeed(): void {
   stopFrameFeed()
   collecting = true
   frames = []
+  capReported = false
   unsubscribe = onExtensionMessage((msg) => {
     if (!collecting || msg.type !== 'frame') return
-    if (frames.length >= MAX_FRAMES) return
+    if (frames.length >= MAX_FRAMES) {
+      // 上限に達したら以降のコマは表に入らず、フレーム表が録画の途中で終わる。
+      // 黙って捨てると「後半だけコマ送りが素材と合わない」という説明の付かない状態になるので、
+      // 1回だけ知らせる（毎フレーム出すとログが埋まる）。
+      if (!capReported) {
+        capReported = true
+        console.warn(
+          `[frame-feed] source frame reports hit the cap (${MAX_FRAMES}).` +
+          ' Later frames are dropped and the frame table will end before the recording does.'
+        )
+      }
+      return
+    }
     frames.push({ mediaTime: msg.mediaTime, displayAt: msg.displayAt, receivedAt: Date.now() })
   })
 }
@@ -65,8 +80,23 @@ export interface FrameMatch {
   captured: boolean
 }
 
-// 固定オフセットの探索幅（ミリ秒）。キャプチャ経路の遅延として現実的な範囲を覆う。
-const OFFSET_SEARCH_MS = 150
+/**
+ * キャプチャ経路の実遅延（ミリ秒）。**探索の窓を置く中心。**
+ *
+ * ページが素材のコマを画面に出してから、画面キャプチャがその絵を取り込むまでの時間。
+ * **録画ごとに探索して当てにいくものではなく、実測して固定する定数**
+ * （理由は docs/ANIME-FRAMES.md 2章。スコアは素材の周期について周期的なので、
+ * 何コマぶんずれているかは探索では原理的に決まらない）。
+ *
+ * 2026-08-10 の実測（30fps 素材・位相が決まっていた 3 本）で、素材コマ周期で割った余りは
+ * 28.7 / 19.1 / 16.1ms。中央値 19.1 を丸めて 20 とした。ページ側とレコーダー側の時計は
+ * 5ms 以内で一致していることを確認済みなので（`[clock-base]`）、これは時計のずれではなく
+ * 物理的な遅延そのもので、60Hz の 1〜2 リフレッシュ分という説明もつく。
+ *
+ * **この値が素材 1 コマ以上外れていると、全クリップが黙って一律にずれる。**
+ * 変えるときは `[frame-match]` の余りを複数本集めてからにすること。
+ */
+const CAPTURE_LATENCY_MS = 20
 
 export interface MatchResult {
   matches: FrameMatch[]
@@ -80,6 +110,88 @@ export interface MatchResult {
   duplicateReports: number
   /** 録画の範囲外だったため表から外したコマ数 */
   outsideRecording: number
+  /**
+   * 最高スコアと同点だったオフセットの数。1 なら一意に決まっている。
+   *
+   * スコア（撮れたコマ数）は供給が足りていると飽和する。素材のコマ間隔より供給間隔が
+   * 十分に短ければ、オフセットをどこに振っても隣接コマは別のフレームを指すため、
+   * 広い範囲が満点になる。そうなると採用値は「最も良かった値」ではなく
+   * 「最初に見つかった値」でしかなく、真の遅延との差だけ全コマが一様にずれる。
+   * 黙って通さないために数を持ち帰る。
+   */
+  tiedOffsets: number
+  /** 同点だったオフセットの最小・最大（ミリ秒）。連続しているとは限らない */
+  tiedRangeMs: [number, number]
+  /** 素材のコマ周期（ミリ秒）。ずれが何コマ分に当たるかの換算に使う */
+  sourcePeriodMs: number
+  /** 探索した窓（ミリ秒）。幅はちょうど素材 1 コマ（CAPTURE_LATENCY_MS 参照） */
+  searchRangeMs: [number, number]
+  /** 素材コマ n 個ぶんずらした位置のスコア（OffsetReplica 参照） */
+  replicas: OffsetReplica[]
+}
+
+/**
+ * 素材のコマ 1 つぶん（周期 P）ずらしたオフセットでの探索スコア。
+ *
+ * **このスコア関数は P について周期的で、「何コマぶんずれているか」を原理的に区別できない。**
+ * オフセットを P だけ足すと、比較対象の時刻集合 `{displayAt_k + offset + P}` は
+ * `{displayAt_{k+1} + offset}` とほぼ一致する（displayAt は vsync 格子上でほぼ等間隔）。
+ * つまり `captured` の列が添字 1 つぶん平行移動するだけで、スコアが変わるのは端の数コマしかない。
+ * 一方フレーム表の中身は素材コマ 1 つぶん丸ごとずれる。**最も知りたいずれに対してだけ盲目。**
+ *
+ * `tiedOffsets`（隣接する同点の数）ではこの構造は見えない。複製どうしは谷を挟んだ別の山なので、
+ * 同点は狭いまま「一意に決まった」ように見える（実測で candidates 3〜5・幅 2〜6ms と出ていた）。
+ * 採用値と ±1〜2 コマ先のスコア差を持ち帰り、決まっていないなら必ず知らせる。
+ * 詳細は docs/ANIME-FRAMES.md 2章。
+ */
+export interface OffsetReplica {
+  /** ずらした素材コマ数（-2..+2。0＝採用値そのものは含めない） */
+  shift: number
+  /** その近傍で最もスコアが高かったオフセット（ミリ秒） */
+  offsetMs: number
+  /** 採用値のスコアとの差（コマ数）。小さいほど採用値と区別が付いていない */
+  scoreDelta: number
+}
+
+// 複製の頂点を探す窓幅（ミリ秒）。displayAt は完全な等間隔ではなく、vsync 格子と素材周期の
+// ドリフトを 3 vsync 分の区間で吸収する箇所があるため、頂点はちょうど P の整数倍から数 ms ずれる。
+const REPLICA_WINDOW_MS = 3
+
+/**
+ * コマ通知が main へ届くまでの遅れ（`receivedAt - displayAt`）の要約。
+ *
+ * **オフセットが負に出る理由を切り分けるための実測。** `displayAt` は配信ページ（Chrome）の
+ * `performance.timeOrigin + expectedDisplayTime`、`drawnAt` はレコーダー（Electron）の
+ * `performance.timeOrigin + captureTime` で、**別プロセスの単調時計を各々の epoch へ直した値**。
+ * 各 timeOrigin は文書の生成時刻で固定される一方、その後 now() は単調時計で進むため、
+ * 壁時計（`Date.now()`）との差は文書の寿命ぶん開きうる。この差が両者で違えば、その差はそのまま
+ * `offsetMs` に乗る——録画ごとにオフセットが振れる理由の候補。
+ *
+ * `receivedAt` は main の `Date.now()` なので、この値は「転送の遅れ − ページ側の時計のずれ」。
+ * 転送の遅れは 0 以上なので、**最小値が負に大きく振れていればページ側の時計がずれている証拠**に
+ * なる（`expectedDisplayTime` が未来を指すぶんは 1〜2 vsync ＝ 16〜33ms までしか説明できない）。
+ */
+export interface ReportDelay {
+  /** 標本数（重複通知を畳んだ後） */
+  count: number
+  /** `receivedAt - displayAt` の最小値（ミリ秒） */
+  minMs: number
+  /** 同・中央値（ミリ秒） */
+  medianMs: number
+}
+
+// 重複通知を畳んだコマ列から通知の遅れを要約する（ReportDelay 参照）。
+export function summarizeReportDelay(source: SourceFrame[]): ReportDelay | null {
+  const delays: number[] = []
+  let prevMediaTime: number | null = null
+  for (const f of source) {
+    if (prevMediaTime === f.mediaTime) continue
+    prevMediaTime = f.mediaTime
+    if (Number.isFinite(f.receivedAt) && Number.isFinite(f.displayAt)) delays.push(f.receivedAt - f.displayAt)
+  }
+  if (delays.length === 0) return null
+  const sorted = [...delays].sort((a, b) => a - b)
+  return { count: sorted.length, minMs: sorted[0], medianMs: sorted[sorted.length >> 1] }
 }
 
 // 素材のコマと、録画ファイル内のフレームを対応付ける。
@@ -146,19 +258,55 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
     return out
   }
 
-  let best: { offsetMs: number; matches: FrameMatch[]; score: number } | null = null
-  // 探索幅はキャプチャ経路の遅延として現実的な範囲。1ms 刻みで十分（素材のコマは 41.7ms）。
-  // 撮れたコマが最も多くなるオフセットを選ぶ。
+  // 素材のコマ周期。複製の位置（OffsetReplica）と録画範囲の判定の両方で使う。
+  const periodMs = fitGrid(frames.map((f) => f.mediaTime))?.periodMs ?? 1000 / 24
+
+  const scoreAt = (offsetMs: number): number =>
+    pick(offsetMs).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
+
+  // 探索の窓は「実測した遅延 ± 素材コマの半分」＝**幅ちょうど素材 1 コマ**。
   //
-  // 実測では録画ごとに -38ms / -77ms と振れた。負荷次第でさらに動きうるので、端に張り付いて
-  // 頭打ちになっていないかを下で確かめる（張り付いたまま黙って採用すると、真の遅延との差の
-  // ぶんだけ全コマが一様にずれる。素材1コマ 41.7ms を超えてずれれば丸ごと1コマ違いになる）。
-  for (let offset = -OFFSET_SEARCH_MS; offset <= OFFSET_SEARCH_MS; offset++) {
-    const m = pick(offset)
-    const score = m.reduce((n, x) => n + (x.captured ? 1 : 0), 0)
-    if (!best || score > best.score) best = { offsetMs: offset, matches: m, score }
+  // これより広げてはいけない。スコアは素材の周期について周期的なので、窓が 1 コマより広いと
+  // 同じ位相の複製が複数入り、**どれを引くかが端の数コマの差（＝雑音）で決まってしまう**。
+  // 実測では 447 コマ中 0 コマの差で選ばれ、録画ごとに -38〜-90ms と 1 コマ以上振れていた。
+  // 幅を 1 コマに閉じれば複製は 1 つしか入らず、**何コマぶんずれるかは定数（物理）が決め、
+  // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md 2章。
+  const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
+  const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
+
+  let bestScore = -1
+  // 最高スコアで並んだオフセット（MatchResult.tiedOffsets 参照）。
+  let tied: number[] = []
+  for (let offset = searchLo; offset <= searchHi; offset++) {
+    const score = scoreAt(offset)
+    if (score > bestScore) {
+      bestScore = score
+      tied = [offset]
+    } else if (score === bestScore) {
+      tied.push(offset)
+    }
   }
-  if (!best) return null
+  if (tied.length === 0) return null
+
+  // 同点なら**その中央**を採る。以前は「最初に当たった値」＝窓の左端を採っていたため、
+  // 飽和した録画では位相が systematically 左へ寄っていた。中央なら真の位相との差は
+  // 同点の幅の半分に収まる。
+  const offsetMs = tied[tied.length >> 1]
+  const picked = pick(offsetMs)
+
+  // 採用値から素材コマ n 個ぶん離れた位置のスコア（OffsetReplica 参照）。**窓の外側を見る**。
+  // 判定には使わない——ここが採用値と並ぶのは構造的に当たり前で、だからこそコマ単位のずれを
+  // 定数で決めている。同じ検証を何度もやり直さないための証拠としてログに残す。
+  const replicas: OffsetReplica[] = []
+  for (const shift of [-2, -1, 1, 2]) {
+    const center = offsetMs + shift * periodMs
+    let peak = { offsetMs: Math.round(center), score: -1 }
+    for (let o = Math.ceil(center - REPLICA_WINDOW_MS); o <= Math.floor(center + REPLICA_WINDOW_MS); o++) {
+      const score = scoreAt(o)
+      if (score > peak.score) peak = { offsetMs: o, score }
+    }
+    replicas.push({ shift, offsetMs: peak.offsetMs, scoreDelta: bestScore - peak.score })
+  }
 
   // 録画の範囲外にはみ出したコマを外す。
   //
@@ -169,32 +317,36 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   //
   // 判定はコマの表示区間（自分の displayAt から次のコマの displayAt まで）が、実際に
   // 撮れている時間帯と少しでも重なるか。末尾のコマだけは次が無いので周期ぶんとみなす。
-  const periodMs = fitGrid(frames.map((f) => f.mediaTime))?.periodMs ?? 1000 / 24
   const firstDrawn = drawnAt[0]
   const lastDrawn = drawnAt[drawnAt.length - 1]
   const matches: FrameMatch[] = []
   let outsideRecording = 0
   let captured = 0
   for (let k = 0; k < frames.length; k++) {
-    const start = frames[k].displayAt + best.offsetMs
-    const end = k + 1 < frames.length ? frames[k + 1].displayAt + best.offsetMs : start + periodMs
+    const start = frames[k].displayAt + offsetMs
+    const end = k + 1 < frames.length ? frames[k + 1].displayAt + offsetMs : start + periodMs
     if (end <= firstDrawn || start > lastDrawn) {
       outsideRecording++
       continue
     }
-    matches.push(best.matches[k])
-    if (best.matches[k].captured) captured++
+    matches.push(picked[k])
+    if (picked[k].captured) captured++
   }
   if (matches.length === 0) return null
 
   return {
     matches,
     capturedRatio: captured / matches.length,
-    offsetMs: best.offsetMs,
+    offsetMs,
     sourceFrames: matches.length,
     drawnFrames: drawnAt.length,
     duplicateReports,
-    outsideRecording
+    outsideRecording,
+    tiedOffsets: tied.length,
+    tiedRangeMs: [tied[0], tied[tied.length - 1]],
+    sourcePeriodMs: periodMs,
+    searchRangeMs: [searchLo, searchHi],
+    replicas
   }
 }
 
@@ -291,12 +443,47 @@ export function buildFrameTable(drawnAt: number[]): MatchResult | null {
   return matchFrames(frames, drawnAt)
 }
 
-// 録画ごとに、素材のコマをどれだけ撮れたかを1行だけ残す。
+// 収集済みのコマ通知から、通知が届くまでの遅れを要約する（ReportDelay 参照）。
+export function getReportDelay(): ReportDelay | null {
+  return summarizeReportDelay(frames)
+}
+
+// 採用したオフセットに疑わしい点があれば挙げる（無ければ空）。
+//
+// **規則をここ 1 か所に集める。** 以前は同じ規則が logMatchResult と recorder-ipc に分かれて
+// 書かれ、同じ 1 件の問題について 4 行のログが出ていた。
+//
+// 探索の窓を素材 1 コマ幅に閉じたことで、**位相がどれだけ曖昧でもずれは 1 コマ未満に収まる**。
+// 以前は飽和した録画で 6 コマずれることがあり表ごと捨てていたが、その必要は無くなった
+// （捨てると供給が均一な録画ほどコマ精度を失うという副作用の方が大きい）。**ここは表の採否を
+// 決めない**——出るのは「疑わしい点」だけで、判断材料としてログに残す。
+export function offsetVerdict(result: MatchResult): string[] {
+  const problems: string[] = []
+
+  // 窓の中で位相が決まらないこと（同点が広いこと）は警告にしない。**窓が 1 コマ幅なので
+  // 位相のずれはコマ内に収まり、指すコマは変わらない**——全コマ撮れている録画なら実害が無い。
+  // しかも同点が広がるのは供給が均一で撮り逃しが少ない録画、つまり**最も出来の良い録画ほど
+  // 毎回警告が出る**ことになる（5-3 で捨てていたときと同じ罠）。同点の数と幅は実測の行に
+  // 出しているので、必要なら読める。
+
+  // 採用値が窓の端に寄った＝真の遅延が窓の外にある兆候。**窓の外は隣のコマなので、
+  // これは「1 コマずれているかもしれない」という意味**（CAPTURE_LATENCY_MS を疑うこと）。
+  const [lo, hi] = result.searchRangeMs
+  if (result.offsetMs <= lo || result.offsetMs >= hi) {
+    problems.push(`the offset sits at the edge of the ${lo}..${hi}ms window (the capture latency constant may be off)`)
+  }
+
+  return problems
+}
+
+// 録画ごとに、素材のコマをどれだけ撮れたかを残す。
 //
 // 画面キャプチャの供給は素材のコマ数の2倍に届かないため（実測 33〜41枚/秒）、
 // 数%のコマは自分の表示区間内に絵が無い。絵の変わり目に当たるとコマ打ちの数を誤るので、
 // どの録画でどれだけ落ちたかを後から追えるようにしておく。
 //
+// **1 録画につき、実測 1 行＋問題があれば判定 1 行の最大 2 行**に収める。同じ 1 件の問題で
+// 何行も出すと、読む側が別々の問題だと受け取る。
 // 出力は英語。dev.bat のコンソールは Shift-JIS のため日本語は文字化けする。
 export function logMatchResult(result: MatchResult | null): void {
   if (!result) {
@@ -304,18 +491,17 @@ export function logMatchResult(result: MatchResult | null): void {
     return
   }
   const missing = result.matches.filter((m) => !m.captured).length
+  const [tiedMin, tiedMax] = result.tiedRangeMs
+  // 複製のスコア差。位置は「採用値 ± n×素材コマ」と決まっているので、差だけ出す。
+  const replicas = result.replicas.map((r) => `${r.shift > 0 ? '+' : ''}${r.shift}:${r.scoreDelta}`).join(' ')
   console.log(
-    `[frame-match] source ${result.sourceFrames} frames, captured ${(result.capturedRatio * 100).toFixed(1)}%` +
-    ` (${missing} reuse the previous picture), capture offset ${result.offsetMs}ms` +
-    ` | dropped ${result.duplicateReports} duplicate reports, ${result.outsideRecording} frames outside the recording`
+    `[frame-match] ${result.sourceFrames} source frames, captured ${(result.capturedRatio * 100).toFixed(1)}%` +
+    ` (${missing} reuse), offset ${result.offsetMs}ms in ${result.searchRangeMs[0]}..${result.searchRangeMs[1]}ms` +
+    ` | candidates ${result.tiedOffsets} (${tiedMin}..${tiedMax}ms, source frame ${result.sourcePeriodMs.toFixed(1)}ms)` +
+    (replicas ? ` | replica deltas ${replicas}` : '') +
+    ` | dropped ${result.duplicateReports} duplicate, ${result.outsideRecording} outside`
   )
-  // 端に張り付いた＝真の遅延が探索幅の外にある可能性が高い。この場合オフセットは
-  // 「最も良かった値」ではなく「これ以上探せなかった値」なので、コマの対応付けが
-  // 一様にずれている恐れがある。黙って通さず必ず知らせる。
-  if (Math.abs(result.offsetMs) >= OFFSET_SEARCH_MS) {
-    console.warn(
-      `[frame-match] capture offset hit the search limit (±${OFFSET_SEARCH_MS}ms).` +
-      ' The frame table may be shifted; widen the search range.'
-    )
-  }
+  // 疑わしい点は 1 行にまとめて出す。表は採るが、黙って通さないための行。
+  const problems = offsetVerdict(result)
+  if (problems.length > 0) console.warn(`[frame-match] the offset may be off: ${problems.join('; ')}`)
 }
