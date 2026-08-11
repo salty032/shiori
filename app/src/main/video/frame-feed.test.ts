@@ -261,6 +261,25 @@ describe('offsetVerdict（オフセットの疑わしい点）', () => {
     expect(offsetVerdict(loose)).toEqual([])
   })
 
+  it('同点範囲が片側の端だけに接していたら知らせる（山が窓で切られている疑い）', () => {
+    // 実測（2026-08-10）: 採用 7ms・同点 -1..14ms で左端に接していた。採用値は同点の中央
+    // なので端には来ず、採用値だけを見る判定では見えない。
+    const [lo] = base.searchRangeMs
+    const clipped = { ...base, offsetMs: 7, tiedOffsets: 16, tiedRangeMs: [lo, 14] as [number, number] }
+    expect(offsetVerdict(clipped).join(' ')).toContain('touches one edge')
+  })
+
+  it('窓の全域が同点なら端に接していても何も言わない（飽和はコマ内に収まる）', () => {
+    const [lo, hi] = base.searchRangeMs
+    const saturated = {
+      ...base,
+      offsetMs: Math.round((lo + hi) / 2),
+      tiedOffsets: hi - lo + 1,
+      tiedRangeMs: [lo, hi] as [number, number]
+    }
+    expect(offsetVerdict(saturated)).toEqual([])
+  })
+
   it('採用値が窓の端に寄ったら知らせる（遅延の定数が外れている兆候）', () => {
     // 窓の外は隣のコマなので、これは「1 コマずれているかもしれない」という意味。
     const [lo] = base.searchRangeMs

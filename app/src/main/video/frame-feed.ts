@@ -491,8 +491,20 @@ export function offsetVerdict(result: MatchResult): string[] {
   // 採用値が窓の端に寄った＝真の遅延が窓の外にある兆候。**窓の外は隣のコマなので、
   // これは「1 コマずれているかもしれない」という意味**（CAPTURE_LATENCY_MS を疑うこと）。
   const [lo, hi] = result.searchRangeMs
+  const [tiedLo, tiedHi] = result.tiedRangeMs
   if (result.offsetMs <= lo || result.offsetMs >= hi) {
     problems.push(`the offset sits at the edge of the ${lo}..${hi}ms window (the capture latency constant may be off)`)
+  } else if ((tiedLo <= lo) !== (tiedHi >= hi)) {
+    // 同点範囲が**片側の端だけ**に接している＝山が窓で切られている可能性がある。採用値は
+    // 同点の中央なので、切られたぶんだけ反対側へ寄る。採用値そのものは端に来ないため、
+    // 上の判定では見えない（実測 2026-08-10: 採用 7ms・同点 -1..14ms で左端に接していた）。
+    //
+    // 両端に接している場合は窓全体が同点＝飽和で、位相が決まっていないだけ。ずれはコマ内に
+    // 収まるので何も言わない（供給が均一な＝最も出来の良い録画で毎回出ることになるため）。
+    problems.push(
+      `the tied range ${tiedLo}..${tiedHi}ms touches one edge of the ${lo}..${hi}ms window` +
+      ' (the best phase may lie outside; the capture latency constant may be off)'
+    )
   }
 
   return problems
