@@ -308,6 +308,12 @@ export default function App() {
   // 進む。画像一覧は起動時取得のスナップショットなので、後から書き換わった行をこれで反映する。
   useEffect(() => window.api.onFpsBackfilled(({ id, fps }) => patchImage(id, { fps })), [patchImage])
 
+  // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで終わる。反映しないと
+  // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
+  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous }) =>
+    patchImage(id, { uncaptured_frames: uncaptured, ambiguous_frames: ambiguous })
+  ), [patchImage])
+
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
   // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、
   // ドロップ完了後にまとめて届く。

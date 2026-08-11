@@ -274,6 +274,7 @@ export async function installMockApi(): Promise<void> {
     onTaggerRetagDone: noop.on,
     onUpdateDownloaded: noop.on,
     onFpsBackfilled: noop.on,
+    onFramesVerified: noop.on,
   }
 
   window.api = api

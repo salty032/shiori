@@ -9,6 +9,18 @@
 import { getFrameSignatures } from './ffmpeg'
 import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
 import { dropVideoFrames, saveVideoFrames, setAmbiguousFrames, setUncapturedFrames, type StoredFrame } from '../db'
+import { sendToRenderer } from '../windows'
+import { CH } from '../../shared/api'
+
+// 検証で確定した枚数を画面へ反映させる。
+//
+// 一覧は保存時点のスナップショットで、ここが裏で書き換える DB の値を自分では拾わない。
+// 飛ばさないと**検証済みなのに「N コマ未取得」（未検証の表示）のまま**になる
+// （実測 2026-08-10: DB は ambiguous=64 なのに画面は 90コマ未取得 のままだった）。
+// fps の遡及埋め（fps:backfilled）と同じ購読パターン。
+function notifyVerified(imageId: number, uncaptured: number | null, ambiguous: number | null): void {
+  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous })
+}
 
 /**
  * クリップを保存し終えてから走らせる。フル デコードを伴うので数秒かかることがあり、
@@ -67,12 +79,14 @@ export async function verifyClipFrames(
           ' Dropping the frame table (frame stepping falls back to raw file frames).'
         )
         dropVideoFrames(imageId)
+        notifyVerified(imageId, null, null)
         return
       }
       // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
       const kept = frames.filter((f) => f.frameIndex < signatures.length)
       if (kept.length === 0) {
         dropVideoFrames(imageId)
+        notifyVerified(imageId, null, null)
         return
       }
       console.warn(
@@ -85,12 +99,18 @@ export async function verifyClipFrames(
       setUncapturedFrames(imageId, frames.filter((f) => !f.captured).length)
     }
 
+    const missed = frames.filter((f) => !f.captured).length
     // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
-    if (frames.every((f) => f.captured)) return
+    // 末尾を切って枚数が変わっている場合があるので、画面への反映だけは伝える。
+    if (missed === 0) {
+      notifyVerified(imageId, 0, null)
+      return
+    }
 
     const result = verifyFrameTable(frames, signatures)
     saveVideoFrames(imageId, result.frames)
     setAmbiguousFrames(imageId, result.ambiguous)
+    notifyVerified(imageId, missed, result.ambiguous)
     logVerifyResult(result)
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
