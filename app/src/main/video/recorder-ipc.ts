@@ -24,9 +24,10 @@ const MAX_WEBM_BYTES = 1024 * 1024 * 1024 // 1GB
 // 遅延分だけ余裕を持たせた値。renderer が改ざん・誤動作しても、この値を超える尺の
 // クリップを保存させない（多層防御。settings.ts 側が一次の上限）。
 const MAX_CLIP_DURATION_SEC = 40
-// フレーム数の妥当性上限。取得は acquireScreenStream 側で 60fps に上限しているが、
-// renderer の改ざん・誤動作に対する多層防御として余裕を持たせた値で判定する。
-const MAX_FRAME_RATE_FOR_VALIDATION = 120
+// フレーム数の妥当性上限。取得は acquireScreenStream 側で MAX_CAPTURE_FPS（120）に
+// 上限しているが、renderer の改ざん・誤動作に対する多層防御として余裕を持たせた値で判定する。
+// **取得上限そのものと同値にしないこと** — 上限ちょうどの供給が続いた録画を弾いてしまう。
+const MAX_FRAME_RATE_FOR_VALIDATION = 240
 
 function formatClipDuration(seconds: number): string {
   const s = Math.round(seconds)

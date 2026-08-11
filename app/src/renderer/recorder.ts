@@ -194,8 +194,19 @@ function resetState(): void {
 // 下限（minFrameRate / frameRate.min）は敢えて指定しない。下限を付けると画面に変化が
 // 無い間もキャプチャが同じ絵を複製して吐き続け、ファイルサイズだけが膨らむ。上限だけ
 // 上げれば「変化したぶんは確実に拾い、変化しなければ吐かない」になる。
+// 実際に要求する取得フレームレート。main（recording.ts）が録画対象ディスプレイの Hz から
+// 決めて渡すが、renderer 側でも上限を持つ（main の MAX_CAPTURE_FPS と同じ値。壊れた値が
+// 来ても録画を巻き込まないための多層防御）。
+//
+// **ここで 60 に潰していた頃は、高リフレッシュレート環境でもこの上限が天井になっていた。**
+// 「上限を上げても供給は増えない」という実測記録があったが、その実測自体が 60 上限の下で
+// 取られていた（供給間隔 p50 17.6ms ≒ 57Hz は、まさに 60 上限に張り付いた形）。
+function captureFps(fps: number): number {
+  return Math.min(120, Math.max(1, fps || 60))
+}
+
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
-  const maxFrameRate = Math.min(60, Math.max(1, fps || 60))
+  const maxFrameRate = captureFps(fps)
   // ideal も併記しているが、実測では供給レートは変わらなかった（23.976fps の素材に対し
   // 33.6 → 33.7 枚/秒）。この環境の実力値は 33〜41枚/秒で、描画とエンコードを止めても
   // 41.5枚/秒までしか出ない＝詰まっているのはキャプチャ本体側。ハードウェア
@@ -439,15 +450,18 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
 
   let rec: MediaRecorder
   try {
-    // 映像は 12Mbps。ティッカーで供給が 29→50枚/秒 に増えたぶん、8Mbps のままだと
-    // 1フレームあたりのビット数が 4 割痩せ、アニメの線画にモスキートノイズが出る。
-    // フレームレートが上がると隣接フレームが似るぶんフレーム間予測が効くので、
-    // 枚数の比（1.7倍）ほどは要らない。1.5倍で元の画質水準に戻る見当。
+    // 映像のビットレートは供給レートに合わせて上げる。1 秒あたりのビット数は同じでも、
+    // 枚数が増えれば 1 フレームあたりは痩せ、アニメの線画にモスキートノイズが出るため。
+    // ただし枚数の比ほどは要らない——フレームレートが上がると隣接フレームが似て、
+    // フレーム間予測が効くぶん安くなる。実測では供給 1.7 倍（29→50枚/秒）に対し
+    // ビットレート 1.5 倍（8→12Mbps）で元の画質水準に戻った。その比（枚数比の約 0.9 乗）
+    // をそのまま延長する。
     //
     // 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
-    // 映像に 12Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
+    // 映像に十数 Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
     // 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
-    rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 192_000 })
+    const videoBitsPerSecond = Math.round(12_000_000 * Math.pow(Math.max(1, captureFps(fps) / 60), 0.9))
+    rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond, audioBitsPerSecond: 192_000 })
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
     cleanup(stream, cs, token)

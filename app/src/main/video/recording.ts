@@ -68,11 +68,19 @@ async function requestRecordingTarget(): Promise<TimecodeMsg | null> {
 
 // 録画開始時のデスクトップソース解決。capture.ts が保持するブラウザウィンドウ位置
 // （コア state）を読み取り専用アクセサ経由で参照する。
+// 直近の録画対象ディスプレイのリフレッシュレート（Hz）。取得フレームレートの上限に使う。
+// getDesktopSourceId が解決したディスプレイをそのまま覚える（録画対象と別の画面の Hz で
+// 上限を決めても意味が無いため）。
+let lastDisplayHz: number | null = null
+
 async function getDesktopSourceId(): Promise<string | null> {
   const rect = getBrowserWindowRect()
   if (!rect) return null
   const { left: wl, top: wt, width: ww, height: wh } = rect
   const edisp = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
+  lastDisplayHz = Number.isFinite(edisp.displayFrequency) && edisp.displayFrequency > 0
+    ? edisp.displayFrequency
+    : null
   // thumbnailSize を明示しないと Electron は既定で全スクリーンの 150x150 サムネイルを
   // 実際に撮ってから返す。ここで欲しいのは source.id だけで画像は捨てるため、その撮影は
   // 丸ごと無駄な待ち時間になる（ホットキーを押してから録画が始まるまでの遅延に直結する）。
@@ -81,6 +89,12 @@ async function getDesktopSourceId(): Promise<string | null> {
   const source = sources.find(s => s.display_id === String(edisp.id)) ?? sources[0]
   return source?.id ?? null
 }
+
+// 取得フレームレートの上限の上限（枚/秒）。素材のコマ 1 つに撮影 1 枚以上を確保するには
+// 素材の 2 倍が要るので、対応上限の 60fps 素材に対して 120。これ以上はコマ精度に効かず、
+// ソフトウェアエンコード（ハードウェアアクセラレーション OFF が必須）の負荷と
+// ファイルサイズだけが増える。recorder-ipc.ts の MAX_FRAME_RATE_FOR_VALIDATION より小さいこと。
+export const MAX_CAPTURE_FPS = 120
 
 const RECORDER_LOAD_TIMEOUT_MS = 4000
 
@@ -185,10 +199,17 @@ export async function startRecording(): Promise<void> {
     getRecorderWindow()!.webContents.send('recorder:start', {
       sourceId,
       // 取得フレームレートの上限（recorder.ts の acquireScreenStream に渡す）。
-      // 上限を上げても実際の供給は 33〜41枚/秒で頭打ちになる（実測）が、上限を下げると
-      // その分だけ確実に減るので 60 のままにしておく。素材のコマとの対応付けは
-      // frame-feed.ts が録画後に時刻で突き合わせて行う。
-      fps: 60,
+      //
+      // **録画対象ディスプレイのリフレッシュレートに合わせる。** 長らく 60 固定で、
+      // 「上限を上げても供給は 33〜41枚/秒で頭打ち」と実測付きで書いていたが、
+      // **その実測は全部 60 上限の下で取ったもの**で、上限そのものを動かした実験は無かった。
+      // 実際、供給間隔の実測 p50 17.6ms（≒57Hz）は 60 上限に張り付いた形そのもの。
+      // 高リフレッシュレートの環境ではここが天井になっていた。
+      //
+      // 上限の上限は MAX_CAPTURE_FPS。素材のコマ 1 つにつき撮影 1 枚以上を確保するのに
+      // 要るのは素材の 2 倍なので、対応上限の 60fps 素材に対して 120 あれば足りる。
+      // それ以上はエンコード負荷とファイルサイズが増えるだけで精度には効かない。
+      fps: Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60))),
       maxSeconds,
       sessionId
     })

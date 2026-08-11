@@ -61,9 +61,10 @@ vi.mock('./ffmpeg', () => ({
 // （拡張から届くコマ通知の回帰推定）。ここを差し替えて、取れた場合・取れない場合の
 // 両方を確かめる。
 const getSourceFps = vi.fn<() => number | null>(() => null)
+const buildFrameTable = vi.fn<(drawnAt: number[]) => null>(() => null)
 vi.mock('./frame-feed', () => ({
   getSourceFps: () => getSourceFps(),
-  buildFrameTable: vi.fn(() => null),
+  buildFrameTable: (drawnAt: number[]) => buildFrameTable(drawnAt),
   logMatchResult: vi.fn(),
   getReportDelay: vi.fn(() => null),
   logReportInterruptions: vi.fn()
@@ -196,5 +197,18 @@ describe('recorder:done - fps に入るのは素材のフレームレートだ�
       expect(registerCapturedMedia, `frameCount=${frameCount}`).toHaveBeenCalled()
       expect(insertedFps(), `frameCount=${frameCount}`).toBeNull()
     }
+  })
+
+  it('取得上限（120枚/秒）いっぱいの供給でもフレーム表を捨てない', () => {
+    // 妥当性の上限（MAX_FRAME_RATE_FOR_VALIDATION）を取得上限と同値にすると、上限まで
+    // 出ている良い録画ほど「不正な値」として弾かれ、コマ精度を失う。
+    // 30 秒 × 120枚/秒 = 3600 枚。
+    buildFrameTable.mockClear()
+    const drawnAt = Array.from({ length: 3600 }, (_, i) => 1_700_000_000_000 + i * (1000 / 120))
+    const handler = handlers.get('recorder:done')!
+    return Promise.resolve(handler({}, new ArrayBuffer(10), 30, 3600, 1, drawnAt)).then(() => {
+      expect(buildFrameTable).toHaveBeenCalled()
+      expect(buildFrameTable.mock.calls[0][0]).toHaveLength(3600)
+    })
   })
 })
