@@ -30,6 +30,12 @@ describe('parseExtensionMessage — ping', () => {
   it('未知の type は null', () => {
     expect(parseExtensionMessage(str({ type: 'unknown-type', reason: 'drm' }))).toBeNull()
   })
+  it('frame-gap（コマ通知が途切れた知らせ）は値を持たずに通る', () => {
+    // 落とすと「表が録画の途中で終わっているのに誰も気づかない」状態に戻る。
+    expect(parseExtensionMessage(str({ type: 'frame-gap' }))).toEqual({ type: 'frame-gap' })
+    // 余計な値が付いていても持ち込まない
+    expect(parseExtensionMessage(str({ type: 'frame-gap', at: 12345 }))).toEqual({ type: 'frame-gap' })
+  })
 })
 
 describe('parseExtensionMessage — timecode 正常系', () => {

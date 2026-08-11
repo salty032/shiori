@@ -77,3 +77,36 @@ describe('extension との定数パリティ（M-1）', () => {
     expect(maxHoldMs).toBeGreaterThan((30 + 10) * 1000)
   })
 })
+
+describe('コマ通知が途切れる経路（content.js の rVFC ループ）', () => {
+  it('録画中の復帰確認はタイムコードの定期送信より十分に短い間隔で回る', () => {
+    // rVFC ループは <video> の差し替えで止まる。復帰が定期送信（5秒）頼みだと、
+    // 30 秒クリップの 1/6 でコマ通知が途切れたままになる。
+    const watchdogMs = extractConst(contentJs, 'FRAME_WATCHDOG_MS')
+    const pollMs = extractConst(contentJs, 'TIMECODE_POLL_MS')
+    expect(watchdogMs).toBeLessThan(pollMs / 4)
+    expect(watchdogMs).toBeGreaterThanOrEqual(100)   // 無駄に回さない下限
+  })
+
+  it('録画中にトラッカーが止まったら main へ知らせる', () => {
+    // 途切れた区間のコマは表に入らず、撮り逃しの枚数にも割合にも現れない。
+    // 黙って通すと「最も精度が良く見えるクリップの後半が対応していない」形になる。
+    const stopFn = contentJs.match(/function stopFrameTracker\(\)[\s\S]*?\n}/)?.[0] ?? ''
+    expect(stopFn).toContain('reportingFrames')
+    expect(stopFn).toContain('reportFrameGap()')
+  })
+
+  it('同じ <video> 要素でもトラッカーの生存を確かめ直す', () => {
+    // 要素が一時的に DOM から外れるだけでもループは自分で止まる。observedVideo が
+    // 変わらないため、ここで早期 return すると二度と復帰しない経路だった。
+    const observeFn = contentJs.match(/function observeVideo\(video\)[\s\S]*?\n}/)?.[0] ?? ''
+    expect(observeFn).toMatch(/video === observedVideo\s*\)\s*\{\s*startFrameTracker\(video\)/)
+  })
+
+  it('frame-gap は background.js と ws-server.ts の両方で素通しされる', () => {
+    // 片側だけだと中継の途中で落ちて、知らせが届かない。
+    const wsServerTs = readFileSync(join(__dirname, 'ws-server.ts'), 'utf-8')
+    expect(backgroundJs).toContain("msg.type === 'frame-gap'")
+    expect(wsServerTs).toContain("msg.type === 'frame-gap'")
+  })
+})

@@ -12,7 +12,7 @@ import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
-import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay } from './frame-feed'
+import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
 import { logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../captured-media'
 import { saveVideoFrames, setUncapturedFrames } from '../db'
@@ -114,6 +114,8 @@ export function registerRecorderIpc(): void {
     // frame-feed 側（offsetVerdict / logMatchResult）に集約してある。
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
     logMatchResult(frameTable)
+    // 通知が途切れていた区間は表に入らず、割合にも枚数にも現れない（logReportInterruptions 参照）。
+    logReportInterruptions()
     // 撮り逃しの原因を「供給不足」と「観測漏れ」に切り分けるための実測ログ（1録画1行）。
     // 素材の周期が分かるときだけ「素材1コマより長く空いた回数」も併記する。
     const parsedDiag = parseCaptureDiag(diag)

@@ -28,14 +28,22 @@ let frames: SourceFrame[] = []
 let unsubscribe: (() => void) | null = null
 // 上限に達したことを1録画につき1回だけ知らせるための印。
 let capReported = false
+// 録画中にコマ通知が途切れた回数（ページ側の rVFC ループが止まった回数）。
+let reportGaps = 0
 
 export function startFrameFeed(): void {
   stopFrameFeed()
   collecting = true
   frames = []
   capReported = false
+  reportGaps = 0
   unsubscribe = onExtensionMessage((msg) => {
-    if (!collecting || msg.type !== 'frame') return
+    if (!collecting) return
+    if (msg.type === 'frame-gap') {
+      reportGaps++
+      return
+    }
+    if (msg.type !== 'frame') return
     if (frames.length >= MAX_FRAMES) {
       // 上限に達したら以降のコマは表に入らず、フレーム表が録画の途中で終わる。
       // 黙って捨てると「後半だけコマ送りが素材と合わない」という説明の付かない状態になるので、
@@ -446,6 +454,20 @@ export function buildFrameTable(drawnAt: number[]): MatchResult | null {
 // 収集済みのコマ通知から、通知が届くまでの遅れを要約する（ReportDelay 参照）。
 export function getReportDelay(): ReportDelay | null {
   return summarizeReportDelay(frames)
+}
+
+// 録画中にコマ通知が途切れていたら知らせる（1録画1行・途切れたときだけ）。
+//
+// **途切れた区間のコマは表に入らず、しかもどの数字にも現れない。** 撮り逃し（captured=false）は
+// 「コマはあったが絵が無い」だが、こちらは通知そのものが来ていないのでコマの存在すら
+// 分からず、`capturedRatio` は 100% のまま「表が録画の途中で終わっているクリップ」ができる。
+// 黙って通すと、最も精度が良く見えるクリップの後半が対応していない、という最悪の形になる。
+export function logReportInterruptions(): void {
+  if (reportGaps === 0) return
+  console.warn(
+    `[frame-match] source frame reports were interrupted ${reportGaps} time(s) during the recording` +
+    ' (the page\'s video element was swapped). Part of the clip has no frame table.'
+  )
 }
 
 // 採用したオフセットに疑わしい点があれば挙げる（無ければ空）。

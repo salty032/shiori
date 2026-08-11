@@ -65,7 +65,8 @@ vi.mock('./frame-feed', () => ({
   getSourceFps: () => getSourceFps(),
   buildFrameTable: vi.fn(() => null),
   logMatchResult: vi.fn(),
-  getReportDelay: vi.fn(() => null)
+  getReportDelay: vi.fn(() => null),
+  logReportInterruptions: vi.fn()
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))

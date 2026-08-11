@@ -41,6 +41,10 @@ let frameDiffs = []
 function stopFrameTracker() {
   if (frameTrackVideo && frameTrackId !== null) {
     try { frameTrackVideo.cancelVideoFrameCallback(frameTrackId) } catch {}
+    // 録画中にここで止まる＝その瞬間からコマ通知が途切れる。黙って穴を開けると、
+    // フレーム表が録画の途中で終わり「後半だけ素材のコマと対応しないクリップ」になる
+    // （main 側は範囲外として静かに落とすだけで、ユーザーには何も見えない）。
+    if (reportingFrames) reportFrameGap()
   }
   frameTrackId = null
   frameTrackVideo = null
@@ -95,13 +99,35 @@ function startFrameTracker(video) {
 // 素材の提示タイミングに近いため優先する。performance.timeOrigin を足して epoch 基準に
 // 直すことで、別プロセスである main 側の時計と比較できるようにする。
 let reportingFrames = false
+// 録画中だけ回す復帰用のウォッチドッグ間隔（ミリ秒）。
+//
+// rVFC ループは <video> が差し替わる（広告挿入・画質切替）と自分で止まる。復帰は
+// タイムコードの定期送信（TIMECODE_POLL_MS = 5000）の中の observeVideo 頼みだったので、
+// **最大 5 秒コマ通知が途切れる**——30 秒クリップなら 1/6 が対応不明になる。録画中だけは
+// 短い間隔で生存を確かめる（startFrameTracker は冪等なので、回っていれば何もしない）。
+const FRAME_WATCHDOG_MS = 500
+let frameWatchdog = null
 function startFrameReporting() {
   reportingFrames = true
   const video = getVideo()
   if (video) startFrameTracker(video)   // 冪等。録画開始時にループが止まっていても確実に回す
+  clearInterval(frameWatchdog)
+  frameWatchdog = setInterval(() => {
+    const v = getVideo()
+    if (v) startFrameTracker(v)
+  }, FRAME_WATCHDOG_MS)
 }
 function stopFrameReporting() {
   reportingFrames = false
+  clearInterval(frameWatchdog)
+  frameWatchdog = null
+}
+// コマ通知が途切れたことを 1 回知らせる。**穴が空いたこと自体は隠さない** — 通知が
+// 届かなかった区間のコマは、撮り逃しですらなく最初から表に存在しないため、
+// 枚数からも割合からも見えない。
+function reportFrameGap() {
+  if (!port) return
+  try { port.postMessage({ type: 'frame-gap' }) } catch {}
 }
 function reportFrame(now, meta) {
   if (!reportingFrames || !port) return
@@ -1134,7 +1160,12 @@ const VIDEO_EVENTS = ['play', 'pause', 'seeked', 'loadedmetadata']
 let observedHandler = null
 let fpsMetaHandler = null
 function observeVideo(video) {
-  if (!video || video === observedVideo) return
+  if (!video) return
+  // 同じ要素でも、トラッカーが止まっていれば張り直す（startFrameTracker は冪等）。
+  // rVFC ループは要素が一時的に DOM から外れる（レイアウト移動・全画面切替）だけでも
+  // 自分で止まるが、ここで早期 return していた頃は observedVideo が変わらないため
+  // **二度と復帰しなかった**。コマ送りの基準（lastFrameTime）ごと黙って死ぬ経路だった。
+  if (video === observedVideo) { startFrameTracker(video); return }
   if (observedVideo && observedHandler) {
     for (const eventName of VIDEO_EVENTS) observedVideo.removeEventListener(eventName, observedHandler)
     if (fpsMetaHandler) observedVideo.removeEventListener('loadedmetadata', fpsMetaHandler)

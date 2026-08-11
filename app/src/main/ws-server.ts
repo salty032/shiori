@@ -31,6 +31,10 @@ export type ExtensionMessage =
   // mediaTime は素材自身のタイムライン上の秒、displayAt はそのコマが画面に出る epoch ミリ秒。
   // 画面キャプチャ側の時計とは無関係で、素材の実コマを知る唯一の経路。
   | { type: 'frame'; mediaTime: number; displayAt: number }
+  // 録画中にコマ通知が途切れたことの知らせ（値は持たない）。配信ページ側の rVFC ループは
+  // <video> が差し替わる（広告挿入・画質切替）と止まるため、その区間のコマは表に入らない。
+  // **入らなかったコマは撮り逃しですらなく最初から存在しない**ので、枚数や割合には現れない。
+  | { type: 'frame-gap' }
 
 // バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
 // セキュリティ上重要な値ではなく、拡張側とのパリティ対象にもしない（UX-9）。
@@ -168,6 +172,7 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   if (!parsed || typeof parsed !== 'object') return null
   const msg = parsed as Record<string, unknown>
   if (msg.type === 'ping') return { type: 'ping' }
+  if (msg.type === 'frame-gap') return { type: 'frame-gap' }
   if (msg.type === 'frame') {
     const mediaTime = boundedNumber(msg.mediaTime, 0, MAX_TIMECODE_SECONDS)
     const displayAt = boundedNumber(msg.displayAt, 0, MAX_EPOCH_MS)

@@ -89,6 +89,10 @@ function safeRect(value) {
 function normalizePortMessage(msg) {
   if (!msg || typeof msg !== 'object') return null
   if (msg.type === 'ping') return { type: 'ping' }
+  // 録画中にコマ通知が途切れたことの知らせ（値は持たない）。content.js の rVFC ループが
+  // <video> の差し替えなどで止まると送られる。落とすと「表が録画の途中で終わっているのに
+  // 誰も気づかない」状態に戻るので、そのまま中継する。
+  if (msg.type === 'frame-gap') return { type: 'frame-gap' }
   // 録画中に content.js が送る素材のコマ通知。mediaTime は素材のタイムライン上の秒、
   // displayAt はそのコマが画面に出る epoch ミリ秒。録画のコマ供給を駆動する値なので、
   // 欠けた値・範囲外は中継せず落とす（黙って 0 を送ると全コマの対応がずれる）。
