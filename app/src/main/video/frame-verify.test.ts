@@ -174,6 +174,15 @@ describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が�
     expect(findFrameDivergence(drawn, pts)).toBe(200)
   })
 
+  it('先頭の時刻ずれが全域に乗っていても崩れとみなさない（2026-08-10 の実測を再現）', () => {
+    // 実測: 先頭フレームの captureTime が載らず Date.now() へ退避した結果、shift が全域で
+    // +7〜11ms に平行移動していた（許容幅 9.9ms とほぼ同じ水準）。段差は無いので対応は
+    // 成立しているのに、絶対値で見ていた頃は揺らぎで超えた位置を崩れと読んでいた。
+    const drawn = makeDrawn(200, 2)
+    const pts = ptsFrom(drawn).map((t, i) => (i === 0 ? t + 9 / 1000 : t))
+    expect(findFrameDivergence(drawn, pts)).toBe(200)
+  })
+
   it('末尾の直前で落ちても検出する（一過性と区別しつつ取りこぼさない）', () => {
     const drawn = makeDrawn(200, 2)
     const pts = ptsFrom(drawn)

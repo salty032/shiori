@@ -61,11 +61,17 @@ export function signaturesDiffer(a: Uint8Array, b: Uint8Array): boolean {
  * 先頭からの相対時刻にすれば原点は消え、同じ実時間のレートで進む。1 枚落ちるとその位置から
  * 先は供給 1 回ぶん（実測 17.8ms）ずれるので、供給間隔より十分小さい許容幅で検出できる。
  *
- * **判定に必要なのは「ずれが続くこと」で、一度外れたことではない。** 実測（2026-08-10）では
- * ファイル先頭で -7.5 / -15.0ms の外れが出た後 3 枚目で 0 付近へ戻り、末尾は 0.7ms だった
- * ——つまり対応は最後まで成立していたのに、「最初に許容幅を超えた位置」で判定していた頃は
- * これを崩れと読んで**対応の取れている表を毎回捨てていた**。1 枚落ちればそこから先は永久に
- * ずれたままなので、続く数枚も外れているときだけ崩れとみなす。
+ * **判定するのはずれの絶対値ではなく、前後の水準の「段差」。** 1 枚落ちればそこから先は
+ * 供給 1 回ぶんずれたままになるので、段差として必ず現れる。逆に、原点がずれているだけなら
+ * 全域が同じだけ平行移動するので段差は出ない。実測で踏んだ誤検出は 2 つともこの形だった：
+ *
+ * - 先頭 2 枚が -7.5 / -15.0ms 外れて 3 枚目で戻る（一過性の揺らぎ）
+ * - 先頭フレームの時刻がずれ、全域が +8〜10ms 平行移動したまま最後まで続く
+ *   （`captureTime` が載らなかった 1 枚が原点に来た形。許容幅ちょうどの水準なので、
+ *   揺らぎで何度か超えた場所が「崩れ」に見えていた）
+ *
+ * どちらも対応は最後まで成立しているのに、絶対値で見ていた頃は**取れている表を捨てていた**。
+ * 水準の比較には中央値を使う（数枚の外れ値では動かない）。
  *
  * @param toleranceMs 省略時は供給間隔の中央値の半分（最低 5ms）。requestFrame の呼び出し時刻と
  *   captureTime は処理時間ぶん揺らぐため、その揺らぎより大きく、供給 1 回ぶんより小さく取る。
@@ -74,24 +80,36 @@ export function findFrameDivergence(drawnAt: number[], pts: number[], toleranceM
   const n = Math.min(drawnAt.length, pts.length)
   if (n < 2) return n
 
-  const tolerance = toleranceMs ?? Math.max(5, medianGapMs(drawnAt) / 2)
-  const offBy = (i: number): number =>
-    Math.abs(drawnAt[i] - drawnAt[0] - (pts[i] - pts[0]) * 1000)
+  // 段差とみなす下限は供給 1 回ぶんの 0.6。1 枚落ちたときの段差はちょうど 1.0 なので
+  // 十分な余裕があり、実測で踏んだ原点ずれ（供給 1 回ぶんの 0.45＝約 9ms）とは重ならない。
+  // 半分（0.5）だとその原点ずれと紙一重で、揺らぎ次第で誤検出になる。
+  const tolerance = toleranceMs ?? Math.max(5, medianGapMs(drawnAt) * 0.6)
+  const shift: number[] = []
+  for (let i = 0; i < n; i++) shift.push(drawnAt[i] - drawnAt[0] - (pts[i] - pts[0]) * 1000)
+
   for (let i = 1; i < n; i++) {
-    if (offBy(i) <= tolerance) continue
-    // 続く数枚も外れていなければ一過性の揺らぎ。1 枚でも戻れば対応は保たれている。
-    let sustained = true
-    for (let j = i + 1; j < Math.min(n, i + SUSTAINED_RUN); j++) {
-      if (offBy(j) <= tolerance) { sustained = false; break }
-    }
-    if (sustained) return i
+    const before = median(shift.slice(Math.max(0, i - LEVEL_WINDOW), i))
+    const after = median(shift.slice(i, Math.min(n, i + LEVEL_WINDOW)))
+    if (Math.abs(after - before) <= tolerance) continue
+    // 窓の中央値で見ているので、段差を検出した位置は実際の欠落より数枚手前になりうる
+    // （後ろ側の窓に欠落が入った時点で中央値が動くため）。**返す位置がずれると、そこまでを
+    // 使う末尾切り詰めが誤った枚数を残す**ので、水準が実際に変わった最初の位置まで進める。
+    let j = i
+    while (j < n - 1 && Math.abs(shift[j] - before) <= tolerance) j++
+    return j
   }
   return n
 }
 
-// 「崩れ」とみなすのに必要な連続枚数。実測の一過性の外れは 2 枚で戻ったので、それより
-// 十分長く、末尾近くで落ちた場合でも判定が残る程度に短く取る。
-const SUSTAINED_RUN = 5
+// 水準を測る窓の枚数。中央値なので外れ値 2 枚までは無害で、かつ末尾近くで落ちた場合にも
+// 判定が残る程度に短く取る。
+const LEVEL_WINDOW = 5
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[sorted.length >> 1]
+}
 
 // 供給間隔の中央値。時刻が逆行した標本は捨てる（capture-diag.ts の summarizeSupply と同じ理由）。
 function medianGapMs(drawnAt: number[]): number {
