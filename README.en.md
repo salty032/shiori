@@ -104,6 +104,25 @@ Disable it in each browser's settings (restart the browser after changing this):
 > If `Alt+D` doesn't work, another app (an overlay or capture tool such as the NVIDIA App)
 > may be using the same key. Change it to a different key in settings.
 
+#### About frame accuracy
+
+In the viewer, `,` / `.` step a recorded clip **one source frame at a time**. The current
+position appears at the bottom left of the video as "Frame 128 / 719".
+
+**Frame accuracy is guaranteed for 24fps / 29.97fps / 30fps sources.**
+Screen capture delivers about 50 frames per second at most, which is shorter than the gap
+between source frames (41.7ms at 24fps, 33.3ms at 30fps), so every source frame gets its own
+picture (measured: zero missed frames).
+
+**Frame accuracy is not guaranteed for 59.94fps / 60fps sources.** Their frames are 16.7ms
+apart, shorter than the ~20ms capture interval, so some frames inevitably have no picture of
+their own. Recording still works, but those frames show the previous frame's picture.
+
+**Nothing unreliable is passed off silently.** Stepping onto such a frame changes the readout
+to "reused" or "needs review", and the detail panel shows the counts as "{n} frames need
+review" / "{n} frames never reported". **You can tell on the spot whether the picture staying
+the same is evidence of the animation's frame timing.**
+
 ### Import your own images and videos
 
 - Paste a clipboard image with `Ctrl+V`
