@@ -52,11 +52,28 @@ type BenchResult = {
 // そこで不透明度だけを変えて比べる。alpha=0（完全に透明）でも供給が増えるなら、キャプチャが
 // 反応しているのは「見た目の変化」ではなく「ウィンドウ内容の書き換え」であり、記録に一切
 // 写り込まずに供給を増やせる。すべて実運用と同じ encode 段階で測る。
+// **2026-08-12：問いが変わったので条件を入れ替えた。**
+//
+// 旧条件（ティッカーの不透明度 4 段階）はもう答えの出た問いだった。実測すると 4 つとも 50/s で、
+// **ティッカー無しでも 50/s 出ている**——2026-08-01 に 29→50 へ引き上げた効果は、今の環境では
+// もう見えない（当時と違い画面のリフレッシュレートが 200Hz あり、ティッカーが無くても
+// 画面は十分変化している）。つまりティッカーはもう天井を決めていない。
+//
+// 今の問いは「約 50枚/秒 の天井がどこから来るのか」で、候補は 3 つ：
+//
+//   1. エンコードの巻き添え  → エンコードを外せば増えるはず
+//   2. こちらの要求値        → 要求を 240 に上げれば増える／60 に下げれば減るはず
+//   3. キャプチャ API 自体   → 何をしても 50 のまま（＝要求の仕方では解決しない）
+//
+// **ティッカーは全条件で invisible に固定する**（実際の録画と同じ状態）。変数を 1 つずつに
+// するため。旧条件が maxFrameRate を指定しておらず既定の 60 で走っていた点にも注意——
+// 実際の録画は 120 を要求しているので、条件が揃っていなかった。
 const VARIANTS: BenchVariant[] = [
-  { name: 'no ticker', stage: 'encode' },
-  { name: 'ticker visible (alpha 1)', stage: 'encode', ticker: 'visible' },
-  { name: 'ticker faint (alpha 0.02)', stage: 'encode', ticker: 'faint' },
-  { name: 'ticker invisible (alpha 0)', stage: 'encode', ticker: 'invisible' }
+  { name: 'capture only @120', stage: 'capture', ticker: 'invisible', maxFrameRate: 120 },
+  { name: 'capture+encode @120', stage: 'encode', ticker: 'invisible', maxFrameRate: 120 },
+  { name: 'capture only @240', stage: 'capture', ticker: 'invisible', maxFrameRate: 240 },
+  { name: 'capture only @60', stage: 'capture', ticker: 'invisible', maxFrameRate: 60 },
+  { name: 'capture only @120 640w', stage: 'capture', ticker: 'invisible', maxFrameRate: 120, maxWidth: 640 }
 ]
 
 let running = false
@@ -96,9 +113,11 @@ function logResults(results: BenchResult[]): void {
     )
   }
   console.log(
-    '[supply-bench] read: the ticker already proved it raises the supply (29 -> 50/s).' +
-    ' The question here is how faint it can get: if "invisible" still wins, we get the frames' +
-    ' without leaving a blinking pixel in fullscreen recordings.'
+    '[supply-bench] read: recording currently gets ~50 frames/s and 60fps sources need ~120.' +
+    ' If "capture only" beats "capture+encode", encoding is stealing the frames.' +
+    ' If @240 beats @120, our requested frame rate was the cap.' +
+    ' If 640w beats full width, capture cost is the cap.' +
+    ' If all five land on ~50, the capture API itself is the ceiling and asking differently will not help.'
   )
 }
 
