@@ -93,8 +93,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     setPtsLoading(true)
     setPtsError(false)
     ptsLoadedRef.current = false
-    videoApi.getFramePts(image.id)
-      .then((pts) => {
+    videoApi.getClipFrames(image.id)
+      .then(({ pts }) => {
         ptsLoadedRef.current = true
         if (pts.length === 0) {
           setPtsError(true)
@@ -203,7 +203,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     if (inHandleRef.current) inHandleRef.current.style.left = p
     if (inTabRef.current) inTabRef.current.style.left = p
     if (inTimeRef.current) inTimeRef.current.textContent = fmtTime(sec)
-    if (hasTable && inFrameRef.current) inFrameRef.current.textContent = `f${findFrameIdx(framePts, sec)}`
+    // 番号は 1 始まり（ビューアのコマ表示と同じ数え方に揃える）。
+    if (hasTable && inFrameRef.current) inFrameRef.current.textContent = `f${findFrameIdx(framePts, sec) + 1}`
     updateSelBorder(p, outP)
     updateSelRangeUI(sec, dragOutSecRef.current)
   }
@@ -215,7 +216,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     if (outHandleRef.current) outHandleRef.current.style.left = p
     if (outTabRef.current) outTabRef.current.style.left = p
     if (outTimeRef.current) outTimeRef.current.textContent = fmtTime(sec)
-    if (hasTable && outFrameRef.current) outFrameRef.current.textContent = `f${findFrameIdx(framePts, sec)}`
+    if (hasTable && outFrameRef.current) outFrameRef.current.textContent = `f${findFrameIdx(framePts, sec) + 1}`
     updateSelBorder(inP, p)
     updateSelRangeUI(dragInSecRef.current, sec)
   }
@@ -615,7 +616,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             <div style={{ ...s.boundaryCard, ...s.boundaryCardIn }}>
               <span style={{ ...s.badge, ...s.badgeIn }}>IN</span>
               <span ref={inTimeRef} style={s.time}>{fmtTime(inSec)}</span>
-              <span ref={inFrameRef} style={s.frameNum}>{hasTable ? `f${inIdx}` : ''}</span>
+              <span ref={inFrameRef} style={s.frameNum}>{hasTable ? `f${inIdx + 1}` : ''}</span>
               <div style={s.stepper}>
                 <button style={s.stepBtn} onClick={() => stepIn(-1)} disabled={ptsLoading}>−1f</button>
                 <button style={{ ...s.stepBtn, ...s.stepBtnRight }} onClick={() => stepIn(+1)} disabled={ptsLoading}>+1f</button>
@@ -625,7 +626,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             <div style={{ ...s.boundaryCard, ...s.boundaryCardOut }}>
               <span style={{ ...s.badge, ...s.badgeOut }}>OUT</span>
               <span ref={outTimeRef} style={s.time}>{fmtTime(outSec)}</span>
-              <span ref={outFrameRef} style={s.frameNum}>{hasTable ? `f${outIdx}` : ''}</span>
+              <span ref={outFrameRef} style={s.frameNum}>{hasTable ? `f${outIdx + 1}` : ''}</span>
               <div style={s.stepper}>
                 <button style={s.stepBtn} onClick={() => stepOut(-1)} disabled={ptsLoading}>−1f</button>
                 <button style={{ ...s.stepBtn, ...s.stepBtnRight }} onClick={() => stepOut(+1)} disabled={ptsLoading}>+1f</button>

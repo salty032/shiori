@@ -97,6 +97,7 @@ export const ja = {
   'shortcuts.prevNext': '前 / 次の画像へ',
   'shortcuts.viewerFrameStep': 'コマ送り（動画）',
   'shortcuts.closeViewer': 'ビューアを閉じる',
+  'shortcuts.viewerSpace': '動画の再生 / 一時停止（画像では何も起きません）',
   'shortcuts.toggleZoom': 'ズームのオン・オフ切り替え',
   'shortcuts.zoomInOutReset': 'ズームイン / アウト / リセット',
   'shortcuts.toggleDetails': '詳細パネルの表示切り替え',
@@ -197,6 +198,24 @@ export const ja = {
   'viewer.close': '閉じる (Esc)',
   'viewer.prev': '前へ (←)',
   'viewer.next': '次へ (→)',
+  // コマ送りの読み出し（VideoPlayer のコマ表示）。
+  // 「絵が変わらない」こと自体が測定結果なので、番号だけでなく、そのコマをどう読んでよいか
+  // （専用の絵があるのか・流用なのか）まで出す。docs/ANIME-FRAMES.md 参照。
+  'viewer.frameIndex': 'コマ {cur} / {total}',
+  'viewer.frameIndexFile': 'フレーム {cur} / {total}',
+  'viewer.frameReused': '流用',
+  'viewer.frameReusedSame': '流用・変化なし',
+  'viewer.frameNeedsReview': '要確認',
+  'viewer.frameLoading': 'コマ表を読み込み中',
+  'viewer.frameEstimated': 'コマ位置不明（{fps}fps 換算）',
+  'viewer.frameSourceHint': '素材の実コマ単位で送っています。絵が変わらないのは、素材がその絵を保持していたということです。',
+  'viewer.frameReusedHint': 'このコマ専用の絵は撮れておらず、直前のコマの絵を表示しています（未検証）。ここで絵が変わらないことをコマ打ちの根拠にしないでください。',
+  'viewer.frameReusedSameHint': 'このコマ専用の絵は撮れていませんが、前後の絵が同一と確認済みです。コマ打ちの数え方には影響しません。',
+  'viewer.frameNeedsReviewHint': 'このコマ専用の絵が無く、前後で絵が変わっています。どのコマで変わったかは特定できません。',
+  'viewer.frameFileHint': 'ファイルに記録されたフレームを順に送っています。取り込んだ動画なので、これが素材のコマそのものです。',
+  'viewer.frameFileCaptureHint': '素材のコマ表がないため、ファイルに記録されたフレームを順に送っています。これは画面キャプチャの取得レートによるもので、素材のコマとは一致しません。',
+  'viewer.frameLoadingHint': 'コマ表を読み込んでいます。読み込みが終わるまでコマ送りは保留され、まとめて反映されます。',
+  'viewer.frameEstimatedHint': 'このクリップのフレーム位置を取得できませんでした。fps から換算した刻みで送っているため、素材のコマとは一致しません。',
 
   // ── What's New ──
   'whatsNew.title': 'Shiori v{version} の変更点',
@@ -286,6 +305,11 @@ export const ja = {
   'detail.timecode': '動画時刻',
   'detail.duration': '長さ',
   'detail.fps': 'FPS',
+  'detail.unreportedFrames': '{count}コマ未通知',
+  'detail.unreportedFramesHint':
+    '素材にあるはずの約{expected}コマのうち、{count}コマは配信ページから通知が届いていません。' +
+    'その区間はコマ表に入っておらず、撮れた割合の分母にも入っていません。' +
+    'コマ送りはこのクリップの全域では素材のコマと対応していません。',
   'detail.uncapturedFrames': '{count}コマ未取得',
   'detail.ambiguousFrames': '{count}コマ要確認',
   'detail.ambiguousFramesHint':

@@ -3,6 +3,7 @@
 // video/ を一切 import しない（capture ソースドロップで video/ を消しても core はそのまま動く）。
 import type { ReactNode } from 'react'
 import type { ImageRow } from '../types'
+import type { ClipFrames } from '../../../shared/api.video'
 import type { MenuItem } from '../components/ContextMenu'
 
 // close: 呼び出し元がフルスクリーンのオーバーレイ（Viewer 等）で、そのアクションが
@@ -22,18 +23,19 @@ export type SettingsTab = 'general' | 'capture' | 'tag' | 'data'
 export type SettingsSlotPlacement = 'hotkey' | 'notification'
 type SettingsSlot = (props: { onCapturingChange: (capturing: boolean) => void; placement?: SettingsSlotPlacement }) => ReactNode
 
-// クリップの実フレーム時刻（PTS）の取得口。コマ送りを実フレームへ吸着させるために
-// ビューアのプレーヤー（コア側）が使うが、取得そのものは video/ の IPC なのでここで橋渡しする。
+// クリップのコマ情報（実フレーム時刻と、コマごとの確からしさ）の取得口。コマ送りを
+// 素材の実コマへ吸着させるためにビューアのプレーヤー（コア側）が使うが、取得そのものは
+// video/ の IPC なのでここで橋渡しする。
 // 未登録（capture 版）なら呼び出し側が fps 換算のコマ送りにフォールバックする。
-type FramePtsResolver = (imageId: number) => Promise<number[]>
-let framePtsResolver: FramePtsResolver | null = null
+type ClipFramesResolver = (imageId: number) => Promise<ClipFrames>
+let clipFramesResolver: ClipFramesResolver | null = null
 
-export function registerFramePtsResolver(fn: FramePtsResolver): void {
-  framePtsResolver = fn
+export function registerClipFramesResolver(fn: ClipFramesResolver): void {
+  clipFramesResolver = fn
 }
 
-export function getFramePtsResolver(): FramePtsResolver | null {
-  return framePtsResolver
+export function getClipFramesResolver(): ClipFramesResolver | null {
+  return clipFramesResolver
 }
 
 const mediaActionSlots: MediaActionSlot[] = []

@@ -23,7 +23,10 @@ const isCurrentRecordingSession = vi.fn((_id: number) => true)
 vi.mock('./recording', () => ({
   finishRecordingState: () => finishRecordingState(),
   getRecordingMeta: () => getRecordingMeta(),
-  isCurrentRecordingSession: (id: number) => isCurrentRecordingSession(id)
+  isCurrentRecordingSession: (id: number) => isCurrentRecordingSession(id),
+  // 次の録画のビットレートの根拠として実測供給を戻す口（recording.ts）。保存経路の検証には
+  // 関わらないので受け流す。
+  recordMeasuredSupply: () => {}
 }))
 
 const sendNotice = vi.fn()

@@ -202,9 +202,12 @@ function classify(frames: StoredFrame[], k: number, signatures: Uint8Array[]): F
 }
 
 // 検証の結果を1行だけ残す。出力は英語（dev.bat のコンソールは Shift-JIS のため）。
-export function logVerifyResult(result: VerifyResult | null): void {
+//
+// **image id を必ず添える。** この行は保存の数秒後に非同期で出るため、次の録画の
+// 実測ログ（clip #N の塊）の中に割り込む。id が無いとどのクリップの話か読めない。
+export function logVerifyResult(imageId: number, result: VerifyResult | null): void {
   if (!result) {
-    console.log('[frame-verify] skipped (no frame table or signatures)')
+    console.log(`[frame-verify] image ${imageId}: skipped (no frame table or signatures)`)
     return
   }
   // 末尾の picture changes は判定の感度そのものを見るための数字（VerifyResult 参照）。
@@ -212,7 +215,7 @@ export function logVerifyResult(result: VerifyResult | null): void {
   const transitions = Math.max(0, result.fileFrames - 1)
   const rate = transitions > 0 ? (result.fileChanges / transitions) * 100 : 0
   console.log(
-    `[frame-verify] ${result.missed} missed frames: ${result.harmless} identical (harmless),` +
+    `[frame-verify] image ${imageId}: ${result.missed} missed frames: ${result.harmless} identical (harmless),` +
     ` ${result.ambiguous} changed (needs review), ${result.unknown} undetermined` +
     ` | picture changes ${result.fileChanges}/${transitions} transitions (${rate.toFixed(0)}%)`
   )

@@ -31,7 +31,7 @@ export function shortcutGroups(t: Translate['t']): ShortcutGroup[] {
         { keys: t('shortcuts.keys.arrows'), desc: t('shortcuts.moveFocus') },
         { keys: 'Ctrl+A', desc: t('shortcuts.selectAll') },
         { keys: 'PageUp / PageDown', desc: t('shortcuts.pageThrough') },
-        { keys: 'Enter / Space', desc: t('shortcuts.openFocused') },
+        { keys: 'Enter', desc: t('shortcuts.openFocused') },
         { keys: 'Delete', desc: t('shortcuts.deleteSelected') },
         { keys: 'Escape', desc: t('shortcuts.clearSelection') },
         { keys: 'Ctrl+Z', desc: t('shortcuts.undoGrid') },
@@ -43,7 +43,8 @@ export function shortcutGroups(t: Translate['t']): ShortcutGroup[] {
       items: [
         { keys: '← / →', desc: t('shortcuts.prevNext') },
         { keys: ', / .', desc: t('shortcuts.viewerFrameStep') },
-        { keys: 'Space / Escape / Enter', desc: t('shortcuts.closeViewer') },
+        { keys: 'Enter / Escape', desc: t('shortcuts.closeViewer') },
+        { keys: 'Space', desc: t('shortcuts.viewerSpace') },
         { keys: t('shortcuts.keys.doubleClick'), desc: t('shortcuts.toggleZoom') },
         { keys: '+ / - / 0', desc: t('shortcuts.zoomInOutReset') },
         { keys: 'Tab', desc: t('shortcuts.toggleDetails') },

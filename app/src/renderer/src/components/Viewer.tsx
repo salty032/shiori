@@ -83,10 +83,12 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el?.isContentEditable)
       if (isEditing) return
       if (e.code === 'Space') {
+        // **Space は「再生/一時停止」だけに使う。** 画像では再生するものが無いので何もしない
+        // （閉じるのは Enter / Escape）。以前は画像で閉じていたが、そうすると ← → で画像と
+        // 動画をまたぐたびに同じキーの意味が入れ替わり、動画で一時停止のつもりが閉じるという
+        // 事故になる。preventDefault だけは残す（既定のスクロールを起こさないため）。
         e.preventDefault()
-        // 動画は再生/停止、それ以外（画像）は Quick Look 的に Space で閉じる（開くのと対称）。
         if (images[index].media_type === 'video') videoPlayerRef.current?.togglePlay()
-        else close()
         return
       }
       // コマ送り。動画編集ソフト（Premiere 等）と同じ , / . に合わせる。
@@ -112,6 +114,14 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
         onToggleDetailPanel()
         return
       }
+      // Enter は「プレビューの開閉」のトグル（一覧で開き、ここで閉じる）。Quick Look の Space と
+      // 同じ 1 つの概念で、開く／閉じるという別々の意味を 1 キーに詰めているわけではない。
+      // **狙いと違うものを開いたとき、開いたキーをもう一度押すだけで戻れることが重要**なので、
+      // Escape だけにはしない。
+      //
+      // この役目を Space ではなく Enter が持つのは、Space を「動画の再生/一時停止」専用に
+      // 空けるため。Space に開閉も持たせると、← → で画像と動画をまたいだ瞬間に同じキーの
+      // 意味が入れ替わる（しかも動画では、止めるつもりが閉じるという実害のある事故になる）。
       if (e.key !== 'Escape' && (e.key !== 'Enter' || e.isComposing)) return
       e.preventDefault()
       close()
@@ -303,7 +313,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       </div>
       <div style={s.viewerMediaStack}>
         {img.media_type === 'video' ? (
-          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable onVideoClick={handleVideoClick} />
+          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick} />
         ) : (
           <img
             ref={imgRef}

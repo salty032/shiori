@@ -19,7 +19,7 @@ vi.mock('../db', () => ({
   dropVideoFrames: (...args: unknown[]) => dropVideoFrames(...args),
   saveVideoFrames: vi.fn(),
   setAmbiguousFrames: vi.fn(),
-  setUncapturedFrames: vi.fn()
+  setFrameCounts: vi.fn()
 }))
 
 import { verifyClipFrames } from './verify-clip'
@@ -30,9 +30,13 @@ function flat(value: number): Uint8Array {
   return new Uint8Array(GRID).fill(value)
 }
 
-function verifiedPayload(): { id: number; uncaptured: number | null; ambiguous: number | null } | null {
+// total（素材のコマ総数）も一緒に飛ばす。分子だけ更新すると、一覧のスナップショットの中で
+// 分子と分母が別の時点の数になり、詳細パネルの割合判定が静かに狂う。
+type VerifiedPayload = { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null }
+
+function verifiedPayload(): VerifiedPayload | null {
   const call = sendToRenderer.mock.calls.find((c) => c[0] === CH.framesVerified)
-  return call ? (call[1] as { id: number; uncaptured: number | null; ambiguous: number | null }) : null
+  return call ? (call[1] as VerifiedPayload) : null
 }
 
 describe('verifyClipFrames（検証結果を画面へ反映する通知）', () => {
@@ -51,7 +55,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.08, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(7, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toEqual({ id: 7, uncaptured: 1, ambiguous: 1 })
+      expect(verifiedPayload()).toEqual({ id: 7, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0 })
     })
   })
 
@@ -63,7 +67,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.04, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(8, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toEqual({ id: 8, uncaptured: 0, ambiguous: null })
+      expect(verifiedPayload()).toEqual({ id: 8, uncaptured: 0, ambiguous: null, total: 2, unreported: 0 })
     })
   })
 
@@ -78,7 +82,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     ]
     return verifyClipFrames(9, 'clip.webm', table, drawnAt).then(() => {
       expect(dropVideoFrames).toHaveBeenCalledWith(9)
-      expect(verifiedPayload()).toEqual({ id: 9, uncaptured: null, ambiguous: null })
+      expect(verifiedPayload()).toEqual({ id: 9, uncaptured: null, ambiguous: null, total: null, unreported: null })
     })
   })
 })

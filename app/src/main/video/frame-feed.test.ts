@@ -320,3 +320,35 @@ describe('summarizeReportDelay（コマ通知が届くまでの遅れ）', () =>
     expect(summarizeReportDelay([])).toBeNull()
   })
 })
+
+// 通知そのものが来なかったコマ（MatchResult.reportDrops）。
+//
+// **撮り逃し（captured=false）とは別物で、こちらの方が悪い。** 撮り逃しは表に残って
+// 割合の分母にも入るが、通知が来なかったコマは表に無いのでどの数字にも現れない。
+// 実測（2026-08-12・60fps 素材）では captured 89.3% と出ている裏で、素材の約 2 割が
+// 表に存在しなかった。黙って通さないための数なので、算出をここで固定する。
+describe('matchFrames（通知が来なかったコマの検出）', () => {
+  it('通知が全部揃っていれば 0', () => {
+    const result = matchFrames(makeSource(40), makeDrawn(200, 20))
+    expect(result!.reportDrops).toBe(0)
+  })
+
+  it('コマ周期の格子に空いた穴を数える（撮り逃しとは別に数える）', () => {
+    // 40 コマぶんの格子から 5 コマぶんの通知だけを落とす。displayAt/mediaTime は
+    // 残ったコマの分だけ飛ぶので、周期の当てはめから穴が見える。
+    const full = makeSource(40)
+    const withHoles = full.filter((_, i) => i < 20 || i >= 25)
+    const result = matchFrames(withHoles, makeDrawn(200, 20))
+    expect(result!.reportDrops).toBe(5)
+    // 穴は「撮り逃し」ではない。残ったコマ自体には絵が付いている。
+    expect(result!.capturedRatio).toBeGreaterThan(0.9)
+  })
+
+  it('穴があっても素材の周期は正しく出る（穴を短い周期と読まない）', () => {
+    const full = makeSource(40)
+    const withHoles = full.filter((_, i) => i % 7 !== 3)
+    const result = matchFrames(withHoles, makeDrawn(200, 20))
+    expect(result!.sourcePeriodMs).toBeCloseTo(SRC_PERIOD, 1)
+    expect(result!.reportDrops).toBeGreaterThan(0)
+  })
+})

@@ -122,6 +122,8 @@ export default function App() {
     e.preventDefault()
     dragCounterRef.current = 0
     setFileDragging(false)
+    // ビューアを開いている間は取り込まない（下の handleDragEnter の注記を参照）。
+    if (viewerIdx !== null) return
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => window.api.getPathForFile(f))
       .filter(Boolean)
@@ -150,6 +152,10 @@ export default function App() {
     // 自分が始めた画像ドラッグが戻ってきただけ。取り込みは main 側で弾かれる（何も起きない）ので、
     // 「ドロップで取り込む」枠を出すと嘘になる。
     if (selection.selfDragRef.current) return
+    // ビューアを開いている間は取り込みの導線を出さない。ビューアは「この1本を見る」画面で、
+    // ライブラリへの追加はそこでやることではない。映像の上に取り込み枠が被ると、
+    // 今見ているクリップに対する操作だと誤解させる。
+    if (viewerIdx !== null) return
     dragCounterRef.current += 1
     setFileDragging(true)
   }
@@ -310,8 +316,8 @@ export default function App() {
 
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで終わる。反映しないと
   // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
-  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous }) =>
-    patchImage(id, { uncaptured_frames: uncaptured, ambiguous_frames: ambiguous })
+  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported }) =>
+    patchImage(id, { uncaptured_frames: uncaptured, ambiguous_frames: ambiguous, source_frames: total, unreported_frames: unreported })
   ), [patchImage])
 
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
@@ -493,7 +499,7 @@ export default function App() {
         // 自分から出した画像を自分に戻しても取り込まない。カーソルを 'none' にして
         // 「ここには落とせない」と手に伝える（落としても黙って無視されるだけなので、
         // copy カーソルのままだと取り込まれたと誤解させる）。
-        e.dataTransfer.dropEffect = selection.selfDragRef.current ? 'none' : 'copy'
+        e.dataTransfer.dropEffect = selection.selfDragRef.current || viewerIdx !== null ? 'none' : 'copy'
       }}
       onDrop={handleFileDrop}>
       {fileDragging && (

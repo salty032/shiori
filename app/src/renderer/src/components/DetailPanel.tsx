@@ -85,11 +85,36 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   // どのコマで変わったか特定できない」コマだけを出す。撮り逃しの大半は同じ絵が続く区間で
   // 実害が無く、それも並べて数えると本当に数え直しが要る数コマが埋もれるため。
   // 検証済みで0コマなら何も出さない（注記が無い＝確認の要る箇所が無い、と読める）。
+  // 「通知そのものが来なかったコマ」の注記。
+  //
+  // **撮り逃し（下の uncapturedNote）より悪い。** 撮り逃しは「コマはあったが専用の絵が無い」で
+  // 枚数にも割合にも出るが、こちらは表に入っていないので**どの数字の分母にも入らない**。
+  // 実測（60fps 素材）では「9 割撮れています」と出ている裏で、素材の 2 割が表に無かった。
+  //
+  // 表の行数（source_frames）と、素材の fps × 尺から期待される数を突き合わせて出す。
+  // 5% は録画停止のラグで duration が僅かに長く出るぶんの余裕（24/30fps の実測は誤差 1% 未満）。
+  const unreportedNote = useMemo(() => {
+    if (single?.media_type !== 'video') return null
+    const missing = single.unreported_frames
+    const table = single.source_frames
+    if (missing == null || table == null || missing <= 0) return null
+    // 見積もりではなく main が測った値をそのまま出す（frame-feed の countReportDrops）。
+    // 以前はここで fps × 尺から見積もっており、同じ事実にログ 98 コマ／画面 85 コマと
+    // 2 つの数字が出ていた。**同じことを 2 通りに数えない。**
+    const expected = table + missing
+    if (missing / expected <= 0.05) return null
+    return {
+      text: t('detail.unreportedFrames', { count: String(missing) }),
+      title: t('detail.unreportedFramesHint', { count: String(missing), expected: String(expected) })
+    }
+  }, [single, t])
+
   const uncapturedNote = useMemo(() => {
     const missing = single?.uncaptured_frames
     if (single?.media_type !== 'video' || missing == null || missing <= 0) return null
-    // 割合は fps と尺から推定できるが、素材のコマ総数が最も素直なので duration*fps を使う。
-    const total = single.fps && single.duration ? single.fps * single.duration : 0
+    // 母数は実測（フレーム表の行数）を優先する。fps × duration は、duration が録画停止までの
+    // ラグを含むぶん過大になるうえ、fps の無い行では 0 になって判定が黙って効かなくなる。
+    const total = single.source_frames ?? (single.fps && single.duration ? single.fps * single.duration : 0)
     const ambiguous = single.ambiguous_frames
     if (ambiguous == null) {
       // 未検証（検証前・検証に失敗・従来のクリップ）。分かっているのは撮り逃した枚数だけ。
@@ -370,8 +395,18 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     {uncapturedNote && (
                       <span
                         title={'title' in uncapturedNote ? uncapturedNote.title : undefined}
-                        style={{ ...s.value, fontSize: 11, whiteSpace: 'nowrap', color: uncapturedNote.severe ? 'var(--warn-text, #d98324)' : 'var(--muted-text, #888)' }}>
+                        style={{ ...s.value, fontSize: 11, whiteSpace: 'nowrap', color: uncapturedNote.severe ? 'var(--warning)' : 'var(--text-muted)' }}>
                         {uncapturedNote.text}
+                      </span>
+                    )}
+                    {/* 通知そのものが来なかったコマ。上の割合の分母にすら入っていないので、
+                        撮り逃しが 0 でも出ることがある。常に警告色にする——「数え直せば済む」
+                        ではなく「その区間は素材と対応していない」という意味なので。 */}
+                    {unreportedNote && (
+                      <span
+                        title={unreportedNote.title}
+                        style={{ ...s.value, fontSize: 11, whiteSpace: 'nowrap', color: 'var(--warning)' }}>
+                        {unreportedNote.text}
                       </span>
                     )}
                   </div>

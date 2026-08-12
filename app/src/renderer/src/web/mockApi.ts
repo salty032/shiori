@@ -254,7 +254,7 @@ export async function installMockApi(): Promise<void> {
     getPathForFile: () => '',
     // 実フレーム（PTS）解析は ffmpeg 側の仕事。空配列を返すとビューアは fps 換算の
     // コマ送りへフォールバックするので、動画の再生・コマ送り自体は成立する。
-    getFramePts: async () => [],
+    getClipFrames: async () => ({ pts: [], sourceBased: false, quality: [] }),
     getTimelineStrip: async () => null,
     trimVideo: async () => { unsupported(); return { ok: false, error: t('demo.unavailable') } },
 

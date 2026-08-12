@@ -42,6 +42,21 @@ export interface CaptureDiag {
   totalVideoFrames: number | null
   /** そのうち表示に間に合わず捨てられた枚数 */
   droppedVideoFrames: number | null
+  /**
+   * ティッカー（レコーダーウィンドウの 1x1 canvas）が画面を書き換えた回数。取れなければ null。
+   *
+   * **供給の天井がどちら側にあるかを切り分けるための実測。** 画面キャプチャは「画面が変化した
+   * 回数」で駆動されるので、ここが取得上限（120）前後なのに供給が 51 なら天井はキャプチャ側、
+   * ここも 51 前後なら天井は rAF が回っていないこと（＝レコーダーウィンドウ側）。対処が真逆になる。
+   */
+  tickerTicks: number | null
+  /**
+   * MediaRecorder に要求した映像ビットレート（bps。取れなければ null）。
+   *
+   * 供給レートに連動して決めている（recorder.ts）。**要求どおりに出るとは限らない**ので、
+   * 判断はファイルから逆算した実効値と並べて行う（logBitrateDiag）。
+   */
+  videoBitsPerSecond: number | null
 }
 
 export interface SupplySummary {
@@ -165,6 +180,48 @@ export function parseCaptureDiag(value: unknown): CaptureDiag | null {
     captureTimeMissing: num(v.captureTimeMissing),
     clockSkewMs: num(v.clockSkewMs),
     totalVideoFrames: num(v.totalVideoFrames),
-    droppedVideoFrames: num(v.droppedVideoFrames)
+    droppedVideoFrames: num(v.droppedVideoFrames),
+    tickerTicks: num(v.tickerTicks),
+    videoBitsPerSecond: num(v.videoBitsPerSecond)
   }
+}
+
+/**
+ * 1 録画につき 1 行、**画質の判断に要る数字をまとめて出す**（出力は英語）。
+ *
+ * ビットレートは供給レート（＝モニタのリフレッシュレート依存）に連動させているが、
+ * **画質を決めるのは 1 秒あたりのビット数ではなく「素材のコマ 1 つに何ビット割けたか」**。
+ * 素材が 24fps か 60fps かで素材のコマ数が 2.5 倍違うため、同じビットレートでも
+ * 60fps 素材の方が 1 コマあたりは薄くなる。ここを揃えるのが狙いなので、その値を直接出す。
+ *
+ * - `requested` … MediaRecorder に要求した値。**要求どおりに出るとは限らない**
+ * - `actual` … 出来上がったファイルから逆算した実効値。判断はこちらで行う
+ * - `per source frame` … 実効値 ÷ 素材のコマ数。**素材 fps をまたいで比べられる唯一の指標**
+ *
+ * 素材のコマ数が分からない録画（拡張未接続・表が作れなかった）では per source frame を
+ * 出さない。ファイルのフレーム数で代用すると、供給レートの産物を素材のコマだと見せる
+ * ことになり、比較の意味が失われる。
+ */
+export function logBitrateDiag(
+  bytes: number,
+  durationSec: number,
+  sourceFrames: number | null,
+  sourceFps: number | null,
+  diag: CaptureDiag | null
+): void {
+  if (!(durationSec > 0) || !(bytes > 0)) return
+  const bits = bytes * 8
+  const actualBps = bits / durationSec
+  const requested = diag?.videoBitsPerSecond != null
+    ? `${(diag.videoBitsPerSecond / 1e6).toFixed(1)}Mbps`
+    : 'n/a'
+  const perFrame = sourceFrames && sourceFrames > 0
+    ? `${Math.round(bits / sourceFrames / 1000)}kbit`
+    : 'n/a (no source frame table)'
+  console.log(
+    `[clip-bitrate] ${(bytes / 1e6).toFixed(1)}MB / ${durationSec.toFixed(1)}s` +
+    ` | requested ${requested}, actual ${(actualBps / 1e6).toFixed(1)}Mbps` +
+    ` | source ${sourceFps ? `${sourceFps.toFixed(3)}fps` : 'fps n/a'},` +
+    ` ${sourceFrames ?? 'n/a'} frames | per source frame ${perFrame}`
+  )
 }

@@ -3,74 +3,100 @@ import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted } from '../windows'
-import { getImage, getImageTags, getVideoFrames, saveVideoFrames, setUncapturedFrames } from '../db'
+import { getImage, getImageTags, getVideoFrames, saveVideoFrames, setFrameCounts } from '../db'
+import type { StoredFrame } from '../db'
 import { optionalPositiveInteger } from '../ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../paths'
 import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
-import { VIDEO_CH } from '../../shared/api.video'
+import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
+import type { ClipFrames, FrameQuality } from '../../shared/api.video'
 import { registerCapturedMedia } from '../captured-media'
-import { sliceFrameTable } from './frame-feed'
+import { sliceFrameTable, countReportDrops } from './frame-feed'
 import { verifyClipFrames } from './verify-clip'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
 const trimmingIds = new Set<number>()
 
-// フレーム PTS のキャッシュ（V-13）。同じ動画のトリマーを開き直すたびに全フレームを
+// コマ情報のキャッシュ（V-13）。同じ動画のトリマーを開き直すたびに全フレームを
 // デコードする getVideoFramePts が再実行されるのを避ける。imageId 単位でキーする——
 // 画像テーブルは AUTOINCREMENT で id を再利用せず、ある imageId のファイル内容は不変
 // （トリムは新しい id を作る）なので、id をキーにすれば誤ヒットしない。
 // 上限付き LRU（Map は挿入順を保持するので、先頭が最も古いアクセス）。
-const framePtsCache = new Map<number, number[]>()
-const FRAME_PTS_CACHE_MAX = 24
+const clipFramesCache = new Map<number, ClipFrames>()
+const CLIP_FRAMES_CACHE_MAX = 24
 
-function getCachedFramePts(id: number): number[] | undefined {
-  const hit = framePtsCache.get(id)
+function getCachedClipFrames(id: number): ClipFrames | undefined {
+  const hit = clipFramesCache.get(id)
   if (hit) {
-    framePtsCache.delete(id)   // アクセスしたものを末尾（最新）へ回す
-    framePtsCache.set(id, hit)
+    clipFramesCache.delete(id)   // アクセスしたものを末尾（最新）へ回す
+    clipFramesCache.set(id, hit)
   }
   return hit
 }
 
-function setCachedFramePts(id: number, pts: number[]): void {
-  framePtsCache.delete(id)
-  framePtsCache.set(id, pts)
-  while (framePtsCache.size > FRAME_PTS_CACHE_MAX) {
-    const oldest = framePtsCache.keys().next().value
+function setCachedClipFrames(id: number, frames: ClipFrames): void {
+  clipFramesCache.delete(id)
+  clipFramesCache.set(id, frames)
+  while (clipFramesCache.size > CLIP_FRAMES_CACHE_MAX) {
+    const oldest = clipFramesCache.keys().next().value
     if (oldest === undefined) break
-    framePtsCache.delete(oldest)
+    clipFramesCache.delete(oldest)
+  }
+}
+
+// 保存されたコマ 1 つを、画面へ出す確からしさ（FRAME_QUALITY）へ落とす。
+//
+// captured=true のコマに検証結果は無い（frame-verify.ts が付けるのは撮り逃したコマだけ）ので、
+// 撮れているかどうかを先に見る。verified が 'unknown' のままなのは検証前・検証失敗・
+// 検証を持たない従来の行で、いずれも「流用しているが実害の有無は分からない」に当たる。
+export function frameQualityOf(f: StoredFrame): FrameQuality {
+  if (f.captured) return FRAME_QUALITY.captured
+  if (f.verified === 'same') return FRAME_QUALITY.reusedSame
+  if (f.verified === 'changed') return FRAME_QUALITY.reusedChanged
+  return FRAME_QUALITY.reused
+}
+
+// 素材のコマ表とファイルの PTS から、コマ送り用の並びを作る。
+//
+// 表があれば「素材のコマ N が写っているフレーム」の PTS だけを素材の順で並べ直す。
+// ファイルのフレームをそのまま辿ると、画面キャプチャが吐いた枚数（実測 33〜50枚/秒）で
+// コマ送りすることになり、素材のコマ（23.976fps 等）とは対応しない。
+// 撮れなかったコマは直前と同じ PTS になり、絵が変わらないまま 1 コマ進む。
+//
+// 表が無い・表の frameIndex がファイルの範囲外（＝対応が取れていない）ときは退避して
+// ファイルのフレームをそのまま返し、**素材のコマ単位ではないことを sourceBased で明示する**。
+// 黙って別の刻みへ落ちるのが最悪なので、呼び出し側が画面に出せる形で返す。
+export function buildClipFrames(pts: number[], table: StoredFrame[] | null): ClipFrames {
+  const usable = table?.filter((f) => f.frameIndex >= 0 && f.frameIndex < pts.length) ?? []
+  if (usable.length === 0) return { pts, sourceBased: false, quality: [] }
+  return {
+    pts: usable.map((f) => pts[f.frameIndex]),
+    sourceBased: true,
+    quality: usable.map(frameQualityOf)
   }
 }
 
 export function registerVideoHandlers(): void {
-  handleTrusted(VIDEO_CH.videoGetFramePts, async (_event, imageId: number) => {
+  handleTrusted(VIDEO_CH.videoGetClipFrames, async (_event, imageId: number) => {
+    // 取得できなかったときの返り値。pts が空＝「コマの位置が分からない」で、
+    // 呼び出し側はここでだけ fps 換算のコマ送りへ落ちる（そのことを画面にも出す）。
+    const EMPTY: ClipFrames = { pts: [], sourceBased: false, quality: [] }
     const validId = optionalPositiveInteger(imageId)
-    if (!validId) return []
+    if (!validId) return EMPTY
     const image = getImage(validId)
-    if (!image || image.media_type !== 'video') return []
-    const cached = getCachedFramePts(validId)
+    if (!image || image.media_type !== 'video') return EMPTY
+    const cached = getCachedClipFrames(validId)
     if (cached) return cached
     try {
       const realPath = await resolveRealCapturePath(image.filepath)
-      if (!realPath) return []
+      if (!realPath) return EMPTY
       const pts = await getVideoFramePts(realPath)
-      if (pts.length === 0) return []   // 失敗・タイムアウトはキャッシュせず再取得の余地を残す
+      if (pts.length === 0) return EMPTY   // 失敗・タイムアウトはキャッシュせず再取得の余地を残す
 
-      // フレーム表があれば、素材のコマ単位の並びへ差し替える。
-      //
-      // ファイルのフレームをそのまま辿ると、画面キャプチャが吐いた枚数（実測 33〜37枚/秒）
-      // でコマ送りすることになり、素材のコマ（23.976fps 等）とは対応しない。表があれば
-      // 「素材のコマ N が写っているフレーム」の PTS だけを、素材の順で並べ直せる。
-      // 撮れなかったコマは直前と同じ PTS になり、絵が変わらないまま1コマ進む。
-      const table = getVideoFrames(validId)
-      const sourcePts = table
-        ?.filter((f) => f.frameIndex >= 0 && f.frameIndex < pts.length)
-        .map((f) => pts[f.frameIndex])
-      const result = sourcePts && sourcePts.length > 0 ? sourcePts : pts
-
-      setCachedFramePts(validId, result)
+      const result = buildClipFrames(pts, getVideoFrames(validId))
+      setCachedClipFrames(validId, result)
       return result
-    } catch { return [] }
+    } catch { return EMPTY }
   })
 
   handleTrusted(VIDEO_CH.videoGetTimelineStrip, async (_event, imageId: number, count: number) => {
@@ -186,7 +212,7 @@ export function registerVideoHandlers(): void {
           if (sliced.length > 0) {
             saveVideoFrames(result.id, sliced)
             const missed = sliced.filter((f) => !f.captured).length
-            setUncapturedFrames(result.id, missed)
+            setFrameCounts(result.id, missed, sliced.length, countReportDrops(sliced.map((f) => f.mediaTime)))
             // 撮り逃しの検証は元クリップの結果を流用せず、新しいファイルで取り直す。
             // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
             // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。

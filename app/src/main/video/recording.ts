@@ -96,6 +96,16 @@ async function getDesktopSourceId(): Promise<string | null> {
 // ファイルサイズだけが増える。recorder-ipc.ts の MAX_FRAME_RATE_FOR_VALIDATION より小さいこと。
 export const MAX_CAPTURE_FPS = 120
 
+// 直近の録画で実際に届いた供給レート（枚/秒）。ビットレートの根拠に使う（recorder:start の
+// supplyFps）。既定の 60 は 12Mbps を較正したときの水準で、**上限の見込み値を使わない**ため
+// のもの。プロセス内に持つだけで永続化しない——供給は環境で決まり毎回ほぼ同じ値に落ち着くので、
+// 起動直後の 1 本が既定値でも実害が無く、DB に測定値のキャッシュを増やす方が割に合わない。
+let lastSupplyFps: number | null = null
+
+export function recordMeasuredSupply(drawnPerSec: number): void {
+  if (Number.isFinite(drawnPerSec) && drawnPerSec > 0) lastSupplyFps = drawnPerSec
+}
+
 const RECORDER_LOAD_TIMEOUT_MS = 4000
 
 // プレーヤー UI を隠したままにする時間に、録画の長さへ上乗せするマージン（秒）。
@@ -210,6 +220,14 @@ export async function startRecording(): Promise<void> {
       // 要るのは素材の 2 倍なので、対応上限の 60fps 素材に対して 120 あれば足りる。
       // それ以上はエンコード負荷とファイルサイズが増えるだけで精度には効かない。
       fps: Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60))),
+      // ビットレートを決めるための「実際に届く枚数」。**上限の見込みとは別物**。
+      //
+      // 上限を 120 にしても供給は 50.8枚/秒のままだった（2026-08-12 実測）。上限に連動させて
+      // いた頃は 22.4Mbps を要求していたが、枚数は 12Mbps を決めたときと同じ約 50枚/秒なので、
+      // 増やした分は何も買っていない（実効 17.1Mbps・ファイルが 45→64MB に太っただけ）。
+      // ビットレートを上げる根拠は「枚数が増えると 1 枚が痩せる」ことなので、**根拠にすべきは
+      // 実測の枚数**。供給が本当に上がればそのまま追従する。
+      supplyFps: Math.round(lastSupplyFps ?? 60),
       maxSeconds,
       sessionId
     })

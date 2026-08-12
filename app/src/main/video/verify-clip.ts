@@ -8,7 +8,8 @@
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
 import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
-import { dropVideoFrames, saveVideoFrames, setAmbiguousFrames, setUncapturedFrames, type StoredFrame } from '../db'
+import { dropVideoFrames, saveVideoFrames, setAmbiguousFrames, setFrameCounts, type StoredFrame } from '../db'
+import { countReportDrops } from './frame-feed'
 import { sendToRenderer } from '../windows'
 import { CH } from '../../shared/api'
 
@@ -18,8 +19,10 @@ import { CH } from '../../shared/api'
 // 飛ばさないと**検証済みなのに「N コマ未取得」（未検証の表示）のまま**になる
 // （実測 2026-08-10: DB は ambiguous=64 なのに画面は 90コマ未取得 のままだった）。
 // fps の遡及埋め（fps:backfilled）と同じ購読パターン。
-function notifyVerified(imageId: number, uncaptured: number | null, ambiguous: number | null): void {
-  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous })
+// total（素材のコマ総数）も一緒に流す。末尾を切ったときは母数も変わるので、枚数だけ送ると
+// 一覧のスナップショットの中で分子と分母が別の時点の数になり、割合の判定が静かに狂う。
+function notifyVerified(imageId: number, uncaptured: number | null, ambiguous: number | null, total: number | null, unreported: number | null): void {
+  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported })
 }
 
 /**
@@ -40,7 +43,7 @@ export async function verifyClipFrames(
   try {
     const { signatures, pts } = await getFrameSignatures(videoPath)
     if (signatures.length === 0) {
-      logVerifyResult(null)
+      logVerifyResult(imageId, null)
       return
     }
 
@@ -73,47 +76,47 @@ export async function verifyClipFrames(
           ? [paired - 3, paired - 2, paired - 1].map((i) => `${i}:${shiftAt(i)}`).join(' ')
           : ''
         console.error(
-          `[frame-verify] frame correspondence breaks at index ${divergeAt}` +
+          `[frame-verify] image ${imageId}: frame correspondence breaks at index ${divergeAt}` +
           ` (supplied ${drawnAt.length}, file has ${signatures.length}).` +
           ` head shift [${head}]ms | around break [${around}]ms | tail [${tail}]ms.` +
           ' Dropping the frame table (frame stepping falls back to raw file frames).'
         )
         dropVideoFrames(imageId)
-        notifyVerified(imageId, null, null)
+        notifyVerified(imageId, null, null, null, null)
         return
       }
       // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
       const kept = frames.filter((f) => f.frameIndex < signatures.length)
       if (kept.length === 0) {
         dropVideoFrames(imageId)
-        notifyVerified(imageId, null, null)
+        notifyVerified(imageId, null, null, null, null)
         return
       }
       console.warn(
-        `[frame-verify] file is short by ${drawnAt.length - signatures.length} frame(s) at the end` +
+        `[frame-verify] image ${imageId}: file is short by ${drawnAt.length - signatures.length} frame(s) at the end` +
         ` (supplied ${drawnAt.length}, file has ${signatures.length});` +
         ` correspondence holds up to the end, so ${frames.length - kept.length} trailing frame(s) were trimmed.`
       )
       frames = kept
       saveVideoFrames(imageId, frames)
-      setUncapturedFrames(imageId, frames.filter((f) => !f.captured).length)
+      setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames.map((f) => f.mediaTime)))
     }
 
     const missed = frames.filter((f) => !f.captured).length
     // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
     // 末尾を切って枚数が変わっている場合があるので、画面への反映だけは伝える。
     if (missed === 0) {
-      notifyVerified(imageId, 0, null)
+      notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames.map((f) => f.mediaTime)))
       return
     }
 
     const result = verifyFrameTable(frames, signatures)
     saveVideoFrames(imageId, result.frames)
     setAmbiguousFrames(imageId, result.ambiguous)
-    notifyVerified(imageId, missed, result.ambiguous)
-    logVerifyResult(result)
+    notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames.map((f) => f.mediaTime)))
+    logVerifyResult(imageId, result)
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
-    console.warn('[frame-verify] failed', err)
+    console.warn(`[frame-verify] image ${imageId}: failed`, err)
   }
 }

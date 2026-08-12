@@ -51,8 +51,68 @@ vi.mock('fs/promises', () => ({
   unlink: vi.fn(async () => {})
 }))
 
-import { registerVideoHandlers } from './ipc-video'
+import { registerVideoHandlers, buildClipFrames, frameQualityOf } from './ipc-video'
+import { FRAME_QUALITY } from '../../shared/api.video'
+import type { StoredFrame } from '../db'
 import { unlink } from 'fs/promises'
+
+describe('buildClipFrames（コマ送りに渡す並びと、コマごとの確からしさ）', () => {
+  // ファイルには 4 枚のフレームがあり、素材のコマは 3 つ。2 コマ目は専用の絵が撮れていない。
+  const pts = [0, 0.02, 0.04, 0.06]
+
+  it('素材のコマ表があれば、素材のコマ順に並べ替えて sourceBased を立てる', () => {
+    const table: StoredFrame[] = [
+      { mediaTime: 0, frameIndex: 0, captured: true },
+      { mediaTime: 0.04, frameIndex: 1, captured: false, verified: 'changed' },
+      { mediaTime: 0.08, frameIndex: 3, captured: true }
+    ]
+    const frames = buildClipFrames(pts, table)
+    expect(frames.sourceBased).toBe(true)
+    expect(frames.pts).toEqual([0, 0.02, 0.06])
+    expect(frames.quality).toEqual([
+      FRAME_QUALITY.captured, FRAME_QUALITY.reusedChanged, FRAME_QUALITY.captured
+    ])
+  })
+
+  // 表が無いクリップ（従来の録画・取り込み動画）。**素材のコマ単位ではないことを
+  // 呼び出し側が画面に出せるよう、黙って同じ形で返さない。**
+  it('表が無ければファイルのフレームをそのまま返し、sourceBased を伏せる', () => {
+    const frames = buildClipFrames(pts, null)
+    expect(frames.sourceBased).toBe(false)
+    expect(frames.pts).toEqual(pts)
+    expect(frames.quality).toEqual([])
+  })
+
+  // frameIndex がファイルの範囲外＝表とファイルの対応が取れていない。半端に解釈すると
+  // 別のコマの絵を指したままコマ送りが動くので、退避させる方がよい（db.ts の decodeFrames と同じ判断）。
+  it('表の指す先がファイルの範囲外なら、その行は使わない', () => {
+    const table: StoredFrame[] = [
+      { mediaTime: 0, frameIndex: 0, captured: true },
+      { mediaTime: 0.04, frameIndex: 99, captured: true }
+    ]
+    const frames = buildClipFrames(pts, table)
+    expect(frames.pts).toEqual([0])
+    // 1 行も残らなければファイルのフレームへ退避する
+    expect(buildClipFrames(pts, [{ mediaTime: 0, frameIndex: 99, captured: true }]).sourceBased).toBe(false)
+  })
+})
+
+describe('frameQualityOf（そのコマを信じてよいか）', () => {
+  it('撮れているコマは検証結果に関係なく captured', () => {
+    // 検証（frame-verify.ts）が結果を付けるのは撮り逃したコマだけなので、
+    // captured=true の行に載っている値は意味を持たない。
+    expect(frameQualityOf({ mediaTime: 0, frameIndex: 0, captured: true })).toBe(FRAME_QUALITY.captured)
+    expect(frameQualityOf({ mediaTime: 0, frameIndex: 0, captured: true, verified: 'changed' })).toBe(FRAME_QUALITY.captured)
+  })
+
+  it('撮り逃したコマは検証結果で「未検証 / 実害なし / 要確認」に分かれる', () => {
+    const missed = { mediaTime: 0, frameIndex: 0, captured: false }
+    expect(frameQualityOf(missed)).toBe(FRAME_QUALITY.reused)
+    expect(frameQualityOf({ ...missed, verified: 'unknown' })).toBe(FRAME_QUALITY.reused)
+    expect(frameQualityOf({ ...missed, verified: 'same' })).toBe(FRAME_QUALITY.reusedSame)
+    expect(frameQualityOf({ ...missed, verified: 'changed' })).toBe(FRAME_QUALITY.reusedChanged)
+  })
+})
 
 describe('video:trim - サムネ生成失敗時の挙動', () => {
   beforeEach(() => {

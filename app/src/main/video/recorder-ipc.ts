@@ -11,11 +11,11 @@ import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
-import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession } from './recording'
+import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply } from './recording'
 import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
-import { logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
+import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../captured-media'
-import { saveVideoFrames, setUncapturedFrames } from '../db'
+import { saveVideoFrames, setFrameCounts } from '../db'
 import { t } from '../i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
@@ -114,23 +114,47 @@ export function registerRecorderIpc(): void {
     // （供給が均一な録画ほどコマ精度を失う副作用の方が大きい）。疑わしい点の判定と警告は
     // frame-feed 側（offsetVerdict / logMatchResult）に集約してある。
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
+    const parsedDiag = parseCaptureDiag(diag)
+    const supply = usableDrawnAt
+      ? summarizeSupply(drawnAt, duration, sourceFps ? 1000 / sourceFps : null)
+      : null
+
+    // 1 録画ぶんの実測ログの見出し。
+    //
+    // **区切りと、いちばん知りたい数字を先頭に置く。** この下に 5〜7 行の詳細が続き、さらに
+    // 検証（`[frame-verify]`）は数秒後に非同期で出て次の録画の行に混ざる。区切りが無いと
+    // どこからどこまでが 1 本ぶんか読めない。
+    //
+    // 2 行目に素材の fps を**ラベル付きで**置くのは、詳細行の中では `source frame 41.7ms` や
+    // `candidates 8 (13..20ms…)` に紛れて探さないと見つからないため。ここだけ見れば
+    // 「何 fps の映像を、毎秒何枚で撮ったか」が分かる状態にする。
+    // ASCII のみ（dev.bat のコンソールは Shift-JIS で日本語が化ける）。
+    console.log(`\n===== clip #${sessionId}  ${new Date().toTimeString().slice(0, 8)}  ${duration.toFixed(1)}s =====`)
+    console.log(
+      `  video is ${sourceFps ? `${sourceFps.toFixed(3)} fps` : 'fps unknown'}` +
+      `  |  screen captured at ${supply ? `${supply.drawnPerSec.toFixed(1)} frames/s` : 'n/a'}` +
+      // 供給の天井がキャプチャ側かレコーダーウィンドウ側かの切り分け（CaptureDiag.tickerTicks）。
+      `  |  window redrawn at ${parsedDiag?.tickerTicks != null ? `${(parsedDiag.tickerTicks / duration).toFixed(1)}/s` : 'n/a'}`
+    )
+
     logMatchResult(frameTable)
     // 通知が途切れていた区間は表に入らず、割合にも枚数にも現れない（logReportInterruptions 参照）。
     logReportInterruptions()
     // 撮り逃しの原因を「供給不足」と「観測漏れ」に切り分けるための実測ログ（1録画1行）。
     // 素材の周期が分かるときだけ「素材1コマより長く空いた回数」も併記する。
-    const parsedDiag = parseCaptureDiag(diag)
-    if (usableDrawnAt) {
-      logSupplyDiag(
-        summarizeSupply(drawnAt, duration, sourceFps ? 1000 / sourceFps : null),
-        parsedDiag
-      )
-    }
+    logSupplyDiag(supply, parsedDiag)
+    // 次の録画のビットレートの根拠にする（recording.ts の supplyFps）。上限の見込みではなく
+    // 実際に届いた枚数を使うため、ここで測った値を戻す。
+    if (supply) recordMeasuredSupply(supply.drawnPerSec)
     // 突き合わせている 2 つの時刻の基準がどれだけずれているか（logClockDiag 参照）。
     // 表が作れなかった録画（拡張未接続など）でも出す。
     logClockDiag(getReportDelay(), parsedDiag)
 
     const webm = Buffer.from(webmAB)
+
+    // 画質の判断材料（logBitrateDiag 参照）。素材のコマ数は表からしか分からないので、
+    // 表が作れた録画でだけ「素材 1 コマあたり」が出る。
+    logBitrateDiag(webm.byteLength, duration, frameTable ? frameTable.matches.length : null, sourceFps, parsedDiag)
 
     const capturedAt = Date.now()
     let webmPath: string | null = null
@@ -170,13 +194,16 @@ export function registerRecorderIpc(): void {
         sendNotice('error', t('notice.clipSaveFailed'))
         return
       }
+      // 見出し（clip #N）と image id の対応。**この後に出る `[frame-verify]` は数秒後の
+      // 非同期なので、次の録画のログに混ざる。** id で引けるようにしておく。
+      console.log(`[clip] #${sessionId} saved as image ${result.id}`)
       // フレーム表は保存できなくてもクリップ自体は成立する（コマ送りが従来動作に
       // 落ちるだけ）。ここで失敗させて保存済みのクリップを巻き戻す方が損失が大きい。
       const missedFrames = frameTable ? frameTable.matches.filter((m) => !m.captured).length : 0
       if (frameTable) {
         try {
           saveVideoFrames(result.id, frameTable.matches)
-          setUncapturedFrames(result.id, missedFrames)
+          setFrameCounts(result.id, missedFrames, frameTable.matches.length, frameTable.reportDrops)
           // 撮り逃しの有無にかかわらず走らせる。撮り逃しが 0 でも、表の frameIndex が
           // ファイル内の実フレームと一致しているかの照合は必要だから（一致しなければ
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、

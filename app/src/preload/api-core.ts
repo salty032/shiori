@@ -121,7 +121,7 @@ export function buildCoreApi(): ShioriApi {
     taggerRemoveTagFromAll: (tagName: string): Promise<number> => ipcRenderer.invoke(CH.taggerRemoveTagFromAll, tagName),
     onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
     onFpsBackfilled: (cb: (data: { id: number; fps: number }) => void) => listen(CH.fpsBackfilled, cb),
-    onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null }) => void) =>
+    onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null }) => void) =>
       listen(CH.framesVerified, cb),
     onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),
     onTaggerError: (cb: (msg: string) => void) => listen<string>(CH.taggerError, cb),

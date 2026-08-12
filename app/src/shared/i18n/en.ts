@@ -108,6 +108,7 @@ export const en: Record<keyof typeof ja, string> = {
   'shortcuts.prevNext': 'Previous / next image',
   'shortcuts.viewerFrameStep': 'Step one frame (video)',
   'shortcuts.closeViewer': 'Close the viewer',
+  'shortcuts.viewerSpace': 'Play / pause video (does nothing for images)',
   'shortcuts.toggleZoom': 'Toggle zoom',
   'shortcuts.zoomInOutReset': 'Zoom in / out / reset',
   'shortcuts.toggleDetails': 'Show or hide the details panel',
@@ -208,6 +209,21 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.close': 'Close (Esc)',
   'viewer.prev': 'Previous (←)',
   'viewer.next': 'Next (→)',
+  'viewer.frameIndex': 'Frame {cur} / {total}',
+  'viewer.frameIndexFile': 'File frame {cur} / {total}',
+  'viewer.frameReused': 'reused',
+  'viewer.frameReusedSame': 'reused, no change',
+  'viewer.frameNeedsReview': 'needs review',
+  'viewer.frameLoading': 'Loading frame table',
+  'viewer.frameEstimated': 'Frame positions unknown ({fps}fps estimate)',
+  'viewer.frameSourceHint': 'Stepping one source frame at a time. If the picture does not change, that is because the source held the same picture.',
+  'viewer.frameReusedHint': 'No picture was captured for this frame, so the previous frame\'s picture is shown (unverified). Do not treat the picture staying the same here as evidence of the animation\'s frame timing.',
+  'viewer.frameReusedSameHint': 'No picture was captured for this frame, but the pictures around it were verified identical. It does not affect counting the animation\'s frame timing.',
+  'viewer.frameNeedsReviewHint': 'No picture was captured for this frame and the pictures around it differ. Which frame the change happened on cannot be determined.',
+  'viewer.frameFileHint': 'Stepping through the frames recorded in the file. This is an imported video, so those are the source frames.',
+  'viewer.frameFileCaptureHint': 'No source frame table is available, so this steps through the frames recorded in the file. Those come from the screen capture rate and do not line up with the source frames.',
+  'viewer.frameLoadingHint': 'Loading the frame table. Frame steps are held until it finishes, then applied together.',
+  'viewer.frameEstimatedHint': 'Frame positions could not be read for this clip. Stepping uses an interval derived from the fps, so it does not line up with the source frames.',
 
   // ── What's New ──
   'whatsNew.title': 'What’s new in Shiori v{version}',
@@ -297,6 +313,11 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.timecode': 'Timecode',
   'detail.duration': 'Length',
   'detail.fps': 'FPS',
+  'detail.unreportedFrames': '{count} frames never reported',
+  'detail.unreportedFramesHint':
+    'Of the roughly {expected} frames the source should have, {count} were never reported by the streaming page. ' +
+    'Those frames are absent from the frame table and from the capture ratio above. ' +
+    'Frame stepping does not line up with the source across the whole clip.',
   'detail.uncapturedFrames': '{count} frames missed',
   'detail.ambiguousFrames': '{count} frames need review',
   'detail.ambiguousFramesHint':

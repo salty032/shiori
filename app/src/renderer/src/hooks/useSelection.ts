@@ -647,10 +647,11 @@ export function useSelection({
         return
       }
       if (e.key === 'Escape' && !isEditing) { clearSelection(); return }
-      // Enter と Space はどちらも「フォーカス中/選択中の画像を開く」（Space は Quick Look 的な
-      // クイックプレビュー慣習に合わせた追加口。ビューア内では Space はビューアを閉じる方に使うため、
-      // ここ（viewerIdx === null のときだけ到達）でのみ「開く」に割り当てて競合を避ける）。
-      if ((e.key === 'Enter' || e.code === 'Space') && !isEditing && !e.isComposing) {
+      // 開くのは Enter だけ。**Space は「動画の再生/一時停止」専用に空けてある**ので、
+      // ここでも開くには使わない（一覧では開く・ビューアでは再生、と場所で意味が変わると、
+      // ビューア内で媒体ごとに変わっていたのと同じ分かりにくさが場所違いで再発する）。
+      // Enter はビューア側では「閉じる」に当たり、開閉のトグルとして 1 つの意味に収まる。
+      if (e.key === 'Enter' && !isEditing && !e.isComposing) {
         const { images, selectedIds } = latestRef.current
         if (images.length === 0) return
         const focused = focusIdx.current

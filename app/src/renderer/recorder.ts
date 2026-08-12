@@ -36,6 +36,10 @@ type CaptureDiag = {
   clockSkewMs: number
   totalVideoFrames: number | null
   droppedVideoFrames: number | null
+  /** ティッカーが画面を書き換えた回数。供給の天井の切り分けに使う（main の CaptureDiag 参照） */
+  tickerTicks: number | null
+  /** MediaRecorder に要求した映像ビットレート（bps） */
+  videoBitsPerSecond: number | null
 }
 
 // 供給レートの計測（開発時のみ。supply-bench.ts 参照）。
@@ -63,7 +67,7 @@ type BenchResult = {
 }
 
 interface RecorderApi {
-  onStart: (cb: (data: { sourceId: string; fps: number; maxSeconds: number; sessionId: number }) => void) => void
+  onStart: (cb: (data: { sourceId: string; fps: number; supplyFps: number; maxSeconds: number; sessionId: number }) => void) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
   sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
@@ -94,6 +98,12 @@ let rVfcRunning = false
 // 供給を引き上げるためのティッカー（下の startCaptureTicker 参照）。
 let tickerRaf: number | null = null
 let tickerEl: HTMLCanvasElement | null = null
+// ティッカーが実際に画面を書き換えた回数。
+//
+// **供給が頭打ちになっている原因を切り分けるための実測。** 供給は「画面が変化した回数」で
+// 決まるので、天井が（1）ティッカーの rAF が回っていないことなのか、（2）画面キャプチャ側の
+// 上限なのかで対処が真逆になる。ここが 120 前後なのに供給が 51 なら（2）、ここも 51 前後なら（1）。
+let tickerTicks = 0
 let mediaStream: MediaStream | null = null
 let canvasStream: MediaStream | null = null
 let stopTimer: ReturnType<typeof setTimeout> | null = null
@@ -132,7 +142,9 @@ function startCaptureTicker(): void {
   tickerEl = canvas
   const ctx = canvas.getContext('2d')
   let on = false
+  tickerTicks = 0
   const tick = (): void => {
+    tickerTicks++
     on = !on
     if (ctx) {
       ctx.clearRect(0, 0, 1, 1)
@@ -204,6 +216,10 @@ function resetState(): void {
 function captureFps(fps: number): number {
   return Math.min(120, Math.max(1, fps || 60))
 }
+
+// ビットレート算出に使う供給レートの上限。main から届く実測値が壊れていても、要求ビットレートが
+// 青天井にならないようにするための多層防御（取得上限と同じ値でよい。それ以上供給されることは無い）。
+const MAX_SUPPLY_FPS_FOR_BITRATE = 120
 
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
   const maxFrameRate = captureFps(fps)
@@ -282,7 +298,7 @@ function pickMimeType(): string {
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
 }
 
-window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
+window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessionId }) => {
   if (recorder && recorder.state !== 'inactive') return
   const token = ++recordingToken
   currentSessionId = sessionId
@@ -448,6 +464,10 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
     ? new MediaStream([...cs.getVideoTracks(), ...audioTracks])
     : cs
 
+  // 要求した映像ビットレート。診断（CaptureDiag）に載せて main のログへ出すため、
+  // MediaRecorder を作る try の外で受ける。**要求値と、ファイルから逆算した実効値の両方を
+  // 見たい**——エンコーダは要求どおりに出すとは限らず、判断材料になるのは実際に出た方。
+  let videoBitsPerSecond: number | null = null
   let rec: MediaRecorder
   try {
     // 映像のビットレートは供給レートに合わせて上げる。1 秒あたりのビット数は同じでも、
@@ -457,10 +477,16 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
     // ビットレート 1.5 倍（8→12Mbps）で元の画質水準に戻った。その比（枚数比の約 0.9 乗）
     // をそのまま延長する。
     //
+    // **基準にするのは実測の供給（supplyFps）で、取得上限（fps）ではない。** 上限を 120 に
+    // 上げても供給は 50.8枚/秒のままだったため（2026-08-12 実測）、上限に連動させると
+    // 枚数が増えていないのにビットレートだけ 1.9 倍要求することになる（実測でファイルが
+    // 45→64MB に太り、画質は変わらなかった）。main 側の recording.ts に同じ注記あり。
+    //
     // 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
     // 映像に十数 Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
     // 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
-    const videoBitsPerSecond = Math.round(12_000_000 * Math.pow(Math.max(1, captureFps(fps) / 60), 0.9))
+    const bitrateFps = Math.min(MAX_SUPPLY_FPS_FOR_BITRATE, Math.max(1, supplyFps || 60))
+    videoBitsPerSecond = Math.round(12_000_000 * Math.pow(Math.max(1, bitrateFps / 60), 0.9))
     rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond, audioBitsPerSecond: 192_000 })
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
@@ -522,7 +548,9 @@ window.recorderApi.onStart(async ({ sourceId, fps, maxSeconds, sessionId }) => {
         captureTimeMissing,
         clockSkewMs: performance.timeOrigin + performance.now() - Date.now(),
         totalVideoFrames: quality?.totalVideoFrames ?? null,
-        droppedVideoFrames: quality?.droppedVideoFrames ?? null
+        droppedVideoFrames: quality?.droppedVideoFrames ?? null,
+        tickerTicks,
+        videoBitsPerSecond
       })
     } catch (err) {
       console.error('[recorder] finalize failed', err)

@@ -157,6 +157,16 @@ export function initDb(): void {
   // 全部を「未取得」と出すと、本当に数え直しが要る数コマが埋もれる。
   // NULL は「まだ検証していない」（保存直後・検証に失敗したクリップ・従来の行）。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN ambiguous_frames INTEGER')
+  // 素材のコマ総数（フレーム表の行数）。上の 2 つが「多いのか少ないのか」を言うには母数が要る。
+  // fps × duration で見積もれはするが、duration は録画停止までのラグを含むうえ fps の無い行では
+  // 母数そのものが出せず、判定が黙って効かなくなる。**実測が使えるならそれを使う**。
+  // NULL は表を持たないクリップ（従来の行・非対応サイト）で、そのときだけ見積もりへ落ちる。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN source_frames INTEGER')
+  // 素材にあったはずなのに、配信ページから通知が来なかったコマ数（frame-feed の reportDrops）。
+  // **撮り逃し（uncaptured_frames）より悪い**——表に入っていないので上の割合の分母にも
+  // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
+  // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_frames INTEGER')
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_host ON images(host)')
   // カーソルページング・ホスト絞り込み・エクスポートで使う複合インデックス
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_cat       ON images(captured_at, id)')
@@ -342,6 +352,8 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"fps"',
   '"uncaptured_frames"',
   '"ambiguous_frames"',
+  '"source_frames"',
+  '"unreported_frames"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -703,8 +715,11 @@ export function listImagesMissingFps(): { id: number; filepath: string; duration
   ).all() as { id: number; filepath: string; duration: number | null }[]
 }
 
-export function setUncapturedFrames(id: number, count: number): void {
-  prepare('UPDATE images SET uncaptured_frames = ? WHERE id = ?').run(count, id)
+// 撮り逃した枚数と、その母数である素材のコマ総数。**必ず一緒に書く** —— 片方だけ更新すると
+// 割合が別々の時点の数から算出され、詳細パネルの「多い / 少ない」が静かに狂う。
+export function setFrameCounts(id: number, uncaptured: number, total: number, unreported: number): void {
+  prepare('UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ? WHERE id = ?')
+    .run(uncaptured, total, unreported, id)
 }
 
 // 検証で「絵が変わっていて特定できない」と分かったコマ数。検証を通していないクリップと
@@ -838,7 +853,7 @@ export function saveVideoFrames(imageId: number, frames: StoredFrame[]): void {
 // そこから数えた「N コマ要確認」も根拠を失っているため。
 export function dropVideoFrames(id: number): void {
   prepare('DELETE FROM video_frames WHERE image_id = ?').run(id)
-  prepare('UPDATE images SET uncaptured_frames = NULL, ambiguous_frames = NULL WHERE id = ?').run(id)
+  prepare('UPDATE images SET uncaptured_frames = NULL, ambiguous_frames = NULL, source_frames = NULL, unreported_frames = NULL WHERE id = ?').run(id)
 }
 
 export function getVideoFrames(imageId: number): StoredFrame[] | null {

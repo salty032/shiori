@@ -138,6 +138,18 @@ export interface MatchResult {
   tiedRangeMs: [number, number]
   /** 素材のコマ周期（ミリ秒）。ずれが何コマ分に当たるかの換算に使う */
   sourcePeriodMs: number
+  /**
+   * 通知そのものが来なかった素材コマの数（コマ周期の格子に空いた穴）。
+   *
+   * **撮り逃し（captured=false）とは別物で、こちらの方が悪い。** 撮り逃しは「コマはあったが
+   * 専用の絵が無い」で枚数にも割合にも出るが、通知が来なかったコマは**表に入らないので
+   * どの数字の分母にも入らない**。放っておくと `captured 89.3%` と出ている裏で、実際には
+   * 素材の 2 割が対応表に存在しない、という状態を黙って通すことになる。
+   *
+   * 実測（2026-08-12・60fps 素材）：769 コマの表に対し通知の欠けが約 197。ページ側が 60 コマ
+   * 全部を描けていないのが疑わしいが、原因は未確定。24/30fps では 0 だった。
+   */
+  reportDrops: number
   /** 探索した窓（ミリ秒）。幅はちょうど素材 1 コマ（CAPTURE_LATENCY_MS 参照） */
   searchRangeMs: [number, number]
   /** 素材コマ n 個ぶんずらした位置のスコア（OffsetReplica 参照） */
@@ -273,7 +285,10 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   }
 
   // 素材のコマ周期。複製の位置（OffsetReplica）と録画範囲の判定の両方で使う。
-  const periodMs = fitGrid(frames.map((f) => f.mediaTime))?.periodMs ?? 1000 / 24
+  // drops（格子に空いた穴＝通知が来なかったコマ）も同じ当てはめから出る。捨てずに持ち帰る。
+  const grid = fitGrid(frames.map((f) => f.mediaTime))
+  const periodMs = grid?.periodMs ?? 1000 / 24
+  const reportDrops = grid?.drops ?? 0
 
   const scoreAt = (offsetMs: number): number =>
     pick(offsetMs).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
@@ -360,7 +375,8 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
     tiedRangeMs: [tied[0], tied[tied.length - 1]],
     sourcePeriodMs: periodMs,
     searchRangeMs: [searchLo, searchHi],
-    replicas
+    replicas,
+    reportDrops
   }
 }
 
@@ -393,6 +409,15 @@ function fitGrid(mediaTimes: number[]): { periodMs: number; residualRmsMs: numbe
     residualRmsMs: Math.sqrt(ss / N) * 1000,
     drops: n[n.length - 1] + 1 - N
   }
+}
+
+// 表に入っているコマ列から、通知が来なかったコマ数を数える（MatchResult.reportDrops と同じ算出）。
+//
+// **画面に出す数字とログの数字を同じ計算から出すために公開している。** 以前は画面側だけ
+// `fps × 尺` から見積もっており、同じ事実にログ 98 コマ／画面 85 コマと 2 つの数字が出ていた。
+// 尺は録画停止までのラグを含むぶん過大なので、素材のコマ周期の格子から数えるこちらが正しい。
+export function countReportDrops(mediaTimes: number[]): number {
+  return fitGrid(mediaTimes)?.drops ?? 0
 }
 
 // トリムした新クリップ用にフレーム表を作り直す。
@@ -541,6 +566,19 @@ export function logMatchResult(result: MatchResult | null): void {
     (replicas ? ` | replica deltas ${replicas}` : '') +
     ` | dropped ${result.duplicateReports} duplicate, ${result.outsideRecording} outside`
   )
+  // 通知そのものが来なかったコマ（MatchResult.reportDrops 参照）。**captured% の分母に
+  // 入っていない**ので、これを出さないと「9 割撮れています」の裏で素材の 2 割が表に無い、
+  // という状態を黙って通すことになる。0 のときは何も出さない（大半はこちら）。
+  if (result.reportDrops > 0) {
+    const total = result.sourceFrames + result.reportDrops
+    console.warn(
+      `[frame-match] ${result.reportDrops} source frame(s) were never reported` +
+      ` (${((result.reportDrops / total) * 100).toFixed(1)}% of the ${total} the source should have had).` +
+      // ASCII のみで書くこと。dev.bat のコンソールは Shift-JIS なので、em ダッシュのような
+      // 非 ASCII 文字は化ける（実際に "窶・" になった）。
+      ' Those frames are absent from the table and from every ratio above; the page did not render them.'
+    )
+  }
   // 疑わしい点は 1 行にまとめて出す。表は採るが、黙って通さないための行。
   const problems = offsetVerdict(result)
   if (problems.length > 0) console.warn(`[frame-match] the offset may be off: ${problems.join('; ')}`)

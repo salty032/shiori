@@ -32,6 +32,13 @@ export type ImageRow = {
   // 撮り逃しの大半は同じ絵が続く区間で実害が無いため、本当に確認が要る枚数だけをこちらに持つ。
   // null/undefined は「まだ検証していない」（保存直後・検証失敗・従来のクリップ）。
   ambiguous_frames?: number | null
+  // 素材のコマ総数（フレーム表の行数）。上の 2 つが多いのか少ないのかを言うための母数。
+  // null/undefined は表を持たないクリップで、そのときだけ fps × duration の見積もりへ落ちる。
+  source_frames?: number | null
+  // 素材にあったはずなのに配信ページから通知が来なかったコマ数。表に入っていないので
+  // 上 3 つの分母にも入らない（撮り逃しより悪い）。
+  // null/undefined は「測っていない」（表を持たないクリップ・従来の行）。
+  unreported_frames?: number | null
   thumb_path: string | null
   source: ImageSource
 }

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { parseCaptureDiag, summarizeSupply } from './capture-diag'
+import { describe, expect, it, vi } from 'vitest'
+import { logBitrateDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 
 // 一定間隔で供給された想定の drawnAt を作る（epoch ミリ秒）。
 function evenlySpaced(count: number, gapMs: number, start = 1_700_000_000_000): number[] {
@@ -50,6 +50,39 @@ describe('summarizeSupply（供給間隔の要約）', () => {
   })
 })
 
+// 「素材のコマ 1 つに何ビット割けたか」がビットレートを決める唯一の指標なので、
+// その算出だけは固定しておく（素材 fps をまたいで比べられるのはこの値だけ）。
+describe('logBitrateDiag（画質の判断に使う実測値）', () => {
+  function captureLog(fn: () => void): string {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      fn()
+      return spy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n')
+    } finally {
+      spy.mockRestore()
+    }
+  }
+
+  it('素材のコマ数で割った 1 コマあたりのビット数を出す', () => {
+    // 30MB / 30秒 = 8Mbps。素材のコマが 720（24fps × 30秒）なら 1 コマ 333kbit。
+    const line = captureLog(() => logBitrateDiag(30_000_000, 30, 720, 23.976, null))
+    expect(line).toContain('actual 8.0Mbps')
+    expect(line).toContain('per source frame 333kbit')
+  })
+
+  it('同じビットレートでも素材のコマが多いほど 1 コマあたりは薄くなる', () => {
+    // 同じ 30MB でも 60fps 素材（1800 コマ）なら 1 コマ 133kbit。**これが今の設計の問題点**で、
+    // 条件の厳しい 60fps 側に薄く配っていることがこの 1 行で見える。
+    const line = captureLog(() => logBitrateDiag(30_000_000, 30, 1800, 59.94, null))
+    expect(line).toContain('per source frame 133kbit')
+  })
+
+  it('素材のコマ表が無ければ 1 コマあたりを出さない（ファイルのフレーム数で代用しない）', () => {
+    const line = captureLog(() => logBitrateDiag(30_000_000, 30, null, null, null))
+    expect(line).toContain('per source frame n/a')
+  })
+})
+
 describe('parseCaptureDiag（レコーダーから届く診断値の検証）', () => {
   const valid = {
     callbacks: 1200,
@@ -59,7 +92,9 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     captureTimeMissing: 0,
     clockSkewMs: -12.5,
     totalVideoFrames: 1400,
-    droppedVideoFrames: 3
+    droppedVideoFrames: 3,
+    tickerTicks: 3600,
+    videoBitsPerSecond: 12_000_000
   }
 
   it('正常な値はそのまま通す', () => {
