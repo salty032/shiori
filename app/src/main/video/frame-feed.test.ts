@@ -292,6 +292,25 @@ describe('offsetVerdict（オフセットの疑わしい点）', () => {
     const clean = { ...base, tiedOffsets: 1, tiedRangeMs: [mid, mid] as [number, number], offsetMs: mid }
     expect(offsetVerdict(clean)).toEqual([])
   })
+
+  // 撮り逃しが 0 ＝供給が足りて位相を測れていない録画。ここで端に寄るのは測定結果ではなく
+  // 揺らぎで、実測でも 30fps 素材 3 本の採用値が右端・中央・左端と跳ね回った。
+  // **黙らせないと、最も出来の良い録画でだけ警告が鳴り続ける。**
+  it('全コマ撮れている録画では、端に寄っていても何も言わない（位相を測れていない）', () => {
+    const [lo] = base.searchRangeMs
+    const full = { ...base, capturedRatio: 1 }
+    const pinned = { ...full, tiedOffsets: 1, tiedRangeMs: [lo, lo] as [number, number], offsetMs: lo }
+    const clipped = { ...full, offsetMs: 7, tiedOffsets: 16, tiedRangeMs: [lo, 14] as [number, number] }
+    expect(offsetVerdict(pinned)).toEqual([])
+    expect(offsetVerdict(clipped)).toEqual([])
+  })
+
+  it('撮り逃しが 1 コマでもあれば従来どおり知らせる（そこは実際に測れている）', () => {
+    const [lo] = base.searchRangeMs
+    const partial = { ...base, capturedRatio: 0.99 }
+    expect(offsetVerdict({ ...partial, tiedOffsets: 1, tiedRangeMs: [lo, lo] as [number, number], offsetMs: lo }))
+      .not.toEqual([])
+  })
 })
 
 describe('summarizeReportDelay（コマ通知が届くまでの遅れ）', () => {
