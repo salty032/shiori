@@ -367,46 +367,33 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 </div>
               )}
             </div>
-            {(single.current_time != null || single.media_type === 'video' || single.width != null) && (
+            {(single.current_time != null || single.media_type === 'video') && (
               <div style={s.metaHalf}>
-                {/* 動画時刻は1段目・列1に単独配置、長さ・フレームレートは2段目に1列ずつ。
-                    span + justify-content で伸ばす形だと、動画時刻だけラベル・値の間隔や
-                    行の縦幅が2段目と揃わず浮いて見えたため、3項目とも同じ「列1つぶんの
-                    metaRow」に統一し、grid の行・列だけを明示的に指定する。 */}
+                {/* ここに置くのは**開くたびに読む情報だけ**。動画時刻と長さを1段目に1列ずつ、
+                    コマ精度の注記を2段目に横いっぱいで置く。fps と解像度は「素性の記録」
+                    なので下の subtleRow 群（取得日時の並び）へ降ろしてある。
+                    span + justify-content で伸ばす形だと、ラベル・値の間隔や行の縦幅が
+                    段ごとに揃わず浮いて見えたため、値の項目は同じ「列1つぶんの metaRow」に
+                    統一し、grid の行・列だけを明示的に指定する。 */}
                 {(single.current_time != null || single.media_type === 'video') && (
                   <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 1 }}>
                     <span style={s.label}>{t('detail.timecode')}</span>
                     <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
                   </div>
                 )}
-                {/* 解像度は1段目の空き列へ。**画質の判断はこの数字が無いと成立しない** —
-                    1コマあたりのビット数は解像度をまたぐと比べられないため（capture-diag.ts の
-                    per pixel と対で読む）。値が無い行（従来のクリップ・取り込み動画）では
-                    行ごと出さない。空欄を出しても「測っていない」と「取れなかった」の区別が
-                    つかず、場所だけ取る。 */}
-                {single.width != null && single.height != null && (
-                  <div style={{
-                    ...s.metaRow,
-                    gridColumn: (single.current_time != null || single.media_type === 'video') ? 2 : 1,
-                    gridRow: 1
-                  }}>
-                    <span style={s.label}>{t('detail.resolution')}</span>
-                    <span style={{ ...s.value, whiteSpace: 'nowrap' }}>{single.width} × {single.height}</span>
-                  </div>
-                )}
                 {single.media_type === 'video' && (
-                  <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 2 }}>
+                  <div style={{ ...s.metaRow, gridColumn: 2, gridRow: 1 }}>
                     <span style={s.label}>{t('detail.duration')}</span>
                     <span style={s.value}>{single.duration != null ? formatTime(single.duration) : '—'}</span>
                   </div>
                 )}
-                {single.media_type === 'video' && (
-                  <div style={{ ...s.metaRow, gridColumn: 2, gridRow: 2 }}>
-                    <span style={s.label}>{t('detail.fps')}</span>
-                    <span style={{ ...s.value, whiteSpace: 'nowrap' }}>
-                      {single.fps != null ? `${formatFps(single.fps)}fps` : '—'}
-                    </span>
-                    {/* 撮り逃したコマがある場合だけ添える。0 枚なら何も出さない（大半はこちら）。
+                {/* コマ精度の注記。**fps を下へ降ろしてもこれは上に残す**——「何コマ嘘がある」は
+                    開いた人が必ず見なければならない情報で、素性の記録とは性質が違う。
+                    問題が無ければ何も出ないので（大半はこちら）、平常時に場所は取らない。
+                    ラベルを付けないのは、文言自体が「3コマ要確認」と自己説明的なため。 */}
+                {(uncapturedNote || unreportedNote) && (
+                  <div style={{ ...s.metaRow, gridColumn: '1 / -1', gridRow: 2, justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+                    {/* 撮り逃したコマがある場合だけ添える。0 枚なら何も出さない。
                         絵の変わり目に当たるとコマ打ちの数を誤るため、黙って隠さない。
                         割合が大きいときだけ色を付けて、数え直しが要ることを示す。 */}
                     {uncapturedNote && (
@@ -490,6 +477,32 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   </button>
                 </div>
               )}
+              {/* fps と解像度は取得日時と同じ「素性の記録」の扱い。上のメタ欄は開くたびに読む
+                  情報（動画時刻・長さ・コマ精度の注記）のための場所で、この 2 つはそこに置く
+                  ほど頻繁には参照しない。
+                  それでも残すのは、**コンソールのログは再起動で消えるが DB は残る**ため——
+                  全画面で撮ったかウィンドウで撮ったか（実測で 1920x1080 と 1180x663 の差が
+                  出る）や素材が何 fps だったかを後から知る経路がここしか無い。1 コマあたりの
+                  ビット数は解像度をまたぐと比べられないので、粗さの理由を後日たどるときの
+                  唯一の手掛かりになる。
+                  **どちらも必ず 1 行出す。取れていなければ `—`。** 値の有無で行が出たり消えたり
+                  すると、クリップごとに項目の並びが変わって形が揃わない。**形式を優先し、
+                  例外を作らない**（2026-08-13 の判断。それ以前は解像度だけ行ごと隠していた）。
+                  推定値で埋めないことと、行を出さないことは別の話で、守るべきは前者——
+                  `—` は「測れなかった」であって、それ自体が読み取れる情報になっている。
+                  **一覧（ThumbCell）には出さない**方針は従来どおり。 */}
+              {single.media_type === 'video' && (
+                <div style={s.subtleRow}>
+                  <span style={s.subtleLabel}>{t('detail.fps')}</span>
+                  <span style={s.subtleValue}>{single.fps != null ? `${formatFps(single.fps)}fps` : '—'}</span>
+                </div>
+              )}
+              <div style={s.subtleRow}>
+                <span style={s.subtleLabel}>{t('detail.resolution')}</span>
+                <span style={s.subtleValue}>
+                  {single.width != null && single.height != null ? `${single.width} × ${single.height}` : '—'}
+                </span>
+              </div>
               <div style={s.subtleRow}>
                 <span style={s.subtleLabel}>{t('detail.capturedAt')}</span>
                 <span style={s.subtleValue}>{new Date(single.captured_at).toLocaleString(locale)}</span>
