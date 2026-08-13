@@ -78,6 +78,46 @@ describe('extension との定数パリティ（M-1）', () => {
   })
 })
 
+describe('録画停止後のプレーヤー UI 復帰（post-capture の immediate）', () => {
+  // ホスト別の復帰待ちはスクリーンショット用に調整された値。クリップでは合図が「録画が
+  // 実際に止まった後」にしか来ないので、待っても写り込みは防げず停止から数秒 UI が
+  // 戻らないだけになる。クリップだけこの待ちを飛ばす経路を、両端で固定する。
+  const delayFn = contentJs.match(/function restoreDelayFor\(host, immediate\)[\s\S]*?\n}/)?.[0] ?? ''
+  const delayTable = contentJs.match(/const POST_CAPTURE_RESTORE_DELAY_BY_HOST = \{[\s\S]*?\n\}/)?.[0] ?? ''
+  const defaultDelay = contentJs.match(/const DEFAULT_POST_CAPTURE_RESTORE_DELAY_MS = [^\n]+/)?.[0] ?? ''
+  // eslint-disable-next-line no-new-func
+  const restoreDelayFor = Function(`"use strict";
+${defaultDelay}
+${delayTable}
+${delayFn}
+return restoreDelayFor`)() as (host: string, immediate: boolean) => number
+
+  it('immediate なら待たない', () => {
+    expect(restoreDelayFor('youtube.com', true)).toBe(0)
+    expect(restoreDelayFor('example.test', true)).toBe(0)
+  })
+
+  it('immediate でなければ従来どおりホスト別に待つ（スクショの挙動を変えない）', () => {
+    expect(restoreDelayFor('youtube.com', false)).toBeGreaterThan(0)
+    // 表に無いホストも既定値で待つ
+    expect(restoreDelayFor('example.test', false)).toBeGreaterThan(0)
+  })
+
+  it('immediate が background.js / content.js の検疫を素通りする', () => {
+    // どちらかが落とすと、印を付けても届かず待ちが残る（三重実装・M-1 と同じ形）。
+    expect(backgroundJs).toContain("{ type: 'post-capture', immediate: msg.immediate === true }")
+    expect(contentJs).toContain("{ type: 'post-capture', immediate: msg.immediate === true }")
+  })
+
+  it('印を付けるのは録画側だけで、スクリーンショット側は従来どおり', () => {
+    const recordingTs = readFileSync(join(__dirname, 'video/recording.ts'), 'utf-8')
+    const bootstrapTs = readFileSync(join(__dirname, 'bootstrap.ts'), 'utf-8')
+    expect(recordingTs).toContain("broadcastMessage({ type: 'post-capture', immediate: true })")
+    expect(bootstrapTs).toContain("broadcastMessage({ type: 'post-capture' })")
+    expect(bootstrapTs).not.toContain('immediate: true')
+  })
+})
+
 describe('コマ通知が途切れる経路（content.js の rVFC ループ）', () => {
   it('録画中の復帰確認はタイムコードの定期送信より十分に短い間隔で回る', () => {
     // rVFC ループは <video> の差し替えで止まる。復帰が定期送信（5秒）頼みだと、

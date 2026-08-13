@@ -71,6 +71,7 @@ interface RecorderApi {
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
   sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
+  reportStopped: (sessionId: number) => void
   reportError: (msg: string, sessionId: number) => void
   onBench: (cb: (data: { variants: BenchVariant[]; seconds: number }) => void) => void
   sendBenchResult: (results: BenchResult[]) => void
@@ -522,6 +523,13 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessio
     // 既に次のセッションが始まっていて recorder が入れ替わっていたら、
     // 新セッションの状態を消してしまわないよう何もしない。
     if (recorder === rec) resetState()
+
+    // 画面キャプチャはこの時点で完全に終わっている（MediaRecorder は停止済み、
+    // ストリームも cleanup で解放済み）。この下の尺補正・ArrayBuffer 化・IPC 転送は
+    // 数十MB を相手にするため実測で数秒かかるので、**その前に**プレーヤー UI の復帰を
+    // main へ知らせる。エラー系（この後 return する経路）でも復帰は要るので、
+    // recorderFailed の判定より前に出す。
+    window.recorderApi.reportStopped(sessionId)
 
     if (recorderFailed) return
 

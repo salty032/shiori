@@ -28,6 +28,10 @@ let recordingWatchdogToken = 0
 // レコーダーウィンドウ側のレースで旧セッションの完了/エラー通知が遅延して届いても、
 // 現在のセッションと一致しない限り recorder-ipc.ts 側で無視し、新しい録画状態を壊さない。
 let currentRecordingSessionId = 0
+// この録画で UI 復帰（post-capture）を既に送ったか。releaseCaptureUi() で先に送った場合、
+// finishRecordingState() の二度目を撥ねるために持つ（content.js の post-capture 処理は
+// scheduleRestorePlayerUI がタイマーを張り直すので、二度目を受けると復帰がその分だけ遅れる）。
+let uiHoldReleased = false
 
 export function isCurrentlyRecording(): boolean {
   return isRecording
@@ -186,6 +190,7 @@ export async function startRecording(): Promise<void> {
     const maxSeconds = settings.clipMaxSeconds ?? 30
 
     isRecording = true
+    uiHoldReleased = false
     // pre-capture より先に始める。content.js は pre-capture を受けた時点でコマ通知を
     // 出し始めるため、こちらの受け口が後だと最初の数コマを取りこぼす。
     startFrameFeed()
@@ -257,6 +262,22 @@ export function stopRecording(): void {
   getRecorderWindow()?.webContents.send('recorder:stop')
 }
 
+// プレーヤー UI の復帰だけを先に流す（録画状態そのものは触らない）。
+//
+// 録画の停止から finishRecordingState() までの間には、レンダラー側の webm 尺補正・
+// 数十MB の arrayBuffer 変換・main への IPC 転送が挟まり、実測で数秒かかる。**画面
+// キャプチャ自体は MediaRecorder が止まった時点で終わっている**ので、この待ちは UI を
+// 隠しておく理由にならない。動画は意図して撮るぶん撮った直後に確認したくなるため、
+// そこでシークバーも再生ボタンも出ないのは操作の妨げになる。
+//
+// 呼び元はレコーダーウィンドウの rec.onstop（recorder:stopped）。onstop は録画が実際に
+// 止まった後にしか発火しないので、復帰が早すぎて最後の数フレームに UI が写り込むことはない。
+export function releaseCaptureUi(): void {
+  if (!isRecording || uiHoldReleased) return
+  uiHoldReleased = true
+  broadcastMessage({ type: 'post-capture', immediate: true })
+}
+
 export function finishRecordingState(): void {
   // ウォッチドッグを無効化する（正常終了・エラー・クラッシュ検知のどの経路でも、
   // 状態が確定した以上ウォッチドッグの出番はない）。
@@ -272,7 +293,13 @@ export function finishRecordingState(): void {
   // setPendingDisplaySource を通らずに始まったとき、前回の（別ディスプレイかもしれない）
   // 画面をそのまま撮ってしまう。
   setPendingDisplaySource(null)
-  if (wasRecording) broadcastMessage({ type: 'post-capture' })
+  // releaseCaptureUi() で先に送っていれば、ここでは送らない。異常系（recorder:stopped が
+  // 届かない・レコーダーのクラッシュ・ウォッチドッグ）では未送のままここへ来るので、
+  // 保険としての post-capture はこの経路に残っている。
+  // immediate: true — 拡張側のホスト別復帰待ち（スクショ用の 1.6〜3.2 秒）を踏ませない。
+  // 録画は既に止まっているので、待っても UI が写り込む余地は無い（content.js の restoreDelayFor）。
+  if (wasRecording && !uiHoldReleased) broadcastMessage({ type: 'post-capture', immediate: true })
+  uiHoldReleased = false
   setTrayRecording(false)
 }
 

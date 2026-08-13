@@ -11,7 +11,7 @@ import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
-import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply } from './recording'
+import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply, releaseCaptureUi } from './recording'
 import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../captured-media'
@@ -38,6 +38,18 @@ export function registerRecorderIpc(): void {
   ipcMain.handle('recorder:getCrop', (event, streamW: number, streamH: number) => {
     if (!isTrustedRecorderSender(event)) return null
     return computeVideoCrop(streamW, streamH)
+  })
+
+  // 録画が実際に止まった合図。**保存の完了ではない**ので録画状態は触らず、隠している
+  // プレーヤー UI の復帰だけを先に流す（理由は recording.ts の releaseCaptureUi）。
+  // この後に重い後処理（尺補正・数十MB の転送）が続き、recorder:done がその後に届く。
+  ipcMain.on('recorder:stopped', (event, sessionId: number) => {
+    if (!isTrustedRecorderSender(event)) return
+    // recorder:done / recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、
+    // 現在のセッションと一致しない通知は無視する。旧セッションの遅れた合図で、
+    // 始まったばかりの新しい録画の UI を戻してしまわないため。
+    if (!isCurrentRecordingSession(sessionId)) return
+    releaseCaptureUi()
   })
 
   ipcMain.on('recorder:error', (event, msg: string, sessionId: number) => {

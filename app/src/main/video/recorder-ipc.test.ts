@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
@@ -20,10 +20,12 @@ vi.mock('./recorder-window', () => ({
 const finishRecordingState = vi.fn()
 const getRecordingMeta = vi.fn(() => null)
 const isCurrentRecordingSession = vi.fn((_id: number) => true)
+const releaseCaptureUi = vi.fn()
 vi.mock('./recording', () => ({
   finishRecordingState: () => finishRecordingState(),
   getRecordingMeta: () => getRecordingMeta(),
   isCurrentRecordingSession: (id: number) => isCurrentRecordingSession(id),
+  releaseCaptureUi: () => releaseCaptureUi(),
   // 次の録画のビットレートの根拠として実測供給を戻す口（recording.ts）。保存経路の検証には
   // 関わらないので受け流す。
   recordMeasuredSupply: () => {}
@@ -83,6 +85,7 @@ vi.mock('fs/promises', () => ({
 }))
 
 import { registerRecorderIpc } from './recorder-ipc'
+import { isTrustedRecorderSender } from './recorder-window'
 
 describe('recorder:error / recorder:done - 旧セッションからの遅延メッセージ', () => {
   beforeEach(() => {
@@ -124,6 +127,39 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
     await handler({}, new ArrayBuffer(10), 5, 120, 1)
     expect(finishRecordingState).toHaveBeenCalled()
     expect(registerCapturedMedia).toHaveBeenCalled()
+  })
+})
+
+describe('recorder:stopped - UI 復帰だけを先に流す', () => {
+  beforeEach(() => {
+    handlers.clear()
+    finishRecordingState.mockClear()
+    releaseCaptureUi.mockClear()
+    isCurrentRecordingSession.mockClear()
+    isCurrentRecordingSession.mockReturnValue(true)
+    vi.mocked(isTrustedRecorderSender).mockReturnValue(true)
+    registerRecorderIpc()
+  })
+
+  // 送信元検証を false のまま次の describe へ持ち越すと、そちらが全部無視されて通らなくなる。
+  afterEach(() => { vi.mocked(isTrustedRecorderSender).mockReturnValue(true) })
+
+  it('録画状態は触らない（保存の完了ではないため）', () => {
+    handlers.get('recorder:stopped')!({}, 1)
+    expect(releaseCaptureUi).toHaveBeenCalled()
+    expect(finishRecordingState).not.toHaveBeenCalled()
+  })
+
+  it('sessionId が現在の録画と一致しなければ無視する（新しい録画の UI を戻さない）', () => {
+    isCurrentRecordingSession.mockReturnValue(false)
+    handlers.get('recorder:stopped')!({}, 999)
+    expect(releaseCaptureUi).not.toHaveBeenCalled()
+  })
+
+  it('レコーダーウィンドウ以外からの送信は無視する', () => {
+    vi.mocked(isTrustedRecorderSender).mockReturnValue(false)
+    handlers.get('recorder:stopped')!({}, 1)
+    expect(releaseCaptureUi).not.toHaveBeenCalled()
   })
 })
 

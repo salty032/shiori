@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld('recorderApi', {
   sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: unknown) => {
     ipcRenderer.send('recorder:done', webm, duration, frameCount, sessionId, drawnAt, diag)
   },
+  // 録画が実際に止まった時点の合図。重い後処理（尺補正・ArrayBuffer 化・IPC 転送）の
+  // 前に出し、main 側でプレーヤー UI の復帰だけを先に流させる。
+  reportStopped: (sessionId: number) => {
+    ipcRenderer.send('recorder:stopped', sessionId)
+  },
   reportError: (msg: string, sessionId: number) => {
     ipcRenderer.send('recorder:error', msg, sessionId)
   },
