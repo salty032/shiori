@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // content.js はバンドラ無しで配布される素の content script なので import できない。
 // extension-frame-step.test.ts と同じく、テキストとして読み込み該当関数だけを取り出し、
 // ブラウザ側（seek / seeked / rVFC / rAF）とページ側の状態はスタブを注入して評価する。
-const contentJs = readFileSync(join(__dirname, '../../../extension/content.js'), 'utf-8')
+const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
 
 function extractFunction(source: string, name: string): string {
   const start = source.indexOf(`function ${name}(`)

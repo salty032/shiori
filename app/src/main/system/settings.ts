@@ -2,10 +2,10 @@ import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, existsSync, renameSync } from 'fs'
 import { writeFile, rename, unlink } from 'fs/promises'
-import { normalizeCaptureHotkey } from './hotkey'
-import type { SmartFolder, Settings, Lang } from '../shared/types'
-import { langFromLocale } from '../shared/i18n'
-import { SETTINGS_DEFAULTS } from '../shared/settingsDefaults'
+import { normalizeCaptureHotkey } from '../browser/hotkey'
+import type { SmartFolder, Settings, Lang } from '../../shared/types'
+import { langFromLocale } from '../../shared/i18n'
+import { SETTINGS_DEFAULTS } from '../../shared/settingsDefaults'
 
 export type { SmartFolder, Settings }
 

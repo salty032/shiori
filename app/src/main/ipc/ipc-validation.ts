@@ -2,9 +2,9 @@
 // すべてモジュール state に依存しない純粋関数（テスト容易・index.ts から切り出し）。
 import { join, extname } from 'path'
 import { access } from 'fs/promises'
-import { resolveRealCapturePath } from './paths'
-import type { ImageQuery, ImageListRequest, SortOrder } from '../shared/types'
-import { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../shared/constants'
+import { resolveRealCapturePath } from '../system/paths'
+import type { ImageQuery, ImageListRequest, SortOrder } from '../../shared/types'
+import { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../../shared/constants'
 
 export const MAX_IMAGE_LIMIT = 200
 export const MAX_TEXT_LENGTH = 500

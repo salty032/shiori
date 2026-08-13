@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
-vi.mock('./windows', () => ({
+vi.mock('../system/windows', () => ({
   handleTrusted: (channel: string, listener: (...args: unknown[]) => unknown) => {
     handlers.set(channel, listener)
   },
@@ -10,7 +10,7 @@ vi.mock('./windows', () => ({
 }))
 
 const addTag = vi.fn()
-vi.mock('./db', () => ({
+vi.mock('../db', () => ({
   addTag: (...args: unknown[]) => addTag(...args),
   getImageTags: vi.fn(() => []),
   removeImageTag: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('./db', () => ({
   deleteAllAiTags: vi.fn(() => 0)
 }))
 
-vi.mock('./tagger', () => ({
+vi.mock('../capture/tagger', () => ({
   ensureModel: vi.fn(),
   runTagger: vi.fn(async () => []),
   isModelDownloaded: vi.fn(() => false),
@@ -31,11 +31,11 @@ vi.mock('./tagger', () => ({
   cancelModelDownload: vi.fn()
 }))
 
-vi.mock('./paths', () => ({
+vi.mock('../system/paths', () => ({
   resolveRealCapturePath: vi.fn(async (p: string) => p)
 }))
 
-vi.mock('./busy', () => ({ beginTask: vi.fn(), endTask: vi.fn() }))
+vi.mock('../system/busy', () => ({ beginTask: vi.fn(), endTask: vi.fn() }))
 
 import { registerTaggerHandlers } from './ipc-tagger'
 

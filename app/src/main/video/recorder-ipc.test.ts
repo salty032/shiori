@@ -33,28 +33,28 @@ vi.mock('./recording', () => ({
 
 const sendNotice = vi.fn()
 const sendToRenderer = vi.fn()
-vi.mock('../windows', () => ({
+vi.mock('../system/windows', () => ({
   sendNotice: (...args: unknown[]) => sendNotice(...args),
   sendToRenderer: (...args: unknown[]) => sendToRenderer(...args)
 }))
 
-vi.mock('../capture', () => ({
+vi.mock('../capture/capture', () => ({
   computeVideoCrop: vi.fn(),
   writeCaptureFile: vi.fn(async () => '/mock/captures/cap_1.webm')
 }))
 
-vi.mock('../paths', () => ({
+vi.mock('../system/paths', () => ({
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
   thumbPathFor: vi.fn((p: string) => `${p}.thumb.png`)
 }))
 
-vi.mock('../settings', () => ({
+vi.mock('../system/settings', () => ({
   // i18n の t() は loadSettings().language を読むため、言語を明示する
   // （未指定だと currentLang() が undefined になり辞書引きで throw する）。
   loadSettings: vi.fn(() => ({ clipNotify: true, language: 'ja' }))
 }))
 
-vi.mock('../browser-notice', () => ({
+vi.mock('../browser/browser-notice', () => ({
   sendBrowserNotice: vi.fn()
 }))
 
@@ -76,7 +76,7 @@ vi.mock('./frame-feed', () => ({
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))
-vi.mock('../captured-media', () => ({
+vi.mock('../capture/captured-media', () => ({
   registerCapturedMedia: (params: unknown) => registerCapturedMedia(params)
 }))
 

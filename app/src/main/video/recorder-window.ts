@@ -2,7 +2,7 @@
 import { app, BrowserWindow, desktopCapturer } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
-import { isAllowedDevRendererUrl } from '../windows'
+import { isAllowedDevRendererUrl } from '../system/windows'
 
 let recorderWindow: BrowserWindow | null = null
 let trustedRecorderUrl: string | null = null

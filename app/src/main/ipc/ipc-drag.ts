@@ -11,13 +11,13 @@
 import { app, nativeImage } from 'electron'
 import { copyFileSync, mkdirSync, rmSync, statSync } from 'fs'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'path'
-import { getImage } from './db'
-import { resolveRealCapturePathSync } from './paths'
-import { onTrusted, sendToRenderer } from './windows'
+import { getImage } from '../db'
+import { resolveRealCapturePathSync } from '../system/paths'
+import { onTrusted, sendToRenderer } from '../system/windows'
 import {
   sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, optionalPositiveInteger
 } from './ipc-validation'
-import { CH } from '../shared/api'
+import { CH } from '../../shared/api'
 
 // ドラッグ開始は同期コピーでメインプロセスを止めるため、選択が数千枚でも
 // 現実的な時間で返せる枚数に制限する。超過分は黙って切り捨てる（ドラッグの
@@ -145,7 +145,7 @@ export function registerDragHandlers(): void {
     // フォールバックとしてアプリアイコンを使い、それも読めなければドラッグ自体を諦める
     // （アイコンなしで開始する手段がないため）。
     let icon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
-    if (icon.isEmpty()) icon = nativeImage.createFromPath(join(__dirname, '../../build/icon.ico'))
+    if (icon.isEmpty()) icon = nativeImage.createFromPath(join(__dirname, '../../../build/icon.ico'))
     if (icon.isEmpty()) {
       console.warn('[drag] no usable drag icon; aborted')
       return

@@ -1,6 +1,6 @@
 // 録画クリップ開始/停止用のグローバルホットキー登録。
 import { globalShortcut } from 'electron'
-import { t } from '../i18n'
+import { t } from '../system/i18n'
 
 let currentClipHotkey = 'Alt+D'
 

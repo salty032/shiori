@@ -7,7 +7,7 @@ const { countImages, listReferencedPaths } = vi.hoisted(() => ({
 }))
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
-vi.mock('./db', () => ({ countImages, listReferencedPaths }))
+vi.mock('../db', () => ({ countImages, listReferencedPaths }))
 
 import { selectOrphans, sweepOrphanFiles, type SweepCandidate } from './sweep-orphans'
 

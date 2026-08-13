@@ -3,7 +3,7 @@
 // ディスクアクセスは発生しない）。唯一の例外は、生成時に文字列を焼き込むトレイメニューで、
 // これだけは言語変更時に rebuildTray() で組み直す。
 import { loadSettings } from './settings'
-import { translate, LOCALE_TAG, type MessageKey, type Params, type Lang } from '../shared/i18n'
+import { translate, LOCALE_TAG, type MessageKey, type Params, type Lang } from '../../shared/i18n'
 
 export function currentLang(): Lang {
   return loadSettings().language

@@ -18,6 +18,8 @@ extension/.amo-upload-uuid
 Thumbs.db
 .claude/
 .superpowers/
+# Claude Code がこのフォルダで作業するときだけ読む前提メモ（他プロジェクトには影響しない）
+CLAUDE.md
 
 # 開発用ハンドオフ/レビューメモ・ローカル専用ドキュメント（公開リポジトリ・配布物には不要）
 # SPEC.md / SERVICES.md / superpowers プラン等はここに置いてローカル限定にする

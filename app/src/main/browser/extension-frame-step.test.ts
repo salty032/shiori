@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 // extension-parity.test.ts と同じく、テキストとして読み込み該当関数だけを取り出して評価する。
 // 判定部は DOM に触らない純粋関数として切ってあるため、これで素材の fps を変えながら
 // 「1ステップ＝ちょうど1コマ」を検証できる。
-const contentJs = readFileSync(join(__dirname, '../../../extension/content.js'), 'utf-8')
+const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
 
 function extractFunction(source: string, name: string): string {
   const start = source.indexOf(`function ${name}(`)

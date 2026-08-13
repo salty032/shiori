@@ -3,8 +3,8 @@ import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import { ensureCaptureSubDir } from './paths'
-import { t } from './i18n'
+import { ensureCaptureSubDir } from '../system/paths'
+import { t } from '../system/i18n'
 
 export type CropRect = { x: number; y: number; w: number; h: number }
 

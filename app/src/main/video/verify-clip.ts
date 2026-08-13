@@ -10,7 +10,7 @@ import { getFrameSignatures } from './ffmpeg'
 import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
 import { dropVideoFrames, saveVideoFrames, setAmbiguousFrames, setFrameCounts, type StoredFrame } from '../db'
 import { countReportDrops } from './frame-feed'
-import { sendToRenderer } from '../windows'
+import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
 
 // 検証で確定した枚数を画面へ反映させる。

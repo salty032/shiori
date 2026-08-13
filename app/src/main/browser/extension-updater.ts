@@ -1,7 +1,7 @@
 import { app, Notification } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs'
-import { compareVersions } from './version'
+import { compareVersions } from '../system/version'
 
 export function bundledExtPath(): string {
   return app.isPackaged

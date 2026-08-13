@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
-vi.mock('../windows', () => ({
+vi.mock('../system/windows', () => ({
   handleTrusted: (channel: string, listener: (...args: unknown[]) => unknown) => {
     handlers.set(channel, listener)
   }
@@ -25,7 +25,7 @@ vi.mock('../db', () => ({
   getImageTags: vi.fn(() => [])
 }))
 
-vi.mock('../paths', () => ({
+vi.mock('../system/paths', () => ({
   resolveRealCapturePath: vi.fn(async (p: string) => p),
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
   thumbPathFor: vi.fn((p: string) => `${p}.thumb.png`)
@@ -43,7 +43,7 @@ vi.mock('./ffmpeg', () => ({
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 99 }))
-vi.mock('../captured-media', () => ({
+vi.mock('../capture/captured-media', () => ({
   registerCapturedMedia: (params: unknown) => registerCapturedMedia(params)
 }))
 

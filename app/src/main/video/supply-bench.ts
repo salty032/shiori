@@ -13,7 +13,7 @@
 //
 // 録画・保存は一切行わない。ライブラリを汚さずに何度でも試せるようにするため。
 import { desktopCapturer, globalShortcut, ipcMain } from 'electron'
-import { getBrowserWindowRect } from '../capture'
+import { getBrowserWindowRect } from '../capture/capture'
 import { screen as electronScreen } from 'electron'
 import { getRecorderWindow, isTrustedRecorderSender, setPendingDisplaySource } from './recorder-window'
 import { isCurrentlyRecording } from './recording'

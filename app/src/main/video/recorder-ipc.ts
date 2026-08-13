@@ -2,11 +2,11 @@
 // recorder:* は ShioriApi の CH 定数の対象外（別契約・別検証方式。preload/recorder.ts 参照）。
 import { ipcMain } from 'electron'
 import { unlink } from 'fs/promises'
-import { computeVideoCrop, writeCaptureFile } from '../capture'
-import { sendNotice, sendToRenderer } from '../windows'
-import { ensureCaptureSubDir, thumbPathFor } from '../paths'
-import { loadSettings } from '../settings'
-import { sendBrowserNotice } from '../browser-notice'
+import { computeVideoCrop, writeCaptureFile } from '../capture/capture'
+import { sendNotice, sendToRenderer } from '../system/windows'
+import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
+import { loadSettings } from '../system/settings'
+import { sendBrowserNotice } from '../browser/browser-notice'
 import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
@@ -14,9 +14,9 @@ import { verifyClipFrames } from './verify-clip'
 import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply, releaseCaptureUi } from './recording'
 import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
-import { registerCapturedMedia } from '../captured-media'
+import { registerCapturedMedia } from '../capture/captured-media'
 import { saveVideoFrames, setFrameCounts } from '../db'
-import { t } from '../i18n'
+import { t } from '../system/i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
 const MAX_WEBM_BYTES = 1024 * 1024 * 1024 // 1GB

@@ -2,28 +2,28 @@
 import { dialog } from 'electron'
 import { access, stat, copyFile, unlink } from 'fs/promises'
 import { basename, extname } from 'path'
-import { getMainWindow, handleTrusted, sendToRenderer } from './windows'
+import { getMainWindow, handleTrusted, sendToRenderer } from '../system/windows'
 import {
   listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts,
   getImage, deleteImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
   listImagesMissingThumb, listImagesForThumbCheck, setThumbPath,
   listImagesMissingFps, setFps
-} from './db'
+} from '../db'
 import {
   MAX_EXPORT_IDS,
   optionalText, optionalPositiveInteger,
   imageQuery, imageListRequest,
   sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, uniqueExportPath
 } from './ipc-validation'
-import { CH } from '../shared/api'
-import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../shared/constants'
-import type { DeleteImageResult } from '../shared/types'
-import { resolveRealCapturePath, thumbPathFor } from './paths'
-import { createImageThumb } from './image-thumb'
-import { getVideoThumbProvider } from './video-thumb-provider'
-import { createProgressThrottle } from './progress-throttle'
-import { beginTask, endTask } from './busy'
-import { t } from './i18n'
+import { CH } from '../../shared/api'
+import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../../shared/constants'
+import type { DeleteImageResult } from '../../shared/types'
+import { resolveRealCapturePath, thumbPathFor } from '../system/paths'
+import { createImageThumb } from '../capture/image-thumb'
+import { getVideoThumbProvider } from '../capture/video-thumb-provider'
+import { createProgressThrottle } from '../system/progress-throttle'
+import { beginTask, endTask } from '../system/busy'
+import { t } from '../system/i18n'
 // 削除を並列投入しすぎると Windows のファイル操作が一時的に失敗するため絞る
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
 const DELETE_CONCURRENCY = 4

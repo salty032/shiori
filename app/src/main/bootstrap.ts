@@ -3,49 +3,49 @@ import { extname, join } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream, mkdirSync } from 'fs'
 import { Readable } from 'stream'
-import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './ws-server'
+import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './browser/ws-server'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, shouldSuppressBrowserTargetUpdate, SilentCaptureAbort
-} from './capture'
+} from './capture/capture'
 import { initDb, getImage } from './db'
-import { registerCapturedMedia } from './captured-media'
+import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
-import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './settings'
-import { activeTaskLabels } from './busy'
-import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion } from './extension-updater'
-import { compareVersions } from './version'
-import { migrateThumbnailsToOwnDir } from './migrate-thumbnails'
-import { sweepOrphanFiles } from './sweep-orphans'
-import { initAutoUpdater, quitAndInstallUpdate } from './updater'
-import { resolveRealCapturePath, thumbPathFor } from './paths'
-import { normalizeCaptureHotkey, captureHotkeyMainKey } from './hotkey'
-import { createImageThumb } from './image-thumb'
+import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './system/settings'
+import { activeTaskLabels } from './system/busy'
+import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion } from './browser/extension-updater'
+import { compareVersions } from './system/version'
+import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
+import { sweepOrphanFiles } from './capture/sweep-orphans'
+import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
+import { resolveRealCapturePath, thumbPathFor } from './system/paths'
+import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
+import { createImageThumb } from './capture/image-thumb'
 import {
   getMainWindow, setQuitting,
   sendToRenderer, sendNotice, showMainWindow, isMainWindowFocused,
   handleTrusted, safeExternalUrl,
   createWindow
-} from './windows'
-import { createTray, rebuildTrayMenu } from './tray'
-import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './startup'
+} from './system/windows'
+import { createTray, rebuildTrayMenu } from './system/tray'
+import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './system/startup'
 import {
   getLastTimecode, getLastTimecodeAt, setLastTimecode,
   getLastFocusedTimecodeAt, markFocusedTimecodeNow
-} from './timecode'
-import { registerImageHandlers, backfillThumbnails, backfillFps } from './ipc-images'
-import { registerDragHandlers, cleanupDragTempDir } from './ipc-drag'
-import { registerTaggerHandlers } from './ipc-tagger'
-import { registerShareHandlers } from './ipc-share'
-import { registerImportHandlers } from './ipc-import'
-import { optionalPositiveInteger } from './ipc-validation'
-import { sendBrowserNotice } from './browser-notice'
-import { decideVersionNotice } from './version-notice'
+} from './browser/timecode'
+import { registerImageHandlers, backfillThumbnails, backfillFps } from './ipc/ipc-images'
+import { registerDragHandlers, cleanupDragTempDir } from './ipc/ipc-drag'
+import { registerTaggerHandlers } from './ipc/ipc-tagger'
+import { registerShareHandlers } from './ipc/ipc-share'
+import { registerImportHandlers } from './ipc/ipc-import'
+import { optionalPositiveInteger } from './ipc/ipc-validation'
+import { sendBrowserNotice } from './browser/browser-notice'
+import { decideVersionNotice } from './system/version-notice'
 import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
-import { waitForPreferredTimecode, type CaptureTimecode } from './timecode-request'
-import { t } from './i18n'
+import { waitForPreferredTimecode, type CaptureTimecode } from './browser/timecode-request'
+import { t } from './system/i18n'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
 // 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の

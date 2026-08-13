@@ -9,7 +9,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 const broadcastMessage = vi.fn()
 let extensionListener: ((msg: unknown) => void) | null = null
-vi.mock('../ws-server', () => ({
+vi.mock('../browser/ws-server', () => ({
   broadcastMessage: (msg: unknown) => {
     broadcastMessage(msg)
     // request-timecode には拡張が即応答する前提でテストする（応答が来ない経路は
@@ -43,18 +43,18 @@ vi.mock('electron', () => ({
   screen: { getDisplayNearestPoint: vi.fn(() => ({ id: 1, displayFrequency: 60 })) }
 }))
 
-vi.mock('../capture', () => ({
+vi.mock('../capture/capture', () => ({
   canCaptureVideo: vi.fn(() => true),
   getBrowserWindowRect: vi.fn(() => ({ left: 0, top: 0, width: 800, height: 600 })),
   setBrowserWindowPos: vi.fn(),
   setVideoRect: vi.fn()
 }))
 
-vi.mock('../settings', () => ({
+vi.mock('../system/settings', () => ({
   loadSettings: vi.fn(() => ({ clipMaxSeconds: 30, language: 'ja' }))
 }))
 
-vi.mock('../windows', () => ({ isMainWindowFocused: vi.fn(() => false) }))
+vi.mock('../system/windows', () => ({ isMainWindowFocused: vi.fn(() => false) }))
 
 vi.mock('./recorder-window', () => ({
   getRecorderWindow: vi.fn(() => ({
@@ -66,14 +66,14 @@ vi.mock('./recorder-window', () => ({
 }))
 
 vi.mock('./frame-feed', () => ({ startFrameFeed: vi.fn(), stopFrameFeed: vi.fn() }))
-vi.mock('../tray', () => ({ setTrayRecording: vi.fn() }))
-vi.mock('../timecode', () => ({
+vi.mock('../system/tray', () => ({ setTrayRecording: vi.fn() }))
+vi.mock('../browser/timecode', () => ({
   getLastTimecode: vi.fn(() => ({ title: 'テスト', currentTime: 12, url: 'https://example.test/watch' })),
   getLastTimecodeAt: vi.fn(() => Date.now()),
   setLastTimecode: vi.fn()
 }))
-vi.mock('../browser-notice', () => ({ sendBrowserNotice: vi.fn() }))
-vi.mock('../i18n', () => ({ t: (key: string) => key }))
+vi.mock('../browser/browser-notice', () => ({ sendBrowserNotice: vi.fn() }))
+vi.mock('../system/i18n', () => ({ t: (key: string) => key }))
 
 import { finishRecordingState, isCurrentlyRecording, releaseCaptureUi, startRecording } from './recording'
 

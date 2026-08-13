@@ -6,7 +6,7 @@
 // 各モジュールの既存フラグ（isShareImporting など）は二重起動防止用にそのまま残す。
 // こちらは「終了してよいか」を判断するためだけの登録簿。
 import { t } from './i18n'
-import type { MessageKey } from '../shared/i18n'
+import type { MessageKey } from '../../shared/i18n'
 
 export type BusyTask = 'import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
 

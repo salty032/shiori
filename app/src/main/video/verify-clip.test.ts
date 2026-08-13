@@ -12,7 +12,7 @@ vi.mock('./ffmpeg', () => ({
 }))
 
 const sendToRenderer = vi.fn()
-vi.mock('../windows', () => ({ sendToRenderer: (...args: unknown[]) => sendToRenderer(...args) }))
+vi.mock('../system/windows', () => ({ sendToRenderer: (...args: unknown[]) => sendToRenderer(...args) }))
 
 const dropVideoFrames = vi.fn()
 vi.mock('../db', () => ({

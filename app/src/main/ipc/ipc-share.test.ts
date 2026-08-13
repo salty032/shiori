@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('./windows', () => ({
+vi.mock('../system/windows', () => ({
   getMainWindow: vi.fn(() => null),
   handleTrusted: (channel: string, listener: (...args: unknown[]) => unknown) => {
     handlers.set(channel, listener)
@@ -17,18 +17,18 @@ vi.mock('./windows', () => ({
   safeExternalUrl: vi.fn((url: string) => url)
 }))
 
-vi.mock('./db', () => ({
+vi.mock('../db', () => ({
   listImagesForExport: vi.fn(() => [])
 }))
 
-vi.mock('./settings', () => ({
+vi.mock('../system/settings', () => ({
   // i18n の t()（ダイアログ文言など）が loadSettings().language を読むため言語を明示する。
   loadSettings: vi.fn(() => ({ smartFolders: [], language: 'ja' })),
   saveSettings: vi.fn(),
   smartFolders: vi.fn(() => [])
 }))
 
-vi.mock('./paths', () => ({
+vi.mock('../system/paths', () => ({
   resolveRealCapturePath: vi.fn(async (p: string) => p),
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
   thumbnailDir: vi.fn(() => '/mock/thumbnails'),
@@ -48,7 +48,7 @@ vi.mock('./ipc-import', () => ({
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))
-vi.mock('./captured-media', () => ({
+vi.mock('../capture/captured-media', () => ({
   registerCapturedMedia: (params: unknown) => registerCapturedMedia(params)
 }))
 
@@ -78,7 +78,7 @@ vi.mock('fs/promises', () => ({
 let metadataContent = ''
 
 import { registerShareHandlers } from './ipc-share'
-import { setVideoThumbProvider } from './video-thumb-provider'
+import { setVideoThumbProvider } from '../capture/video-thumb-provider'
 
 const extractThumbMock = vi.fn(async () => {})
 const getVideoMetaMock = vi.fn(async (): Promise<{ duration: number | null; fps: number | null }> => ({ duration: null, fps: null }))

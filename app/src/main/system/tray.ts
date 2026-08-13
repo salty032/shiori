@@ -2,7 +2,7 @@ import { app, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { deflateSync } from 'zlib'
 import { sendToRenderer, showMainWindow } from './windows'
-import { CH } from '../shared/api'
+import { CH } from '../../shared/api'
 import { t } from './i18n'
 
 let tray: Tray | null = null

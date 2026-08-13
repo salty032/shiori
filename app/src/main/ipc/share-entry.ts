@@ -5,7 +5,7 @@
 // が担当する。
 import { basename, extname } from 'path'
 import { MAX_TAG_LENGTH, MAX_TEXT_LENGTH, normalizeTagName } from './ipc-validation'
-import { MAX_MEMO_LENGTH } from '../shared/constants'
+import { MAX_MEMO_LENGTH } from '../../shared/constants'
 
 export const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 export const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])

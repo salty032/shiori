@@ -8,7 +8,7 @@
 // 通知は届くまでに数十〜数百ms 遅れることがあるため、リアルタイムでフレーム供給を
 // 駆動するのではなく、録画後に時刻で突き合わせる。displayAt はコマが画面に出た瞬間に
 // ページ側で刻まれるので、通知が遅れても値は正しいまま残る。
-import { onExtensionMessage } from '../ws-server'
+import { onExtensionMessage } from '../browser/ws-server'
 
 export interface SourceFrame {
   /** 素材自身のタイムライン上の時刻（秒）。素材のコマを一意に識別する */

@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
 
 const listImagesMissingFps = vi.fn()
 const setFps = vi.fn()
-vi.mock('./db', () => ({
+vi.mock('../db', () => ({
   listImages: vi.fn(), countImages: vi.fn(), listImagesAll: vi.fn(), listSites: vi.fn(),
   listSiteCounts: vi.fn(), listAllTags: vi.fn(), listTagCounts: vi.fn(), getImage: vi.fn(),
   deleteImage: vi.fn(), deleteImagesBulk: vi.fn(), updateImageTitle: vi.fn(), updateImageMemo: vi.fn(),
@@ -22,13 +22,13 @@ vi.mock('./db', () => ({
   setFps: (...args: unknown[]) => setFps(...args)
 }))
 
-vi.mock('./paths', () => ({
+vi.mock('../system/paths', () => ({
   resolveRealCapturePath: vi.fn(async (p: string) => p),
   thumbPathFor: vi.fn((p: string) => `${p}.thumb.png`)
 }))
 
 const countFramesMock = vi.fn()
-vi.mock('./video-thumb-provider', () => ({
+vi.mock('../capture/video-thumb-provider', () => ({
   getVideoThumbProvider: () => ({ extractThumb: vi.fn(), getVideoMeta: vi.fn(), countFrames: countFramesMock })
 }))
 
