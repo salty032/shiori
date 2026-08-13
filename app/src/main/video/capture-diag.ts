@@ -58,6 +58,15 @@ export interface CaptureDiag {
    */
   videoBitsPerSecond: number | null
   /**
+   * 録画開始時に拡張から届いていた素材の fps（届かなければ null）。
+   *
+   * ビットレートはこの値で「素材のコマ 1 つあたり」に揃えている（recorder.ts）。
+   * **要求ビットレートの数字だけでは「素材が 30fps 以下だったから 1 倍」なのか
+   * 「値が届かず 1 倍のままだった」のかを区別できない。** 後者はこの経路の典型的な失敗
+   * （拡張の再読み込み待ち・非対応サイト・再生直後で未測定）なので、必ず並べて出す。
+   */
+  bitrateSourceFps: number | null
+  /**
    * キャプチャストリームが実際に返したフレームの画素数（取れなければ null）。
    *
    * getDisplayMedia には解像度の制約を付けていないので、Chromium が画面の物理解像度より
@@ -198,6 +207,7 @@ export function parseCaptureDiag(value: unknown): CaptureDiag | null {
     droppedVideoFrames: num(v.droppedVideoFrames),
     tickerTicks: num(v.tickerTicks),
     videoBitsPerSecond: num(v.videoBitsPerSecond),
+    bitrateSourceFps: num(v.bitrateSourceFps),
     streamWidth: num(v.streamWidth),
     streamHeight: num(v.streamHeight),
     cropWidth: num(v.cropWidth),
@@ -258,6 +268,11 @@ export function logBitrateDiag(
   const requested = diag?.videoBitsPerSecond != null
     ? `${(diag.videoBitsPerSecond / 1e6).toFixed(1)}Mbps`
     : 'n/a'
+  // 要求ビットレートの根拠になった素材 fps（bitrateSourceFps 参照）。届かなかった場合を
+  // 「30fps 以下だった」と読み違えないよう、無かったことを明示する。
+  const bitrateBasis = diag?.bitrateSourceFps != null
+    ? `on ${diag.bitrateSourceFps.toFixed(1)}fps source`
+    : 'source fps NOT reported at start'
   const size = recordedSize(diag)
   const pixels = size ? size.width * size.height : null
   const bitsPerSourceFrame = sourceFrames && sourceFrames > 0 ? bits / sourceFrames : null
@@ -276,7 +291,7 @@ export function logBitrateDiag(
     : 'n/a'
   console.log(
     `[clip-bitrate] ${(bytes / 1e6).toFixed(1)}MB / ${durationSec.toFixed(1)}s` +
-    ` | requested ${requested}, actual ${(actualBps / 1e6).toFixed(1)}Mbps` +
+    ` | requested ${requested} (${bitrateBasis}), actual ${(actualBps / 1e6).toFixed(1)}Mbps` +
     ` | recorded ${size ? `${size.width}x${size.height}` : 'n/a'} (stream ${stream})` +
     ` | source ${sourceFps ? `${sourceFps.toFixed(3)}fps` : 'fps n/a'},` +
     ` ${sourceFrames ?? 'n/a'} frames | per source frame ${perFrame}, per pixel ${perPixel}`

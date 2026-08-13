@@ -5,6 +5,7 @@ import {
   MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
   MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MAX_EPOCH_MS,
   MIN_SCREEN_SIZE, MAX_SCREEN_SIZE, MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO,
+  MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
 } from './ws-server'
 import { NAMED_CAPTURE_KEY_VALUES } from '../../shared/hotkey'
 import { backgroundJs, contentJs } from './extension-source'
@@ -46,6 +47,17 @@ describe('extension との定数パリティ（M-1）', () => {
     expect(extractConst(backgroundJs, 'MIN_DEVICE_PIXEL_RATIO')).toBe(MIN_DEVICE_PIXEL_RATIO)
     expect(extractConst(backgroundJs, 'MAX_DEVICE_PIXEL_RATIO')).toBe(MAX_DEVICE_PIXEL_RATIO)
     expect(extractConst(backgroundJs, 'MAX_EPOCH_MS')).toBe(MAX_EPOCH_MS)
+    expect(extractConst(backgroundJs, 'MIN_SOURCE_FRAME_MS')).toBe(MIN_SOURCE_FRAME_MS)
+    expect(extractConst(backgroundJs, 'MAX_SOURCE_FRAME_MS')).toBe(MAX_SOURCE_FRAME_MS)
+  })
+
+  // 素材のコマ間隔は content.js が測り、background.js が中継し、ws-server.ts が受ける。
+  // **background.js の normalizePortMessage は項目を1つずつ書き写して作り直す**ので、
+  // そこに書き足し忘れると content.js が送っていても消える。実際にそれで「ビットレートが
+  // 素材 fps に連動しない」状態になった（2026-08-13）。3 段すべてを固定する。
+  it('素材のコマ間隔が content.js → background.js の両方を素通りする', () => {
+    expect(contentJs).toMatch(/frameDurMs:\s*measuredFrameDur\s*!=\s*null/)
+    expect(backgroundJs).toMatch(/frameDurMs:\s*boundedNumber\(\s*msg\.frameDurMs/)
   })
 
   it('background.js の NAMED_CAPTURE_KEYS が shared/hotkey.ts の正規化後キー名と一致する', () => {

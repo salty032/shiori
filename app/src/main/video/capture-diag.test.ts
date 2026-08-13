@@ -5,7 +5,7 @@ import { logBitrateDiag, parseCaptureDiag, recordedSize, summarizeSupply, type C
 const zeroDiag: CaptureDiag = {
   callbacks: 0, presented: 0, skippedByCallback: 0, duplicateSuppressed: 0,
   captureTimeMissing: null, clockSkewMs: null, totalVideoFrames: null, droppedVideoFrames: null,
-  tickerTicks: null, videoBitsPerSecond: null,
+  tickerTicks: null, videoBitsPerSecond: null, bitrateSourceFps: null,
   streamWidth: null, streamHeight: null, cropWidth: null, cropHeight: null
 }
 
@@ -85,6 +85,23 @@ describe('logBitrateDiag（画質の判断に使う実測値）', () => {
     expect(line).toContain('per source frame 133kbit')
   })
 
+  // 要求ビットレートは素材 fps に連動させている（recorder.ts）。値が届かなければ 1 倍の
+  // ままになるが、**その 12.0Mbps は「素材が 30fps 以下だった」結果と数字が同じ**なので、
+  // 届いたかどうかを出さないと録画後に区別できない。実際、拡張が古いまま撮った録画を
+  // 「連動が効いていない」と読み違えかけた（2026-08-13）。
+  it('ビットレートの根拠になった素材 fps を並べて出す', () => {
+    const withFps = (fps: number | null): CaptureDiag =>
+      ({ ...zeroDiag, videoBitsPerSecond: 24_000_000, bitrateSourceFps: fps })
+    const known = captureLog(() => logBitrateDiag(30_000_000, 30, 1800, 59.94, withFps(60)))
+    expect(known).toContain('requested 24.0Mbps (on 60.0fps source)')
+  })
+
+  it('素材 fps が届かなかった録画は、そうと分かるように出す（30fps 以下と読み違えない）', () => {
+    const line = captureLog(() =>
+      logBitrateDiag(30_000_000, 30, 1800, 59.94, { ...zeroDiag, videoBitsPerSecond: 12_000_000 }))
+    expect(line).toContain('source fps NOT reported at start')
+  })
+
   it('素材のコマ表が無ければ 1 コマあたりを出さない（ファイルのフレーム数で代用しない）', () => {
     const line = captureLog(() => logBitrateDiag(30_000_000, 30, null, null, null))
     expect(line).toContain('per source frame n/a')
@@ -146,6 +163,7 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     droppedVideoFrames: 3,
     tickerTicks: 3600,
     videoBitsPerSecond: 12_000_000,
+    bitrateSourceFps: 60,
     streamWidth: 2560,
     streamHeight: 1440,
     cropWidth: 1920,

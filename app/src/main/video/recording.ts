@@ -250,6 +250,14 @@ export async function startRecording(): Promise<void> {
       // ビットレートを上げる根拠は「枚数が増えると 1 枚が痩せる」ことなので、**根拠にすべきは
       // 実測の枚数**。供給が本当に上がればそのまま追従する。
       supplyFps: Math.round(lastSupplyFps ?? 60),
+      // 素材の fps。ビットレートを「素材のコマ 1 つに何ビット割けたか」で決めるために渡す
+      // （計算は recorder.ts 側）。**前回の録画の値ではなく、これから撮る素材の実測値**——
+      // 上の supplyFps と違い、素材は録画ごとに変わりうるので持ち越してはいけない。
+      //
+      // 出どころは録画開始の直前に拡張から受け取ったタイムコード（requestRecordingTarget）で、
+      // ページ側が再生中ずっと rVFC で測っている値。測れていなければ null にして、従来どおりの
+      // 固定ビットレートで録る。**推定で埋めない**（images.fps を供給レートで埋めないのと同じ）。
+      sourceFps: target?.frameDurMs ? 1000 / target.frameDurMs : null,
       maxSeconds,
       sessionId
     })

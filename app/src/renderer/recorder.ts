@@ -89,7 +89,7 @@ type BenchResult = {
 }
 
 interface RecorderApi {
-  onStart: (cb: (data: { sourceId: string; fps: number; supplyFps: number; maxSeconds: number; sessionId: number }) => void) => void
+  onStart: (cb: (data: { sourceId: string; fps: number; supplyFps: number; sourceFps: number | null; maxSeconds: number; sessionId: number }) => void) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
   sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
@@ -244,6 +244,24 @@ function captureFps(fps: number): number {
 // 青天井にならないようにするための多層防御（取得上限と同じ値でよい。それ以上供給されることは無い）。
 const MAX_SUPPLY_FPS_FOR_BITRATE = 120
 
+// 素材の fps に応じてビットレートを引き上げるときの基準（この fps を 1 倍とする）。
+//
+// **画質を決めるのは 1 秒あたりのビット数ではなく「素材のコマ 1 つに何ビット割けたか」**
+// （SPEC 7章）。ところが上の supplyFps は内容によらず約 50枚/秒で一定なので、そこだけに
+// 連動させると素材の fps が倍になった分だけ 1 コマが痩せる。実測（2026-08-13、いずれも
+// 1920x1080）：目視合格した 24fps アニメ 391kbit/コマ・30fps アニメ 301kbit/コマ に対し、
+// 粗が見えた 60fps は 150kbit/コマ。**解像度ではなく、素材の fps で半分になっていた。**
+//
+// 基準を 30 に置くのは、合格している 2 本のうち低い方に合わせるため。こうすると
+// **24 / 30fps は 1 ビットも変わらない**（保証範囲で退行が起きない）。
+const BITRATE_BASE_SOURCE_FPS = 30
+
+// 引き上げの上限（60fps 相当）。**理由は物理**：画面キャプチャの供給は約 50枚/秒が天井で
+// （SPEC 7章・PENDING 11）、素材が 60fps を超えても記録できる別の絵はもう増えない。増やしても
+// ファイルが太るだけになる。24Mbps は過去に実測済みの 22.4Mbps の近傍でもあり、そこでは
+// エンコードが破綻しないことが分かっている（未知の水準へ踏み込まない）。
+const MAX_SOURCE_FPS_BITRATE_FACTOR = 2
+
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
   const maxFrameRate = captureFps(fps)
   // ideal も併記しているが、実測では供給レートは変わらなかった（23.976fps の素材に対し
@@ -321,7 +339,7 @@ function pickMimeType(): string {
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
 }
 
-window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessionId }) => {
+window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, sourceFps, maxSeconds, sessionId }) => {
   if (recorder && recorder.state !== 'inactive') return
   const token = ++recordingToken
   currentSessionId = sessionId
@@ -509,7 +527,13 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessio
     // 映像に十数 Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
     // 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
     const bitrateFps = Math.min(MAX_SUPPLY_FPS_FOR_BITRATE, Math.max(1, supplyFps || 60))
-    videoBitsPerSecond = Math.round(12_000_000 * Math.pow(Math.max(1, bitrateFps / 60), 0.9))
+    // 素材のコマが細かいほど 1 コマあたりが痩せる分を補う（BITRATE_BASE_SOURCE_FPS 参照）。
+    // **測れていなければ 1 倍＝従来どおり。推定で埋めない。** また下げる方向には効かせない
+    // ——24fps 未満で減らしてよいという根拠（目視）が無く、減らす側は黙って画質を損なう。
+    const sourceFactor = sourceFps && sourceFps > 0
+      ? Math.min(MAX_SOURCE_FPS_BITRATE_FACTOR, Math.max(1, sourceFps / BITRATE_BASE_SOURCE_FPS))
+      : 1
+    videoBitsPerSecond = Math.round(12_000_000 * Math.pow(Math.max(1, bitrateFps / 60), 0.9) * sourceFactor)
     rec = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond, audioBitsPerSecond: 192_000 })
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
@@ -581,6 +605,8 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessio
         droppedVideoFrames: quality?.droppedVideoFrames ?? null,
         tickerTicks,
         videoBitsPerSecond,
+        // 上のビットレートを決めた根拠。届かなかった録画をログから見分けるために持ち帰る。
+        bitrateSourceFps: sourceFps ?? null,
         // 実フレームの画素数（getSettings の公称枠ではない。CaptureDiag の注記参照）。
         streamWidth: video.videoWidth || null,
         streamHeight: video.videoHeight || null,

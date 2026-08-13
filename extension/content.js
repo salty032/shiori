@@ -1139,7 +1139,19 @@ function buildPayload() {
     innerHeight: window.innerHeight,
     devicePixelRatio: window.devicePixelRatio,
     videoRect: target.videoRect,
-    fullscreen: !!document.fullscreenElement
+    fullscreen: !!document.fullscreenElement,
+    // 素材のコマ間隔（ミリ秒）。**録画開始時のビットレートを決めるために送る。**
+    //
+    // 画質を決めるのは 1 秒あたりのビット数ではなく「素材のコマ 1 つに何ビット割けたか」
+    // なのに、アプリ側のビットレートは供給レート（内容によらず約 50枚/秒で一定）にしか
+    // 連動していなかった。結果、60fps 素材は 24fps の倍の枚数を撮ることになり、素材 1 コマ
+    // あたりが半分になる（実測: 60fps 150kbit に対し、目視合格した 24fps は 391kbit）。
+    //
+    // **この値はページ側でしか測れず、録画開始前に main が知る経路はここしか無い**
+    // （コマ通知は録画中しか流れないので、開始時のビットレート決定には間に合わない）。
+    // 未測定（再生直後でサンプルが MIN_FRAME_SAMPLES 未満）は null。**推定値では埋めない**
+    // ——外れた値でビットレートを決めるより、従来どおりの固定値の方がよい。
+    frameDurMs: measuredFrameDur != null ? measuredFrameDur * 1000 : null
   }
 }
 

@@ -17,6 +17,11 @@ export const MIN_SCREEN_SIZE = 1
 export const MAX_SCREEN_SIZE = 20_000
 export const MIN_DEVICE_PIXEL_RATIO = 0.25
 export const MAX_DEVICE_PIXEL_RATIO = 8
+// 素材のコマ間隔（ミリ秒）の許容範囲。拡張側が実測値を採用する条件（10〜120fps。
+// content.js の startFrameTracker）と揃えてある。範囲外なら null にして「測れていない」
+// 扱いにする——**壊れた値でビットレートを決めるくらいなら、従来どおりの固定値でよい。**
+export const MIN_SOURCE_FRAME_MS = 1000 / 120
+export const MAX_SOURCE_FRAME_MS = 1000 / 10
 // コマ通知の displayAt（epoch ミリ秒）の妥当上限。西暦 2100 年相当。
 // 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま時刻計算に入ると、
 // コマの対応付けが黙って狂うため入口で落とす。
@@ -25,7 +30,10 @@ export const MAX_EPOCH_MS = 4_102_444_800_000
 type VideoRect = { left: number; top: number; width: number; height: number }
 
 export type ExtensionMessage =
-  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; version?: string }
+  // frameDurMs は素材のコマ間隔（ミリ秒）。ページ側が再生中ずっと実測している値で、
+  // **録画開始前に素材の fps を知る唯一の経路**（コマ通知は録画中しか流れない）。
+  // 測れていなければ null。旧版の拡張は送ってこないので、その場合も null になる。
+  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; frameDurMs: number | null; version?: string }
   | { type: 'ping' }
   // 録画中に配信ページ側から届く、素材の1コマぶんの通知。
   // mediaTime は素材自身のタイムライン上の秒、displayAt はそのコマが画面に出る epoch ミリ秒。
@@ -218,6 +226,9 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
     fullscreen: msg.fullscreen === true,
+    // 未送信（旧拡張）・範囲外はここで null になる。**メッセージ全体は落とさない**——
+    // これは補助情報で、無ければ従来どおりの固定ビットレートで録れればよい。
+    frameDurMs: boundedNumber(msg.frameDurMs, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS),
     version: typeof msg.version === 'string' ? msg.version.slice(0, MAX_VERSION_LENGTH) : undefined
   }
 }

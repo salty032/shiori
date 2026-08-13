@@ -19,6 +19,10 @@ const MIN_SCREEN_SIZE = 1
 const MAX_SCREEN_SIZE = 20000
 const MIN_DEVICE_PIXEL_RATIO = 0.25
 const MAX_DEVICE_PIXEL_RATIO = 8
+// 素材のコマ間隔（ミリ秒）の許容範囲。content.js の startFrameTracker が実測値を採用する
+// 条件（10〜120fps）および ws-server.ts の同名定数と揃える。
+const MIN_SOURCE_FRAME_MS = 8.333333333333334
+const MAX_SOURCE_FRAME_MS = 100
 // コマ通知の displayAt（epoch ミリ秒）の妥当上限。西暦 2100 年相当。
 // 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま main 側の
 // 時刻計算に入ると、コマの対応付けが黙って狂うため入口で落とす。
@@ -139,7 +143,11 @@ function normalizePortMessage(msg) {
     innerHeight,
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
-    fullscreen: msg.fullscreen === true
+    fullscreen: msg.fullscreen === true,
+    // 素材のコマ間隔。**ここに書き足し忘れると content.js が送っていても消える**
+    // （この関数は項目を1つずつ書き写して作り直すため）。実際にそれで
+    // 「ビットレートが連動しない」ように見えた（2026-08-13）。
+    frameDurMs: boundedNumber(msg.frameDurMs, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS)
   }
 }
 
