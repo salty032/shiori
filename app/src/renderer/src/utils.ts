@@ -151,7 +151,7 @@ function mapNormalizedIndex(text: string, offsets: number[], normPos: number, up
 
 // 検索キーワードにヒットした箇所をハイライト表示するための分割。DB 側の検索（FTS trigram /
 // LIKE）と同じ normalizeSearchText を通してから当てるため、半角カナ・全角英数・カタカナ/
-// ひらがな・記号や空白の有無といった表記ゆれもハイライトされる（docs/SEARCH-NORMALIZE.md）。
+// ひらがな・記号や空白の有無といった表記ゆれもハイライトされる（docs/SPEC.md 5章）。
 // 最初の1箇所だけでなく全ての出現箇所を分割する。query が正規化して空になる（未入力・
 // 記号のみ）なら分割せず全体を非マッチとして返す。
 export function splitHighlight(text: string, query: string): TextSegment[] {

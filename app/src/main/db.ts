@@ -42,7 +42,7 @@ function ftsPhraseQuery(value: string): string {
 
 // search_text 列の中身。title/memo それぞれを正規化して1列にまとめる（アプリは列を
 // 指定した検索をしていないため分ける意味が無い）。挿入・タイトル/メモ更新の3経路から
-// 呼ぶ（詳細は docs/SEARCH-NORMALIZE.md）。
+// 呼ぶ（詳細は docs/SPEC.md 5章）。
 function buildSearchText(title: string | null | undefined, memo: string | null | undefined): string {
   return `${normalizeSearchText(title ?? '')}\n${normalizeSearchText(memo ?? '')}`
 }
@@ -150,7 +150,7 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN uncaptured_frames INTEGER')
   // 検索用の正規化済みテキスト（"normalize(title)\nnormalize(memo)"）。SQLite に NFKC も
   // Unicode プロパティ判定も無いため、正規化は書き込み側（insertImage/updateImageTitle/
-  // updateImageMemo）の JS で行い、結果をここへ書く（docs/SEARCH-NORMALIZE.md）。
+  // updateImageMemo）の JS で行い、結果をここへ書く（docs/SPEC.md 5章）。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN search_text TEXT')
   // 上記のうち「前後で絵が変わっており、どのコマで変わったか特定できない」枚数。
   // 撮り逃したコマの大半は同じ絵が続く区間に当たっており実害が無い。それを区別せず
@@ -181,7 +181,7 @@ export function initDb(): void {
   // なり部分一致検索が壊れるため、文字3-gram単位でインデックスする trigram の方が、日本語混じりの
   // タイトル/メモに対しても従来の LIKE 部分一致に近い挙動を保てる。
   //
-  // 索引する列は title/memo ではなく search_text（正規化済み・詳細は docs/SEARCH-NORMALIZE.md）。
+  // 索引する列は title/memo ではなく search_text（正規化済み・詳細は docs/SPEC.md 5章）。
   // 旧スキーマ（title/memo を直接索引していた版、テーブル名 images_fts）は列構成が違うので使わない。
   //
   // 新スキーマを images_fts_v2 という別名にしてあるのは、**旧トリガーと新テーブルの食い違いを

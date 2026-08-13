@@ -18,7 +18,7 @@ describe('buildImageFilter', () => {
     expect(result.params).toEqual(['"cat"'])
   })
 
-  it('search は保存側（search_text）と同じ normalizeSearchText を通してから当てる（半角カナ・全角英数等の表記ゆれを吸収。docs/SEARCH-NORMALIZE.md）', () => {
+  it('search は保存側（search_text）と同じ normalizeSearchText を通してから当てる（半角カナ・全角英数等の表記ゆれを吸収。docs/SPEC.md 5章）', () => {
     const result = buildImageFilter({ search: 'ﾄﾞｷﾄﾞｷ' })
     expect(result.params).toEqual(['"どきどき"'])
   })
