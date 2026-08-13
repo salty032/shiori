@@ -10,8 +10,8 @@ export type SortOrder = 'date_desc' | 'date_asc' | 'random'
 export type ImageTagSource = 'manual' | 'ai'
 export type ImageSource = 'capture' | 'import'
 
-// レンダラーへ公開する画像行の唯一の契約。DB 専用カラム（width/height/host）は
-// 含めない。main 側の完全な DB 行（db.ts の ImageRow）はこの型を拡張して定義する。
+// レンダラーへ公開する画像行の唯一の契約。DB 専用カラム（host）は含めない。
+// main 側の完全な DB 行（db.ts の ImageRow）はこの型を拡張して定義する。
 export type ImageRow = {
   id: number
   filepath: string
@@ -24,6 +24,12 @@ export type ImageRow = {
   media_type: 'image' | 'video' | null
   duration: number | null
   fps: number | null
+  // 記録した画素数。**画質を語るときの母数**で、これが無いと 1 コマあたりのビット数
+  // （capture-diag.ts の per source frame）は解像度をまたいで比べられない。録画クリップの
+  // 値はプレーヤーの動画領域そのもので、全画面かウィンドウかで大きく変わる。
+  // null は「記録が無い」（従来の行・取り込み動画・共有インポート）。
+  width: number | null
+  height: number | null
   // 素材のコマのうち、専用の絵を撮れなかった枚数。
   // 録画クリップにしか意味が無く、静止画・取り込み・従来のクリップでは付かないため任意。
   // null/undefined は「コマ精度の情報が無い」を意味する。

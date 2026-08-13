@@ -14,6 +14,8 @@ const mockImage = {
   media_type: 'video' as const,
   duration: 10,
   fps: 23.92,
+  width: 1920,
+  height: 1080,
   title: null,
   current_time: null,
   url: null,
@@ -145,5 +147,14 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
 
     const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { fps: number | null } }
     expect(insertArg.insert.fps).toBe(23.92)
+  })
+
+  it('記録画素数も引き継ぐ（トリムは時間方向に切るだけで解像度は変わらない）', async () => {
+    const handler = handlers.get('video:trim')!
+    await handler({}, 1, 2, 8)
+
+    const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { width: number | null; height: number | null } }
+    expect(insertArg.insert.width).toBe(1920)
+    expect(insertArg.insert.height).toBe(1080)
   })
 })

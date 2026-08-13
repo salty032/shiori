@@ -367,16 +367,33 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 </div>
               )}
             </div>
-            {(single.current_time != null || single.media_type === 'video') && (
+            {(single.current_time != null || single.media_type === 'video' || single.width != null) && (
               <div style={s.metaHalf}>
                 {/* 動画時刻は1段目・列1に単独配置、長さ・フレームレートは2段目に1列ずつ。
                     span + justify-content で伸ばす形だと、動画時刻だけラベル・値の間隔や
                     行の縦幅が2段目と揃わず浮いて見えたため、3項目とも同じ「列1つぶんの
                     metaRow」に統一し、grid の行・列だけを明示的に指定する。 */}
-                <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 1 }}>
-                  <span style={s.label}>{t('detail.timecode')}</span>
-                  <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
-                </div>
+                {(single.current_time != null || single.media_type === 'video') && (
+                  <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 1 }}>
+                    <span style={s.label}>{t('detail.timecode')}</span>
+                    <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
+                  </div>
+                )}
+                {/* 解像度は1段目の空き列へ。**画質の判断はこの数字が無いと成立しない** —
+                    1コマあたりのビット数は解像度をまたぐと比べられないため（capture-diag.ts の
+                    per pixel と対で読む）。値が無い行（従来のクリップ・取り込み動画）では
+                    行ごと出さない。空欄を出しても「測っていない」と「取れなかった」の区別が
+                    つかず、場所だけ取る。 */}
+                {single.width != null && single.height != null && (
+                  <div style={{
+                    ...s.metaRow,
+                    gridColumn: (single.current_time != null || single.media_type === 'video') ? 2 : 1,
+                    gridRow: 1
+                  }}>
+                    <span style={s.label}>{t('detail.resolution')}</span>
+                    <span style={{ ...s.value, whiteSpace: 'nowrap' }}>{single.width} × {single.height}</span>
+                  </div>
+                )}
                 {single.media_type === 'video' && (
                   <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 2 }}>
                     <span style={s.label}>{t('detail.duration')}</span>
