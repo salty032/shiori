@@ -6,7 +6,19 @@ import { s, font } from '../styles'
 import { FolderIcon, GridIcon, HelpCircleIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
 import ContextMenu from './ContextMenu'
 import ShortcutsFlyout from './ShortcutsFlyout'
+import { useSettingsStore } from '../stores/settingsStore'
+import { releaseNotesFor } from '../../../shared/releaseNotes'
 import { usePanelResize } from '../hooks/usePanelResize'
+
+// 不具合報告ページ。**本文に入れてよいのは版と実行環境だけ**——ライブラリ由来の文字列
+// （タイトルには作品名が入る）は絶対に混ぜない。**送信経路はアプリに持たせず**、報告ページを
+// 開くところで止める（全ローカル完結・外部接続はモデル取得と更新確認だけ、という説明を崩さない）。
+const ISSUE_URL = 'https://github.com/salty032/shiori/issues/new'
+
+function issueUrl(appVersion: string | null): string {
+  const body = `\n\n---\nShiori ${appVersion ? `v${appVersion}` : '(version unknown)'}\n${navigator.userAgent}`
+  return `${ISSUE_URL}?body=${encodeURIComponent(body)}`
+}
 // .ico を img に渡すと最大サイズ（128px）だけが選ばれて 16px へ縮小され、ぼやける上に
 // 絵が枠内でわずかに上寄りなぶんだけ文字とズレる。実寸の PNG を表示倍率ごとに渡す。
 import appIcon16 from '../../../../build/icon16.png'
@@ -36,6 +48,8 @@ type Props = {
   onAddSearchTag: (tag: string) => void
   settingsActive: boolean
   onToggleSettings: () => void
+  /** 「?」のフライアウトから変更点モーダルを開く（サイドバー自身は中身を持たない） */
+  onShowWhatsNew: (version: string, notes: string[]) => void
   thumbnailSize: number
   onThumbnailSize: (size: number) => void
   viewMode: ViewMode
@@ -55,11 +69,12 @@ const SMART_FOLDER_DRAG_THRESHOLD_PX = 6
 // タグの「+N 表示」折りたたみだけはサイドバー固有の表示状態なので内部に持つ。
 export default function Sidebar({
   count, filters, smartFolders,
-  searchTags, onRemoveSearchTag, onAddSearchTag, settingsActive, onToggleSettings,
+  searchTags, onRemoveSearchTag, onAddSearchTag, settingsActive, onToggleSettings, onShowWhatsNew,
   thumbnailSize, onThumbnailSize, viewMode, onViewMode,
   onDeleteSmartFolder, onReorderSmartFolders, onDeleteTag,
 }: Props) {
   const { t, tp } = useT()
+  const lang = useSettingsStore((st) => st.settings.language)
   const nearestThumbSize = THUMB_SIZES.reduce(
     (best, size) => Math.abs(size - thumbnailSize) < Math.abs(best - thumbnailSize) ? size : best,
     THUMB_SIZES[0],
@@ -67,6 +82,13 @@ export default function Sidebar({
   const [showAllTags, setShowAllTags] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const shortcutsBtnRef = useRef<HTMLButtonElement>(null)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  useEffect(() => {
+    window.api.getAppVersion().then(setAppVersion).catch(() => {})
+  }, [])
+  // 変更点の文面は shared にあるので main へ問い合わせずに引ける（更新直後の自動表示は
+  // bootstrap.ts が push する。**同じ 1 本の RELEASE_NOTES を見ていること**）。
+  const notes = appVersion ? releaseNotesFor(appVersion, lang) : undefined
   const [dragFolderId, setDragFolderId] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [tagCtxMenu, setTagCtxMenu] = useState<{ x: number; y: number; tag: string; keyboard?: boolean } | null>(null)
@@ -451,6 +473,22 @@ export default function Sidebar({
           <button className="shiori-hover-tint" ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={() => setShowShortcuts((v) => !v)} title={t('shortcuts.heading')}>
             <HelpCircleIcon size={16} />
+          </button>
+        </div>
+        {/* 変更点とフィードバック。**常に見える場所に置く**——設定の 4 つ目のタブの末尾や、
+            ショートカット一覧（「?」はキー操作の話をする場所）に混ぜると、探しに行く動機の
+            ある人しか辿り着けない。設定ボタンの下に小さく置いて、視線の重さだけ下げる。
+            **文面が無いバージョンでは「変更点」を出さない**——押しても空のモーダルが開く
+            だけで、「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
+        <div style={s.sidebarLinks}>
+          {notes && notes.length > 0 && (
+            <>
+              <button style={s.sidebarLink} onClick={() => onShowWhatsNew(appVersion!, notes)}>{t('help.whatsNew')}</button>
+              <span style={s.sidebarLinkSep}>・</span>
+            </>
+          )}
+          <button style={s.sidebarLink} onClick={() => window.api.openUrl(issueUrl(appVersion))} title={t('help.feedbackHint')}>
+            {t('help.feedback')}
           </button>
         </div>
       </div>

@@ -196,6 +196,11 @@ export const s: Record<string, CSSProperties> = {
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: 6 },
   gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
+  // 設定ボタンの下に置く小さなリンク列（変更点・不具合報告）。常に見えることが目的なので
+  // 隠さないが、毎回押すものではないので文字サイズと色で視線の重さを下げる。
+  sidebarLinks: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 6 },
+  sidebarLink: { padding: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: font.xs, fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' },
+  sidebarLinkSep: { color: 'var(--text-muted)', fontSize: font.xs },
   sidebarXBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   // 通知と進捗タスクを同じ下中央スタックにまとめる。完了通知と進行中タスクが
   // 別デザインで重なる状態を避けつつ、視線移動が少ない位置に出す。

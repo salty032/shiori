@@ -76,6 +76,12 @@ export const ja = {
   // ── ショートカット一覧（サイドバーのフライアウト） ────
   'shortcuts.heading': 'ショートカット',
   'shortcuts.hint': 'キャプチャホットキーは設定 →「キャプチャ」で変更できます。',
+  // 同じフライアウトの下段。**「?」ボタンはこのアプリで唯一のヘルプ面**なので、
+  // ショートカット以外の「困ったときに開くもの」もここへ集める。
+  'help.whatsNew': '変更点を見る',
+  'help.feedback': '不具合・要望を報告',
+  // 「アプリからは何も送らない」ことを必ず添える（全ローカル完結が前提のため）。
+  'help.feedbackHint': 'ブラウザで GitHub の報告ページが開きます。アプリから内容が送信されることはありません。',
   'shortcuts.group.global': '全体',
   'shortcuts.group.selection': '選択・グリッド',
   'shortcuts.group.viewer': 'ビューア',
@@ -262,7 +268,9 @@ export const ja = {
   'sidebar.saveSmartFolder': 'スマートフォルダを保存',
   'sidebar.folderReorderHint': '{name}（長押しで並べ替え）',
   'sidebar.deleteFolder': '{name}を削除',
-  'sidebar.noSmartFolders': '保存済みのフォルダはまだありません',
+  // 「保存済みの」まで入れるとサイドバー幅で 2 行に折り返し、空の状態の方が場所を取っていた。
+  // ただし**何が無いのかは残す**（見出しが上にあっても、単に「まだありません」では読めない）。
+  'sidebar.noSmartFolders': 'フォルダはまだありません',
   'sidebar.clearTagFilters': 'タグフィルターをすべて解除',
   'sidebar.aiTagSuffix': '（AIタグ）',
   'sidebar.tagDeleteHint': '（右クリック / Shift+F10 でタグ自体を削除）',
@@ -432,14 +440,6 @@ export const ja = {
   'settings.creditIcons': 'アイコン: ',
   'settings.creditTagger': '自動タグ付け: ',
   'settings.creditVideo': '動画処理: ',
-  // 変更点は更新直後の 1 回しか出ないと読み逃したら二度と読めないので、設定からも開けるようにする。
-  'settings.whatsNew': '変更点を見る',
-  // フィードバックは「アプリからは何も送らない」ことを必ず添える（全ローカル完結が前提のため）。
-  'settings.feedback': 'フィードバック',
-  'settings.feedbackBefore': '不具合や要望は ',
-  'settings.feedbackLink': 'GitHub の Issue',
-  'settings.feedbackAfter': ' へどうぞ。',
-  'settings.feedbackHint': 'ブラウザで報告ページが開きます。アプリから内容が送信されることはありません（ライブラリの情報も送りません）。',
   'settings.creditsHint': '各ライセンスの詳細は配布物に同梱の NOTICE.md を参照してください。',
 
   // ── Web デモ版（GitHub Pages）専用 ────────────────────────────
