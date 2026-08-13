@@ -109,7 +109,7 @@ export const en: Record<keyof typeof ja, string> = {
   'shortcuts.viewerFrameStep': 'Step one frame (video)',
   'shortcuts.closeViewer': 'Close the viewer',
   'shortcuts.viewerSpace': 'Play / pause video (does nothing for images)',
-  'shortcuts.toggleZoom': 'Toggle zoom',
+  'shortcuts.toggleZoom': 'Toggle zoom (images only)',
   'shortcuts.zoomInOutReset': 'Zoom in / out / reset',
   'shortcuts.toggleDetails': 'Show or hide the details panel',
   'shortcuts.deleteCurrent': 'Delete the current image',

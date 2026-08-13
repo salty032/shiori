@@ -98,7 +98,10 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
         videoPlayerRef.current?.stepFrame(e.key === '.' ? 1 : -1)
         return
       }
-      if (images[index].media_type !== 'video' && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0')) {
+      // ズームは画像・クリップの区別なく効かせる。**録画の画質を確かめるには等倍以上で
+      // 見られることが必須**で、クリップだけ拡大できないと線画の粗（モスキートノイズ）を
+      // 目視で判定できない。クリックは再生/一時停止のままにしてあるので意味は衝突しない。
+      if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') {
         e.preventDefault()
         if (e.key === '0') { setZoom(1); setPan({ x: 0, y: 0 }); return }
         zoomByKeyboard(e.key === '-' ? 0.8 : 1.25)
@@ -140,7 +143,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       setPan({ x: 0, y: 0 })
       return
     }
-    const rect = imgRef.current?.getBoundingClientRect()
+    const rect = mediaEl()?.getBoundingClientRect()
     const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
     const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
     setPan(clampPan(panForZoomAt(centerX, centerY, nextZoom, zoom, pan), nextZoom))
@@ -151,7 +154,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   // transform は scale(zoom) translate(pan/zoom) なので、中心基準のスクリーンオフセットは zoom*p + pan。
   // 同じ点 p をカーソル位置 C に保つには pan1 = C - (C - pan0) * (zoom1/zoom0)。
   function panForZoomAt(clientX: number, clientY: number, nextZoom: number, prevZoom: number, prevPan: { x: number; y: number }): { x: number; y: number } {
-    const rect = imgRef.current?.getBoundingClientRect()
+    const rect = mediaEl()?.getBoundingClientRect()
     if (!rect) return prevPan
     const cx = clientX - (rect.left + rect.width / 2)
     const cy = clientY - (rect.top + rect.height / 2)
@@ -159,19 +162,32 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     return { x: cx - (cx - prevPan.x) * ratio, y: cy - (cy - prevPan.y) * ratio }
   }
 
-  // pan を「画像の描画矩形（contain 表示の実サイズ）が表示枠から離れない」範囲にクランプする。
-  // imgRef の getBoundingClientRect() は現在の zoom 状態の transform が適用済みのため、
+  // いま表示している媒体の要素と実寸。**画像と動画で同じズームを動かすための 1 か所**。
+  // ここを分けると、片方だけ直して他方が取り残される（コマ送りの 2 系統と同じ轍）。
+  function mediaEl(): HTMLImageElement | HTMLVideoElement | null {
+    return images[index]?.media_type === 'video'
+      ? videoPlayerRef.current?.element() ?? null
+      : imgRef.current
+  }
+
+  function mediaNatural(el: HTMLImageElement | HTMLVideoElement): { w: number; h: number } {
+    return el instanceof HTMLVideoElement
+      ? { w: el.videoWidth, h: el.videoHeight }
+      : { w: el.naturalWidth, h: el.naturalHeight }
+  }
+
+  // pan を「媒体の描画矩形（contain 表示の実サイズ）が表示枠から離れない」範囲にクランプする。
+  // getBoundingClientRect() は現在の zoom 状態の transform が適用済みのため、
   // 現在の zoom（closure 変数）で割り戻して transform 適用前の枠サイズを求め、
   // そこから targetZoom 時点の描画サイズを計算し直す。
   function clampPan(rawPan: { x: number; y: number }, targetZoom: number): { x: number; y: number } {
-    const el = imgRef.current
+    const el = mediaEl()
     if (!el || targetZoom <= 1) return { x: 0, y: 0 }
     const rect = el.getBoundingClientRect()
     const domScale = zoom > 1 ? zoom : 1
     const frameW = rect.width / domScale
     const frameH = rect.height / domScale
-    const naturalW = el.naturalWidth
-    const naturalH = el.naturalHeight
+    const { w: naturalW, h: naturalH } = mediaNatural(el)
     if (!naturalW || !naturalH || frameW <= 0 || frameH <= 0) return rawPan
     const frameRatio = frameW / frameH
     const mediaRatio = naturalW / naturalH
@@ -193,7 +209,6 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     if (!el) return
     const onWheelNative = (e: WheelEvent): void => {
       e.preventDefault()
-      if (images[index]?.media_type === 'video') return
       const factor = e.deltaY < 0 ? 1.25 : 0.8
       const nextZoom = Math.max(1, Math.min(8, zoom * factor))
       if (nextZoom === zoom) return
@@ -245,7 +260,20 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       toggleZoomAt(e.clientX, e.clientY)
       return
     }
+    startPanDrag(e)
+  }
+
+  // 拡大中に掴んで動かす。**クリップでは映像そのものではなく外枠に付ける**
+  // （映像のクリックは再生/一時停止で埋まっているため）。ドラッグしたときは
+  // draggedRef を立て、離した直後のクリックを飲む（掴んで放すたびに再生が
+  // 切り替わると、コマを見比べている最中に画が動いてしまう）。
+  const draggedRef = useRef(false)
+
+  function startPanDrag(e: React.PointerEvent): void {
     if (zoom <= 1) return
+    // 映像そのものの上でだけ掴む。外枠に付けている都合でコントロール（シークバー・音量）にも
+    // 届いてしまい、掴んだままだとシーク操作とパンが同時に走る。
+    if (e.target !== mediaEl()) return
     const target = e.target as HTMLElement
     const pointerId = e.pointerId
     const startClientX = e.clientX
@@ -258,6 +286,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       if (!dragging) {
         if (Math.abs(dx) < DRAG_START_THRESHOLD_PX && Math.abs(dy) < DRAG_START_THRESHOLD_PX) return
         dragging = true
+        draggedRef.current = true
         ev.preventDefault()
         target.setPointerCapture(pointerId)
       }
@@ -287,6 +316,14 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   }
 
   function handleVideoClick(e: React.MouseEvent<HTMLVideoElement>): boolean {
+    // パンし終えた直後のクリックは飲む（false = 再生も切り替えないし閉じもしない）。
+    if (draggedRef.current) {
+      draggedRef.current = false
+      return false
+    }
+    // 拡大中は「枠の外＝映像の外」ではない（transform で映像が枠をはみ出している）ので、
+    // 余白判定で閉じない。画像側が zoom > 1 のとき伝播を止めているのと同じ理由。
+    if (zoom > 1) return true
     if (isInsideContainedMedia(e.currentTarget, e.clientX, e.clientY, e.currentTarget.videoWidth, e.currentTarget.videoHeight)) {
       return true
     }
@@ -311,9 +348,16 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
           <button style={s.viewerClose} onClick={close} title={t('viewer.close')}><XIcon size={15} /></button>
         </div>
       </div>
-      <div style={s.viewerMediaStack}>
+      <div
+        style={{ ...s.viewerMediaStack, cursor: img.media_type === 'video' && zoom > 1 ? 'grab' : undefined }}
+        onPointerDown={img.media_type === 'video' ? startPanDrag : undefined}>
         {img.media_type === 'video' ? (
-          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame} videoStyle={s.viewerImg} autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick} />
+          <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame}
+            videoStyle={{
+              ...s.viewerImg,
+              transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
+            }}
+            autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick} />
         ) : (
           <img
             ref={imgRef}
@@ -330,7 +374,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
           />
         )}
       </div>
-      {img.media_type !== 'video' && zoom > 1 && (
+      {zoom > 1 && (
         <div style={s.viewerZoomHud} onClick={(e) => e.stopPropagation()}>
           <span style={s.viewerZoomValue}>{Math.round(zoom * 100)}%</span>
         </div>

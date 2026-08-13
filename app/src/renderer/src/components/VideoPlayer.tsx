@@ -15,6 +15,12 @@ export type VideoPlayerHandle = {
   togglePlay: () => void
   /** dir>0 で次のコマ、dir<0 で前のコマへ。再生中なら一時停止してから動く。 */
   stepFrame: (dir: number) => void
+  /**
+   * 映像要素そのもの。**ズーム/パンの計算にだけ使う**（表示枠の矩形と映像の実寸が要る）。
+   * 再生制御をここから触らないこと——それは上の 2 つの役目で、両方から触ると
+   * 状態の持ち主が曖昧になる。
+   */
+  element: () => HTMLVideoElement | null
 }
 
 function fmtDur(sec: number): string {
@@ -293,6 +299,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       if (v.paused) v.play(); else v.pause()
     },
     stepFrame: (dir: number) => stepFrameRef.current(dir),
+    element: () => videoRef.current,
   }), [])
   const seekFillRef = useRef<HTMLDivElement>(null)
   const seekThumbRef = useRef<HTMLDivElement>(null)

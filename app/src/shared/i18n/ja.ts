@@ -98,7 +98,7 @@ export const ja = {
   'shortcuts.viewerFrameStep': 'コマ送り（動画）',
   'shortcuts.closeViewer': 'ビューアを閉じる',
   'shortcuts.viewerSpace': '動画の再生 / 一時停止（画像では何も起きません）',
-  'shortcuts.toggleZoom': 'ズームのオン・オフ切り替え',
+  'shortcuts.toggleZoom': 'ズームのオン・オフ切り替え（画像のみ）',
   'shortcuts.zoomInOutReset': 'ズームイン / アウト / リセット',
   'shortcuts.toggleDetails': '詳細パネルの表示切り替え',
   'shortcuts.deleteCurrent': '表示中の画像を削除',
