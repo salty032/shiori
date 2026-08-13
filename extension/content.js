@@ -791,10 +791,22 @@ function restorePlayerUI(options = {}) {
   }
 }
 
-function scheduleRestorePlayerUI() {
+// 復帰までの待ち時間。**クリップ録画だけは待たない。**
+//
+// ホスト別の待ちはスクリーンショット用に調整された値で、撮影の完了時刻がはっきりしない
+// スクショ側では意味がある。一方クリップの合図は「録画が実際に止まった後」（MediaRecorder 停止・
+// ストリーム解放の後。app/src/main/video/recording.ts の releaseCaptureUi）にしか来ないので、
+// ここで待っても UI が最後のフレームに写り込む余地は無く、**停止から数秒 UI が戻らないだけ**に
+// なる。動画は意図して撮るぶん撮った直後に確認したくなるため、その数秒が操作の妨げになる。
+function restoreDelayFor(host, immediate) {
+  if (immediate) return 0
+  return POST_CAPTURE_RESTORE_DELAY_BY_HOST[host] ?? DEFAULT_POST_CAPTURE_RESTORE_DELAY_MS
+}
+
+function scheduleRestorePlayerUI(immediate) {
   if (restorePlayerUITimer) clearTimeout(restorePlayerUITimer)
   const host = location.hostname.replace(/^www\./, '')
-  const delay = POST_CAPTURE_RESTORE_DELAY_BY_HOST[host] ?? DEFAULT_POST_CAPTURE_RESTORE_DELAY_MS
+  const delay = restoreDelayFor(host, immediate)
   restorePlayerUITimer = setTimeout(() => {
     restorePlayerUITimer = null
     restorePlayerUI({ deferPassive: host === 'abema.tv' })
@@ -1237,7 +1249,7 @@ function normalizePortMessage(msg) {
       video: msg.video === true
     }
   }
-  if (msg.type === 'post-capture') return { type: 'post-capture' }
+  if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
     const message = typeof msg.message === 'string' ? msg.message.slice(0, MAX_NOTICE_MESSAGE_LENGTH) : ''
@@ -1310,7 +1322,7 @@ function connectPort() {
       if (safeMsg.video) startFrameReporting()
     } else if (safeMsg.type === 'post-capture') {
       stopFrameReporting()
-      scheduleRestorePlayerUI()
+      scheduleRestorePlayerUI(safeMsg.immediate)
     } else if (safeMsg.type === 'notice') {
       showShioriNotice(safeMsg.level, safeMsg.message)
     }

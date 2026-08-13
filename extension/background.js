@@ -162,7 +162,9 @@ function normalizeServerMessage(data) {
   if (msg.type === 'pre-capture') {
     return { type: 'pre-capture', holdMs: clampHoldMs(msg.holdMs), video: msg.video === true }
   }
-  if (msg.type === 'post-capture') return { type: 'post-capture' }
+  // immediate: ホスト別の復帰待ちを踏まずにすぐ戻す（クリップ録画のみ。content.js の
+  // restoreDelayFor を参照）。
+  if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
     const message = typeof msg.message === 'string' ? msg.message.slice(0, MAX_NOTICE_MESSAGE_LENGTH) : ''
