@@ -57,6 +57,18 @@ export interface CaptureDiag {
    * 判断はファイルから逆算した実効値と並べて行う（logBitrateDiag）。
    */
   videoBitsPerSecond: number | null
+  /**
+   * キャプチャストリームが実際に返した画素数（取れなければ null）。
+   *
+   * getDisplayMedia には解像度の制約を付けていないので、Chromium が画面の物理解像度より
+   * 小さいストリームを返しても**黙って低解像度で録れる**（クロップ計算が
+   * `screenshotDpr = frameW / bounds.width` で吸収してしまうため）。物理解像度と並べて出す。
+   */
+  streamWidth: number | null
+  streamHeight: number | null
+  /** 実際に記録した画素数（クロップ後）。画質を語るときの母数（logBitrateDiag 参照） */
+  cropWidth: number | null
+  cropHeight: number | null
 }
 
 interface SupplySummary {
@@ -182,8 +194,26 @@ export function parseCaptureDiag(value: unknown): CaptureDiag | null {
     totalVideoFrames: num(v.totalVideoFrames),
     droppedVideoFrames: num(v.droppedVideoFrames),
     tickerTicks: num(v.tickerTicks),
-    videoBitsPerSecond: num(v.videoBitsPerSecond)
+    videoBitsPerSecond: num(v.videoBitsPerSecond),
+    streamWidth: num(v.streamWidth),
+    streamHeight: num(v.streamHeight),
+    cropWidth: num(v.cropWidth),
+    cropHeight: num(v.cropHeight)
   }
+}
+
+/**
+ * 記録した画素数（クロップ後）。DB の `images.width/height` に入れる値。
+ *
+ * 診断が壊れている・古いレコーダーから届いた場合は null を返す。**推定で埋めない**——
+ * 画素数は画質の判断の母数なので、間違った母数を入れるくらいなら空欄の方がよい
+ * （fps を供給レートで埋めないのと同じ理由）。
+ */
+export function recordedSize(diag: CaptureDiag | null): { width: number; height: number } | null {
+  const w = diag?.cropWidth
+  const h = diag?.cropHeight
+  if (w == null || h == null || !(w > 0) || !(h > 0)) return null
+  return { width: Math.round(w), height: Math.round(h) }
 }
 
 /**
@@ -196,18 +226,28 @@ export function parseCaptureDiag(value: unknown): CaptureDiag | null {
  *
  * - `requested` … MediaRecorder に要求した値。**要求どおりに出るとは限らない**
  * - `actual` … 出来上がったファイルから逆算した実効値。判断はこちらで行う
- * - `per source frame` … 実効値 ÷ 素材のコマ数。**素材 fps をまたいで比べられる唯一の指標**
+ * - `per source frame` … 実効値 ÷ 素材のコマ数。素材 fps をまたいで比べられる
+ * - `per pixel` … さらに記録画素数で割った値（ミリビット）。**解像度をまたいで比べられる
+ *   唯一の指標**。記録画素数はプレーヤーの動画領域そのものなので全画面かウィンドウかで
+ *   何倍も動くのに、要求ビットレートはそれに連動していない。`per source frame` だけでは
+ *   同じ数字が別の画質を指す
  *
  * 素材のコマ数が分からない録画（拡張未接続・表が作れなかった）では per source frame を
  * 出さない。ファイルのフレーム数で代用すると、供給レートの産物を素材のコマだと見せる
  * ことになり、比較の意味が失われる。
+ *
+ * 解像度は `recorded`（クロップ後＝実際に記録した画素数）と `stream`（キャプチャが返した
+ * 画素数）を並べ、画面の物理画素数と食い違うときだけ `!= screen` を添える。**ストリームが
+ * 縮んでいると、他のどの数字にも現れないまま画質だけが落ちる**（クロップ計算が DPR として
+ * 吸収してしまうため）。
  */
 export function logBitrateDiag(
   bytes: number,
   durationSec: number,
   sourceFrames: number | null,
   sourceFps: number | null,
-  diag: CaptureDiag | null
+  diag: CaptureDiag | null,
+  displayPixels?: { width: number; height: number } | null
 ): void {
   if (!(durationSec > 0) || !(bytes > 0)) return
   const bits = bytes * 8
@@ -215,13 +255,27 @@ export function logBitrateDiag(
   const requested = diag?.videoBitsPerSecond != null
     ? `${(diag.videoBitsPerSecond / 1e6).toFixed(1)}Mbps`
     : 'n/a'
-  const perFrame = sourceFrames && sourceFrames > 0
-    ? `${Math.round(bits / sourceFrames / 1000)}kbit`
+  const size = recordedSize(diag)
+  const pixels = size ? size.width * size.height : null
+  const bitsPerSourceFrame = sourceFrames && sourceFrames > 0 ? bits / sourceFrames : null
+  const perFrame = bitsPerSourceFrame != null
+    ? `${Math.round(bitsPerSourceFrame / 1000)}kbit`
     : 'n/a (no source frame table)'
+  // 1 画素あたりはビットのままだと 0.3 前後の小数になって読みにくいので、ミリビットで出す。
+  const perPixel = bitsPerSourceFrame != null && pixels
+    ? `${Math.round((bitsPerSourceFrame / pixels) * 1000)}mbit`
+    : 'n/a'
+  const stream = diag?.streamWidth != null && diag?.streamHeight != null
+    ? `${diag.streamWidth}x${diag.streamHeight}` +
+      (displayPixels && (diag.streamWidth !== displayPixels.width || diag.streamHeight !== displayPixels.height)
+        ? ` != screen ${displayPixels.width}x${displayPixels.height}`
+        : '')
+    : 'n/a'
   console.log(
     `[clip-bitrate] ${(bytes / 1e6).toFixed(1)}MB / ${durationSec.toFixed(1)}s` +
     ` | requested ${requested}, actual ${(actualBps / 1e6).toFixed(1)}Mbps` +
+    ` | recorded ${size ? `${size.width}x${size.height}` : 'n/a'} (stream ${stream})` +
     ` | source ${sourceFps ? `${sourceFps.toFixed(3)}fps` : 'fps n/a'},` +
-    ` ${sourceFrames ?? 'n/a'} frames | per source frame ${perFrame}`
+    ` ${sourceFrames ?? 'n/a'} frames | per source frame ${perFrame}, per pixel ${perPixel}`
   )
 }

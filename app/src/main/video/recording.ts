@@ -76,6 +76,17 @@ async function requestRecordingTarget(): Promise<TimecodeMsg | null> {
 // getDesktopSourceId が解決したディスプレイをそのまま覚える（録画対象と別の画面の Hz で
 // 上限を決めても意味が無いため）。
 let lastDisplayHz: number | null = null
+// 同じディスプレイの物理画素数（DIP × scaleFactor）。
+//
+// **キャプチャストリームが画面をそのまま返しているかを確かめるためだけの値**。
+// getDisplayMedia には解像度の制約を付けていないので、Chromium がこれより小さい
+// ストリームを返しても、クロップ計算は `screenshotDpr = frameW / bounds.width` で
+// 吸収してしまい黙って低解像度で録れる。`[clip-bitrate]` に並べて出す（logBitrateDiag）。
+let lastDisplayPixels: { width: number; height: number } | null = null
+
+export function getRecordingDisplayPixels(): { width: number; height: number } | null {
+  return lastDisplayPixels
+}
 
 async function getDesktopSourceId(): Promise<string | null> {
   const rect = getBrowserWindowRect()
@@ -84,6 +95,12 @@ async function getDesktopSourceId(): Promise<string | null> {
   const edisp = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
   lastDisplayHz = Number.isFinite(edisp.displayFrequency) && edisp.displayFrequency > 0
     ? edisp.displayFrequency
+    : null
+  lastDisplayPixels = edisp.size && edisp.size.width > 0 && edisp.size.height > 0
+    ? {
+        width: Math.round(edisp.size.width * (edisp.scaleFactor || 1)),
+        height: Math.round(edisp.size.height * (edisp.scaleFactor || 1))
+      }
     : null
   // thumbnailSize を明示しないと Electron は既定で全スクリーンの 150x150 サムネイルを
   // 実際に撮ってから返す。ここで欲しいのは source.id だけで画像は捨てるため、その撮影は

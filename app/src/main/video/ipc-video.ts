@@ -177,8 +177,10 @@ export function registerVideoHandlers(): void {
           title: image.title,
           current_time: image.current_time != null ? image.current_time + inSec : null,
           url: image.url,
-          width: null,
-          height: null,
+          // 画素数も fps と同じ理由で引き継ぐ。トリムは時間方向に切るだけで解像度は
+          // 変わらないのに、ここを落とすとトリムした瞬間に解像度表示だけが消える。
+          width: image.width,
+          height: image.height,
           colors: null,
           memo: null,
           media_type: 'video',

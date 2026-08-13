@@ -40,6 +40,24 @@ type CaptureDiag = {
   tickerTicks: number | null
   /** MediaRecorder に要求した映像ビットレート（bps） */
   videoBitsPerSecond: number | null
+  /**
+   * キャプチャストリームが実際に返した画素数。
+   *
+   * getDisplayMedia には解像度の制約を付けていない（frameRate だけ）ので、Chromium が
+   * 画面の物理解像度より小さいストリームを返しても**こちらは気付けない**——クロップ計算は
+   * `screenshotDpr = frameW / bounds.width` で吸収してしまうため、黙って低解像度で
+   * 録れてしまう。画面の物理解像度と並べて出すためにここで測る。
+   */
+  streamWidth: number | null
+  streamHeight: number | null
+  /**
+   * 実際に記録した画素数（クロップ後）。**画質を語るときの母数**。
+   *
+   * プレーヤーの動画領域そのものなので、全画面かウィンドウか・モニタの DPI で大きく変わる。
+   * 要求ビットレートはこれに連動していないため、同じ 12Mbps でも 1 画素あたりは何倍も違う。
+   */
+  cropWidth: number | null
+  cropHeight: number | null
 }
 
 // 供給レートの計測（開発時のみ。supply-bench.ts 参照）。
@@ -558,7 +576,11 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessio
         totalVideoFrames: quality?.totalVideoFrames ?? null,
         droppedVideoFrames: quality?.droppedVideoFrames ?? null,
         tickerTicks,
-        videoBitsPerSecond
+        videoBitsPerSecond,
+        streamWidth: streamW,
+        streamHeight: streamH,
+        cropWidth: crop.w,
+        cropHeight: crop.h
       })
     } catch (err) {
       console.error('[recorder] finalize failed', err)

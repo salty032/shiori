@@ -404,7 +404,7 @@ export function bootstrap(features: MainFeature[] = []): void {
       sendBrowserNotice('warning', t('notice.captureBlackScreen'))
     })
 
-    onCaptureDone(async (imagePath, context) => {
+    onCaptureDone(async (imagePath, context, size) => {
       const timecode = (context as { title: string; currentTime: number | null; url: string | null } | null) ?? getLastTimecode()
 
       const thumbPath = thumbPathFor(imagePath)
@@ -420,8 +420,10 @@ export function bootstrap(features: MainFeature[] = []): void {
           title: timecode?.title || null,
           current_time: timecode?.currentTime ?? null,
           url: timecode?.url ?? null,
-          width: null,
-          height: null,
+          // 切り出した時点の画素数（capture.ts が渡す）。動画クリップと同じく、
+          // 「何ピクセルで撮ったか」は後から画面で読めないと画質の判断ができない。
+          width: size?.width ?? null,
+          height: size?.height ?? null,
           colors: null,
           memo: null,
           media_type: 'image',
