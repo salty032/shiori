@@ -7,13 +7,13 @@ import {
   MIN_SCREEN_SIZE, MAX_SCREEN_SIZE, MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO,
 } from './ws-server'
 import { NAMED_CAPTURE_KEY_VALUES } from '../../shared/hotkey'
+import { backgroundJs, contentJs } from './extension-source'
 
 // extension/background.js・content.js はバンドラ無しで配布されるため、app 側（ws-server.ts /
 // shared/hotkey.ts）と同じ検証定数・キー集合をコピー実装として持っている（M-1）。
 // 片側だけ値を変えて食い違うことを防ぐため、テキストとして読み込んで正規表現で値を
 // 抽出し、app 側の export 値と一致することを assert する（ビルド無しでドリフト検知）。
-const backgroundJs = readFileSync(join(__dirname, '../../../../extension/background.js'), 'utf-8')
-const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
+// 読み込み自体は extension-source.ts（3 本のテストで共通）。
 
 function extractConst(source: string, name: string): number {
   const m = source.match(new RegExp(`const\\s+${name}\\s*=\\s*([^;\\n]+)`))

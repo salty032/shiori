@@ -59,7 +59,7 @@ export interface CaptureDiag {
   videoBitsPerSecond: number | null
 }
 
-export interface SupplySummary {
+interface SupplySummary {
   /** 録画ファイルへ実際に供給した毎秒の枚数 */
   drawnPerSec: number
   /** 供給間隔（ミリ秒）の中央値・95パーセンタイル・最大 */

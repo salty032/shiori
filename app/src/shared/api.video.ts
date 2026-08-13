@@ -4,7 +4,7 @@
 // 動画メソッドを実装するよう要求されてしまう（tsconfig を capture/full で分けない限り）。
 // VideoApi を独立させ、参照側（video/ 配下）だけがローカルにキャストして使うことで、
 // コア側の型・tsconfig は一切変えずに済む。
-export type TrimVideoResult = { ok: true; newId: number } | { ok: false; error: string }
+type TrimVideoResult = { ok: true; newId: number } | { ok: false; error: string }
 
 /**
  * コマ 1 つの確からしさ。素材のコマ表（video_frames）がある録画クリップにだけ付く。

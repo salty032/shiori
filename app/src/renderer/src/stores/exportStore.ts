@@ -7,7 +7,7 @@ import { create } from 'zustand'
 type ExportProgress = { current: number; total: number } | null
 // 中止ボタンがどちらの export をキャンセルすべきか判別するためのタグ。
 // 呼び出し元が invoke() 直前に startExport() でセットし、完了時に clearExport() で戻す。
-export type ExportKind = 'images' | 'share'
+type ExportKind = 'images' | 'share'
 
 type ExportState = {
   exportProgress: ExportProgress

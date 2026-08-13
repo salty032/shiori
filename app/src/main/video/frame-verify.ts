@@ -123,7 +123,7 @@ function medianGapMs(drawnAt: number[]): number {
   return gaps[gaps.length >> 1]
 }
 
-export interface VerifyResult {
+interface VerifyResult {
   /** 検証結果を書き込んだフレーム表（入力と同じ長さ・同じ順序） */
   frames: StoredFrame[]
   /** 専用の絵が無かったコマの総数（従来の uncaptured_frames と同じ意味） */

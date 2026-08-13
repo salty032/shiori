@@ -44,7 +44,7 @@ function parseSearchDateEnd(s: string): number | null {
 
 // Toolbar のサジェスト表示（from:/to: の不正値警告）が個別にパース可否だけ知りたいための公開関数。
 // from/to で境界の扱い（当日を含む/含まない）が違うだけで妥当性判定自体は共通のため片方だけで足りる。
-export function isValidSearchDateToken(s: string): boolean {
+function isValidSearchDateToken(s: string): boolean {
   return parseSearchDate(s) !== null
 }
 

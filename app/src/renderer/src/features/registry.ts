@@ -16,11 +16,11 @@ type ModalSlot = () => ReactNode
 // SettingsModal のタブ識別子。タブ自体はコアが定義するので、ここでは文字列リテラルで持つ
 // （video 側から見たときの依存先を registry だけに留めるため、SettingsModal 型は import しない）。
 // SettingsModal の TabId と同じ値を並べること。表示ラベルは言語で変わるので識別子には使わない。
-export type SettingsTab = 'general' | 'capture' | 'tag' | 'data'
+type SettingsTab = 'general' | 'capture' | 'tag' | 'data'
 // onCapturingChange: スロットが独自にキー入力キャプチャ UI（ホットキー変更など）を
 // 開いている間 true を報告する。SettingsModal はこれを見て Escape での自動クローズを
 // 一時停止する（スロット側の状態は SettingsModal から見えないため、明示的に橋渡しする）。
-export type SettingsSlotPlacement = 'hotkey' | 'notification'
+type SettingsSlotPlacement = 'hotkey' | 'notification'
 type SettingsSlot = (props: { onCapturingChange: (capturing: boolean) => void; placement?: SettingsSlotPlacement }) => ReactNode
 
 // クリップのコマ情報（実フレーム時刻と、コマごとの確からしさ）の取得口。コマ送りを

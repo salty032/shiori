@@ -4,7 +4,7 @@ import type { ImageRow } from '../types'
 import type { ShowToast } from './useToast'
 import { t } from '../i18n'
 
-export interface GlobalKeysOptions {
+interface GlobalKeysOptions {
   searchInputRef: React.RefObject<HTMLInputElement | null>
   viewerIdx: number | null
   // ビューアの並び基準（Ctrl+C で現在画像をコピーするために参照）

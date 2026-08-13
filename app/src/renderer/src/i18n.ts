@@ -27,7 +27,7 @@ export type Translate = {
   locale: string
 }
 
-export function useLang(): Lang {
+function useLang(): Lang {
   return useSettingsStore((s) => s.settings.language)
 }
 

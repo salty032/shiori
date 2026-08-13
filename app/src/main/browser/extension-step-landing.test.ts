@@ -1,6 +1,5 @@
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { contentJs, extractFunction } from './extension-source'
 
 // extension/content.js のコマ送り「1手の進行」の回帰テスト。
 //
@@ -9,21 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // 着地待ちを1手ごとに持てているか、着地の通知が来ない場面で手を取りこぼさないかは、
 // 純粋関数側からは見えず、連打と「同じコマへのシークでは rVFC が発火しない環境」でだけ壊れる。
 //
-// content.js はバンドラ無しで配布される素の content script なので import できない。
-// extension-frame-step.test.ts と同じく、テキストとして読み込み該当関数だけを取り出し、
+// 読み込みと切り出しは extension-source.ts（content.js は import できないため）。
 // ブラウザ側（seek / seeked / rVFC / rAF）とページ側の状態はスタブを注入して評価する。
-const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
-
-function extractFunction(source: string, name: string): string {
-  const start = source.indexOf(`function ${name}(`)
-  if (start < 0) throw new Error(`function not found in extension source: ${name}`)
-  let depth = 0
-  for (let i = source.indexOf('{', start); i < source.length; i++) {
-    if (source[i] === '{') depth++
-    else if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1)
-  }
-  throw new Error(`unbalanced braces in extension source: ${name}`)
-}
 
 const constLines = contentJs.match(/^const STEP_[A-Z0-9_]+ = [^\n]+$/gm)
 if (!constLines || constLines.length < 6) throw new Error('STEP_* constants not found in extension source')

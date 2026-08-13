@@ -16,7 +16,7 @@ export function registerClipHotkey(hotkey: string, onToggle: () => void, onError
   return ok
 }
 
-export function unregisterClipHotkey(): void {
+function unregisterClipHotkey(): void {
   globalShortcut.unregister(currentClipHotkey)
 }
 

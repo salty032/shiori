@@ -38,7 +38,7 @@ interface RawShareEntry {
 // そのまま表示に出さないよう緩く検証する。
 const MAX_REASONABLE_FPS = 120
 
-export interface ParsedShareEntry {
+interface ParsedShareEntry {
   file: string
   ext: string
   thumbFile: string | null

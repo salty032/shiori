@@ -13,6 +13,6 @@ export function t(key: MessageKey, params?: Params): string {
   return translate(currentLang(), key, params)
 }
 
-export function currentLocaleTag(): string {
+function currentLocaleTag(): string {
   return LOCALE_TAG[currentLang()]
 }

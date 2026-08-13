@@ -67,7 +67,7 @@ export function stopFrameFeed(): void {
   unsubscribe = null
 }
 
-export function getCollectedFrames(): SourceFrame[] {
+function getCollectedFrames(): SourceFrame[] {
   return frames
 }
 
@@ -170,7 +170,7 @@ export interface MatchResult {
  * 採用値と ±1〜2 コマ先のスコア差を持ち帰り、決まっていないなら必ず知らせる。
  * 詳細は docs/ANIME-FRAMES.md 2章。
  */
-export interface OffsetReplica {
+interface OffsetReplica {
   /** ずらした素材コマ数（-2..+2。0＝採用値そのものは含めない） */
   shift: number
   /** その近傍で最もスコアが高かったオフセット（ミリ秒） */

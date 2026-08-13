@@ -147,7 +147,7 @@ export async function backfillFps(): Promise<void> {
 
 // 手動の「サムネイル修復」。全画像を走査し、サムネ未生成のものと、thumb_path は記録済みだが
 // 実ファイルが消えているものを再生成する。ディスクアクセスが件数に比例するため自動では呼ばない。
-export async function repairThumbnails(): Promise<{ repaired: number; failed: number }> {
+async function repairThumbnails(): Promise<{ repaired: number; failed: number }> {
   if (isThumbGen) return { repaired: 0, failed: 0 }
   isThumbGen = true
   beginTask('thumb-repair')

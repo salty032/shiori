@@ -12,7 +12,7 @@
 // keys 側も「矢印キー」「ダブルクリック」のように訳が要るものがあるので t を通す。
 import type { Translate } from './i18n'
 
-export type ShortcutGroup = { title: string; items: { keys: string; desc: string }[] }
+type ShortcutGroup = { title: string; items: { keys: string; desc: string }[] }
 
 export function shortcutGroups(t: Translate['t']): ShortcutGroup[] {
   return [

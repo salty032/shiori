@@ -60,7 +60,7 @@ function isTrustedRendererUrl(value: string): boolean {
   return !app.isPackaged && isAllowedDevRendererUrl(value)
 }
 
-export function isTrustedSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
+function isTrustedSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
   return mainWindow !== null &&
     !mainWindow.isDestroyed() &&
     event.sender.id === mainWindow.webContents.id &&

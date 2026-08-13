@@ -1,6 +1,6 @@
 import { siteName } from './utils'
 
-export type SupportedService = {
+type SupportedService = {
   label: string
   hosts: string[]
 }

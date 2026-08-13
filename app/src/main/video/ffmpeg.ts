@@ -87,7 +87,7 @@ const SIGNATURE_BYTES = SIGNATURE_GRID * SIGNATURE_GRID
 // 録画中ではなく録画後に行う。唯一の制約資源である画面キャプチャの供給レート
 // （実測 31枚/秒）を、解析のために1枚たりとも削りたくないため。フル デコードを伴うので
 // 保存後のバックグラウンド処理として呼ぶこと。
-export interface FrameSignatures {
+interface FrameSignatures {
   /** 各フレームを 32x32 グレースケールへ落とした署名。添字はファイル内のフレーム番号 */
   signatures: Uint8Array[]
   /**

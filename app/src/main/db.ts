@@ -373,7 +373,7 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
 
 // ImageQuery（共有のフィルタ契約）に、カーソルページング用の before/beforeId と
 // 並び順を足したものが WHERE 句ビルダーの入力。
-export type ImageFilter = ImageQuery & {
+type ImageFilter = ImageQuery & {
   before?: number
   beforeId?: number
   sortOrder?: 'date_desc' | 'date_asc' | 'random'
@@ -753,7 +753,7 @@ export function listImagesForRetag(): { id: number; filepath: string; thumb_path
   ).all() as { id: number; filepath: string; thumb_path: string | null }[]
 }
 
-export type ExportRow = ImageRow & { manualTags: string[] }
+type ExportRow = ImageRow & { manualTags: string[] }
 
 export function listImagesForExport(): ExportRow[] {
   const images = (prepare("SELECT * FROM images WHERE source = 'capture' ORDER BY captured_at ASC").all() as RawImageRow[])

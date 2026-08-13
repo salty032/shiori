@@ -8,7 +8,7 @@
 import { t } from './i18n'
 import type { MessageKey } from '../../shared/i18n'
 
-export type BusyTask = 'import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
+type BusyTask = 'import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
 
 // 表示直前に翻訳する必要があるため、ここでは辞書キーだけを持つ。
 const LABEL_KEYS: Record<BusyTask, MessageKey> = {

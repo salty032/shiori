@@ -12,12 +12,12 @@ export const MAX_TAGS_PER_FILTER = 50
 export const MAX_EXPORT_IDS = 1000
 export { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH }
 
-export function clampImageLimit(value: unknown): number {
+function clampImageLimit(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 50
   return Math.min(MAX_IMAGE_LIMIT, Math.max(1, Math.trunc(value)))
 }
 
-export function optionalNumber(value: unknown): number | undefined {
+function optionalNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
@@ -94,7 +94,7 @@ export function imageListRequest(raw: unknown): ImageListRequest {
   }
 }
 
-export async function requireRealCapturePath(value: unknown): Promise<string> {
+async function requireRealCapturePath(value: unknown): Promise<string> {
   const filePath = await resolveRealCapturePath(value)
   if (!filePath) throw new Error('Invalid capture path')
   return filePath

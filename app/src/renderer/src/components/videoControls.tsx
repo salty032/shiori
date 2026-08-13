@@ -181,7 +181,7 @@ export function VolumeControl({ videoRef, volume, muted }: VolumeControlProps): 
 // 再生速度の選択肢。アニメーションの研究用途では 1 コマの変化を追うために 1x 未満が主役に
 // なるので、遅い側を厚くしてある（0.1x は「絵が切り替わる瞬間」を目で追うための最低速）。
 // 速い側は流し見の 2x まで。ここを増やすとポップアップが縦に伸びて選びにくくなる。
-export const PLAYBACK_RATES = [0.1, 0.25, 0.5, 1, 2] as const
+const PLAYBACK_RATES = [0.1, 0.25, 0.5, 1, 2] as const
 
 function fmtRate(r: number): string {
   // 0.25 → "0.25x" / 1 → "1x"（末尾の 0 を落として幅を詰める）

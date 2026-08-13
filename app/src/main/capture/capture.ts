@@ -73,7 +73,7 @@ async function listDisplaysCached(): Promise<DisplayList> {
 
 // preCaptureHook が確定したキャプチャ時点のコンテキスト（タイムコード等）を
 // onCaptureDone まで引き回すための型。capture.ts は中身に関知しない。
-export type CaptureContext = unknown
+type CaptureContext = unknown
 type CaptureHandler = (imagePath: string, context: CaptureContext) => void | Promise<void>
 type AsyncHook = () => Promise<CaptureContext>
 type SyncHook = () => void
@@ -286,7 +286,7 @@ async function notifyCaptureDone(imagePath: string, context: CaptureContext): Pr
   }
 }
 
-export async function captureScreen(): Promise<string> {
+async function captureScreen(): Promise<string> {
   // ホットキー連打による並行実行を防ぐ。並行すると pendingTimecode・setOpacity・
   // pre/post-capture のグローバル状態が競合し、復元順や保存メタデータがズレる。
   if (isCapturing) throw new SilentCaptureAbort('Capture already in progress')
@@ -369,7 +369,7 @@ export function registerHotkey(hotkey: string, onError?: (message: string) => vo
   return ok
 }
 
-export function unregisterHotkey(): void {
+function unregisterHotkey(): void {
   globalShortcut.unregister(currentHotkey)
 }
 

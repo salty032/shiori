@@ -22,7 +22,7 @@ export const MAX_DEVICE_PIXEL_RATIO = 8
 // コマの対応付けが黙って狂うため入口で落とす。
 export const MAX_EPOCH_MS = 4_102_444_800_000
 
-export type VideoRect = { left: number; top: number; width: number; height: number }
+type VideoRect = { left: number; top: number; width: number; height: number }
 
 export type ExtensionMessage =
   | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; version?: string }

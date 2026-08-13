@@ -23,7 +23,7 @@ const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000  // 10分
 const MAX_MODEL_BYTES = 600 * 1024 * 1024    // 600 MB
 const MAX_CSV_BYTES = 5 * 1024 * 1024        // 5 MB
 
-export interface TagResult {
+interface TagResult {
   name: string
   category: number  // 0=general, 4=character
   score: number
@@ -31,7 +31,7 @@ export interface TagResult {
 
 type ProgressCallback = (progress: number) => void
 type DownloadSignal = { signal?: AbortSignal }
-export interface TagEntry { name: string; category: number }
+interface TagEntry { name: string; category: number }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ortModule: any = null

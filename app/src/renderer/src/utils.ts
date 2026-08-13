@@ -21,7 +21,7 @@ export function tagNormalizePreview(input: string): string | null {
 
 // taggerGetTagsBulk/taggerAddTagBulk/taggerRemoveTagBulk は main 側で MAX_BULK_IDS 件に
 // 打ち切られるため、renderer 側で MAX_BULK_IDS 件ずつに分割して逐次呼び出し、全件を処理する。
-export function chunkIds(ids: number[], size = MAX_BULK_IDS): number[][] {
+function chunkIds(ids: number[], size = MAX_BULK_IDS): number[][] {
   const chunks: number[][] = []
   for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size))
   return chunks
@@ -44,7 +44,7 @@ export function tagSuggestions(
 
 // タグ名 → 「何枚に付いているか(count)」と「集約後の由来(source)」。source は
 // 「手動が1件でもあれば manual」で畳む（DB の listAllTags や UPSERT 昇格と同じルール）。
-export type BulkTagInfo = { count: number; source: ImageTagSource }
+type BulkTagInfo = { count: number; source: ImageTagSource }
 
 // imageIds 各々のタグを chunked で取得し、上記の頻度＋由来表にする。
 // 呼び出し側は count===imageIds.length で「全員に付いている」か判定する。
@@ -108,7 +108,7 @@ export function cleanTitle(title: string | null, patterns: string[]): string {
   return title
 }
 
-export type TextSegment = { text: string; match: boolean }
+type TextSegment = { text: string; match: boolean }
 
 // text をコードポイント境界だけで区切った、元文字列側のオフセット一覧（サロゲートペアを
 // 割らないため）。offsets[k] は k 番目のコードポイントの直前のオフセット。
@@ -249,7 +249,7 @@ export function computeGridLayout(containerWidth: number, minCellWidth: number, 
   return { columns, cellWidth, cellHeight: cellWidth * 9 / 16 }
 }
 
-export type TimelineItem = { img: ImageRow; flatIndex: number }
+type TimelineItem = { img: ImageRow; flatIndex: number }
 export type TimelineGroup = { key: string; title: string | null; items: TimelineItem[] }
 
 // LCG (Linear Congruential Generator) ベースのシャッフル。

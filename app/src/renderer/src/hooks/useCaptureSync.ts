@@ -5,7 +5,7 @@ import { useImageStore } from '../stores/imageStore'
 import type { ShowToast } from './useToast'
 import { t } from '../i18n'
 
-export interface CaptureSyncOptions {
+interface CaptureSyncOptions {
   // キャプチャでライブラリ内容が変わったときのサイドバー再取得（サービス/カラー）
   onLibraryChanged: () => void
   showToast: ShowToast

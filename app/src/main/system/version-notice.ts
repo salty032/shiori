@@ -1,6 +1,6 @@
 import { t } from './i18n'
 
-export type VersionNotice =
+type VersionNotice =
   | { kind: 'whatsNew'; version: string; notes: string[] }
   | { kind: 'toast'; message: string }
   | { kind: 'none' }

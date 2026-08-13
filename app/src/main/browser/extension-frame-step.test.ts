@@ -1,24 +1,10 @@
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import { describe, expect, it } from 'vitest'
+import { contentJs, extractFunction } from './extension-source'
 
 // extension/content.js のコマ送り判定部（initialFrameStep / planFrameStep）の回帰テスト。
-// content.js はバンドラ無しで配布される素の content script なので import できない。
-// extension-parity.test.ts と同じく、テキストとして読み込み該当関数だけを取り出して評価する。
+// 読み込みと切り出しは extension-source.ts（content.js は import できないため）。
 // 判定部は DOM に触らない純粋関数として切ってあるため、これで素材の fps を変えながら
 // 「1ステップ＝ちょうど1コマ」を検証できる。
-const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
-
-function extractFunction(source: string, name: string): string {
-  const start = source.indexOf(`function ${name}(`)
-  if (start < 0) throw new Error(`function not found in extension source: ${name}`)
-  let depth = 0
-  for (let i = source.indexOf('{', start); i < source.length; i++) {
-    if (source[i] === '{') depth++
-    else if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1)
-  }
-  throw new Error(`unbalanced braces in extension source: ${name}`)
-}
 
 type Step = {
   dir: number, base: number, dur: number, exact: boolean,

@@ -12,7 +12,7 @@ import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/
 import { sendBrowserNotice } from '../browser/browser-notice'
 import { t } from '../system/i18n'
 
-export interface RecordingMeta {
+interface RecordingMeta {
   title: string | null
   currentTime: number | null
   url: string | null
@@ -257,7 +257,7 @@ export async function startRecording(): Promise<void> {
   }
 }
 
-export function stopRecording(): void {
+function stopRecording(): void {
   if (!isRecording) return
   getRecorderWindow()?.webContents.send('recorder:stop')
 }

@@ -9,13 +9,13 @@ import { CH } from '../../shared/api'
 
 type InsertImageParams = Parameters<typeof insertImage>[0]
 
-export interface AutoTagOptions {
+interface AutoTagOptions {
   path: string
   // taggerError を renderer に送るか。既存呼び出し元は画像キャプチャ以外は console.error のみだったため既定 false。
   reportError?: boolean
 }
 
-export interface RegisterCapturedMediaParams {
+interface RegisterCapturedMediaParams {
   insert: InsertImageParams
   // insertImage 失敗時に削除する実体ファイル・サムネ（呼び出し側が事前に書き出した後の巻き戻し用）
   filePath: string
@@ -26,7 +26,7 @@ export interface RegisterCapturedMediaParams {
   broadcastCaptureDone?: boolean
 }
 
-export type RegisterCapturedMediaResult =
+type RegisterCapturedMediaResult =
   | { ok: true; id: number }
   | { ok: false; error: unknown }
 

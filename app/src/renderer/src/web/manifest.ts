@@ -7,7 +7,7 @@
 
 import type { ImageRow, ImageTag } from '../types'
 
-export type DemoItem = {
+type DemoItem = {
   // demo-assets/ からの相対パス。そのまま base URL に連結すると配信 URL になる。
   file: string
   mediaType: 'image' | 'video'
@@ -46,7 +46,7 @@ function toImageRow(item: DemoItem, id: number): ImageRow {
   }
 }
 
-export type DemoLibrary = {
+type DemoLibrary = {
   rows: ImageRow[]
   // id → 配信 URL。mediaUrl() の差し替え先が引く。
   urlById: Map<number, string>

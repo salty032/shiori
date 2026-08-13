@@ -29,7 +29,7 @@ export const radius = {
 const BADGE_INSET_X_RATIO = 6 / 160
 const BADGE_INSET_Y_RATIO = BADGE_INSET_X_RATIO * 0.65
 
-export type BadgeInset = { x: number; y: number }
+type BadgeInset = { x: number; y: number }
 
 export function badgeInset(cellWidth: number): BadgeInset {
   const clamp = (value: number, min: number, max: number): number =>

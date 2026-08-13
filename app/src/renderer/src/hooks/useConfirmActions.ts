@@ -12,7 +12,7 @@ export type ConfirmDialogState = {
   onConfirm: () => void | Promise<void>
 }
 
-export interface UseConfirmActionsOptions {
+interface UseConfirmActionsOptions {
   setConfirmDialog: (state: ConfirmDialogState | null) => void
   showToast: ShowToast
   deleteSmartFolder: (id: string) => void | Promise<void>
