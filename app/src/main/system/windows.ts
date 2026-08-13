@@ -117,7 +117,7 @@ export function createWindow(onFocus: () => void, startHidden = false): void {
     show: !startHidden,
     skipTaskbar: startHidden,
     title: 'Shiori',
-    icon: join(__dirname, '../../../build/icon.ico'),
+    icon: join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -128,7 +128,7 @@ export function createWindow(onFocus: () => void, startHidden = false): void {
     }
   })
 
-  mainWindow.setIcon(join(__dirname, '../../../build/icon.ico'))
+  mainWindow.setIcon(join(__dirname, '../../build/icon.ico'))
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     const safeUrl = safeExternalUrl(url)

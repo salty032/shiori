@@ -145,7 +145,7 @@ export function registerDragHandlers(): void {
     // フォールバックとしてアプリアイコンを使い、それも読めなければドラッグ自体を諦める
     // （アイコンなしで開始する手段がないため）。
     let icon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
-    if (icon.isEmpty()) icon = nativeImage.createFromPath(join(__dirname, '../../../build/icon.ico'))
+    if (icon.isEmpty()) icon = nativeImage.createFromPath(join(__dirname, '../../build/icon.ico'))
     if (icon.isEmpty()) {
       console.warn('[drag] no usable drag icon; aborted')
       return
