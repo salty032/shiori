@@ -41,12 +41,16 @@ type CaptureDiag = {
   /** MediaRecorder に要求した映像ビットレート（bps） */
   videoBitsPerSecond: number | null
   /**
-   * キャプチャストリームが実際に返した画素数。
+   * キャプチャストリームが実際に返したフレームの画素数。
    *
    * getDisplayMedia には解像度の制約を付けていない（frameRate だけ）ので、Chromium が
    * 画面の物理解像度より小さいストリームを返しても**こちらは気付けない**——クロップ計算は
    * `screenshotDpr = frameW / bounds.width` で吸収してしまうため、黙って低解像度で
    * 録れてしまう。画面の物理解像度と並べて出すためにここで測る。
+   *
+   * **`track.getSettings()` ではなく `<video>` の実寸を使うこと。** 前者が返すのは
+   * 実フレームではなく公称の最大枠で、実測では 1920x1080 の画面に対し **1920x1920**
+   * （回転を許す正方形の枠）が返った。そのまま比べると毎回「画面と違う」と言うことになる。
    */
   streamWidth: number | null
   streamHeight: number | null
@@ -577,8 +581,9 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, maxSeconds, sessio
         droppedVideoFrames: quality?.droppedVideoFrames ?? null,
         tickerTicks,
         videoBitsPerSecond,
-        streamWidth: streamW,
-        streamHeight: streamH,
+        // 実フレームの画素数（getSettings の公称枠ではない。CaptureDiag の注記参照）。
+        streamWidth: video.videoWidth || null,
+        streamHeight: video.videoHeight || null,
         cropWidth: crop.w,
         cropHeight: crop.h
       })

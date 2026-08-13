@@ -58,11 +58,14 @@ export interface CaptureDiag {
    */
   videoBitsPerSecond: number | null
   /**
-   * キャプチャストリームが実際に返した画素数（取れなければ null）。
+   * キャプチャストリームが実際に返したフレームの画素数（取れなければ null）。
    *
    * getDisplayMedia には解像度の制約を付けていないので、Chromium が画面の物理解像度より
    * 小さいストリームを返しても**黙って低解像度で録れる**（クロップ計算が
    * `screenshotDpr = frameW / bounds.width` で吸収してしまうため）。物理解像度と並べて出す。
+   *
+   * レコーダー側は `<video>` の実寸を送ってくる。`track.getSettings()` は実フレームではなく
+   * 公称の最大枠（実測で 1920x1080 の画面に対し 1920x1920）を返すため使えない。
    */
   streamWidth: number | null
   streamHeight: number | null
