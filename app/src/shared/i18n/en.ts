@@ -444,4 +444,7 @@ export const en: Record<keyof typeof ja, string> = {
 
   'demo.welcome': 'This is the web demo. Browsing, search and tag editing really work, but desktop features such as capture and recording do not. Edits are lost on reload.',
   'demo.unavailable': 'Not available in the demo (desktop app feature)',
+  'demo.emptyTitle': 'This demo has no sample material yet',
+  'demo.emptyHint': 'Shiori is a desktop app for recording streaming anime for research use. This demo lets you try its interface in a browser — browsing, search and tag editing really work. Captures of streaming players cannot be published here, so the library is empty.',
+  'demo.emptyRepo': 'View the project on GitHub',
 }

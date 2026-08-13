@@ -28,7 +28,7 @@ import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
 import { useGlobalKeys } from './hooks/useGlobalKeys'
 import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
-import { getExtraContextMenuItems, getModals } from './features/registry'
+import { getExtraContextMenuItems, getModals, isDemoMode } from './features/registry'
 import { useT } from './i18n'
 
 // サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
@@ -586,6 +586,20 @@ export default function App() {
                     <div style={s.emptyHint}>{t('grid.noMatchesHint')}</div>
                     <div style={s.emptyActions}>
                       <button style={s.emptyBtn} onClick={() => filters.clearAllFilters()}>{t('grid.clearFilters')}</button>
+                    </div>
+                  </>
+                ) : isDemoMode() ? (
+                  // Web デモ版で素材が 1 件も無いとき。下のデスクトップ版の初回案内は
+                  // **デモでは 3 手すべてが空振りする**（拡張機能フォルダのボタンは押しても
+                  // 「デモ版では利用できません」と断られ、ホットキーも効かず、ドロップでの
+                  // 取り込みも保存先が無い）。空振りする手順を第一印象として出さない。
+                  <>
+                    <div style={s.emptyTitle}>{t('demo.emptyTitle')}</div>
+                    <div style={s.emptyLead}>{t('demo.emptyHint')}</div>
+                    <div style={s.emptyActions}>
+                      <button style={s.emptyBtn} onClick={() => window.api.openUrl('https://github.com/salty032/shiori')}>
+                        {t('demo.emptyRepo')}
+                      </button>
                     </div>
                   </>
                 ) : (

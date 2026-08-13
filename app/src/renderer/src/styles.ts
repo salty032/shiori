@@ -149,6 +149,9 @@ export const s: Record<string, CSSProperties> = {
   emptyBtn: { padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: 4, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: 700 },
   emptyBtnSub: { background: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-strong)' },
   emptyHint: { color: 'var(--text-secondary)', fontSize: font.sm, marginTop: 4 },
+  // 空画面に段落を置くとき用（Web デモ版の説明）。emptyHint は一言用で幅の指定が無く、
+  // 数行の文章を入れるとグリッド幅いっぱいに伸びて 1 行が長くなりすぎる。
+  emptyLead: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75, maxWidth: 520, textAlign: 'center' as const },
   loadingMore: { textAlign: 'center', padding: 16, color: 'var(--text-secondary)', fontSize: font.base },
   filterBtn: { background: 'none', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: font.base, textAlign: 'left' as const, padding: '6px 8px' },
   smartFolderRow: { width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, cursor: 'grab' },
