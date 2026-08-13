@@ -93,11 +93,14 @@ describe('verifyFrameTable（撮り逃したコマの分類）', () => {
     expect(result.ambiguous).toBe(2)
   })
 
-  it('末尾を撮り逃した場合は比較相手が無いので判定しない（undetermined）', () => {
+  // 判定できなかったコマは「実害なし」側に落とさず、画面の「要確認」に数える
+  // （ambiguous = changed + unknown）。落とすと、パネルだけ見たときに未検証のコマが
+  // 問題なしとして消える。しきい値を非対称にしているのと同じ理由。
+  it('末尾を撮り逃した場合は比較相手が無いので判定しない（undetermined）が、要確認には数える', () => {
     const tail = [frame(0, 0, true), frame(0.042, 0, false)]
     const result = verifyFrameTable(tail, [flat(100)])
     expect(result.frames[1].verified).toBe('unknown')
-    expect(result).toMatchObject({ missed: 1, unknown: 1, ambiguous: 0, harmless: 0 })
+    expect(result).toMatchObject({ missed: 1, unknown: 1, changed: 0, harmless: 0, ambiguous: 1 })
   })
 
   it('署名が足りない（デコード失敗・フレーム数不一致）コマは判定しない', () => {

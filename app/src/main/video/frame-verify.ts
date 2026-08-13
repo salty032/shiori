@@ -128,11 +128,24 @@ interface VerifyResult {
   frames: StoredFrame[]
   /** 専用の絵が無かったコマの総数（従来の uncaptured_frames と同じ意味） */
   missed: number
-  /** そのうち「絵が変わっていて特定できない」コマ数＝本当に要確認な枚数 */
+  /**
+   * 画面に「要確認」として出す枚数（`images.ambiguous_frames`）＝ `changed + unknown`。
+   *
+   * **判定できなかったコマ（unknown）もここに含める**（2026-08-13）。しきい値を意図的に
+   * 非対称にしているのと同じ理由で、「要確認」と言い過ぎても失うのは手間だけだが、
+   * 「実害なし」と言い間違えると誤ったコマ打ちを正解として提示することになる。
+   * 含めなかった頃は、10 コマ撮り逃して 3 identical / 6 changed / 1 undetermined のとき
+   * 画面が「6コマ要確認」になり、**判定できなかった 1 コマがどの数字にも出ていなかった**
+   * （パネルだけ見ると 4 コマが問題なしに見える）。
+   * changed と unknown の区別が要るときはビューアで当該コマへ行けば「要確認」と
+   * 「流用（未検証）」で見分けられるので、パネル側は 1 つの意味に寄せる。
+   */
   ambiguous: number
+  /** そのうち「絵が変わっていて、どのコマで変わったか特定できない」コマ数 */
+  changed: number
   /** そのうち「絵が変わっておらず実害なし」と確定したコマ数 */
   harmless: number
-  /** 署名が足りない等で判定できなかったコマ数 */
+  /** 署名が足りない・比較相手が無い等で判定できなかったコマ数（ambiguous に含まれる） */
   unknown: number
   /** ファイル内のフレーム数（署名の枚数） */
   fileFrames: number
@@ -156,7 +169,7 @@ interface VerifyResult {
 export function verifyFrameTable(table: StoredFrame[], signatures: Uint8Array[]): VerifyResult {
   const frames = table.map((f) => ({ ...f }))
   let missed = 0
-  let ambiguous = 0
+  let changed = 0
   let harmless = 0
   let unknown = 0
 
@@ -168,7 +181,7 @@ export function verifyFrameTable(table: StoredFrame[], signatures: Uint8Array[])
     missed++
     const verdict = classify(frames, k, signatures)
     frames[k].verified = verdict
-    if (verdict === 'changed') ambiguous++
+    if (verdict === 'changed') changed++
     else if (verdict === 'same') harmless++
     else unknown++
   }
@@ -178,7 +191,8 @@ export function verifyFrameTable(table: StoredFrame[], signatures: Uint8Array[])
     if (signaturesDiffer(signatures[j - 1], signatures[j])) fileChanges++
   }
 
-  return { frames, missed, ambiguous, harmless, unknown, fileFrames: signatures.length, fileChanges }
+  // 「実害なしと確定できなかった」枚数を画面へ出す（ambiguous の項参照）。
+  return { frames, missed, ambiguous: changed + unknown, changed, harmless, unknown, fileFrames: signatures.length, fileChanges }
 }
 
 function classify(frames: StoredFrame[], k: number, signatures: Uint8Array[]): FrameVerify {
@@ -216,7 +230,9 @@ export function logVerifyResult(imageId: number, result: VerifyResult | null): v
   const rate = transitions > 0 ? (result.fileChanges / transitions) * 100 : 0
   console.log(
     `[frame-verify] image ${imageId}: ${result.missed} missed frames: ${result.harmless} identical (harmless),` +
-    ` ${result.ambiguous} changed (needs review), ${result.unknown} undetermined` +
+    // 末尾の flagged が画面の「Nコマ要確認」と一致する数字。内訳と並べて出さないと、
+    // パネルの数が内訳のどれとも合わず「どこかが抜けている」ように見える。
+    ` ${result.changed} changed (needs review), ${result.unknown} undetermined → ${result.ambiguous} flagged` +
     ` | picture changes ${result.fileChanges}/${transitions} transitions (${rate.toFixed(0)}%)`
   )
 }
