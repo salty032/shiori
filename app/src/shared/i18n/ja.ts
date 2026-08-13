@@ -432,6 +432,14 @@ export const ja = {
   'settings.creditIcons': 'アイコン: ',
   'settings.creditTagger': '自動タグ付け: ',
   'settings.creditVideo': '動画処理: ',
+  // 変更点は更新直後の 1 回しか出ないと読み逃したら二度と読めないので、設定からも開けるようにする。
+  'settings.whatsNew': '変更点を見る',
+  // フィードバックは「アプリからは何も送らない」ことを必ず添える（全ローカル完結が前提のため）。
+  'settings.feedback': 'フィードバック',
+  'settings.feedbackBefore': '不具合や要望は ',
+  'settings.feedbackLink': 'GitHub の Issue',
+  'settings.feedbackAfter': ' へどうぞ。',
+  'settings.feedbackHint': 'ブラウザで報告ページが開きます。アプリから内容が送信されることはありません（ライブラリの情報も送りません）。',
   'settings.creditsHint': '各ライセンスの詳細は配布物に同梱の NOTICE.md を参照してください。',
 
   // ── Web デモ版（GitHub Pages）専用 ────────────────────────────

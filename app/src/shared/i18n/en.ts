@@ -440,6 +440,12 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.creditIcons': 'Icons: ',
   'settings.creditTagger': 'Auto tagging: ',
   'settings.creditVideo': 'Video processing: ',
+  'settings.whatsNew': 'See what’s new',
+  'settings.feedback': 'Feedback',
+  'settings.feedbackBefore': 'Report bugs or ideas on ',
+  'settings.feedbackLink': 'GitHub Issues',
+  'settings.feedbackAfter': '.',
+  'settings.feedbackHint': 'This opens the report page in your browser. Nothing is sent from the app, and no information about your library is included.',
   'settings.creditsHint': 'See NOTICE.md included with the download for full license details.',
 
   'demo.welcome': 'This is the web demo. Browsing, search and tag editing really work, but desktop features such as capture and recording do not. Edits are lost on reload.',

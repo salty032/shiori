@@ -768,6 +768,12 @@ export default function App() {
               }
               return result
             }}
+            // 設定を閉じてから開く。モーダルを重ねると、Escape がどちらに効くのか・
+            // 背後の設定に戻れるのかが押す前に分からない。
+            onShowWhatsNew={(version, notes) => {
+              settings.setShowSettings(false)
+              setWhatsNew({ version, notes })
+            }}
           />
         )}
 

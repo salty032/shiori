@@ -4,6 +4,7 @@ import { font, color, modal, radius } from '../styles'
 import { buildAccelerator } from '../utils'
 import { SUPPORTED_SERVICES, alpha, serviceColor } from '../services'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
+import { releaseNotesFor } from '../../../shared/releaseNotes'
 import { XIcon } from './Icon'
 import { useExportStore } from '../stores/exportStore'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -33,9 +34,21 @@ type Props = {
   onTaggerRetagAll: () => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  /** 変更点モーダルを開く（設定を閉じてから開く。モーダルを重ねない） */
+  onShowWhatsNew: (version: string, notes: string[]) => void
 }
 
 const CLOSE_MS = 110
+
+// 不具合報告ページの URL。**本文に入れてよいのは版と実行環境だけ**——ライブラリ由来の
+// 文字列（タイトルには作品名が入る）は絶対に混ぜない。送信するのはユーザー自身であって
+// アプリではないので、開くところまでで止める。
+const ISSUE_URL = 'https://github.com/salty032/shiori/issues/new'
+
+function issueUrl(appVersion: string | null): string {
+  const body = `\n\n---\nShiori ${appVersion ? `v${appVersion}` : '(version unknown)'}\n${navigator.userAgent}`
+  return `${ISSUE_URL}?body=${encodeURIComponent(body)}`
+}
 
 // M-4: 表示ラベルと状態識別子を分離する（ラベル文言の変更が型・状態キーの変更を兼ねないように）。
 type TabId = 'general' | 'capture' | 'tag' | 'data'
@@ -96,6 +109,9 @@ export default function SettingsModal(p: Props) {
   useEffect(() => {
     window.api.getAppVersion().then(setAppVersion).catch(() => {})
   }, [])
+  // 変更点の文面は shared にあるので、main へ問い合わせずここで引ける
+  // （更新直後の自動表示は bootstrap.ts が別途 push する。同じ 1 本の RELEASE_NOTES を見る）。
+  const notes = appVersion ? releaseNotesFor(appVersion, p.settings.language) : undefined
   const extensionConnected = p.extensionStatus !== null && now - p.extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
   // 拡張の更新案内は起動直後のOS通知1回だけで見逃しやすいため、受信中の拡張バージョンが
   // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
@@ -527,7 +543,38 @@ export default function SettingsModal(p: Props) {
                     カードに入っていて、右半分が空いたまま操作できそうな見た目になっていた。 */}
                 <div style={s.group}>
                   <div style={s.section}>{t('settings.version')}</div>
-                  <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
+                  <div style={s.hint}>
+                    Shiori {appVersion ? `v${appVersion}` : '—'}
+                    {/* 変更点は更新直後の 1 回しか出ないため、読み逃すと二度と読めなかった。
+                        リンクにしているのは、バージョン行を「操作対象ではない見出し＋説明」に
+                        留めた既存の判断（右にボタンを置くと操作できそうな空白ができる）を
+                        崩さないため。クレジットのリンクと同じ扱いにしてある。
+                        **文面が無いバージョンでは出さない**——押しても空のモーダルが開くだけで、
+                        「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
+                    {notes && notes.length > 0 && (
+                      <>
+                        {' ／ '}
+                        <button style={s.creditLink} onClick={() => p.onShowWhatsNew(appVersion!, notes)}>
+                          {t('settings.whatsNew')}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {/* 送信経路はアプリに持たせない。全ローカル完結が前提で、外部接続は
+                    モデルの取得と更新確認だけ、と README/SPEC で説明しているため。
+                    報告ページを開くだけにして、版と実行環境だけを本文に入れておく
+                    （**ライブラリ由来の文字列は一切入れない**。タイトルには作品名が入る）。 */}
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.feedback')}</div>
+                  <div style={s.hint}>
+                    {t('settings.feedbackBefore')}
+                    <button style={s.creditLink} onClick={() => window.api.openUrl(issueUrl(appVersion))}>
+                      {t('settings.feedbackLink')}
+                    </button>
+                    {t('settings.feedbackAfter')}
+                  </div>
+                  <div style={s.hint}>{t('settings.feedbackHint')}</div>
                 </div>
                 {/* Icons8 の無料ライセンスはアプリ内のクレジット表示とリンクを条件にしている。
                     他のサードパーティ表記も同じ場所にまとめ、詳細は NOTICE.md に委ねる。 */}
