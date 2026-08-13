@@ -1,13 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { logBitrateDiag, parseCaptureDiag, recordedSize, summarizeSupply, type CaptureDiag } from './capture-diag'
-
-// 補助項目が全て「取れなかった」状態の診断。各テストは見たい項目だけを上書きする。
-const zeroDiag: CaptureDiag = {
-  callbacks: 0, presented: 0, skippedByCallback: 0, duplicateSuppressed: 0,
-  captureTimeMissing: null, clockSkewMs: null, totalVideoFrames: null, droppedVideoFrames: null,
-  tickerTicks: null, videoBitsPerSecond: null,
-  streamWidth: null, streamHeight: null, cropWidth: null, cropHeight: null
-}
+import { logBitrateDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 
 // 一定間隔で供給された想定の drawnAt を作る（epoch ミリ秒）。
 function evenlySpaced(count: number, gapMs: number, start = 1_700_000_000_000): number[] {
@@ -89,49 +81,6 @@ describe('logBitrateDiag（画質の判断に使う実測値）', () => {
     const line = captureLog(() => logBitrateDiag(30_000_000, 30, null, null, null))
     expect(line).toContain('per source frame n/a')
   })
-
-  // 記録画素数はプレーヤーの動画領域そのものなので、全画面かウィンドウかで何倍も動く。
-  // 1 コマあたりのビット数だけを見ていると、同じ数字が別の画質を指す。
-  it('同じ 1 コマあたりでも、記録画素数が違えば 1 画素あたりは違う', () => {
-    const sized = (w: number, h: number): CaptureDiag =>
-      ({ ...zeroDiag, cropWidth: w, cropHeight: h })
-    // どちらも 1 コマ 333kbit。1920x1080 なら 161mbit/画素、1280x720 なら 362mbit/画素。
-    const full = captureLog(() => logBitrateDiag(30_000_000, 30, 720, 23.976, sized(1920, 1080)))
-    const small = captureLog(() => logBitrateDiag(30_000_000, 30, 720, 23.976, sized(1280, 720)))
-    expect(full).toContain('recorded 1920x1080')
-    expect(full).toContain('per source frame 333kbit, per pixel 161mbit')
-    expect(small).toContain('per source frame 333kbit, per pixel 362mbit')
-  })
-
-  it('画素数が分からない録画では 1 画素あたりを出さない（推定で埋めない）', () => {
-    const line = captureLog(() => logBitrateDiag(30_000_000, 30, 720, 23.976, zeroDiag))
-    expect(line).toContain('recorded n/a')
-    expect(line).toContain('per pixel n/a')
-  })
-
-  // ストリームが画面より小さいと、他のどの数字にも現れないまま画質だけが落ちる
-  // （クロップ計算が DPR として吸収してしまうため）。食い違うときだけ言う。
-  it('キャプチャが画面より小さいストリームを返していたら並べて出す', () => {
-    const diag: CaptureDiag = { ...zeroDiag, streamWidth: 1920, streamHeight: 1080, cropWidth: 1280, cropHeight: 720 }
-    const shrunk = captureLog(() => logBitrateDiag(30_000_000, 30, 720, 23.976, diag, { width: 2560, height: 1440 }))
-    expect(shrunk).toContain('stream 1920x1080 != screen 2560x1440')
-
-    const exact = captureLog(() => logBitrateDiag(30_000_000, 30, 720, 23.976, diag, { width: 1920, height: 1080 }))
-    expect(exact).toContain('stream 1920x1080)')
-    expect(exact).not.toContain('!= screen')
-  })
-})
-
-describe('recordedSize（DB へ入れる記録画素数）', () => {
-  it('診断が壊れている・0 なら記録しない（間違った母数を入れるより空欄）', () => {
-    expect(recordedSize(null)).toBeNull()
-    expect(recordedSize(zeroDiag)).toBeNull()
-    expect(recordedSize({ ...zeroDiag, cropWidth: 1920, cropHeight: 0 })).toBeNull()
-  })
-
-  it('取れていれば整数で返す', () => {
-    expect(recordedSize({ ...zeroDiag, cropWidth: 1919.6, cropHeight: 1080 })).toEqual({ width: 1920, height: 1080 })
-  })
 })
 
 describe('parseCaptureDiag（レコーダーから届く診断値の検証）', () => {
@@ -145,11 +94,7 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     totalVideoFrames: 1400,
     droppedVideoFrames: 3,
     tickerTicks: 3600,
-    videoBitsPerSecond: 12_000_000,
-    streamWidth: 2560,
-    streamHeight: 1440,
-    cropWidth: 1920,
-    cropHeight: 1080
+    videoBitsPerSecond: 12_000_000
   }
 
   it('正常な値はそのまま通す', () => {

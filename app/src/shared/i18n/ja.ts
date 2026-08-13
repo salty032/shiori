@@ -305,7 +305,6 @@ export const ja = {
   'detail.timecode': '動画時刻',
   'detail.duration': '長さ',
   'detail.fps': 'FPS',
-  'detail.resolution': '解像度',
   'detail.unreportedFrames': '{count}コマ未通知',
   'detail.unreportedFramesHint':
     '素材にあるはずの約{expected}コマのうち、{count}コマは配信ページから通知が届いていません。' +

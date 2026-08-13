@@ -40,10 +40,6 @@ function toImageRow(item: DemoItem, id: number): ImageRow {
     media_type: item.mediaType,
     duration: item.duration,
     fps: item.fps,
-    // 目録は画素数を持たない（静的解析では出せない）。デモは画質の判断をする場ではないので
-    // 空欄のままにして、詳細パネルの解像度行を出さない。
-    width: null,
-    height: null,
     // デモ素材は原本をそのままサムネにも使う（サムネ生成器が main プロセス側の機能のため）。
     thumb_path: null,
     source: 'capture',

@@ -28,10 +28,7 @@ vi.mock('./recording', () => ({
   releaseCaptureUi: () => releaseCaptureUi(),
   // 次の録画のビットレートの根拠として実測供給を戻す口（recording.ts）。保存経路の検証には
   // 関わらないので受け流す。
-  recordMeasuredSupply: () => {},
-  // ログ（[clip-bitrate]）で「ストリームが画面より縮んでいないか」を並べるためだけの値。
-  // 保存経路には関与しないので測っていない扱いで返す。
-  getRecordingDisplayPixels: () => null
+  recordMeasuredSupply: () => {}
 }))
 
 const sendNotice = vi.fn()
@@ -239,27 +236,6 @@ describe('recorder:done - fps に入るのは素材のフレームレートだ�
       expect(registerCapturedMedia, `frameCount=${frameCount}`).toHaveBeenCalled()
       expect(insertedFps(), `frameCount=${frameCount}`).toBeNull()
     }
-  })
-
-  // 記録画素数は画質を語るときの母数。1 コマあたりのビット数は解像度をまたぐと
-  // 比べられないので、これが残らないと後から画質の判断ができない。
-  it('記録した画素数を保存する', async () => {
-    const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 240, 1, [], {
-      callbacks: 240, presented: 240, skippedByCallback: 0, duplicateSuppressed: 0,
-      cropWidth: 1920, cropHeight: 1080
-    })
-    const insert = registerCapturedMedia.mock.calls[0][0] as { insert: { width: number | null; height: number | null } }
-    expect(insert.insert.width).toBe(1920)
-    expect(insert.insert.height).toBe(1080)
-  })
-
-  it('画素数が届かなければ空欄にする（推定で埋めない）', async () => {
-    const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 240, 1)
-    const insert = registerCapturedMedia.mock.calls[0][0] as { insert: { width: number | null; height: number | null } }
-    expect(insert.insert.width).toBeNull()
-    expect(insert.insert.height).toBeNull()
   })
 
   it('取得上限（120枚/秒）いっぱいの供給でもフレーム表を捨てない', () => {

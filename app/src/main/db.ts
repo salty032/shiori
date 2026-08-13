@@ -313,9 +313,11 @@ export function initDb(): void {
 }
 
 // DB の images 行。レンダラー公開用の ImageRow（shared/types.ts）を単一の情報源とし、
-// それにレンダラーへは渡さない DB 専用カラム（host）を足したもの。
+// それにレンダラーへは渡さない DB 専用カラム（width/height/host）を足したもの。
 // 共有契約に列を足すとここにも自動で反映され、両者がズレない。
 export type ImageRow = ImageRowBase & {
+  width: number | null
+  height: number | null
   host: string | null
 }
 
@@ -348,8 +350,6 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"media_type"',
   '"duration"',
   '"fps"',
-  '"width"',
-  '"height"',
   '"uncaptured_frames"',
   '"ambiguous_frames"',
   '"source_frames"',

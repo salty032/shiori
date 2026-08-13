@@ -11,9 +11,9 @@ import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
-import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply, releaseCaptureUi } from './recording'
+import { finishRecordingState, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply, releaseCaptureUi } from './recording'
 import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
-import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
+import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { saveVideoFrames, setFrameCounts } from '../db'
 import { t } from '../system/i18n'
@@ -165,15 +165,10 @@ export function registerRecorderIpc(): void {
     const webm = Buffer.from(webmAB)
 
     // 画質の判断材料（logBitrateDiag 参照）。素材のコマ数は表からしか分からないので、
-    // 表が作れた録画でだけ「素材 1 コマあたり」が出る。画面の物理画素数も渡して、
-    // キャプチャストリームが縮んでいないかをその場で読めるようにする。
-    logBitrateDiag(
-      webm.byteLength, duration, frameTable ? frameTable.matches.length : null, sourceFps,
-      parsedDiag, getRecordingDisplayPixels()
-    )
+    // 表が作れた録画でだけ「素材 1 コマあたり」が出る。
+    logBitrateDiag(webm.byteLength, duration, frameTable ? frameTable.matches.length : null, sourceFps, parsedDiag)
 
     const capturedAt = Date.now()
-    const recordedPixels = recordedSize(parsedDiag)
     let webmPath: string | null = null
     let thumbPath: string | null = null
     try {
@@ -194,11 +189,8 @@ export function registerRecorderIpc(): void {
           title: meta?.title ?? null,
           current_time: meta?.currentTime ?? null,
           url: meta?.url ?? null,
-          // 実際に記録した画素数。**画質を語るときの母数**なので、取れないときは推定で
-          // 埋めず空欄にする（fps を供給レートで埋めないのと同じ理由。capture-diag.ts の
-          // recordedSize 参照）。
-          width: recordedPixels?.width ?? null,
-          height: recordedPixels?.height ?? null,
+          width: null,
+          height: null,
           colors: null,
           memo: null,
           media_type: 'video',

@@ -74,13 +74,7 @@ async function listDisplaysCached(): Promise<DisplayList> {
 // preCaptureHook が確定したキャプチャ時点のコンテキスト（タイムコード等）を
 // onCaptureDone まで引き回すための型。capture.ts は中身に関知しない。
 type CaptureContext = unknown
-// size は保存した画像の画素数（クロップ後）。ファイルを開き直さずに済むよう、切り出した
-// 時点の値をそのまま渡す。取れない経路のために null を許すが、通常は必ず入る。
-type CaptureHandler = (
-  imagePath: string,
-  context: CaptureContext,
-  size: { width: number; height: number } | null
-) => void | Promise<void>
+type CaptureHandler = (imagePath: string, context: CaptureContext) => void | Promise<void>
 type AsyncHook = () => Promise<CaptureContext>
 type SyncHook = () => void
 
@@ -283,13 +277,9 @@ export async function writeCaptureFile(dir: string, data: Buffer, ext = '.png'):
   throw new Error('Failed to create a unique capture filename')
 }
 
-async function notifyCaptureDone(
-  imagePath: string,
-  context: CaptureContext,
-  size: { width: number; height: number } | null
-): Promise<void> {
+async function notifyCaptureDone(imagePath: string, context: CaptureContext): Promise<void> {
   const results = await Promise.allSettled(
-    handlers.map((handler) => Promise.resolve().then(() => handler(imagePath, context, size)))
+    handlers.map((handler) => Promise.resolve().then(() => handler(imagePath, context)))
   )
   for (const result of results) {
     if (result.status === 'rejected') console.error('[capture] done handler failed', result.reason)
@@ -347,11 +337,7 @@ async function captureScreen(): Promise<string> {
         // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
         const dir = await ensureCaptureSubDir(Date.now())
         const filepath = await writeCaptureFile(dir, cropped.toPNG())
-        const size = cropped.getSize()
-        await notifyCaptureDone(
-          filepath, context,
-          size.width > 0 && size.height > 0 ? size : null
-        )
+        await notifyCaptureDone(filepath, context)
         return filepath
       }
     }

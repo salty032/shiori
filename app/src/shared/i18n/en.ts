@@ -313,7 +313,6 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.timecode': 'Timecode',
   'detail.duration': 'Length',
   'detail.fps': 'FPS',
-  'detail.resolution': 'Resolution',
   'detail.unreportedFrames': '{count} frames never reported',
   'detail.unreportedFramesHint':
     'Of the roughly {expected} frames the source should have, {count} were never reported by the streaming page. ' +
