@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildImageFilter } from './db'
+import { buildImageFilter, restoredFrameCounts } from './db'
 
 // buildImageFilter は WHERE 句文字列と params 配列を組み立てる純粋関数。listImages/countImages
 // が実際に発行する SQL の条件分岐・カーソルページングの tie-break をここで直接固定する。
@@ -131,6 +131,30 @@ describe('buildImageFilter', () => {
       const result = buildImageFilter({ sortOrder: 'random', before: 500, beforeId: 42, site: 'example.com' })
       expect(result.where).toBe('WHERE host = ?')
       expect(result.params).toEqual(['example.com'])
+    })
+  })
+})
+
+describe('restoredFrameCounts', () => {
+  const frames = [
+    { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' as const },
+    { mediaTime: 1 / 24, frameIndex: 0, captured: false, verified: 'same' as const },
+    { mediaTime: 2 / 24, frameIndex: 1, captured: false, verified: 'changed' as const },
+  ]
+
+  it('コマ表から母数・撮り逃し・要確認を再構築し、未通知数を保持する', () => {
+    expect(restoredFrameCounts(frames, { ambiguous: 1, unreported: 4 })).toEqual({
+      uncaptured: 2,
+      ambiguous: 1,
+      sourceFrames: 3,
+      unreported: 4,
+    })
+  })
+
+  it('未検証(null)は要確認0へ潰さない', () => {
+    expect(restoredFrameCounts(frames, { ambiguous: null, unreported: null })).toMatchObject({
+      ambiguous: null,
+      unreported: null,
     })
   })
 })

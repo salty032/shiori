@@ -22,9 +22,16 @@ const mockImage = {
   source: null
 }
 
+const getVideoFrames = vi.fn(() => null as import('../db').StoredFrame[] | null)
+const saveVideoFrames = vi.fn()
+const setFrameCounts = vi.fn()
+
 vi.mock('../db', () => ({
   getImage: vi.fn(() => mockImage),
-  getImageTags: vi.fn(() => [])
+  getImageTags: vi.fn(() => []),
+  getVideoFrames: () => getVideoFrames(),
+  saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
+  setFrameCounts: (...args: unknown[]) => setFrameCounts(...args),
 }))
 
 vi.mock('../system/paths', () => ({
@@ -35,11 +42,12 @@ vi.mock('../system/paths', () => ({
 
 const trimWebm = vi.fn(async () => {})
 const extractThumb = vi.fn(async () => { throw new Error('thumb extraction failed') })
+const getVideoFramePts = vi.fn(async (_path: string): Promise<number[]> => [])
 
 vi.mock('./ffmpeg', () => ({
   trimWebm: (...args: unknown[]) => trimWebm(...(args as [])),
   extractThumb: (...args: unknown[]) => extractThumb(...(args as [])),
-  getVideoFramePts: vi.fn(async () => []),
+  getVideoFramePts: (path: string) => getVideoFramePts(path),
   getTimelineStrip: vi.fn(async () => Buffer.from([])),
   getVideoDuration: vi.fn(async () => 10)
 }))
@@ -121,6 +129,12 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     handlers.clear()
     trimWebm.mockClear()
     extractThumb.mockClear()
+    getVideoFramePts.mockReset()
+    getVideoFramePts.mockResolvedValue([])
+    getVideoFrames.mockReset()
+    getVideoFrames.mockReturnValue(null)
+    saveVideoFrames.mockReset()
+    setFrameCounts.mockReset()
     registerCapturedMedia.mockClear()
     registerCapturedMedia.mockResolvedValue({ ok: true, id: 99 })
     vi.mocked(unlink).mockClear()
@@ -156,5 +170,26 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { width: number | null; height: number | null } }
     expect(insertArg.insert.width).toBe(1920)
     expect(insertArg.insert.height).toBe(1080)
+  })
+
+  it('元クリップのフレーム表を切り出し、新しいクリップへ保存する', async () => {
+    getVideoFrames.mockReturnValue([
+      { mediaTime: 2, frameIndex: 2, captured: true },
+      { mediaTime: 4, frameIndex: 4, captured: true },
+    ])
+    getVideoFramePts.mockImplementation(async (path) =>
+      path === mockImage.filepath
+        ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : [0, 1, 2, 3, 4, 5, 6])
+
+    const handler = handlers.get('video:trim')!
+    const result = await handler({}, 1, 2, 8)
+
+    expect(result).toEqual({ ok: true, newId: 99 })
+    expect(saveVideoFrames).toHaveBeenCalledWith(99, [
+      { mediaTime: 2, frameIndex: 0, captured: true },
+      { mediaTime: 4, frameIndex: 2, captured: true },
+    ])
+    expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0)
   })
 })

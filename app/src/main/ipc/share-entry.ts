@@ -31,12 +31,34 @@ interface RawShareEntry {
   media_type?: unknown
   duration?: unknown
   fps?: unknown
+  width?: unknown
+  height?: unknown
+  frame_table?: unknown
+  frame_table_file?: unknown
+  ambiguous_frames?: unknown
+  unreported_frames?: unknown
 }
 
 // fps は表示用の付随情報であり、duration のような著作権対策の判定には使わない。
 // 手編集された値を弾く必要は薄いが、明らかにおかしい値（負・非有限・現実的でない高値）を
 // そのまま表示に出さないよう緩く検証する。
 const MAX_REASONABLE_FPS = 120
+const MAX_REASONABLE_DIMENSION = 16_384
+// 30秒 × 対応上限120fpsでも数千行。壊れた共有データから巨大なJSON文字列を
+// 二重にparseしてメモリを圧迫しないよう、1クリップ単位でも上限を持つ。
+export const MAX_SHARE_FRAME_TABLE_BYTES = 2 * 1024 * 1024
+
+function optionalPositiveInteger(value: unknown, max: number): number | null {
+  return Number.isInteger(value) && (value as number) > 0 && (value as number) <= max
+    ? value as number
+    : null
+}
+
+function optionalNonNegativeInteger(value: unknown): number | null {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 1_000_000
+    ? value as number
+    : null
+}
 
 interface ParsedShareEntry {
   file: string
@@ -52,6 +74,13 @@ interface ParsedShareEntry {
   mediaType: 'image' | 'video'
   duration: number | null
   fps: number | null
+  width: number | null
+  height: number | null
+  // DBの圧縮済みJSON文字列。構造検証はdecodeFramesを持つipc-share側で行う。
+  frameTableData: string | null
+  frameTableFile: string | null
+  ambiguousFrames: number | null
+  unreportedFrames: number | null
 }
 
 // 戻り値: 成功時は ParsedShareEntry、検証エラー時は { error }、file フィールドが
@@ -117,5 +146,17 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     fps: isVideo && typeof entry.fps === 'number' && Number.isFinite(entry.fps) && entry.fps > 0 && entry.fps <= MAX_REASONABLE_FPS
       ? entry.fps
       : null,
+    width: optionalPositiveInteger(entry.width, MAX_REASONABLE_DIMENSION),
+    height: optionalPositiveInteger(entry.height, MAX_REASONABLE_DIMENSION),
+    frameTableData: isVideo && typeof entry.frame_table === 'string' && entry.frame_table.length <= MAX_SHARE_FRAME_TABLE_BYTES
+      ? entry.frame_table
+      : null,
+    frameTableFile: isVideo && typeof entry.frame_table_file === 'string'
+      && basename(entry.frame_table_file) === entry.frame_table_file
+      && entry.frame_table_file.endsWith('.frames.json')
+      ? entry.frame_table_file
+      : null,
+    ambiguousFrames: isVideo ? optionalNonNegativeInteger(entry.ambiguous_frames) : null,
+    unreportedFrames: isVideo ? optionalNonNegativeInteger(entry.unreported_frames) : null,
   }
 }

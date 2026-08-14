@@ -799,6 +799,39 @@ export function saveVideoFrames(imageId: number, frames: StoredFrame[]): void {
   prepare('INSERT OR REPLACE INTO video_frames (image_id, data) VALUES (?, ?)').run(imageId, encodeFrames(frames))
 }
 
+export function restoredFrameCounts(
+  frames: StoredFrame[],
+  counts: { ambiguous: number | null; unreported: number | null }
+): { uncaptured: number; ambiguous: number | null; sourceFrames: number; unreported: number | null } {
+  return {
+    uncaptured: frames.filter((frame) => !frame.captured).length,
+    sourceFrames: frames.length,
+    // null は「未検証」、数値がある場合は表を真値として再計算する。
+    ambiguous: counts.ambiguous === null
+      ? null
+      : frames.filter((frame) => !frame.captured && frame.verified === 'changed').length,
+    unreported: counts.unreported,
+  }
+}
+
+// 共有データからフレーム表を復元する際、表と品質カウントを必ず同一トランザクションで戻す。
+// 片方だけ成功すると、詳細表示の母数と実際にコマ送りが読む表が食い違うため。
+export function restoreVideoFrames(
+  imageId: number,
+  frames: StoredFrame[],
+  counts: { ambiguous: number | null; unreported: number | null }
+): void {
+  if (frames.length === 0) return
+  const restored = restoredFrameCounts(frames, counts)
+  db.transaction(() => {
+    prepare('INSERT OR REPLACE INTO video_frames (image_id, data) VALUES (?, ?)').run(imageId, encodeFrames(frames))
+    prepare(`UPDATE images
+      SET uncaptured_frames = ?, ambiguous_frames = ?, source_frames = ?, unreported_frames = ?
+      WHERE id = ?`)
+      .run(restored.uncaptured, restored.ambiguous, restored.sourceFrames, restored.unreported, imageId)
+  })()
+}
+
 // フレーム表を破棄し、「コマ精度の情報が無い」状態（列は NULL）へ戻す。
 //
 // 表の frameIndex がファイル内の実フレームと対応していないと分かったときに使う。

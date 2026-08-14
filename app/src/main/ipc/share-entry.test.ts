@@ -81,6 +81,62 @@ describe('parseShareEntry', () => {
     expect((result as { fps: number | null }).fps).toBeNull()
   })
 
+  it('v2の画素数・フレーム品質情報を受け付け、異常値はnullへ落とす', () => {
+    const ok = parseShareEntry(JSON.stringify({
+      version: 2,
+      file: 'a.webm',
+      width: 1920,
+      height: 1080,
+      frame_table: '[[0,0,1,0]]',
+      frame_table_file: 'clip.webm.frames.json',
+      ambiguous_frames: 0,
+      unreported_frames: 2,
+    }), NOW)
+    expect(ok).toMatchObject({
+      width: 1920,
+      height: 1080,
+      frameTableData: '[[0,0,1,0]]',
+      frameTableFile: 'clip.webm.frames.json',
+      ambiguousFrames: 0,
+      unreportedFrames: 2,
+    })
+
+    const bad = parseShareEntry(JSON.stringify({
+      version: 2,
+      file: 'a.webm',
+      width: -1,
+      height: 99999,
+      frame_table: 123,
+      frame_table_file: '../unsafe.frames.json',
+      ambiguous_frames: -1,
+      unreported_frames: 1.5,
+    }), NOW)
+    expect(bad).toMatchObject({
+      width: null,
+      height: null,
+      frameTableData: null,
+      frameTableFile: null,
+      ambiguousFrames: null,
+      unreportedFrames: null,
+    })
+  })
+
+  it('画像には手編集されたフレーム情報を持たせない', () => {
+    const result = parseShareEntry(JSON.stringify({
+      file: 'a.png',
+      frame_table: '[[0,0,1,0]]',
+      frame_table_file: 'a.png.frames.json',
+      ambiguous_frames: 1,
+      unreported_frames: 2,
+    }), NOW)
+    expect(result).toMatchObject({
+      frameTableData: null,
+      frameTableFile: null,
+      ambiguousFrames: null,
+      unreportedFrames: null,
+    })
+  })
+
   it('正常な最小エントリを正しく正規化する', () => {
     const result = parseShareEntry(JSON.stringify({ file: 'cap_1.png', title: 'Title', current_time: 12.5 }), NOW)
     expect(result).toMatchObject({

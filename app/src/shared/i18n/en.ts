@@ -426,7 +426,7 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.sidebarDisplay': 'Sidebar',
   'settings.showAiTags': 'Show AI tags in the sidebar too',
   'settings.showAiTagsHint': 'While off, only manual tags are shown. Turning it on also shows AI tags, but manual tags stay at the top.',
-  'settings.exportHint': 'Saves your captures, tags, notes and smart folders to a folder. (Locally imported items are not included.)',
+  'settings.exportHint': 'Saves your captures, tags, notes, clip frame-accuracy data and smart folders to a folder. (Locally imported items are not included.)',
   'settings.stoppedCount.one': 'Stopped after {count} item',
   'settings.stoppedCount.other': 'Stopped after {count} items',
   'settings.exportFailed': 'Export failed',

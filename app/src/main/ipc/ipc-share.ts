@@ -4,12 +4,12 @@ import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
 import { join, basename } from 'path'
 import { randomUUID } from 'crypto'
 import { getMainWindow, handleTrusted, sendToRenderer, safeExternalUrl } from '../system/windows'
-import { listImagesForExport } from '../db'
+import { decodeFrames, encodeFrames, getVideoFrames, listImagesForExport, restoreVideoFrames } from '../db'
 import { loadSettings, saveSettings, smartFolders } from '../system/settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from '../system/paths'
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../../shared/api'
-import { parseShareEntry } from './share-entry'
+import { MAX_SHARE_FRAME_TABLE_BYTES, parseShareEntry } from './share-entry'
 import { getVideoThumbProvider } from '../capture/video-thumb-provider'
 import { MAX_IMPORT_VIDEO_SECONDS, IMPORT_VIDEO_SECONDS_EPS } from './ipc-import'
 import { registerCapturedMedia } from '../capture/captured-media'
@@ -23,6 +23,9 @@ let isShareImporting = false
 let isShareImportCanceled = false
 const MAX_SHARE_METADATA_BYTES = 64 * 1024 * 1024
 const MAX_SHARE_SETTINGS_BYTES = 1024 * 1024
+// 30.5秒（取り込み許容誤差込み）×120fpsより余裕を持たせる。壊れた表が
+// ビューアやDBを不必要に膨らませないための多層防御。
+const MAX_SHARE_FRAME_ROWS = 4_000
 
 // 同じ秒に連続して書き出しても既存バンドルへ画像が混ざらないよう、ディレクトリ作成自体を
 // 衝突判定として使って一意な保存先を予約する（事前 access だけだと TOCTOU になる）。
@@ -58,7 +61,9 @@ export function registerShareHandlers(): void {
 
       const destDir = await createUniqueExportDir(filePaths[0], Date.now())
       const imagesDir = join(destDir, 'images')
+      const framesDir = join(destDir, 'frames')
       await mkdir(imagesDir, { recursive: true })
+      await mkdir(framesDir, { recursive: true })
 
       const items = listImagesForExport()
       const copyOne = async (item: (typeof items)[number]): Promise<string | null> => {
@@ -87,8 +92,20 @@ export function registerShareHandlers(): void {
           }
         }
 
+        const frameTable = item.media_type === 'video' ? getVideoFrames(item.id) : null
+        let frameTableFile: string | null = null
+        if (frameTable) {
+          frameTableFile = `${filename}.frames.json`
+          try {
+            await writeFile(join(framesDir, frameTableFile), encodeFrames(frameTable), 'utf-8')
+          } catch (err) {
+            // コマ表だけの失敗で動画本体まで書き出せなくするより、従来相当のデータを残す。
+            console.warn(`[share:export] frame table write failed ${src}`, err)
+            frameTableFile = null
+          }
+        }
         return JSON.stringify({
-          version: 1,
+          version: 2,
           file: filename,
           ...(thumbFilename ? { thumb: thumbFilename } : {}),
           url: item.url,
@@ -97,7 +114,16 @@ export function registerShareHandlers(): void {
           tags: item.manualTags,
           memo: item.memo,
           captured_at: item.captured_at,
-          ...(item.media_type === 'video' ? { media_type: 'video', duration: item.duration, fps: item.fps } : {}),
+          ...(item.width != null ? { width: item.width } : {}),
+          ...(item.height != null ? { height: item.height } : {}),
+          ...(item.media_type === 'video' ? {
+            media_type: 'video',
+            duration: item.duration,
+            fps: item.fps,
+            ...(frameTableFile ? { frame_table_file: frameTableFile } : {}),
+            ambiguous_frames: item.ambiguous_frames ?? null,
+            unreported_frames: item.unreported_frames ?? null,
+          } : {}),
         })
       }
       const lines: string[] = []
@@ -254,8 +280,8 @@ export function registerShareHandlers(): void {
               title: parsed.title,
               current_time: parsed.currentTime,
               url: parsed.url ? safeExternalUrl(parsed.url) : null,
-              width: null,
-              height: null,
+              width: parsed.width,
+              height: parsed.height,
               colors: null,
               memo: parsed.memo,
               media_type: parsed.mediaType,
@@ -273,6 +299,35 @@ export function registerShareHandlers(): void {
           if (!result.ok) {
             errors.push(`insert failed: ${parsed.file}`)
             continue
+          }
+          // v2のコマ表を復元する。旧v1には frame_table が無いため従来どおり何もしない。
+          // 追加情報が壊れていても動画本体の取り込みは成立しているので、表だけ諦める。
+          let frameTableData = parsed.frameTableData
+          if (!frameTableData && parsed.frameTableFile) {
+            try {
+              const frameTablePath = join(srcDir, 'frames', parsed.frameTableFile)
+              const frameTableStat = await stat(frameTablePath)
+              if (frameTableStat.isFile() && frameTableStat.size <= MAX_SHARE_FRAME_TABLE_BYTES) {
+                frameTableData = await readFile(frameTablePath, 'utf-8')
+              }
+            } catch (err) {
+              console.warn(`[share:import] frame table sidecar unavailable: ${parsed.file}`, err)
+            }
+          }
+          if (frameTableData) {
+            try {
+              const frames = decodeFrames(frameTableData)
+              if (frames && frames.length <= MAX_SHARE_FRAME_ROWS) {
+                restoreVideoFrames(result.id, frames, {
+                  ambiguous: parsed.ambiguousFrames,
+                  unreported: parsed.unreportedFrames,
+                })
+              } else {
+                console.warn(`[share:import] ignored invalid frame table: ${parsed.file}`)
+              }
+            } catch (err) {
+              console.warn(`[share:import] failed to restore frame table: ${parsed.file}`, err)
+            }
           }
           count++
         } finally {

@@ -426,7 +426,7 @@ export const ja = {
   'settings.sidebarDisplay': 'サイドバー表示',
   'settings.showAiTags': 'AIタグもサイドバーに表示する',
   'settings.showAiTagsHint': 'OFFの間は手動で付けたタグのみを表示します。ONにするとAIタグも表示されますが、手動タグを優先して上位に並べます。',
-  'settings.exportHint': 'キャプチャ、タグ、メモ、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）',
+  'settings.exportHint': 'キャプチャ、タグ、メモ、録画のコマ精度情報、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',
   'settings.exportFailed': 'エクスポートに失敗しました',
