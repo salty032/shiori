@@ -26,6 +26,10 @@ jobs:
 
       - run: npm run verify
 
+      # TypeScript が通っても、Electron のエントリ・Vite 設定・バンドル解決は実ビルドでしか
+      # 検証できない。リリースタグを打った後に初めて壊れたと分かるのを防ぐ。
+      - run: npm run build
+
       # 拡張機能はテストが薄い領域（1,100 行超の JS）なので、manifest / API 誤用を
       # web-ext lint で機械チェックする。
       - run: npm run ext:lint
