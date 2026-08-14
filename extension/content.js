@@ -508,7 +508,7 @@ let noticeTimer = null
 // DOM が組み直し中に document.title がサービス名だけになるケースを検出
 const GENERIC_TITLE_PATTERNS = new Set([
   'youtube', 'abema', 'dmm tv', 'prime video', 'netflix',
-  'disney+', 'dアニメストア', '再生', '動画再生', 'u-next', 'ニコニコ動画', 'bilibili'
+  'disney+', 'dアニメストア', '再生', '動画再生', 'u-next', 'ニコニコ動画', 'bilibili', '哔哩哔哩'
 ])
 
 // 覚えたタイトルは「そのアドレスで読んだもの」として扱い、アドレスが変わったら捨てる。
@@ -575,14 +575,17 @@ const SUPPRESS_CAPTURE_KEY_HOSTS = new Set([
   'primevideo.com',
 ])
 
-// Bilibili は .com / .tv で同じ指定を使う（採取したホストの確証が無いため。当たらない側では
-// 何も起きない）。`player-mobile-play-mask` は覆い本体・一時停止アイコン・送り戻しの
-// アイコンが同じ接頭辞で並ぶので部分一致でまとめて拾う。
+// **これは bilibili.tv（Bstation）のもの。bilibili.com では1つも当たらない**（実機で確認済み）。
+// .com は別のプレーヤーで、クラス名の系統から違う。共用しようとして失敗した経緯があるので、
+// .com の分が採れても**この配列へ混ぜない**こと。
+//
+// `player-mobile-play-mask` は覆い本体・一時停止アイコン・送り戻しのアイコンが同じ接頭辞で
+// 並ぶので部分一致でまとめて拾う。
 //
 // `ip-toast` は 10秒送り/戻しの表示と、速度・画質変更時の通知。左右に 72x72 が同じ高さで
 // 対になって出る（`--left` / `--right`）ことと、採取中に実際その操作をしていたことで確定。
 // `--top` は上中央の小さな通知。向きの違いが同じ接頭辞に並ぶので部分一致で拾う。
-const BILIBILI_PLAYER_UI = [
+const BILIBILI_TV_PLAYER_UI = [
   '.player-mobile-control-bar',        // 下部コントロールバー（再生・時間・画質・速度）
   '[class*="player-mobile-play-mask"]', // 一時停止時の覆い＋中央の再生/一時停止アイコン
   '[class*="ip-toast"]',               // 10秒送り/戻しの表示・速度/画質変更の通知
@@ -657,8 +660,13 @@ const SERVICE_PLAYER_UI = {
       '.advisory-background',  // レーティング表示(+12等)の左上グラデーション背景
     ],
   },
-  // Bilibili: 実機で採取したクラス名。`bpx-player-*`（本土向けの新プレーヤー）ではなく
-  // `player-mobile-*` / `bstar-player__*` 系だった。中身は BILIBILI_PLAYER_UI を参照。
+  // Bilibili .com: **空配列は「宣言済み・まだ何も消さない」の意味で、消し忘れではない。**
+  // 登録が無いホストは汎用フォールバック（動画に重なる absolute/fixed を片っ端から消す）へ
+  // 落ちる。あれは何を消したか画面に出ないので、確認前に走らせると気づけない事故になる。
+  // プレーヤーUIが写るのは見れば分かるので、採取が済むまでは写る方を選ぶ。
+  'bilibili.com': [],
+  // Bilibili .tv（Bstation）: 実機で採取したクラス名。`bpx-player-*` ではなく
+  // `player-mobile-*` / `bstar-player__*` 系。中身は BILIBILI_TV_PLAYER_UI を参照。
   //
   // 消さないものと理由:
   //   - `player-mobile-danmaku-container`（弾幕）— ニコニコと同じくプレーヤー側の設定で消す
@@ -666,8 +674,7 @@ const SERVICE_PLAYER_UI = {
   //     字幕は消していない（Netflix 等も同様）。消すならここへ足す
   //   - `player-mobile-display`（表示層のまとめ役）— 中身ごと消えるので使わない
   //   - `bstar-player__main-bg`（映像の背面）— 映像に隠れて写らない
-  'bilibili.com': BILIBILI_PLAYER_UI,
-  'bilibili.tv': BILIBILI_PLAYER_UI,
+  'bilibili.tv': BILIBILI_TV_PLAYER_UI,
   // dアニメストア: 動作確認しながら1つずつ追加中。非ハッシュのセマンティックなクラス名。
   'animestore.docomo.ne.jp': [
     '.buttonArea',     // 下部コントロールバー（ボタン行＋スキップボタン）
@@ -1190,15 +1197,34 @@ function getPageTitle() {
     return document.title.replace(/ - ニコニコ動画$/, '').trim() || document.title
   }
 
-  // Bilibili: タブ名に作品名が入るので、末尾のサイト名だけ削る（YouTube / niconico と同じ形）。
-  // 投稿動画が主体のサイトなので、タイトルの中身は投稿者が付けたそのまま残す。装飾に見える
-  // 部分（『』や "DUBBING & SUBBING ENGLISH" のような但し書き）を推測で削ると、投稿者が
-  // 意図した表記まで落とす。実例:
-  //   『 DUBBING & SUBBING ENGLISH 幼女戦記 』 Youjo Senki 1st Season episode 12 - BiliBili
-  //   Genshin Impact Fan Creation: AMV (Anime Music Video) - BiliBili
-  // 区切りは確認できたのが「 - 」だけ。他の形（`_哔哩哔哩_bilibili` 等）は実物を見てから足す。
-  if (host === 'bilibili.com' || host === 'bilibili.tv') {
-    return document.title.replace(/\s*[-–—|｜]\s*bilibili\s*$/i, '').trim() || document.title
+  // Bilibili: タブ名に作品名が入るので、末尾のサイト名と定型句だけ削る（YouTube / niconico と
+  // 同じ形）。作品名の本体は推測で削らない——`.tv` は投稿動画が主体で、装飾に見える部分
+  // （『』や "DUBBING & SUBBING ENGLISH" のような但し書き）も投稿者が意図した表記のため。
+  //
+  // **.com と .tv はタブ名の形が全く違う**ので分ける。
+  //   .tv:  『 DUBBING & SUBBING ENGLISH 幼女戦記 』 Youjo Senki 1st Season episode 12 - BiliBili
+  //   .com: 记忆管理局-国创-高清独家在线观看-bilibili-哔哩哔哩
+  if (host === 'bilibili.tv') {
+    return document.title.replace(/\s*-\s*bilibili\s*$/i, '').trim() || document.title
+  }
+  if (host === 'bilibili.com') {
+    // .com のタブ名は2種類あり、**末尾のサイト名の並び順が逆**なので見分けられる。
+    //   投稿動画:   “原神进入大回忆时代”_哔哩哔哩_bilibili        （哔哩哔哩 → bilibili、区切りは _）
+    //   公式ページ: 记忆管理局-国创-高清独家在线观看-bilibili-哔哩哔哩（bilibili → 哔哩哔哩、区切りは -）
+    //              妖神记之黑狱篇-国创-全集-高清正版在线观看-bilibili-哔哩哔哩
+    //
+    // 公式ページは「作品名 - カテゴリ - (収録範囲) - 宣伝文句 - サイト名」という並び。
+    // **飾りの語を数え上げず、最初の `-` より前だけを作品名とする。** カテゴリ語は無数に
+    // あり、知っている語だけ消す形だと作品ごとに見た目が揃わない（`国创` は消えるが
+    // `番剧` は残る、等）。飾りが何であっても同じ結果になる方を採る。
+    //
+    // 代償: 作品名そのものに `-` が入っていると、そこで切れて後ろが消える。これは画面から
+    // 気づけない。中国語の作品名に `-` はまず使われないという判断で、揃う方を優先している。
+    const title = document.title
+    const ugc = title.replace(/_哔哩哔哩_bilibili\s*$/i, '')
+    if (ugc !== title) return ugc.trim() || title  // 投稿動画は作品名に何が入っていても触らない
+    if (/-bilibili-哔哩哔哩\s*$/i.test(title)) return title.split('-')[0].trim() || title
+    return title
   }
 
   // Disney+: 左上タイトル表示の Shadow DOM から作品名 + 話数・サブタイトルを取得
