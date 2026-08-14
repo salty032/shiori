@@ -13,6 +13,8 @@ app/demo-assets/manifest.json
 web-ext-artifacts/
 extension/.amo-upload-uuid
 *.tsbuildinfo
+app/electron.vite.config.js
+app/electron.vite.config.d.ts
 *.db
 .DS_Store
 Thumbs.db
