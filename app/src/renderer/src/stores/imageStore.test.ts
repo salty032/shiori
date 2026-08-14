@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useImageStore } from './imageStore'
+import { useFilterStore } from './filterStore'
 import type { ImageRow } from '../types'
 
 function img(id: number, over: Partial<ImageRow> = {}): ImageRow {
@@ -106,5 +108,56 @@ describe('imageStore mutations', () => {
     useImageStore.setState({ gridTotalCount: null })
     useImageStore.getState().adjustGridTotalCount(5)
     expect(useImageStore.getState().gridTotalCount).toBeNull()
+  })
+})
+
+describe('imageStore timeline paging', () => {
+  it('200件ずつ取得し、次ページへ撮影日時とidのカーソルを渡す', async () => {
+    useFilterStore.setState({ sortOrder: 'date_desc' })
+    const first = Array.from({ length: 200 }, (_, i) => img(400 - i, { captured_at: 400 - i }))
+    const second = [img(200, { captured_at: 200 }), img(199, { captured_at: 199 })]
+    const listImages = vi.fn(async (req: { before?: number; beforeId?: number }) =>
+      req.before === undefined ? first : second)
+    ;(window as unknown as { api: unknown }).api = {
+      listImages,
+      countImages: vi.fn(async () => 202),
+    }
+    const showToast = vi.fn()
+
+    useImageStore.getState().reloadTimeline(showToast)
+    await vi.waitFor(() => expect(useImageStore.getState().timelineImages).toHaveLength(200))
+    expect(useImageStore.getState().timelineHasMore).toBe(true)
+
+    await useImageStore.getState().loadMoreTimeline(showToast)
+    expect(listImages).toHaveBeenLastCalledWith(expect.objectContaining({
+      limit: 200,
+      before: 201,
+      beforeId: 201,
+      sortOrder: 'date_desc',
+    }))
+    expect(useImageStore.getState().timelineImages).toHaveLength(202)
+    expect(useImageStore.getState().timelineHasMore).toBe(false)
+  })
+
+  it('古い順では最古のページから始め、次に新しい側のカーソルを使う', async () => {
+    useFilterStore.setState({ sortOrder: 'date_asc' })
+    const first = Array.from({ length: 200 }, (_, i) => img(i + 1, { captured_at: i + 1 }))
+    const listImages = vi.fn(async (req: { before?: number; beforeId?: number }) =>
+      req.before === undefined ? first : [img(201, { captured_at: 201 })])
+    ;(window as unknown as { api: unknown }).api = {
+      listImages,
+      countImages: vi.fn(async () => 201),
+    }
+
+    useImageStore.getState().reloadTimeline(vi.fn())
+    await vi.waitFor(() => expect(useImageStore.getState().timelineImages).toHaveLength(200))
+    await useImageStore.getState().loadMoreTimeline(vi.fn())
+
+    expect(listImages).toHaveBeenLastCalledWith(expect.objectContaining({
+      before: 200,
+      beforeId: 200,
+      sortOrder: 'date_asc',
+    }))
+    expect(useImageStore.getState().timelineImages.at(-1)?.id).toBe(201)
   })
 })

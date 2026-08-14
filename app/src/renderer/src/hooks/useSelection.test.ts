@@ -218,6 +218,20 @@ describe('Ctrl+A（全選択）', () => {
     expect(result.current.selectedIds.size).toBe(0)
   })
 
+  it('Timelineでは未読込分を裏で取得せず、現在読み込んだ範囲だけを選ぶ', async () => {
+    const loaded = makeImages(3)
+    const { result } = setup({ images: loaded, gridActiveRef: { current: false } })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }))
+      await Promise.resolve()
+    })
+
+    expect(result.current.selectedIds).toEqual(new Set(loaded.map((i) => i.id)))
+    expect(mockApi().listAllImages).not.toHaveBeenCalled()
+    expect(mockApi().countImages).not.toHaveBeenCalled()
+  })
+
   it('B-3回帰: 取得中にフィルタが変わったら古い結果で選択を上書きしない', async () => {
     const { promise: listPromise, resolve: resolveList } = deferred<ImageRow[]>()
     const { promise: countPromise, resolve: resolveCount } = deferred<number>()

@@ -50,6 +50,8 @@ type Props = {
   onToggleSettings: () => void
   /** 「?」のフライアウトから変更点モーダルを開く（サイドバー自身は中身を持たない） */
   onShowWhatsNew: (version: string, notes: string[]) => void
+  setupCompleted: number
+  onShowSetup: () => void
   thumbnailSize: number
   onThumbnailSize: (size: number) => void
   viewMode: ViewMode
@@ -70,6 +72,7 @@ const SMART_FOLDER_DRAG_THRESHOLD_PX = 6
 export default function Sidebar({
   count, filters, smartFolders,
   searchTags, onRemoveSearchTag, onAddSearchTag, settingsActive, onToggleSettings, onShowWhatsNew,
+  setupCompleted, onShowSetup,
   thumbnailSize, onThumbnailSize, viewMode, onViewMode,
   onDeleteSmartFolder, onReorderSmartFolders, onDeleteTag,
 }: Props) {
@@ -440,6 +443,12 @@ export default function Sidebar({
       )}
 
       <div style={s.sidebarUtilitySection}>
+        <button className="shiori-hover-tint" style={s.sidebarSetupBtn} onClick={onShowSetup}>
+          <span style={{ ...s.sidebarSetupMark, ...(setupCompleted === 3 ? s.sidebarSetupMarkDone : {}) }}>
+            {setupCompleted === 3 ? '✓' : setupCompleted}
+          </span>
+          <span>{t(setupCompleted === 3 ? 'sidebar.setupGuide' : 'sidebar.setupProgress', { completed: setupCompleted })}</span>
+        </button>
         <div style={s.sidebarControls}>
           <div style={s.thumbSizeControl} title={t('sidebar.thumbnailSize')}>
             {/* 選択中ハイライト（背面）。選択先のセグメントへスライドする。settings.json の
@@ -459,6 +468,7 @@ export default function Sidebar({
             <div style={{ ...s.segSlider, width: 38, transform: `translateX(${viewMode === 'timeline' ? 38 : 0}px)` }} />
             {([['grid', <GridIcon key="i" />, t('sidebar.viewGrid')], ['timeline', <ListIcon key="i" />, t('sidebar.viewTimeline')]] as const).map(([mode, icon, label]) => (
               <button key={mode}
+                data-tour={mode === 'timeline' ? 'timeline-toggle' : undefined}
                 style={{ ...s.viewToggleBtn, ...(viewMode === mode ? s.segActive : {}) }}
                 onClick={() => onViewMode(mode)} title={label}>{icon}</button>
             ))}

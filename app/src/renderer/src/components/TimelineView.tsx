@@ -4,7 +4,7 @@ import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
 import { cleanTitle, computeGridLayout, formatTime, thumbSrc } from '../utils'
 import { font, badgeInset, s as appStyles } from '../styles'
-import { useT } from '../i18n'
+import { currentLocale, useT } from '../i18n'
 
 // サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
 // ThumbCell / フィルムストリップと同様に onError でプレースホルダへ切り替える。
@@ -49,7 +49,12 @@ type Props = {
   pendingIds: Set<number>
   focusedIndex: number | null
   loading: boolean
+  hasMore: boolean
+  totalCount: number | null
+  loadedCount: number
+  loadDirection: 'older' | 'newer' | 'more'
   hasActiveFilter: boolean
+  onLoadMore: () => void
   onOpen: (flatIndex: number) => void
   onContextMenu: (flatIndex: number, e: React.MouseEvent) => void
   containerWidth: number
@@ -172,6 +177,12 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
               {activeGroup.title ? cleanTitle(activeGroup.title, p.titleStrip) : t('grid.untitled')}
             </span>
             <span style={s.headingCount}>{activeGroup.items.length}</span>
+            <span style={s.loadedCount}>
+              {t('timeline.displaying', {
+                shown: p.loadedCount.toLocaleString(currentLocale()),
+                total: (p.totalCount ?? p.loadedCount).toLocaleString(currentLocale()),
+              })}
+            </span>
           </div>
         )}
       </div>
@@ -222,6 +233,17 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
         )
       })}
       </div>
+      {p.hasMore && (
+        <div style={s.loadMoreWrap}>
+          <button type="button" style={s.loadMoreButton} disabled={p.loading} onClick={p.onLoadMore}>
+            {p.loading
+              ? t('timeline.loadingMore')
+              : p.loadDirection === 'newer'
+                ? t('timeline.loadNewer')
+                : p.loadDirection === 'older' ? t('timeline.loadOlder') : t('timeline.loadMore')}
+          </button>
+        </div>
+      )}
     </>
   )
 })
@@ -238,6 +260,7 @@ const s: Record<string, React.CSSProperties> = {
   headingStatic: { ...headingBase },
   headingTitle: { fontSize: font.lg, fontWeight: 800, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   headingCount: { fontSize: font.sm, color: 'var(--text-secondary)', flexShrink: 0 },
+  loadedCount: { marginLeft: 'auto', fontSize: font.sm, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
   grid: { display: 'grid', gap: CELL_GAP, width: '100%' },
   thumb: { position: 'relative', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxSizing: 'border-box', borderRadius: 4, overflow: 'hidden', cursor: 'pointer', width: '100%', contain: 'layout paint', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
   thumbImg: { width: '100%', objectFit: 'cover', display: 'block' },
@@ -245,4 +268,6 @@ const s: Record<string, React.CSSProperties> = {
   // （テーマ非依存。フィルムストリップの視認性を優先し、あえて周辺UIと色を揃えない）。
   timeBadge: { position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   empty: { color: 'var(--text-secondary)', textAlign: 'center', width: '100%', minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  loadMoreWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0 28px' },
+  loadMoreButton: { border: '1px solid var(--border-default)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 700, padding: '9px 18px', cursor: 'pointer' },
 }

@@ -437,6 +437,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 )}
               </div>
               <textarea
+                data-tour="memo-input"
                 style={s.memoInput}
                 value={memoDraft}
                 placeholder={t('detail.memoPlaceholder')}
@@ -467,16 +468,10 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
               />
             </div>
 
+            {/* 並びは 解像度 → FPS → サイト → 取得日時。**録画そのものの素性が上、
+                どこから撮ったか・いつ撮ったかが下**。粗さの理由を追うときに解像度と fps を
+                続けて読むので、その 2 つを離さない。 */}
             <div style={s.metaFooter}>
-              {single.url && (
-                <div style={s.subtleRow}>
-                  <span style={s.subtleLabel}>{t('detail.site')}</span>
-                  <button style={s.subtleUrlBadge} onClick={() => window.api.openUrl(single.url!)} title={single.url}>
-                    {siteName(single.url)}
-                    <ExternalLinkIcon size={11} />
-                  </button>
-                </div>
-              )}
               {/* fps と解像度は取得日時と同じ「素性の記録」の扱い。上のメタ欄は開くたびに読む
                   情報（動画時刻・長さ・コマ精度の注記）のための場所で、この 2 つはそこに置く
                   ほど頻繁には参照しない。
@@ -491,18 +486,27 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   推定値で埋めないことと、行を出さないことは別の話で、守るべきは前者——
                   `—` は「測れなかった」であって、それ自体が読み取れる情報になっている。
                   **一覧（ThumbCell）には出さない**方針は従来どおり。 */}
-              {single.media_type === 'video' && (
-                <div style={s.subtleRow}>
-                  <span style={s.subtleLabel}>{t('detail.fps')}</span>
-                  <span style={s.subtleValue}>{single.fps != null ? `${formatFps(single.fps)}fps` : '—'}</span>
-                </div>
-              )}
               <div style={s.subtleRow}>
                 <span style={s.subtleLabel}>{t('detail.resolution')}</span>
                 <span style={s.subtleValue}>
                   {single.width != null && single.height != null ? `${single.width} × ${single.height}` : '—'}
                 </span>
               </div>
+              {single.media_type === 'video' && (
+                <div style={s.subtleRow}>
+                  <span style={s.subtleLabel}>{t('detail.fps')}</span>
+                  <span style={s.subtleValue}>{single.fps != null ? `${formatFps(single.fps)}fps` : '—'}</span>
+                </div>
+              )}
+              {single.url && (
+                <div style={s.subtleRow}>
+                  <span style={s.subtleLabel}>{t('detail.site')}</span>
+                  <button style={s.subtleUrlBadge} onClick={() => window.api.openUrl(single.url!)} title={single.url}>
+                    {siteName(single.url)}
+                    <ExternalLinkIcon size={11} />
+                  </button>
+                </div>
+              )}
               <div style={s.subtleRow}>
                 <span style={s.subtleLabel}>{t('detail.capturedAt')}</span>
                 <span style={s.subtleValue}>{new Date(single.captured_at).toLocaleString(locale)}</span>

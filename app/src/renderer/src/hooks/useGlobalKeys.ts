@@ -103,7 +103,7 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
   // （設定はサイドバー下部の歯車から開く。Ctrl+, は廃止した）
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
-      const { searchInputRef, onQuickTag, viewerIdx, activeImages } = ref.current
+      const { searchInputRef, onQuickTag, viewerIdx } = ref.current
       const editing = isEditingTarget(e.target)
       // ビューア表示中は素通しする。検索欄はビューアに覆われて見えないため、フォーカスだけが
       // そこへ移ると以降の矢印・Delete・Space・Escape が全て「入力中」扱いで死に、

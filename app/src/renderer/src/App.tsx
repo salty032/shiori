@@ -5,6 +5,8 @@ import { s } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import WhatsNewModal from './components/WhatsNewModal'
+import SetupGuideModal from './components/SetupGuideModal'
+import ProductTour, { type ProductTourStep } from './components/ProductTour'
 import DetailPanel from './components/DetailPanel'
 import Viewer from './components/Viewer'
 import QuickTagInput from './components/QuickTagInput'
@@ -30,6 +32,7 @@ import { useGlobalKeys } from './hooks/useGlobalKeys'
 import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
 import { getExtraContextMenuItems, getModals, isDemoMode } from './features/registry'
 import { useT } from './i18n'
+import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, saveSetupGuideState, type SetupGuideState } from './setupGuideState'
 
 // サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
 const COL_GAP = 6
@@ -61,6 +64,9 @@ export default function App() {
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string[] } | null>(null)
+  const [setupGuide, setSetupGuide] = useState<SetupGuideState>(loadSetupGuideState)
+  const [showSetupGuide, setShowSetupGuide] = useState(false)
+  const [productTourStep, setProductTourStep] = useState<ProductTourStep | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const mainRef = useRef<HTMLDivElement>(null)
@@ -74,6 +80,51 @@ export default function App() {
   // フィルタ変更時の選択クリアは useSelection が filterStore を購読して自前で行う。
   const imageList = useImageList(toast.showToast)
   const timeline = useTimeline(viewMode === 'timeline', toast.showToast)
+
+  const loadOlderTimeline = useCallback(async (): Promise<void> => {
+    const scroller = mainRef.current
+    const beforeHeight = scroller?.scrollHeight ?? 0
+    const beforeTop = scroller?.scrollTop ?? 0
+    await timeline.requestMore()
+    // 古い項目が既存作品のグループへ合流すると、現在位置より上の高さが増える。
+    // ボタンを押した位置が大きく跳ねないよう、増えた高さぶんだけスクロール位置を補正する。
+    window.requestAnimationFrame(() => {
+      if (!scroller) return
+      scroller.scrollTop = beforeTop + Math.max(0, scroller.scrollHeight - beforeHeight)
+    })
+  }, [timeline.requestMore])
+
+  const updateSetupGuide = useCallback((patch: Partial<SetupGuideState>): void => {
+    setSetupGuide((current) => {
+      const next = { ...current, ...patch }
+      saveSetupGuideState(next)
+      return next
+    })
+  }, [])
+
+  // 新規ユーザーだけ、ライブラリの初回読込が終わって空だと確定してから案内を出す。
+  // 一度閉じた後は自動再表示せず、サイドバーの「セットアップ」からいつでも確認できる。
+  useEffect(() => {
+    if (!isDemoMode() && !imageList.loading && imageList.images.length === 0 && !setupGuide.tutorialSeen) {
+      setShowSetupGuide(true)
+    }
+  }, [imageList.loading, imageList.images.length, setupGuide.tutorialSeen])
+
+  // 対応ページから一度でも受信できれば、拡張のサイドロードは成功している。ページを閉じた後も
+  // 「未完了」へ戻さないため、現在の接続表示とは別に成功実績を保存する。
+  useEffect(() => {
+    if (settings.extensionStatus && !setupGuide.extensionReady) updateSetupGuide({ extensionReady: true })
+  }, [settings.extensionStatus, setupGuide.extensionReady, updateSetupGuide])
+
+  // Shiori でのキャプチャが1件あれば、前段のブラウザ準備・拡張接続も通過済みとみなせる。
+  // 既存ユーザーに新しいチェックリストを遡って確認させないため、3項目をまとめて完了する。
+  useEffect(() => {
+    const next = reconcileCaptureCompletion(
+      setupGuide,
+      imageList.images.some((image) => image.source === 'capture'),
+    )
+    if (next !== setupGuide) updateSetupGuide(next)
+  }, [imageList.images, setupGuide, updateSetupGuide])
 
   // タイムライン表示中はグリッドの代わりに、作品別グルーピングした並びを「アクティブな一覧」として扱う。
   // ordered（フラット化した並び）が選択・ビューア移動のインデックス基準になる。
@@ -211,6 +262,30 @@ export default function App() {
     onLibraryChanged,
   })
 
+  const startProductTour = useCallback((): void => {
+    setShowSetupGuide(false)
+    updateSetupGuide({ tutorialSeen: true })
+    filters.clearAllFilters()
+    setViewerId(null)
+    setViewMode('grid')
+    selection.clearSelection()
+    setProductTourStep(0)
+  }, [filters.clearAllFilters, selection.clearSelection, updateSetupGuide])
+
+  // 初めて自分でキャプチャできた直後が、実画面の使い方を試す最も自然なタイミング。
+  // 既存ライブラリの読込ではなく newIds に入ったキャプチャだけを対象にし、提案は端末で1度に限る。
+  useEffect(() => {
+    if (!imageList.images.some((image) => image.source === 'capture' && newIds.has(image.id))) return
+    const key = 'shiori-product-tour-offered-v1'
+    try {
+      if (localStorage.getItem(key)) return
+      localStorage.setItem(key, '1')
+    } catch {
+      // 保存できない環境でも提案自体は妨げない。
+    }
+    toast.showToast(t('tour.offer'), 'info', 10_000, { label: t('tour.offerAction'), onClick: startProductTour })
+  }, [imageList.images, newIds, startProductTour, t, toast.showToast])
+
   useEffect(() => {
     if (selection.selectedIds.size === 0) return
     const handler = (e: MouseEvent) => {
@@ -300,6 +375,25 @@ export default function App() {
     onLibraryChanged,
     showToast: toast.showToast,
   })
+
+  // 実操作ガイドは説明の「次へ」では進めない。選択・ビューア開閉・表示切替という
+  // アプリ側の実状態が変わったときだけ次の操作へ進む。
+  useEffect(() => {
+    if (productTourStep === 0 && selection.selectedIds.size > 0) setProductTourStep(1)
+    if (productTourStep === 1 && viewerIdx !== null) setProductTourStep(2)
+    if (productTourStep === 2 && viewerIdx === null) setProductTourStep(3)
+    if (productTourStep === 4 && viewMode === 'timeline') setProductTourStep(5)
+  }, [productTourStep, selection.selectedIds.size, viewerIdx, viewMode])
+
+  const advanceProductTour = useCallback((): void => {
+    if (productTourStep === null) return
+    if (productTourStep >= 5) {
+      setProductTourStep(null)
+      toast.showToast(t('tour.completed'), 'success')
+      return
+    }
+    setProductTourStep((productTourStep + 1) as ProductTourStep)
+  }, [productTourStep, t, toast.showToast])
 
   // メインプロセスからの通知 → トースト
   useEffect(() => {
@@ -527,6 +621,8 @@ export default function App() {
           settingsActive={settings.showSettings}
           onToggleSettings={() => settings.setShowSettings((v) => !v)}
           onShowWhatsNew={(version, notes) => setWhatsNew({ version, notes })}
+          setupCompleted={completedSetupSteps(setupGuide)}
+          onShowSetup={() => setShowSetupGuide(true)}
           thumbnailSize={settings.settings.thumbnailSize}
           onThumbnailSize={settings.updateThumbnailSize}
           viewMode={viewMode}
@@ -560,7 +656,12 @@ export default function App() {
                 pendingIds={selection.pendingIds}
                 focusedIndex={selection.focusedIndex}
                 loading={timeline.loading}
+                hasMore={timeline.hasMore}
+                loadedCount={timeline.images.length}
+                totalCount={timeline.totalCount}
+                loadDirection={filters.sortOrder === 'date_asc' ? 'newer' : filters.sortOrder === 'random' ? 'more' : 'older'}
                 hasActiveFilter={filters.hasActiveFilter()}
+                onLoadMore={loadOlderTimeline}
                 onOpen={selection.openIndex}
                 onContextMenu={handleTimelineContextMenu}
                 containerWidth={containerWidth}
@@ -832,6 +933,22 @@ export default function App() {
           notes={whatsNew.notes}
           onClose={() => setWhatsNew(null)}
         />
+      )}
+
+      {showSetupGuide && !isDemoMode() && (
+        <SetupGuideModal
+          state={setupGuide}
+          captureHotkey={settings.settings.captureHotkey}
+          extensionStatus={settings.extensionStatus}
+          canStartTour={(imageList.totalCount ?? imageList.images.length) > 0}
+          onStartTour={startProductTour}
+          onChange={updateSetupGuide}
+          onClose={() => setShowSetupGuide(false)}
+        />
+      )}
+
+      {productTourStep !== null && (
+        <ProductTour step={productTourStep} onAdvance={advanceProductTour} onExit={() => setProductTourStep(null)} />
       )}
 
       {getModals().map((Modal, i) => <Modal key={i} />)}

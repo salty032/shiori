@@ -3,12 +3,14 @@ import type { ImageRow } from '../types'
 import type { ShowToast } from '../hooks/useToast'
 import { getCommitted, useFilterStore } from './filterStore'
 import { buildImageQuery } from './imageQuery'
-import { t, currentLocale } from '../i18n'
+import { t } from '../i18n'
 
 const PAGE_SIZE = 50
+const TIMELINE_PAGE_SIZE = 200
 
-// グリッド（カーソルページング）とタイムライン（一括取得）は取得方式が本質的に異なるため、
-// 配列は 2 本持つ。ただし「画像という 1 つの真実」をこのストアが所有し、
+// グリッドとタイムラインはページサイズ・並びの組み立て方が異なるため、配列は 2 本持つ。
+// どちらもカーソルページングだが、Timeline は作品別グループへ古い項目を継ぎ足す。
+// ただし「画像という 1 つの真実」をこのストアが所有し、
 // patch / remove / prepend といった変更操作はここに一元化する。
 // これにより App 側が両リストを手で同期する必要がなくなり、
 // 「片方のリストだけ更新して表示がズレる」クラスのバグを構造的に防ぐ。
@@ -23,11 +25,14 @@ const grid = {
   lastCapturedAt: null as number | null,
   lastId: null as number | null,
 }
-let timelineGeneration = 0
-// B10: タイムラインは MAX_TIMELINE_LIMIT（5000件）でキャップされる。reloadTimeline は
-// キャプチャのたびに走るため、上限超過のたびに毎回トーストを出すとスパムになる。
-// 「上限に当たった」→「一旦下回った」の遷移でのみ再通知するようフラグで一回性を保つ。
-let timelineTruncatedNotified = false
+const timeline = {
+  generation: 0,
+  loading: false,
+  hasMore: true,
+  totalCount: null as number | null,
+  lastCapturedAt: null as number | null,
+  lastId: null as number | null,
+}
 
 // 削除保留中（Undo 猶予中）の画像 id 集合。queueDelete は選択直後に UI から画像を消すが、
 // DB からは Undo 猶予（DELETE_UNDO_MS）が明けるまで実際には消えていない。この間にフィルタ変更・
@@ -68,11 +73,12 @@ type ImageState = {
   // クエリ変更（検索確定・フィルタ変更）による再読込中かどうか。gridLoading は無限スクロールの
   // 追加読み込み中も true になるため区別できず、検索ボックス側のローディング表示にはこちらを使う。
   gridReloading: boolean
-  // --- タイムライン（一括取得） ---
+  // --- タイムライン（カーソルページング） ---
   timelineImages: ImageRow[]
   timelineLoading: boolean
-  // countImages の真値（MAX_TIMELINE_LIMIT で打ち切られる timelineImages.length とは別。
-  // サイドバーの件数表示をグリッド表示と一貫させるために使う。D-3）
+  timelineHasMore: boolean
+  // countImages の真値（ページング途中の timelineImages.length とは別。
+  // サイドバーと「表示中 / 全件数」の表示に使う。D-3）
   timelineTotalCount: number | null
   // --- 新着 NEW 表示（裏画面でも即時。消去は前面化後の数秒） ---
   newIds: Set<number>
@@ -80,7 +86,8 @@ type ImageState = {
   // --- フェッチ ---
   loadMoreGrid: (showToast: ShowToast) => Promise<void>
   reloadGrid: (showToast: ShowToast) => void
-  reloadTimeline: (showToast: ShowToast) => Promise<void>
+  loadMoreTimeline: (showToast: ShowToast) => Promise<void>
+  reloadTimeline: (showToast: ShowToast) => void
 
   // --- 変更操作（両リストに反映する単一の入口） ---
   // タイトル/メモ編集などの部分更新。グリッド・タイムライン双方に反映する
@@ -110,6 +117,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
   gridReloading: false,
   timelineImages: [],
   timelineLoading: false,
+  timelineHasMore: true,
   timelineTotalCount: null,
   newIds: new Set(),
 
@@ -177,31 +185,70 @@ export const useImageStore = create<ImageState>((set, get) => ({
       .catch((err) => console.error('[images] count failed', err))
   },
 
-  reloadTimeline: async (showToast) => {
-    const generation = ++timelineGeneration
+  loadMoreTimeline: async (showToast) => {
+    if (timeline.loading || !timeline.hasMore) return
+    const generation = timeline.generation
+    const isFirstPage = timeline.lastCapturedAt === null && timeline.lastId === null
+    timeline.loading = true
     set({ timelineLoading: true })
     try {
       const query = buildImageQuery(getCommitted(useFilterStore.getState()))
-      const [rows, count] = await Promise.all([window.api.listAllImages(query), window.api.countImages(query)])
-      if (generation !== timelineGeneration) return
-      // truncated 判定（下）は MAX_TIMELINE_LIMIT の上限到達を見るものなので、削除保留中の
-      // 除外前（rows.length）で行う。表示にだけ pendingDeleteIds を反映する。
+      const timelineSort = useFilterStore.getState().sortOrder === 'date_asc' ? 'date_asc' : 'date_desc'
+      const rows = await window.api.listImages({
+        ...query,
+        limit: TIMELINE_PAGE_SIZE,
+        before: timeline.lastCapturedAt ?? undefined,
+        beforeId: timeline.lastId ?? undefined,
+        // 作品順自体は renderer の buildTimeline が決めるが、古い順を選んだ場合は
+        // ライブラリの本当の先頭（最古）から読む必要がある。random はページ境界を
+        // 安定させるため新しい順で取得し、読み込み済みグループだけを決定的に混ぜる。
+        sortOrder: timelineSort,
+      })
+      if (generation !== timeline.generation) return
       const filteredRows = pendingDeleteIds.size > 0 ? rows.filter((img) => !pendingDeleteIds.has(img.id)) : rows
-      set({ timelineImages: filteredRows, timelineTotalCount: count })
-      if (count > rows.length) {
-        if (!timelineTruncatedNotified) {
-          timelineTruncatedNotified = true
-          showToast(t('toast.timelineTruncated', { shown: rows.length.toLocaleString(currentLocale()), total: count.toLocaleString(currentLocale()) }), 'warning')
-        }
-      } else {
-        timelineTruncatedNotified = false
+      const loadedAfter = isFirstPage ? filteredRows.length : get().timelineImages.length + filteredRows.length
+      set((s) => ({ timelineImages: isFirstPage ? filteredRows : [...s.timelineImages, ...filteredRows] }))
+      if (rows.length > 0) {
+        timeline.lastCapturedAt = rows[rows.length - 1].captured_at
+        timeline.lastId = rows[rows.length - 1].id
       }
+      timeline.hasMore = rows.length === TIMELINE_PAGE_SIZE
+        && (timeline.totalCount === null || loadedAfter < timeline.totalCount)
+      set({ timelineHasMore: timeline.hasMore })
     } catch (err) {
       console.error('[timeline] load failed', err)
-      if (generation === timelineGeneration) showToast(t('toast.loadTimelineFailed'), 'error')
+      if (generation === timeline.generation) showToast(t('toast.loadTimelineFailed'), 'error')
     } finally {
-      if (generation === timelineGeneration) set({ timelineLoading: false })
+      if (generation === timeline.generation) {
+        timeline.loading = false
+        set({ timelineLoading: false })
+      }
     }
+  },
+
+  reloadTimeline: (showToast) => {
+    timeline.generation++
+    timeline.loading = false
+    timeline.hasMore = true
+    timeline.totalCount = null
+    timeline.lastCapturedAt = null
+    timeline.lastId = null
+    set({ timelineLoading: true, timelineHasMore: true, timelineTotalCount: null })
+    get().loadMoreTimeline(showToast)
+
+    const generation = timeline.generation
+    window.api.countImages(buildImageQuery(getCommitted(useFilterStore.getState())))
+      .then((count) => {
+        if (generation !== timeline.generation) return
+        timeline.totalCount = count
+        timeline.hasMore = get().timelineImages.length < count
+        set((s) => ({
+          timelineTotalCount: count,
+          // 最終ページがちょうど200件でも、真の件数が表示済み以下なら追加ボタンを消す。
+          timelineHasMore: s.timelineImages.length < count,
+        }))
+      })
+      .catch((err) => console.error('[timeline] count failed', err))
   },
 
   patchImage: (id, patch) => set((s) => ({

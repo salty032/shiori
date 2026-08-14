@@ -305,7 +305,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             {/* ↑↓ で候補を送れる実装は元からあったが、支援技術には「ただのテキスト欄」に
                 見えていた。combobox として関連付け、今どの候補を指しているかを
                 aria-activedescendant で読み上げ側にも伝える。 */}
-            <input ref={searchInputRef} className="shiori-search-input" style={s.searchInput} value={filters.search}
+            <input ref={searchInputRef} data-tour="search-input" className="shiori-search-input" style={s.searchInput} value={filters.search}
               role="combobox"
               aria-expanded={hasOpenMenu}
               aria-controls={SUGGESTIONS_ID}

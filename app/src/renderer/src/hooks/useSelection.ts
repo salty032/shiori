@@ -619,6 +619,13 @@ export function useSelection({
         if (loaded.length === 0) return
         anchorIdx.current = 0
         setFocusIdx(loaded.length - 1)
+        // Timeline は「さらに古い項目」を明示的に追加するページング表示なので、Ctrl+A も
+        // 現在読み込んで画面で確認できる範囲を対象にする。未読込分まで裏で選ぶと、ヘッダーの
+        // 「表示中 N / 全 M 件」と選択対象が食い違い、削除・書き出しの対象を予測できない。
+        if (!gridActiveRef.current) {
+          setSelectedIds(new Set(loaded.map((i) => i.id)))
+          return
+        }
         // グリッドはカーソルページングで一部しか読み込まれていないため、`images`（表示済み分だけ）
         // ではなく現在のフィルタに一致する全件を取り直して選択する（タイムラインは既に全件読み込み
         // 済みだが、query は同一なので同じ経路で問題ない）。

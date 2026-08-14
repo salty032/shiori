@@ -9,7 +9,7 @@ interface CaptureSyncOptions {
   // キャプチャでライブラリ内容が変わったときのサイドバー再取得（サービス/カラー）
   onLibraryChanged: () => void
   showToast: ShowToast
-  // タイムライン表示中かどうか（P-1）。非表示中は reloadTimeline（最大5000行の一括取得）を
+  // タイムライン表示中かどうか（P-1）。非表示中は reloadTimeline（先頭ページの再取得）を
   // 省略する。useTimeline 側が表示切り替え時に必ず reload するため、次に開いたときには
   // 最新化される（stale フラグを別途持つ必要はない）。
   timelineActive: boolean
@@ -27,8 +27,8 @@ const CAPTURE_SYNC_DEBOUNCE_MS = 300
 export function useCaptureSync(opts: CaptureSyncOptions): void {
   const ref = useLatestRef(opts)
   useEffect(() => {
-    // フォルダドロップ等で capture:done が件数分連打されると、タイムライン全再取得
-    // （最大5000行）とサイドバー集計（sites/colors）が件数分バーストする。reloadGrid
+    // フォルダドロップ等で capture:done が件数分連打されると、Timeline先頭ページの再取得と
+    // サイドバー集計（sites/colors）が件数分バーストする。reloadGrid
     // （フィルタ中のみ）/ reloadTimeline / onLibraryChanged はまとめてトレーリング
     // デバウンスし、markNewCaptured と（先頭挿入で足りる場合の）prependToGrid だけ
     // 即時のまま保つ（キャプチャ1枚の体感即時性を落とさないため）。
@@ -44,8 +44,8 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
         // 再クエリして「条件に合致するキャプチャだけ」が現れるようにする（タイムラインと同方針）。
         store.reloadGrid(showToast)
       }
-      // タイムラインは一括取得結果に新規キャプチャが含まれないため再取得が必要だが（フィルタも反映される）、
-      // グリッド表示中（非表示）はこの5000行クエリが無駄なので省略する（P-1）。
+      // Timeline の取得済みページに新規キャプチャが含まれないため再取得が必要だが（フィルタも反映される）、
+      // グリッド表示中（非表示）はこのクエリが無駄なので省略する（P-1）。
       if (timelineActive) store.reloadTimeline(showToast)
       onLibraryChanged()
     }
