@@ -13,17 +13,24 @@ import { XIcon } from './Icon'
 // 打つ人はそちらの用紙を見慣れており、欄の位置・色・目盛りの入り方が手掛かりになっている。
 // 独自の並びにすると、読めはしても「いつもの表」として読めない。
 //
-//   ACTION（原画 A〜G）｜コマ目盛り｜SOUND（S1 S2）｜CELL（動画 a〜g）｜CAM（1 2）
+//   CELL（動画 a〜g）｜コマ目盛り
 //
 //   - 1 コマ 1 マス。コマ番号は 2 コマごとに出す（実物と同じ間引き）
 //   - 1 秒（素材 fps ぶん）ごとに太線で区切り、**秒のブロックごとに地色を替える**
 //   - 秒の番号はブロックの最終行に出す
 //   - 新しい絵が始まるコマにだけ番号が入り、続くコマは縦線が伸びる
 //
-// Shiori が打つのは **CELL（動画）の a 列**だけ。他の欄は実物と同じ枠を出すが空のまま——
-// 映像から分かるのは「絵が変わった位置」だけで、原画か中割りかも層の分離も分からない
-// （docs/TIMESHEET.md 3-4）。**埋められない欄を消さずに空で見せる**方が、何が分かって
-// 何が分かっていないかがそのまま読める。
+// **出すのは CELL と目盛りだけ**（2026-08-14 の指示）。用紙にある ACTION（原画）・
+// SOUND・CAM は、映像から復元できないので常に空になる。空の枠を並べても「分からない」
+// ことは伝わらず、そのぶん幅を取って**詳細パネルより広い板が出てくる**——表を開くたびに
+// 一覧が詰まって画面が動くのが、打つ間ずっと邪魔になっていた。
+//
+// **幅は詳細パネルと共有する**（同じ storageKey）。表は詳細パネルと入れ替わりで同じ場所に
+// 出るので、幅が違うと入れ替わるたびに左の一覧が伸び縮みする。同じ幅なら、板の中身だけが
+// 差し替わって見える。
+//
+// Shiori が打つのは **CELL（動画）の a 列**だけ。映像から分かるのは「絵が変わった位置」
+// だけで、原画か中割りかも層の分離も分からない（docs/TIMESHEET.md 3-4）。
 
 const ROW_H = 15
 
@@ -34,11 +41,8 @@ const c = {
   rule: '#c9d6e2',         // 1 コマごとの罫線
   ruleSecond: '#5f7381',   // 1 秒ごとの太線
   headText: '#1b3348',
-  actionBand: '#e4e9ee',
-  actionSub: '#dbe9f7',
-  soundBand: '#dee5f6',
+  headBand: '#e4e9ee',
   cellBand: '#fbe3e6',
-  camBand: '#e2f2e2',
   counterBg: '#f7fbfc',
   counterInk: '#5a7280',
   // 秒のブロックごとに交互に敷く地色。
@@ -50,15 +54,11 @@ const c = {
   selRow: 'rgba(188,217,242,0.30)',
 }
 
-const ACTION_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-const SOUND_COLS = ['S1', 'S2']
 const CELL_COLS = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
-const CAM_COLS = ['1', '2']
 
-const W = { action: 42, counter: 46, sound: 26, cell: 42, cam: 60 }
-const TOTAL_W =
-  ACTION_COLS.length * W.action + W.counter + SOUND_COLS.length * W.sound
-  + CELL_COLS.length * W.cell + CAM_COLS.length * W.cam
+// 詳細パネルの最小幅（300）に収まる寸法。ここを広げると、既定の幅で横スクロールが出る。
+const W = { counter: 44, cell: 36 }
+const TOTAL_W = CELL_COLS.length * W.cell + W.counter
 
 // 打った番号が入るのは CELL の a（＝動画欄の 1 列目）。クリップボードへ出すのも 1 列だけ。
 const WRITE_COL = 0
@@ -73,7 +73,9 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
   const { t } = useT()
   const currentRowRef = useRef<HTMLDivElement>(null)
   const { width, handleResizeStart } = usePanelResize({
-    storageKey: 'shiori-timesheet-width', min: 320, max: 900, defaultWidth: 620, direction: 'left',
+    // **詳細パネルと同じ設定**（storageKey も同じ）。入れ替わっても幅が変わらないので、
+    // 左の一覧が動かない。片方を広げればもう片方も同じ幅になる。
+    storageKey: 'shiori-detail-width', min: 300, max: 600, defaultWidth: 300, direction: 'left',
   })
 
   // コマ送りに追従して現在行を見える位置へ寄せる。**block: 'nearest' にする**——常に中央へ
@@ -128,23 +130,17 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
         </div>
       </div>
 
-      {/* 横は用紙の幅で固定してスクロールさせる。**欄を間引いて畳まない**——欄の位置関係
-          そのものが実物の手掛かりなので、狭いときは切るのではなくスクロールで見せる。 */}
+      {/* 横は表の幅で固定する。既定（詳細パネルと同じ 300）でちょうど収まり、
+          それより狭く詰めたときだけ横スクロールになる。 */}
       <div style={st.scrollX}>
         <div style={{ width: TOTAL_W, flexShrink: 0 }}>
           <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
-            <div style={{ ...st.group, width: ACTION_COLS.length * W.action, background: c.actionBand }}>ACTION</div>
-            <div style={{ ...st.group, width: W.counter, background: c.counterBg, borderRight: `1px solid ${c.frame}` }} />
-            <div style={{ ...st.group, width: SOUND_COLS.length * W.sound, background: c.soundBand }}>SOUND</div>
             <div style={{ ...st.group, width: CELL_COLS.length * W.cell, background: c.cellBand }}>CELL</div>
-            <div style={{ ...st.group, width: CAM_COLS.length * W.cam, background: c.camBand }}>CAM</div>
+            <div style={{ ...st.group, width: W.counter, background: c.counterBg, borderLeft: `1px solid ${c.frame}` }} />
           </div>
           <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
-            {ACTION_COLS.map((label) => <div key={`a${label}`} style={{ ...st.colHead, width: W.action, background: c.actionSub }}>{label}</div>)}
-            <div style={{ ...st.colHead, width: W.counter, background: c.counterBg, borderRight: `1px solid ${c.frame}` }} />
-            {SOUND_COLS.map((label) => <div key={`s${label}`} style={{ ...st.colHead, width: W.sound, background: c.soundBand }}>{label}</div>)}
             {CELL_COLS.map((label) => <div key={`c${label}`} style={{ ...st.colHead, width: W.cell, background: c.cellBand }}>{label}</div>)}
-            {CAM_COLS.map((label) => <div key={`m${label}`} style={{ ...st.colHead, width: W.cam, background: c.camBand }}>{label}</div>)}
+            <div style={{ ...st.colHead, width: W.counter, background: c.counterBg, borderLeft: `1px solid ${c.frame}` }} />
           </div>
 
           <div style={st.body}>
@@ -162,17 +158,6 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                   ref={isCurrent ? currentRowRef : undefined}
                   style={{ display: 'flex', height: ROW_H, background: isCurrent ? c.selRow : undefined, cursor: 'pointer' }}
                   onClick={() => sheet.seek(i)}>
-                  {ACTION_COLS.map((label2) => (
-                    <div key={`a${label2}`} style={{ ...st.cell, width: W.action, background: band, borderTop: border }} />
-                  ))}
-                  {/* コマ目盛り。秒はブロックの最終行、コマ番号は 2 コマごと（実物と同じ間引き）。 */}
-                  <div style={{ ...st.cell, width: W.counter, background: c.counterBg, borderTop: border, borderRight: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
-                    <span style={{ fontWeight: 700 }}>{isSecondEnd ? secondIdx + 1 : ''}</span>
-                    <span>{(i + 1) % 2 === 0 ? i + 1 : ''}</span>
-                  </div>
-                  {SOUND_COLS.map((label2) => (
-                    <div key={`s${label2}`} style={{ ...st.cell, width: W.sound, background: band, borderTop: border }} />
-                  ))}
                   {CELL_COLS.map((label2, col) => {
                     const isWrite = col === WRITE_COL
                     return (
@@ -192,9 +177,11 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                       </div>
                     )
                   })}
-                  {CAM_COLS.map((label2) => (
-                    <div key={`m${label2}`} style={{ ...st.cell, width: W.cam, background: band, borderTop: border }} />
-                  ))}
+                  {/* コマ目盛り。秒はブロックの最終行、コマ番号は 2 コマごと（実物と同じ間引き）。 */}
+                  <div style={{ ...st.cell, width: W.counter, background: c.counterBg, borderTop: border, borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
+                    <span style={{ fontWeight: 700 }}>{isSecondEnd ? secondIdx + 1 : ''}</span>
+                    <span>{(i + 1) % 2 === 0 ? i + 1 : ''}</span>
+                  </div>
                 </div>
               )
             })}
@@ -214,7 +201,7 @@ const st: Record<string, React.CSSProperties> = {
   resizeHandle: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize', zIndex: 10, userSelect: 'none' },
   head: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-    padding: '8px 10px', background: c.actionBand, borderBottom: `1px solid ${c.frame}`,
+    padding: '8px 10px', background: c.headBand, borderBottom: `1px solid ${c.frame}`,
     flexShrink: 0, color: c.headText,
   },
   copyBtn: {
