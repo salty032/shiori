@@ -228,6 +228,15 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.frameLoadingHint': 'Loading the frame table. Frame steps are held until it finishes, then applied together.',
   'viewer.frameEstimatedHint': 'Frame positions could not be read for this clip. Stepping uses an interval derived from the fps, so it does not line up with the source frames.',
 
+  // Frame playback (stepping on a timer). The speed is held as "how long one frame stays on
+  // screen" — that is what you actually experience, so no conversion is needed to read it.
+  'viewer.frameHold': '{sec}s / frame',
+  'viewer.frameHoldShort': '{sec}s',
+  'viewer.frameHoldGroup': 'Time per frame',
+  'viewer.speedNormal': 'Normal',
+  'viewer.speedNormalHint': 'Plays at the normal speed.',
+  'viewer.framePlayHint': 'Playing steps through the source frames one at a time, holding each for {sec}s.',
+
   // ── What's New ──
   'whatsNew.title': 'What’s new in Shiori v{version}',
 

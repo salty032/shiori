@@ -223,6 +223,18 @@ export const ja = {
   'viewer.frameLoadingHint': 'コマ表を読み込んでいます。読み込みが終わるまでコマ送りは保留され、まとめて反映されます。',
   'viewer.frameEstimatedHint': 'このクリップのフレーム位置を取得できませんでした。fps から換算した刻みで送っているため、素材のコマとは一致しません。',
 
+  // コマ再生（自動でコマを送る）。速さは「1 コマを何秒見せるか」で持つ——画面で体験して
+  // いるのがその値なので、コマ/秒 のような換算の要る単位にしない。
+  // **「1コマ」まで入れて 1 つの単位にする。** 秒数だけだと、何の時間なのか（コマの表示時間
+  // なのか、送る間隔なのか、尺なのか）がボタンからは読めない。
+  'viewer.frameHold': '1コマ {sec}秒',
+  // ポップアップの行。共通部分（1コマ）は見出し側にあるので、ここは数字だけにする。
+  'viewer.frameHoldShort': '{sec}秒',
+  'viewer.frameHoldGroup': '1コマの表示時間',
+  'viewer.speedNormal': '等速',
+  'viewer.speedNormalHint': 'そのままの速さで再生します。',
+  'viewer.framePlayHint': '再生すると、素材のコマを 1 つずつ、1 コマ {sec} 秒ずつ見せて送ります。',
+
   // ── What's New ──
   'whatsNew.title': 'Shiori v{version} の変更点',
 

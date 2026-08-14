@@ -7,7 +7,7 @@ import { font } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 import {
-  useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, RateControl, LoopButton,
+  useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, SpeedControl, LoopButton, type PlaybackSpeed,
   vcBarStyle, vcBarOverlayStyle, VC_OVERLAY_HEIGHT, vcSeekTrackStyle, vcSeekBarStyle, vcSeekFillStyle, vcSeekThumbStyle
 } from './videoControls'
 
@@ -32,7 +32,7 @@ function fmtDur(sec: number): string {
 
 /**
  * コマ表示が今どの土台で動いているか。**コマ送りの結果をどう読んでよいかが変わる**ので、
- * 内部で分岐するだけでなく画面にも出す（docs/ANIME-FRAMES.md 4章「保証できないときは
+ * 内部で分岐するだけでなく画面にも出す（docs/ANIME-FRAMES.md 3章「保証できないときは
  * 保証できないと出す」）。
  *
  *   off       … コマ表示をしない（詳細パネル。表を取りに行かないので何も言えない）
@@ -47,6 +47,10 @@ type ReadoutKind = 'off' | 'loading' | 'source' | 'file' | 'estimated'
 // 押した回数ぶんは動かしたいが、キーリピートを押しっぱなしにした場合まで積むと、
 // 読み込み完了の瞬間に何十コマも飛んで「どこを見ているか分からない」状態になる。
 const MAX_PENDING_STEPS = 30
+
+// 再生中、ポインタが止まってからコントロールバーを引くまでの時間（ビューアのみ）。
+// 短いと映像を見ている間に何度も出入りしてちらつき、長いと映像の下端が隠れ続ける。
+const CONTROLS_IDLE_MS = 2500
 
 // コマ表示の色。**映像に直接重なる層なので、テーマ変数ではなくオンビデオの固定色にする**
 // （コントロールバーが半透明ホワイトに統一しているのと同じ判断。videoControls.tsx 参照）。
@@ -82,13 +86,13 @@ const frameReadoutStyle: React.CSSProperties = {
   transition: 'opacity 0.15s ease',
 }
 
-// セッション内で音量・ミュート・再生速度・ループを共有し、クリップを切り替えても引き継ぐ
-// （ビューア⇔詳細パネルで VideoPlayer が remount されても維持される）。
-// 速度とループを含めるのは、研究中に 0.25x + ループへ整えた作業環境がクリップを
-// 送るたびに 1x へ戻ってしまうと、毎回設定し直す手間が本題を邪魔するため。
+// セッション内で音量・ミュート・コマ再生の速さ・ループを共有し、クリップを切り替えても
+// 引き継ぐ（ビューア⇔詳細パネルで VideoPlayer が remount されても維持される）。
+// 速さとループを含めるのは、研究中に「1 コマ 0.25 秒 + ループ」へ整えた作業環境がクリップを
+// 送るたびに既定へ戻ってしまうと、毎回設定し直す手間が本題を邪魔するため。
 let lastVolume = 1
 let lastMuted = false
-let lastRate = 1
+let lastSpeed: PlaybackSpeed = null
 let lastLoop = false
 
 type Props = {
@@ -110,7 +114,7 @@ type Props = {
    *  取り込み動画はファイルのフレーム＝素材のコマだが、録画クリップのファイルのフレームは
    *  画面キャプチャの供給レートの産物で、素材のコマとは対応しない。 */
   clipSource?: ImageSource
-  // 再生速度・ループをコントロールバーに出す。腰を据えて 1 本を見るビューア専用で、
+  // コマ再生・ループをコントロールバーに出す。腰を据えて 1 本を見るビューア専用で、
   // 詳細パネル（サムネの隣で内容を確かめるだけの小さい枠）には出さない。
   // 狭いバーにボタンが増えるほど、そこでの用途である「どのクリップか確認する」が
   // やりにくくなるため。既定は出さない側に倒す。
@@ -279,6 +283,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   function stepFrame(dir: number): void {
     const v = videoRef.current
     if (!v) return
+    // 手で送ったらコマ再生は止める。自動送りと手送りが混ざると、どちらの結果として
+    // 今のコマに居るのかが分からなくなる。
+    setFramePlay(false)
     if (readoutRef.current === 'loading') {
       v.pause()   // 保留中でも再生は止める（押した意図は「ここで止めて見る」なので）
       pendingStepsRef.current = Math.max(-MAX_PENDING_STEPS, Math.min(pendingStepsRef.current + dir, MAX_PENDING_STEPS))
@@ -287,17 +294,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     moveFrames(dir)
   }
 
+  // 指定コマへ直接移る。**移動そのものは moveFrames に任せる**——端の丸め・自分のシークの
+  // 目印・表示の更新が 1 か所にあるからで、ここで currentTime を直に触ると同じ処理が 2 系統になる。
+  function goToFrame(idx: number): void {
+    const v = videoRef.current
+    const pts = framesRef.current?.pts ?? []
+    if (!v || pts.length === 0) return
+    const cur = frameIdxRef.current ?? findFrameIdx(pts, v.currentTime)
+    moveFrames(Math.max(0, Math.min(idx, pts.length - 1)) - cur)
+  }
+
   // 毎描画で最新に差し替える。useImperativeHandle の依存に props を並べると、足し忘れた
   // ものが黙って古いまま使われる（stepSec だけ並べていた頃の形）。
   const stepFrameRef = useRef(stepFrame)
   stepFrameRef.current = stepFrame
+  const togglePlaybackRef = useRef<() => void>(() => {})
 
   useImperativeHandle(ref, () => ({
-    togglePlay: () => {
-      const v = videoRef.current
-      if (!v) return
-      if (v.paused) v.play(); else v.pause()
-    },
+    togglePlay: () => togglePlaybackRef.current(),
     stepFrame: (dir: number) => stepFrameRef.current(dir),
     element: () => videoRef.current,
   }), [])
@@ -307,17 +321,71 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   const vcTimeRef = useRef(0)
 
   const [playing, setPlaying] = useState(false)
-  // コントロールバーはホバー中だけ映像に重ねて出す。シーク操作中（scrubbing）も出したままに
-  // する: つまみを掴んだまま映像の外へポインタが出ると mouseleave でバーが消え、掴んでいる
+  // コントロールバーの出し入れ。シーク操作中（scrubbing）は必ず出したままにする:
+  // つまみを掴んだまま映像の外へポインタが出ると mouseleave でバーが消え、掴んでいる
   // ものが視界から無くなってしまうため。
   const [hovered, setHovered] = useState(false)
   const [scrubbing, setScrubbing] = useState(false)
-  const controlsVisible = hovered || scrubbing
+  // ポインタが直近 CONTROLS_IDLE_MS 以内に動いたか（ビューアでのみ使う）。
+  const [pointerRecent, setPointerRecent] = useState(false)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current) }, [])
+
+  function bumpPointer(): void {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = setTimeout(() => setPointerRecent(false), CONTROLS_IDLE_MS)
+    setPointerRecent(true)
+  }
+
   const [vcDuration, setVcDuration] = useState(0)
   const [vcVolume, setVcVolume] = useState(1)
   const [vcMuted, setVcMuted] = useState(false)
-  const [vcRate, setVcRate] = useState(lastRate)
   const [vcLoop, setVcLoop] = useState(lastLoop)
+  // コマ再生（自動でコマを送り続ける）が走っているか、と 1 コマの表示時間。
+  const [framePlay, setFramePlay] = useState(false)
+  // 再生の速さ。null は等速、数値はコマ再生で 1 コマを何秒見せるか。
+  const [speed, setSpeed] = useState<PlaybackSpeed>(lastSpeed)
+  // ループの現在値をコマ再生のループ（描画外で回る）から読むため ref にも持つ。
+  const vcLoopRef = useRef(vcLoop)
+  vcLoopRef.current = vcLoop
+
+  // 再生中か（等速の再生でも、コマ再生でも）。**再生/停止ボタンは 1 つ**なので、
+  // どちらで動いていても同じ「止める」に見える必要がある。
+  const running = playing || framePlay
+
+  // バーを出すかどうか。**ビューアと詳細パネルで勝手が違う。**
+  //
+  // 詳細パネルはサムネの隣で内容を確かめるだけの小さい枠で、バーは映像を隠す邪魔ものに
+  // 近い。ホバーを外したら即座に引く（従来どおり）。
+  //
+  // ビューアは腰を据えて 1 本を見る場所で、バーはその作業の道具そのもの（速さを選ぶ・
+  // 位置を置く）。**止まっている間は消さない**——コマを見定めている最中に道具が消えると、
+  // 次の操作のたびにホバーからやり直しになる。再生中だけは映像の邪魔になるので、
+  // ポインタが止まって CONTROLS_IDLE_MS 経ったら引く。
+  const controlsVisible = scrubbing || (showRateLoop ? !running || pointerRecent : hovered)
+
+  // 再生/停止。**どう再生するかは速さの選択が決め、ここは入り切りだけ**にする。
+  // 再生ボタンをコマ再生と等速で分けていた頃は、バーに再生ボタンが 2 つ並び、
+  // どちらを押すのかが画面から読めなかった。
+  function togglePlayback(): void {
+    const v = videoRef.current
+    if (!v) return
+    if (framePlay) { setFramePlay(false); return }
+    if (!v.paused) { v.pause(); return }
+    if (speed === null) { v.play(); return }
+    setFramePlay(true)
+  }
+  togglePlaybackRef.current = togglePlayback
+
+  // 速さを選び直す。**再生中なら、選んだ速さのまま再生を続ける**（倍速メニューと同じ感覚）。
+  function pickSpeed(next: PlaybackSpeed): void {
+    lastSpeed = next
+    setSpeed(next)
+    const v = videoRef.current
+    if (!running || !v) return
+    if (next === null) { setFramePlay(false); v.play() }
+    else { v.pause(); setFramePlay(true) }
+  }
 
   function updateVcTime(t: number): void {
     vcTimeRef.current = t
@@ -331,17 +399,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     setPlaying(false)
     vcTimeRef.current = 0
     setVcDuration(0)
+    // 選んだ速さで開き直す。コマ再生を選んでいるなら、自動再生もコマ再生で始める
+    // （等速で流れ始めると、選んだ速さが無視されたようにしか見えない。video 要素側の
+    // autoPlay は下の JSX で等速のときだけ効かせている）。
+    setFramePlay(Boolean(autoPlay) && speed !== null)
     // 直近の音量・ミュートを復元（onVolumeChange が state に反映する）。
-    // 再生速度は速度 UI を出す側（ビューア）でのみ引き継ぐ。UI を出さない詳細パネルで
-    // 0.25x のまま再生されると、戻す手段が画面に無いまま「なぜか遅い」状態になるため、
-    // そちらは常に等速で始める。ループも同じ理由で loop 属性を当てない（下の JSX 参照）。
+    // ループは UI を出す側（ビューア）でのみ引き継ぐ。UI を出さない詳細パネルで
+    // ループしたままになると、止める手段が画面に無い（下の JSX の loop 属性を参照）。
     const v = videoRef.current
     if (v) {
       v.volume = lastVolume
       v.muted = lastMuted
-      v.playbackRate = showRateLoop ? lastRate : 1
     }
-  }, [id, showRateLoop])
+  }, [id])
 
   // 表示種別が変わったとき（読み込み完了・取得失敗）と言語切り替えで書き直す。
   // 中身は DOM を直接触っているので、React の再描画だけでは空のまま残る。
@@ -351,18 +421,100 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   useEffect(() => { refreshFrameReadout() }, [readout, t, playing])
 
   useEffect(() => {
-    if (pauseWhen) videoRef.current?.pause()
+    if (pauseWhen) { videoRef.current?.pause(); setFramePlay(false) }
   }, [pauseWhen])
 
   // ウィンドウを閉じる（≒隠すだけでトレイに残る）・最小化すると renderer は
   // 動き続けるため、何もしないと動画が裏で再生され続ける。非表示化を検知して止める。
+  // **コマ再生も止める**——タイマーで回っているので pause() では止まらず、裏で
+  // 送り続けたまま戻ってくることになる。
   useEffect(() => {
     const onVisibility = (): void => {
-      if (document.visibilityState !== 'visible') videoRef.current?.pause()
+      if (document.visibilityState !== 'visible') { videoRef.current?.pause(); setFramePlay(false) }
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
+
+  // コマ再生。**素材のコマを 1 つずつ、一定の時間だけ見せて自動で送る。**
+  //
+  // 倍率を下げた再生（playbackRate）との違いは、送るのがファイルのフレームではなく
+  // 素材の実コマだということ。録画クリップのファイルのフレームは画面キャプチャの供給レートの
+  // 産物なので、遅くして眺めてもそこで数えたコマ数は素材のコマ数ではない。
+  //
+  // 素材のコマは等間隔に並ぶので、これは**時間軸を一様に伸ばした減速**であり、コマ打ちの
+  // 溜め（3 コマ続く絵は 3 倍の時間そこに留まる）はそのまま残る。
+  // 映像要素は止めたまま動かすので、コマ番号と「流用 / 要確認」も出たままになる。
+  useEffect(() => {
+    if (!framePlay || speed === null) return
+    const holdSec = speed
+    const v = videoRef.current
+    if (!v) return
+    v.pause()
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    // シークの完了を待ってから次のコマを数える。**間隔で撃ちっぱなしにしない**——
+    // 1 コマごとにシークが走るため、速い設定ではシークの方が長引くことがある。撃ちっぱなしだと
+    // 遅れが溜まってコマが飛ぶ。待てば実効速度が落ちるだけで、送る順番は 1 コマも欠けない。
+    // seeked が来ない場合に止まらないよう保険の上限を置く。
+    const afterSeek = (done: () => void): void => {
+      let fired = false
+      const fire = (): void => {
+        if (fired) return
+        fired = true
+        v.removeEventListener('seeked', fire)
+        clearTimeout(guard)
+        done()
+      }
+      const guard = setTimeout(fire, 1000)
+      v.addEventListener('seeked', fire)
+    }
+
+    const advance = (): void => {
+      if (!alive) return
+      // 表の読み込み中は動かさずに待つ。手のコマ送りが保留するのと同じ理由で、
+      // ここで推定の刻みへ落とすと最初の数コマだけ素材のコマと無関係な位置へ飛ぶ。
+      if (readoutRef.current === 'loading') { timer = setTimeout(advance, 100); return }
+      const pts = framesRef.current?.pts ?? []
+      const cur = frameIdxRef.current ?? 0
+      // 端に着いたら、ループが入っていれば先頭へ戻し、そうでなければ止める。
+      // **止まったことは画面に出る**（ボタンの色が戻り、コマ表示は最後の番号のまま残る）。
+      if (pts.length > 0 && cur >= pts.length - 1) {
+        if (!vcLoopRef.current) { setFramePlay(false); return }
+        goToFrame(0)
+      } else if (pts.length === 0 && isFinite(v.duration) && v.currentTime >= v.duration - stepSec) {
+        if (!vcLoopRef.current) { setFramePlay(false); return }
+        v.currentTime = 0
+      } else {
+        moveFrames(1)
+      }
+      const started = performance.now()
+      afterSeek(() => {
+        if (!alive) return
+        timer = setTimeout(advance, Math.max(0, holdSec * 1000 - (performance.now() - started)))
+      })
+    }
+
+    // 端に着いた状態で押したら先頭へ戻してから始める。**再生し終えた直後に押すのが
+    // いちばん普通の流れ**で、そこで何も起きないとボタンが壊れているようにしか見えない。
+    const pts = framesRef.current?.pts ?? []
+    const cur = frameIdxRef.current ?? 0
+    const atEnd = pts.length > 0
+      ? cur >= pts.length - 1
+      : isFinite(v.duration) && v.currentTime >= v.duration - stepSec
+    if (atEnd) {
+      if (pts.length > 0) goToFrame(0)
+      else v.currentTime = 0
+      timer = setTimeout(advance, holdSec * 1000)
+    } else {
+      // 押したらすぐ 1 コマ動く。**待たせない**——最初の 1 コマを待たせると、
+      // 遅い設定（1 コマ 1 秒）では押しても動かないのと区別が付かない。
+      advance()
+    }
+    return () => { alive = false; if (timer) clearTimeout(timer) }
+    // moveFrames / goToFrame は ref しか読まないので、依存に並べる必要はない。
+  }, [framePlay, speed, id])
 
   // 再生中はシークバー・時刻を実フレームに追従させる。timeupdate は仕様上 4Hz 程度でしか
   // 発火しないため、これだけだとヘッドが飛び飛びに動く。コマを追う用途では現在位置の
@@ -410,6 +562,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       if (videoRef.current) videoRef.current.currentTime = t
     }
     setScrubbing(true)
+    setFramePlay(false)   // 掴んで動かした先から自動で送り始めると、置いた位置を確かめられない
     update(e.clientX)
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     const onMove = (ev: PointerEvent) => update(ev.clientX)
@@ -428,7 +581,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
 
   return (
     <div style={{ ...wrapperStyle, display: 'flex', flexDirection: 'column' }}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => { setHovered(true); bumpPointer() }}
+      onMouseMove={bumpPointer}
       onMouseLeave={() => setHovered(false)}>
       {/* flex-basis: auto にする。高さ固定のビューアでは grow で枠を埋め、高さが中身依存の
           詳細パネルでは映像自身の高さ(16/9)を取る。flex:1(basis 0%)だと後者で潰れて小さくなる。 */}
@@ -439,16 +593,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           src={mediaUrl(id)}
           style={{ display: 'block', cursor: 'pointer', ...videoStyle }}
           preload="auto"
-          autoPlay={autoPlay}
+          autoPlay={autoPlay && speed === null}
           loop={showRateLoop ? vcLoop : false}
           onClick={(e) => {
             if (onVideoClick?.(e) === false) return
             e.stopPropagation()
-            const v = videoRef.current
-            if (!v) return
-            playing ? v.pause() : v.play()
+            togglePlayback()
           }}
-          onPlay={() => setPlaying(true)}
+          onPlay={() => { setPlaying(true); setFramePlay(false) }}
           onPause={() => setPlaying(false)}
           // シークバー操作など、コマ送り以外で位置が動いたときに添字を引き直す。
           onSeeked={syncFrameIdx}
@@ -461,11 +613,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
             const muted = videoRef.current?.muted ?? false
             lastVolume = vol; lastMuted = muted
             setVcVolume(vol); setVcMuted(muted)
-          }}
-          onRateChange={() => {
-            const r = videoRef.current?.playbackRate ?? 1
-            lastRate = r
-            setVcRate(r)
           }}
         />
         {/* コマ表示は**止まっている間だけ**出す。
@@ -492,8 +639,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
             pointerEvents: controlsVisible ? 'auto' : 'none',
           }}
           onClick={(e) => e.stopPropagation()}>
-          <button style={vcBtnStyle} onClick={() => { const v = videoRef.current; if (!v) return; playing ? v.pause() : v.play() }}>
-            <PlayPauseIcon playing={playing} />
+          <button style={vcBtnStyle} onClick={togglePlayback}>
+            <PlayPauseIcon playing={running} />
           </button>
           <div style={vcSeekTrackStyle} onPointerDown={handleSeekPointerDown}>
             <div style={vcSeekBarStyle} />
@@ -501,7 +648,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
             <div ref={seekThumbRef} style={{ ...vcSeekThumbStyle, left: `calc(${(vcTimeRef.current / (vcDuration || 1)) * 100}% - 6px)` }} />
           </div>
           <span ref={vcTimeLabelRef} style={vcTimeLabelStyle}>{fmtDur(vcTimeRef.current)} / {fmtDur(vcDuration)}</span>
-          {showRateLoop && <RateControl videoRef={videoRef} rate={vcRate} />}
+          {showRateLoop && <SpeedControl speed={speed} onPick={pickSpeed} />}
           {showRateLoop && <LoopButton loop={vcLoop} onToggle={() => { const next = !vcLoop; lastLoop = next; setVcLoop(next) }} />}
           <VolumeControl videoRef={videoRef} volume={vcVolume} muted={vcMuted} />
         </div>

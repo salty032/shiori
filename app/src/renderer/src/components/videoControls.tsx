@@ -4,6 +4,7 @@
 // 挙動が食い違う温床を無くす。挙動は両コンポーネントの従来実装と同一。
 import { useEffect, useRef, useState } from 'react'
 import { font } from '../styles'
+import { useT } from '../i18n'
 
 // 音量ポップアップのスライドイン/アウト用 keyframes を一度だけ注入する。
 // 両コンポーネントが同じ id で個別に注入していたのを共通化（内容は同一）。
@@ -54,7 +55,7 @@ export const vcBarOverlayStyle: React.CSSProperties = {
   // スクリムのために伸ばした分は padding-top で吸収する。こうすると box-sizing:border-box と
   // 合わせてコンテンツ高が VC_BAR_HEIGHT のまま残り、vcBarStyle の alignItems:center が
   // そのまま効いて再生ボタン・シークバー・時刻・音量の縦位置が揃う。
-  // align-items:flex-end で下に寄せると、箱の高さが違う（ボタン22 / トラック16 / ラベル~14）
+  // align-items:flex-end で下に寄せると、箱の高さが違う（ボタン22 / トラック24 / ラベル~14）
   // 分だけ各コントロールの視覚的な中心がズレる。
   paddingTop: VC_OVERLAY_HEIGHT - VC_BAR_HEIGHT,
   background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.46) 48%, rgba(0,0,0,0.12) 80%, rgba(0,0,0,0) 100%)',
@@ -62,10 +63,15 @@ export const vcBarOverlayStyle: React.CSSProperties = {
   transition: 'opacity 0.15s ease',
 }
 
-// シークバー: 可視はスリム(高さ6)のまま、掴める判定を実効16pxへ広げる。
-// 透明トラック(高さ16)の中に、可視バー・フィル・つまみを縦中央配置する。
+// シークバー: 可視はスリム(高さ6)のまま、掴める判定を実効24pxへ広げる。
+// 透明トラック(高さ24)の中に、可視バー・フィル・つまみを縦中央配置する。
+//
+// **バーの中でいちばん狙いにくい要素にしないこと。** 以前は 16px で、隣の再生ボタン(22px)
+// より低かった。いちばん細かく狙う操作（コマの位置に置く）が、いちばん外しやすい判定に
+// なっていたことになる。バーの内容高は 30px なので、24 までは他のコントロールの縦位置を
+// 動かさずに広げられる。
 export const vcSeekTrackStyle: React.CSSProperties = {
-  position: 'relative', flex: 1, height: 16, cursor: 'pointer', display: 'flex', alignItems: 'center'
+  position: 'relative', flex: 1, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center'
 }
 // 空トラックも映像に重なるため、暗色スラブ前提の #272c3a ではなく半透明ホワイトにする
 // （どんな映像の上でも溝として認識できる）。0.26 では明るい映像に溶けるので上げたうえで、
@@ -178,45 +184,70 @@ export function VolumeControl({ videoRef, volume, muted }: VolumeControlProps): 
   )
 }
 
-// 再生速度の選択肢。アニメーションの研究用途では 1 コマの変化を追うために 1x 未満が主役に
-// なるので、遅い側を厚くしてある（0.1x は「絵が切り替わる瞬間」を目で追うための最低速）。
-// 速い側は流し見の 2x まで。ここを増やすとポップアップが縦に伸びて選びにくくなる。
-const PLAYBACK_RATES = [0.1, 0.25, 0.5, 1, 2] as const
+// 再生の速さ。null は等速（そのまま再生する）、数値は**コマ再生で 1 コマを何秒見せるか**。
+//
+// コマ側を「N コマ/秒」ではなく 1 コマの表示時間で持つのは、画面で体験しているのが
+// こちらの値だから（「1コマ 0.5秒」）。換算せずにそのまま読める。
+//
+// 遅い側の 1 秒は 1 コマを確かめるため、速い側の 0.1 秒は溜めの長さを流れとして掴むため。
+// これより速くしてもコマごとのシークが追いつかず、実効速度が頭打ちになるだけ。
+//
+// 速い順に上から並べる（縦位置と速さの直感を一致させる）。等速が最も速い。
+export const PLAYBACK_SPEEDS = [null, 0.1, 0.25, 0.5, 1] as const
+export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number]
 
-function fmtRate(r: number): string {
-  // 0.25 → "0.25x" / 1 → "1x"（末尾の 0 を落として幅を詰める）
-  return `${String(r)}x`
-}
-
-// 再生速度ボタン＋ホバーで出る選択ポップアップ。開閉の作法（200ms 猶予・閉じアニメ）は
-// VolumeControl と揃える。バー上に別種の挙動を混ぜないため。
-export function RateControl({ videoRef, rate }: {
-  videoRef: React.RefObject<HTMLVideoElement | null>
-  rate: number
+// 速さボタン＋ホバーで出る選択ポップアップ。**ここは選ぶだけで、再生はしない**——
+// 再生/停止は左端の ▶ ボタン 1 つに集約する。バーに再生ボタンが 2 つあると、
+// どちらを押せばよいのかが画面から読めない。
+// 開閉の作法（200ms 猶予・閉じアニメ）は VolumeControl と揃える。
+export function SpeedControl({ speed, onPick }: {
+  speed: PlaybackSpeed
+  onPick: (speed: PlaybackSpeed) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
+  // ボタンは 1 つで立っているので、単位を省くと何の数字か分からなくなる（「1コマ 0.5秒」）。
+  // ポップアップの行は見出しの下に並ぶので、共通部分は見出しへ預けて数字だけにする。
+  const label = (sp: PlaybackSpeed): string =>
+    sp === null ? t('viewer.speedNormal') : t('viewer.frameHold', { sec: String(sp) })
 
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}
       onMouseEnter={() => { if (timerRef.current) clearTimeout(timerRef.current); setVisible(true); setClosing(false) }}
       onMouseLeave={() => { setClosing(true); timerRef.current = setTimeout(() => setVisible(false), 200) }}
     >
-      <button style={{ ...vcBtnStyle, ...s.vcRateBtn, ...(rate !== 1 ? s.vcRateBtnActive : {}) }}>
-        {fmtRate(rate)}
+      <button
+        style={{ ...vcBtnStyle, ...s.vcStepBtn, ...(speed !== null ? s.vcStepBtnActive : {}) }}
+        title={t(speed === null ? 'viewer.speedNormalHint' : 'viewer.framePlayHint', { sec: String(speed) })}
+      >
+        {label(speed)}
       </button>
       {visible && (
-        <div style={{ ...s.vcRatePopup, animation: closing ? 'vcVolSlideDown 0.2s ease-out forwards' : 'vcVolSlideUp 0.2s ease-out' }}>
-          {/* 速い順に上から並べる（縦位置と速度の直感を一致させる） */}
-          {[...PLAYBACK_RATES].reverse().map((r) => (
+        <div style={{ ...s.vcStepPopup, animation: closing ? 'vcVolSlideDown 0.2s ease-out forwards' : 'vcVolSlideUp 0.2s ease-out' }}>
+          {/* 等速とコマ送りは種類が違う（時間軸を持つ再生か、コマを 1 つずつ送るか）。
+              5 つを同列に並べるとその違いが読み取れないので、見出しで切る。 */}
+          <button
+            style={{ ...s.vcStepItem, ...(speed === null ? s.vcStepItemActive : {}) }}
+            onClick={() => onPick(null)}
+          >
+            {t('viewer.speedNormal')}
+          </button>
+          <div style={s.vcStepGroup}>
+            <span style={s.vcStepRule} />
+            <span>{t('viewer.frameHoldGroup')}</span>
+            <span style={s.vcStepRule} />
+          </div>
+          {PLAYBACK_SPEEDS.filter((sp) => sp !== null).map((sp) => (
             <button
-              key={r}
-              style={{ ...s.vcRateItem, ...(r === rate ? s.vcRateItemActive : {}) }}
-              onClick={() => { const v = videoRef.current; if (v) v.playbackRate = r }}
+              key={String(sp)}
+              style={{ ...s.vcStepItem, ...(sp === speed ? s.vcStepItemActive : {}) }}
+              onClick={() => onPick(sp)}
             >
-              {fmtRate(r)}
+              {t('viewer.frameHoldShort', { sec: String(sp) })}
             </button>
           ))}
         </div>
@@ -259,14 +290,18 @@ export const vcTimeLabelStyle: React.CSSProperties = {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  // 速度は数字なので固定幅にしないと、0.25x ↔ 1x でバーの他のコントロールが左右に動く。
-  vcRateBtn: { minWidth: 38, fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0 },
-  // 等速から外れていることは一目で分かる必要がある（研究中に速度を戻し忘れたまま
-  // 尺の印象を語ってしまうのを防ぐ）。
-  vcRateBtnActive: { color: 'var(--accent-text)' },
-  vcRatePopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: 4, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcRateItem: { background: 'none', border: 'none', borderRadius: 3, color: 'rgba(255,255,255,0.82)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
-  vcRateItemActive: { background: 'rgba(var(--accent-rgb), 0.22)', color: 'var(--accent-text)' },
+  // 秒数は桁が変わる（1秒 ↔ 0.25秒）ので固定幅にしないと、選び直すたびにバーの他の
+  // コントロールが左右に動く。
+  vcStepBtn: { minWidth: 92, gap: 4, fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0, whiteSpace: 'nowrap' },
+  // コマ再生が走っていることは一目で分かる必要がある（映像は止まったまま少しずつ動くので、
+  // 手で送っているのか自動なのかが画面から区別できないと迷う）。
+  vcStepBtnActive: { color: 'var(--accent-text)' },
+  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: 4, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
+  vcStepItem: { background: 'none', border: 'none', borderRadius: 3, color: 'rgba(255,255,255,0.82)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
+  vcStepItemActive: { background: 'rgba(var(--accent-rgb), 0.22)', color: 'var(--accent-text)' },
+  // 選択肢ではなく見出しなので、押せる行と同じ明るさにしない（押せるものと見分けが付かなくなる）。
+  vcStepGroup: { display: 'flex', alignItems: 'center', gap: 5, padding: '4px 4px 2px', color: 'rgba(255,255,255,0.5)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
+  vcStepRule: { flex: 1, height: 1, background: 'rgba(255,255,255,0.16)' },
   vcLoopActive: { color: 'var(--accent-text)' },
   vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
   vcVolTrack: { position: 'relative', width: 6, height: 60, background: '#272c3a', borderRadius: 3, cursor: 'pointer', flexShrink: 0 },
