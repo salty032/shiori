@@ -56,6 +56,7 @@ export async function installMockApi(): Promise<void> {
     tagsById: lib.tagsById,
     hostById: lib.hostById,
     settings: { ...SETTINGS_DEFAULTS } as Settings,
+    timesheets: new Map<number, string>(),
   }
 
   const notice = channel<AppNotice>()
@@ -177,6 +178,9 @@ export async function installMockApi(): Promise<void> {
       if (row) row.memo = memo || null
     },
     deleteImagesBulk: async (ids) => removeRows(ids),
+    // Web デモは読み込み直せば消えてよい（デスクトップ版と違い DB を持たない）。
+    getTimesheet: async (imageId) => state.timesheets.get(imageId) ?? null,
+    saveTimesheet: async (imageId, data) => { state.timesheets.set(imageId, data) },
 
     // ── タグ ────────────────────────────────────────────────────
     taggerAddTag: async (id, name, source = 'manual') => addTag(id, name, source),

@@ -121,6 +121,16 @@ export function initDb(): void {
       data     TEXT NOT NULL,
       FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
     );
+    -- 手で打ったタイムシート（セル替わりのコマとメモ）。video_frames と同じ理由で別テーブル
+    -- （1 クリップで数百組になりうる JSON なので images を舐めるクエリに載せない）。
+    --
+    -- **video_frames とは別に持つ。** 表は解析でいつでも作り直せるが、こちらは人が 1 コマずつ
+    -- 見て打った手作業で、作り直しが利かない。表を捨てる（dropVideoFrames）ときも道連れにしない。
+    CREATE TABLE IF NOT EXISTS timesheets (
+      image_id INTEGER PRIMARY KEY,
+      data     TEXT NOT NULL,
+      FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+    );
     -- ライブラリの中身ではなく「この DB に何をどう適用済みか」を持つ小さな表。
     -- 列の有無やテーブルの有無を見れば分かるもの（＝この DB の既存の「見て直す」idiom で
     -- 済むもの）はここに書かない。書くのは、見ただけでは分からない適用状態だけ
@@ -842,6 +852,20 @@ export function restoreVideoFrames(
 export function dropVideoFrames(id: number): void {
   prepare('DELETE FROM video_frames WHERE image_id = ?').run(id)
   prepare('UPDATE images SET uncaptured_frames = NULL, ambiguous_frames = NULL, source_frames = NULL, unreported_frames = NULL WHERE id = ?').run(id)
+}
+
+// 手打ちのタイムシート。空になったら行ごと消す（打っていないクリップと同じ状態へ戻す）。
+export function saveTimesheet(imageId: number, data: string): void {
+  if (data === '[]') {
+    prepare('DELETE FROM timesheets WHERE image_id = ?').run(imageId)
+    return
+  }
+  prepare('INSERT OR REPLACE INTO timesheets (image_id, data) VALUES (?, ?)').run(imageId, data)
+}
+
+export function getTimesheet(imageId: number): string | null {
+  const row = prepare('SELECT data FROM timesheets WHERE image_id = ?').get(imageId) as { data: string } | undefined
+  return row?.data ?? null
 }
 
 export function getVideoFrames(imageId: number): StoredFrame[] | null {

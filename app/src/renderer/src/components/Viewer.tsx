@@ -6,6 +6,7 @@ import { XIcon } from './Icon'
 import VideoPlayer, { type VideoPlayerHandle } from './VideoPlayer'
 import { getMediaActions } from '../features/registry'
 import { useT } from '../i18n'
+import type { Timesheet } from '../hooks/useTimesheet'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -31,12 +32,15 @@ type Props = {
   frameFps: number
   // Tab で DetailPanel の表示/非表示を切り替える（呼び出し元が状態を持つ。デフォルトは表示）。
   onToggleDetailPanel: () => void
+  // 手打ちのタイムシート。**表そのものは App が詳細パネルの場所に出す**ので、ここは
+  // 現在コマを流し込むのと、開いている間キーを譲るのが役目。
+  timesheet: Timesheet
 }
 
 // 画像の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
 // すべてビューア内部の状態。開閉位置（index）だけは選択・キャプチャ追従のため親が持つ。
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
-export default function Viewer({ images, index, setIndex, total, titleStrip, frameFps, onToggleDetailPanel }: Props) {
+export default function Viewer({ images, index, setIndex, total, titleStrip, frameFps, onToggleDetailPanel, timesheet }: Props) {
   const { t } = useT()
   const [closing, setClosing] = useState(false)
   const [zoom, setZoom] = useState(1)
@@ -53,6 +57,13 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     setZoom(1)
     setPan({ x: 0, y: 0 })
   }, [index])
+
+  // 表は詳細パネルの場所（ビューアの外）に出るので、映像を動かす口をここで預ける。
+  // ref は描画のあとに埋まるため、依存を付けず毎描画で入れ直す。
+  useEffect(() => {
+    timesheet.bindPlayer(videoPlayerRef.current)
+    return () => timesheet.bindPlayer(null)
+  })
 
   useEffect(() => {
     const current = images[index]
@@ -82,6 +93,11 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       const tag = el?.tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el?.isContentEditable)
       if (isEditing) return
+      // **タイムシートを開いている間は、ぶつかるキーをシートに譲る。**
+      // Enter は「確定」であって「閉じる」ではないし、数字はズームではない——東映
+      // デジタルタイムシートの操作系をそのまま持ってくるには、ここで先に通すしかない
+      // （譲る範囲は useTimesheet の handleKey が持つ。コマ送りと再生はこちらに残る）。
+      if (timesheet.handleKey(e)) return
       if (e.code === 'Space') {
         // **Space は「再生/一時停止」だけに使う。** 画像では再生するものが無いので何もしない
         // （閉じるのは Enter / Escape）。以前は画像で閉じていたが、そうすると ← → で画像と
@@ -131,7 +147,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closing, images, index, zoom, pan, onToggleDetailPanel])
+  }, [closing, images, index, zoom, pan, onToggleDetailPanel, timesheet.handleKey])
 
   // +/-/0: ホイールズームと同じ倍率係数(1.25/0.8)で、画像の描画矩形中心を基準にズームする
   // （マウスカーソル基準の handleWheel と違い、キーボード操作にはカーソル位置の意味がないため）。
@@ -344,12 +360,25 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
               未読み込みが残る間はカウンタと End の到達点がズレる。実害は小さい
               （後続ロードで辿れる）ため、挙動は変えずツールチップで補足するに留める。 */}
           {getMediaActions(img, { close })}
+          {/* 撮り逃し 0 のクリップでしか出ない。出ていない理由を説明する文言は置かない
+              （出ない＝このクリップでは保証できない、という一点だけが意味）。 */}
+          {timesheet.ready && (
+            <button
+              style={{ ...s.viewerClose, color: timesheet.open ? 'rgba(255,255,255,0.92)' : '#999', fontSize: 11, fontWeight: 800 }}
+              onClick={() => timesheet.setOpen(!timesheet.open)}
+              title={t('timesheet.toggle')}>
+              {t('timesheet.title')}
+            </button>
+          )}
           <span style={s.viewerCounter} title={images.length < total ? t('viewer.endHint') : undefined}>{index + 1} / {Math.max(total, images.length)}</span>
-          <button style={s.viewerClose} onClick={close} title={t('viewer.close')}><XIcon size={15} /></button>
+          <button data-tour="viewer-close" style={s.viewerClose} onClick={close} title={t('viewer.close')}><XIcon size={15} /></button>
         </div>
       </div>
       <div
-        style={{ ...s.viewerMediaStack, cursor: img.media_type === 'video' && zoom > 1 ? 'grab' : undefined }}
+        style={{
+          ...s.viewerMediaStack,
+          cursor: img.media_type === 'video' && zoom > 1 ? 'grab' : undefined,
+        }}
         onPointerDown={img.media_type === 'video' ? startPanDrag : undefined}>
         {img.media_type === 'video' ? (
           <VideoPlayer ref={videoPlayerRef} id={img.id} wrapperStyle={s.viewerMediaFrame}
@@ -357,7 +386,8 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
               ...s.viewerImg,
               transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
             }}
-            autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick} />
+            autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
+            onFramesReady={timesheet.onFramesReady} onFrameIndex={timesheet.onFrameIndex} />
         ) : (
           <img
             ref={imgRef}

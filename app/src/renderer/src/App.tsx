@@ -8,7 +8,9 @@ import WhatsNewModal from './components/WhatsNewModal'
 import SetupGuideModal from './components/SetupGuideModal'
 import ProductTour, { type ProductTourStep } from './components/ProductTour'
 import DetailPanel from './components/DetailPanel'
+import TimesheetPanel from './components/TimesheetPanel'
 import Viewer from './components/Viewer'
+import { useTimesheet } from './hooks/useTimesheet'
 import QuickTagInput from './components/QuickTagInput'
 import Sidebar from './components/Sidebar'
 import Toolbar, { type ViewMode } from './components/Toolbar'
@@ -475,6 +477,11 @@ export default function App() {
     return activeImages.find((i) => i.id === selectedId) ?? null
   }, [activeImages, selection.selectedIds, viewerIdx])
 
+  // 手打ちのタイムシート。**ビューアではなくここが持つ**——表は詳細パネルと入れ替わりで
+  // 同じ場所に出るため（打っている間はタグやメモより表を見ている）。
+  // 対象はビューアで開いているクリップだけ。一覧で選んだだけの状態では打たせない。
+  const timesheet = useTimesheet(viewerIdx !== null && single?.media_type === 'video' ? single.id : null)
+
   const tagRefreshKey = tagger.taggerDoneKey + manualTagVersion
   const handleTagsChanged = useCallback((): void => {
     filters.refreshTags()
@@ -703,13 +710,9 @@ export default function App() {
                 ) : (
                   <>
                     <div style={s.emptyTitle}>{t('grid.empty')}</div>
-                    <div style={s.emptySteps}>
-                      <div>{t('onboarding.step1')}</div>
-                      <div>{t('onboarding.step2')}</div>
-                      <div>{t('onboarding.step3.before')}<strong style={{ color: 'var(--accent-text)' }}>{settings.settings.captureHotkey}</strong>{t('onboarding.step3.after')}</div>
-                    </div>
+                    <div style={s.emptyLead}>{t('onboarding.lead')}</div>
                     <div style={s.emptyActions}>
-                      <button style={s.emptyBtn} onClick={() => window.api.showExtensionFolder()}>{t('onboarding.openExtensionFolder')}</button>
+                      <button style={s.emptyBtn} onClick={() => setShowSetupGuide(true)}>{t('onboarding.startSetup')}</button>
                       <button style={{ ...s.emptyBtn, ...s.emptyBtnSub }} onClick={() => settings.setShowSettings(true)}>{t('shortcuts.openSettings')}</button>
                     </div>
                     <div style={s.emptyHint}>{t('onboarding.dropHint')}</div>
@@ -818,6 +821,7 @@ export default function App() {
             titleStrip={settings.settings.titleStrip}
             frameFps={settings.settings.frameFps}
             onToggleDetailPanel={() => setDetailPanelHiddenInViewer((v) => !v)}
+            timesheet={timesheet}
           />
         )}
         </div>
@@ -869,7 +873,11 @@ export default function App() {
           />
         )}
 
-        {(viewerIdx === null || !detailPanelHiddenInViewer) && (
+        {/* タイムシートは詳細パネルと**入れ替わる**（並べない）。同時に出すと表が細くなり、
+            1 秒 24 マスの目盛りを追うという本題がやりにくい。 */}
+        {timesheet.visible && single ? (
+          <TimesheetPanel sheet={timesheet} fps={single.fps ?? settings.settings.frameFps} />
+        ) : (viewerIdx === null || !detailPanelHiddenInViewer) && (
         <DetailPanel
           selectedIds={selection.selectedIds}
           single={single}

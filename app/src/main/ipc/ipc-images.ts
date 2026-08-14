@@ -6,8 +6,10 @@ import { getMainWindow, handleTrusted, sendToRenderer } from '../system/windows'
 import {
   listImages, countImages, listImagesAll, listSites, listAllTags,
   getImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
-  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath
+  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath,
+  getTimesheet, saveTimesheet
 } from '../db'
+import { decodeTimesheet, encodeTimesheet } from '../../shared/timesheet'
 import {
   MAX_EXPORT_IDS,
   optionalText, optionalPositiveInteger,
@@ -222,6 +224,18 @@ export function registerImageHandlers(): void {
   handleTrusted(CH.imagesUpdateMemo, (_event, id: number, memo: string) => {
     const imageId = optionalPositiveInteger(id)
     if (imageId) updateImageMemo(imageId, optionalText(memo, MAX_MEMO_LENGTH) ?? '')
+  })
+
+  handleTrusted(CH.timesheetGet, (_event, id: number) => {
+    const imageId = optionalPositiveInteger(id)
+    return imageId ? getTimesheet(imageId) : null
+  })
+  // renderer から来た文字列をそのまま入れず、**保存側でも同じ decode/encode を通す**。
+  // 読める行だけが残るので、壊れた入力でも DB に想定外の形が入らない。
+  handleTrusted(CH.timesheetSave, (_event, id: number, data: unknown) => {
+    const imageId = optionalPositiveInteger(id)
+    if (!imageId) return
+    saveTimesheet(imageId, encodeTimesheet(decodeTimesheet(typeof data === 'string' ? data : null)))
   })
 
   handleTrusted(CH.imagesDeleteBulk, async (_event, ids: unknown): Promise<DeleteImageResult[]> => {

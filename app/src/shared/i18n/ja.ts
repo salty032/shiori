@@ -234,6 +234,23 @@ export const ja = {
   'viewer.speedNormalHint': 'そのままの速さで再生します。',
   'viewer.framePlayHint': '再生すると、素材のコマを 1 つずつ、1 コマ {sec} 秒ずつ見せて送ります。',
 
+  // ── タイムシート ──
+  // 手打ちのタイムシート（docs/TIMESHEET.md）。撮り逃し 0 のクリップでしか出ないので、
+  // 「なぜ出ないか」を説明する文言は持たない。
+  'timesheet.title': 'タイムシート',
+  'timesheet.toggle': 'タイムシートの表示を切り替える',
+  'timesheet.count': '{marks} 枚 / {total} コマ',
+  'timesheet.copy': 'コピー',
+  'timesheet.copied': 'コピーしました',
+  'timesheet.copyHint': 'タイムシートのソフトへ貼り付けられる形でコピーします（{sec} 秒 {frames} コマ）',
+  // 表の見出し。紙のタイムシートの欄名に合わせる。
+  'timesheet.colSec': '秒',
+  'timesheet.colFrame': 'コマ',
+  'timesheet.colCell': 'セル',
+  'timesheet.colMemo': 'メモ',
+  'shortcuts.viewerTimesheet': 'タイムシートを開いている間：動画番号を打つ / 確定して次のコマへ',
+  'shortcuts.viewerTimesheetSymbols': '同：○（中割り）/ ●（逆シート）/ ×（カラ）。テンキーの / - * でも同じ',
+
   // ── What's New ──
   'whatsNew.title': 'Shiori v{version} の変更点',
 

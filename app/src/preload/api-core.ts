@@ -56,6 +56,12 @@ export function buildCoreApi(): ShioriApi {
     updateImageMemo: (id: number, memo: string): Promise<void> =>
       ipcRenderer.invoke(CH.imagesUpdateMemo, id, memo),
 
+    getTimesheet: (imageId: number): Promise<string | null> =>
+      ipcRenderer.invoke(CH.timesheetGet, imageId),
+
+    saveTimesheet: (imageId: number, data: string): Promise<void> =>
+      ipcRenderer.invoke(CH.timesheetSave, imageId, data),
+
     deleteImagesBulk: (ids: number[]) =>
       ipcRenderer.invoke(CH.imagesDeleteBulk, ids),
 

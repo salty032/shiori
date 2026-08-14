@@ -236,6 +236,20 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.speedNormalHint': 'Plays at the normal speed.',
   'viewer.framePlayHint': 'Playing steps through the source frames one at a time, holding each for {sec}s.',
 
+  // ── Timesheet ──
+  'timesheet.title': 'Timesheet',
+  'timesheet.toggle': 'Show or hide the timesheet',
+  'timesheet.count': '{marks} drawings / {total} frames',
+  'timesheet.copy': 'Copy',
+  'timesheet.copied': 'Copied',
+  'timesheet.copyHint': 'Copies in a form you can paste into timesheet software ({sec}s {frames}f)',
+  'timesheet.colSec': 'Sec',
+  'timesheet.colFrame': 'Frame',
+  'timesheet.colCell': 'Cell',
+  'timesheet.colMemo': 'Note',
+  'shortcuts.viewerTimesheet': 'While the timesheet is open: type a drawing number / confirm and step on',
+  'shortcuts.viewerTimesheetSymbols': 'Same: ○ inbetween / ● reverse sheet / × empty cell. Numpad / - * also work',
+
   // ── What's New ──
   'whatsNew.title': 'What’s new in Shiori v{version}',
 

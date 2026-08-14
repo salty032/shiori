@@ -34,6 +34,10 @@ export interface ShioriApi {
   onExtensionTimecode: (cb: (data: ExtensionTimecode) => void) => () => void
   updateImageTitle: (id: number, title: string) => Promise<void>
   updateImageMemo: (id: number, memo: string) => Promise<void>
+  // 手打ちのタイムシート。中身は shared/timesheet.ts の encode/decode を通した JSON 文字列で、
+  // main は素通しする（形の検証は両端の同じ関数が持ち、IPC の途中に 3 つ目の解釈を作らない）。
+  getTimesheet: (imageId: number) => Promise<string | null>
+  saveTimesheet: (imageId: number, data: string) => Promise<void>
   // DB 削除は main 側で 1 トランザクションにまとめる（B-7）。ファイル削除はサーバ側で
   // 逐次ベストエフォート実行し、id ごとの成否を返す。
   deleteImagesBulk: (ids: number[]) => Promise<DeleteImageResult[]>
@@ -107,6 +111,8 @@ export const CH = {
   imagesGet: 'images:get',
   imagesUpdateTitle: 'images:updateTitle',
   imagesUpdateMemo: 'images:updateMemo',
+  timesheetGet: 'timesheet:get',
+  timesheetSave: 'timesheet:save',
   imagesDeleteBulk: 'images:deleteBulk',
   imagesStartDrag: 'images:startDrag',
   imagesDragTruncated: 'images:dragTruncated',

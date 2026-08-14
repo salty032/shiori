@@ -15,6 +15,8 @@ export type VideoPlayerHandle = {
   togglePlay: () => void
   /** dir>0 で次のコマ、dir<0 で前のコマへ。再生中なら一時停止してから動く。 */
   stepFrame: (dir: number) => void
+  /** 指定の素材コマへ直接移る（タイムシートの行をクリックしたとき）。表が無ければ何もしない。 */
+  goToFrame: (idx: number) => void
   /**
    * 映像要素そのもの。**ズーム/パンの計算にだけ使う**（表示枠の矩形と映像の実寸が要る）。
    * 再生制御をここから触らないこと——それは上の 2 つの役目で、両方から触ると
@@ -119,9 +121,14 @@ type Props = {
   // 狭いバーにボタンが増えるほど、そこでの用途である「どのクリップか確認する」が
   // やりにくくなるため。既定は出さない側に倒す。
   showRateLoop?: boolean
+  /** コマ表の取得が終わったら 1 度だけ知らせる（null は表が無い＝コマ単位で数えられない）。 */
+  onFramesReady?: (frames: ClipFrames | null) => void
+  /** 現在コマが変わったら知らせる。**再生中は呼ばない**——コマ表示と同じ理由で、
+   *  毎フレーム変わる値を出しても読めないうえ、受け手（タイムシート）が高速に再描画される。 */
+  onFrameIndex?: (idx: number) => void
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource }, ref) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
   // このクリップのコマ情報。取得できるまで（および capture 版）は null のまま。
@@ -149,6 +156,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   const readoutRef = useRef<ReadoutKind>('off')
   const tRef = useRef<Translate['t']>(t)
   tRef.current = t
+  // 描画外（コマ送り・表の取得完了）から呼ぶので ref 経由にする。props を直に掴むと、
+  // effect が作られた時点の古い関数が呼ばれる（readoutRef と同じ理由）。
+  const onFramesReadyRef = useRef(onFramesReady)
+  onFramesReadyRef.current = onFramesReady
+  const onFrameIndexRef = useRef(onFrameIndex)
+  onFrameIndexRef.current = onFrameIndex
 
   function setReadoutKind(kind: ReadoutKind): void {
     readoutRef.current = kind
@@ -172,6 +185,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       if (canceled) return
       framesRef.current = frames
       setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
+      onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
       const pending = pendingStepsRef.current
       pendingStepsRef.current = 0
       if (pending !== 0) moveFrames(pending)
@@ -229,6 +243,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     if (!frames || frames.pts.length === 0) return
     const total = frames.pts.length
     const cur = Math.max(0, Math.min(idx, total - 1))
+    onFrameIndexRef.current?.(cur)
     // 番号は 1 始まり。0 始まりだと先頭が「0 / 719」になり、何コマ目かを数える用途では
     // 毎回読み替えが要る（トリマーの f{N} 表示も同じ数え方に揃えてある）。
     const params = { cur: String(cur + 1), total: String(total) }
@@ -308,11 +323,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // ものが黙って古いまま使われる（stepSec だけ並べていた頃の形）。
   const stepFrameRef = useRef(stepFrame)
   stepFrameRef.current = stepFrame
+  const goToFrameRef = useRef(goToFrame)
+  goToFrameRef.current = goToFrame
   const togglePlaybackRef = useRef<() => void>(() => {})
 
   useImperativeHandle(ref, () => ({
     togglePlay: () => togglePlaybackRef.current(),
     stepFrame: (dir: number) => stepFrameRef.current(dir),
+    goToFrame: (idx: number) => goToFrameRef.current(idx),
     element: () => videoRef.current,
   }), [])
   const seekFillRef = useRef<HTMLDivElement>(null)
