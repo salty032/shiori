@@ -1,5 +1,6 @@
-import { readdir, stat, unlink } from 'fs/promises'
+import { readFile, readdir, stat, unlink, writeFile } from 'fs/promises'
 import { extname, join, resolve } from 'path'
+import { app } from 'electron'
 import { captureDir, thumbnailDir } from '../system/paths'
 import { countImages, listReferencedPaths } from '../db'
 
@@ -13,6 +14,25 @@ import { countImages, listReferencedPaths } from '../db'
 // 大きな動画のトリム・インポートが数分かかることを見込み、十分に余裕をとる。
 // 孤立ファイルの回収は急ぐ処理ではないので、取りこぼしても次回起動で拾えばよい。
 const MIN_AGE_MS = 60 * 60 * 1000
+export const ORPHAN_SWEEP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+
+function sweepMarkerPath(): string {
+  return join(app.getPath('userData'), '.orphan-sweep-last')
+}
+
+export function isOrphanSweepDue(lastSuccessMs: number | null, nowMs: number): boolean {
+  return lastSuccessMs === null || !Number.isFinite(lastSuccessMs) || lastSuccessMs > nowMs
+    || nowMs - lastSuccessMs >= ORPHAN_SWEEP_INTERVAL_MS
+}
+
+async function lastSuccessfulSweepMs(): Promise<number | null> {
+  try {
+    const value = Number(await readFile(sweepMarkerPath(), 'utf8'))
+    return Number.isFinite(value) ? value : null
+  } catch {
+    return null
+  }
+}
 
 // resolveCapturePath と同じ許可拡張子。ユーザーが captures フォルダに置いた
 // 無関係なファイル（メモ、zip 等）を巻き込まないよう、扱う形式だけを対象にする。
@@ -103,4 +123,25 @@ export async function sweepOrphanFiles(): Promise<{ removed: number; bytes: numb
     console.log(`[sweep] removed ${removed} orphan file(s), ${(bytes / 1024 / 1024).toFixed(1)} MB reclaimed`)
   }
   return { removed, bytes }
+}
+
+// 孤立ファイルは削除失敗などでまれに生じるだけで、毎起動直後に全ファイルを stat する必要はない。
+// 大規模ライブラリでは原本＋サムネの走査が秒単位になり得るため、成功済みなら7日間は省略する。
+// マーカーは掃除が最後まで終わった後にだけ書く。途中で例外になれば次回起動で再試行される。
+export async function sweepOrphanFilesIfDue(nowMs = Date.now()): Promise<{ skipped: boolean; removed: number; bytes: number }> {
+  const lastSuccessMs = await lastSuccessfulSweepMs()
+  if (!isOrphanSweepDue(lastSuccessMs, nowMs)) return { skipped: true, removed: 0, bytes: 0 }
+  // DB が空のときは sweepOrphanFiles の安全弁に加えて、成功マーカーも残さない。
+  // DBを一時的に開けず作り直した直後などに「掃除済み」と記録すると、DBを復旧しても
+  // 7日間は孤立ファイルの確認が行われないため。
+  if (countImages() === 0) return { skipped: true, removed: 0, bytes: 0 }
+
+  const result = await sweepOrphanFiles()
+  try {
+    await writeFile(sweepMarkerPath(), String(nowMs), 'utf8')
+  } catch (err) {
+    // 掃除自体は完了している。マーカー保存だけで起動処理を失敗扱いにはしない。
+    console.warn('[sweep] failed to write schedule marker', err)
+  }
+  return { skipped: false, ...result }
 }

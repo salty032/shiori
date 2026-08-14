@@ -17,7 +17,7 @@ import { activeTaskLabels } from './system/busy'
 import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion } from './browser/extension-updater'
 import { compareVersions } from './system/version'
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
-import { sweepOrphanFiles } from './capture/sweep-orphans'
+import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
 import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
 import { resolveRealCapturePath, thumbPathFor } from './system/paths'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
@@ -264,7 +264,6 @@ export function bootstrap(features: MainFeature[] = []): void {
     migrateThumbnailsToOwnDir().catch((err) => console.warn('[migrate-thumb] failed', err))
     // ファイル削除に失敗して DB から切り離された実ファイルの回収。ユーザーには見えず
     // 自分で消す手段もないので、アプリ側で黙って片付ける（非致命・バックグラウンド）。
-    sweepOrphanFiles().catch((err) => console.warn('[sweep] failed', err))
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
     const wsSettings = loadSettings()
     onWsClientConnect((send) => {
@@ -453,6 +452,11 @@ export function bootstrap(features: MainFeature[] = []): void {
     migrateStartupArgs()
     createTray()
     createWindow(reclaimHotkeysIfFree, isStartupLaunch())
+    // 起動直後は一覧・サムネ読み込みとディスクアクセスが競合する。孤立ファイル掃除は緊急性が
+    // ないため30秒後へ回し、さらに sweepOrphanFilesIfDue 側で週1回までに間引く。
+    setTimeout(() => {
+      sweepOrphanFilesIfDue().catch((err) => console.warn('[sweep] failed', err))
+    }, 30_000)
     for (const feature of features) await feature.onReady?.()
     if (consumeCorruptSettingsNotice()) {
       sendNoticeWhenRendererReady('error', t('notice.settingsCorrupt'))
