@@ -575,6 +575,27 @@ const SUPPRESS_CAPTURE_KEY_HOSTS = new Set([
   'primevideo.com',
 ])
 
+// bilibili.com の実機で採取したクラス名。`.tv` とは全くの別物なので混ぜない。
+// 採取したページは投稿動画（`/video/`）。公式ページ（番剧）で追加のUIが出るなら、
+// 見えたものだけをここへ足す。
+//
+// 消さないものと理由:
+//   - 弾幕（`bpx-player-row-dm-wrap` / `bpx-player-adv-dm-wrap` / `bpx-player-bas-dm-wrap` /
+//     `bpx-player-cmd-dm-wrap` / `bpx-player-dm-mask-wrap` / `bili-danmaku-x-*` / `bas-danmaku`）
+//     — ニコニコと同じくプレーヤー側の設定で消す
+//   - 字幕（`bpx-player-subtitle-wrap`）— 他サービスでも字幕は消していない
+//   - `bpx-player-context-area` と無名の全画面 div — 中身ごと消えるので使わない
+const BILIBILI_COM_PLAYER_UI = [
+  '.bpx-player-control-wrap',  // 下部コントロールバー（シークバー・再生・音量・画質）
+  '.bpx-player-control-mask',  // その背後の黒いグラデーション
+  '.bpx-player-top-wrap',      // 上部のタイトル帯
+  // 採取では他にも出たが、常時は写らないので入れていない。写り込んだら足す:
+  //   .bpx-player-state-wrap（「正在缓冲…」等の状態表示・一瞬）
+  //   .bpx-player-toast-wrap（「登录 免费享高清视频…」等の通知・一瞬）
+  //   .bpx-player-pbp（高能进度条。コントロールバーの**すぐ上の別要素**［1134x28 @0,555］
+  //     なので、上のバーを消しても細い横棒として残りうる）
+]
+
 // **これは bilibili.tv（Bstation）のもの。bilibili.com では1つも当たらない**（実機で確認済み）。
 // .com は別のプレーヤーで、クラス名の系統から違う。共用しようとして失敗した経緯があるので、
 // .com の分が採れても**この配列へ混ぜない**こと。
@@ -660,11 +681,8 @@ const SERVICE_PLAYER_UI = {
       '.advisory-background',  // レーティング表示(+12等)の左上グラデーション背景
     ],
   },
-  // Bilibili .com: **空配列は「宣言済み・まだ何も消さない」の意味で、消し忘れではない。**
-  // 登録が無いホストは汎用フォールバック（動画に重なる absolute/fixed を片っ端から消す）へ
-  // 落ちる。あれは何を消したか画面に出ないので、確認前に走らせると気づけない事故になる。
-  // プレーヤーUIが写るのは見れば分かるので、採取が済むまでは写る方を選ぶ。
-  'bilibili.com': [],
+  // Bilibili .com: 中身は BILIBILI_COM_PLAYER_UI を参照。
+  'bilibili.com': BILIBILI_COM_PLAYER_UI,
   // Bilibili .tv（Bstation）: 実機で採取したクラス名。`bpx-player-*` ではなく
   // `player-mobile-*` / `bstar-player__*` 系。中身は BILIBILI_TV_PLAYER_UI を参照。
   //
