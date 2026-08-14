@@ -187,11 +187,10 @@ export const SITE_NAME_MAP: Record<string, string> = {
   'primevideo.com': 'Prime Video',
   'disneyplus.com': 'Disney+',
   'tv.dmm.com': 'DMM TV',
-  'd.dmm.com': 'DMM TV',
   'video.unext.jp': 'U-NEXT',
-  'u-next.com': 'U-NEXT',
   'animestore.docomo.ne.jp': 'dアニメストア',
-  'animestore.co.jp': 'dアニメストア',
+  'bilibili.com': 'Bilibili',
+  'bilibili.tv': 'Bilibili',
 }
 
 export function siteName(url: string | null): string | null {

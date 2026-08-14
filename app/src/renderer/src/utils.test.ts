@@ -81,7 +81,7 @@ describe('siteName', () => {
   it('www. を除去', () => expect(siteName('https://www.example.com')).toBe('example.com'))
   it('null → null', () => expect(siteName(null)).toBeNull())
   it('不正 URL → null', () => expect(siteName('not-a-url')).toBeNull())
-  it('dアニメストア', () => expect(siteName('https://animestore.co.jp/xxx')).toBe('dアニメストア'))
+  it('dアニメストア', () => expect(siteName('https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=xxx')).toBe('dアニメストア'))
   it('Prime Video (amazon.co.jp)', () => expect(siteName('https://www.amazon.co.jp/video/xxx')).toBe('Prime Video'))
 })
 

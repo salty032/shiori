@@ -502,15 +502,33 @@ let lastPayloadKey = ''
 let lastSentAt = 0
 let observedVideo = null
 let cachedTitle = ''
+let cachedTitleUrl = ''
 let noticeTimer = null
 
 // DOM が組み直し中に document.title がサービス名だけになるケースを検出
 const GENERIC_TITLE_PATTERNS = new Set([
   'youtube', 'abema', 'dmm tv', 'prime video', 'netflix',
-  'disney+', 'dアニメストア', '再生', '動画再生', 'u-next', 'ニコニコ動画'
+  'disney+', 'dアニメストア', '再生', '動画再生', 'u-next', 'ニコニコ動画', 'bilibili'
 ])
 
+// 覚えたタイトルは「そのアドレスで読んだもの」として扱い、アドレスが変わったら捨てる。
+// 配信サービスの多くは話を切り替えてもページを読み込み直さない（SPA）ため、捨てないと
+// cachedTitle だけが前の話のまま残る。切り替え直後は「まだ作品名が読めない一瞬」が
+// あるので、そこで撮ると前の話の名前がそれらしい顔で入り、後から気づけない。
+// タイトル無しの方がまだ良い（研究用途では、黙って間違っているのが最悪）。
+//
+// hash は同じ話の中でプレーヤーが書き換えることがあるため無視する。逆に query は
+// 話の識別子そのものを載せるサービス（dアニメの partId、YouTube の v）があるので見る。
+function currentTitleScope() {
+  return `${location.origin}${location.pathname}${location.search}`
+}
+
 function getPageTitleCached() {
+  const scope = currentTitleScope()
+  if (scope !== cachedTitleUrl) {
+    cachedTitle = ''
+    cachedTitleUrl = scope
+  }
   const fresh = getPageTitle()
   const isGeneric = !fresh || GENERIC_TITLE_PATTERNS.has(fresh.toLowerCase())
   if (fresh && !isGeneric) {
@@ -557,6 +575,20 @@ const SUPPRESS_CAPTURE_KEY_HOSTS = new Set([
   'primevideo.com',
 ])
 
+// Bilibili は .com / .tv で同じ指定を使う（採取したホストの確証が無いため。当たらない側では
+// 何も起きない）。`player-mobile-play-mask` は覆い本体・一時停止アイコン・送り戻しの
+// アイコンが同じ接頭辞で並ぶので部分一致でまとめて拾う。
+//
+// `ip-toast` は 10秒送り/戻しの表示と、速度・画質変更時の通知。左右に 72x72 が同じ高さで
+// 対になって出る（`--left` / `--right`）ことと、採取中に実際その操作をしていたことで確定。
+// `--top` は上中央の小さな通知。向きの違いが同じ接頭辞に並ぶので部分一致で拾う。
+const BILIBILI_PLAYER_UI = [
+  '.player-mobile-control-bar',        // 下部コントロールバー（再生・時間・画質・速度）
+  '[class*="player-mobile-play-mask"]', // 一時停止時の覆い＋中央の再生/一時停止アイコン
+  '[class*="ip-toast"]',               // 10秒送り/戻しの表示・速度/画質変更の通知
+  '.ip-watermark',                     // 右上の BiliBili ロゴ
+]
+
 // サービスごとに非表示にするプレーヤーUI要素のセレクター
 // 配列 → inline opacity:0、オブジェクト {hide} → <style> タグで opacity:0 注入（React 再レンダリング対策）
 const SERVICE_PLAYER_UI = {
@@ -570,12 +602,9 @@ const SERVICE_PLAYER_UI = {
     '.html5-video-player .ytp-fullscreen-grid-buttons-container',
     '.html5-video-player .ytp-chrome-top-buttons',
     '.html5-video-player .ytp-playlist-menu-button',
-    // Shorts（ytd-reel-video-renderer 配下）: 通常プレーヤーの ytp-* とは別系統の要素。
-    // ytd-reel-player-overlay-renderer がタイトル・チャンネル名・ハッシュタグ・
-    // いいね/コメント/共有/リミックス列をまとめて内包している。
-    'ytd-reel-video-renderer .player-controls',
-    'desktop-shorts-player-controls',
-    'ytd-reel-player-overlay-renderer',
+    // Shorts（/shorts/）は対応外。ytp-* とは別系統の要素を個別に持つ必要があり、
+    // 投稿者が書いた #shorts を削るかどうかの判断も抱える割に、この用途では使わない。
+    // 対応外なので Shorts のプレーヤーUIはキャプチャに写り込む（写るのは見れば分かる）。
   ],
   'tv.dmm.com': [
     '[class*="top-controller-overlay"]',
@@ -628,6 +657,17 @@ const SERVICE_PLAYER_UI = {
       '.advisory-background',  // レーティング表示(+12等)の左上グラデーション背景
     ],
   },
+  // Bilibili: 実機で採取したクラス名。`bpx-player-*`（本土向けの新プレーヤー）ではなく
+  // `player-mobile-*` / `bstar-player__*` 系だった。中身は BILIBILI_PLAYER_UI を参照。
+  //
+  // 消さないものと理由:
+  //   - `player-mobile-danmaku-container`（弾幕）— ニコニコと同じくプレーヤー側の設定で消す
+  //   - `player-mobile-ass-subtitle` / `player-mobile-subtitle`（字幕）— 他サービスでも
+  //     字幕は消していない（Netflix 等も同様）。消すならここへ足す
+  //   - `player-mobile-display`（表示層のまとめ役）— 中身ごと消えるので使わない
+  //   - `bstar-player__main-bg`（映像の背面）— 映像に隠れて写らない
+  'bilibili.com': BILIBILI_PLAYER_UI,
+  'bilibili.tv': BILIBILI_PLAYER_UI,
   // dアニメストア: 動作確認しながら1つずつ追加中。非ハッシュのセマンティックなクラス名。
   'animestore.docomo.ne.jp': [
     '.buttonArea',     // 下部コントロールバー（ボタン行＋スキップボタン）
@@ -1137,23 +1177,28 @@ function getVideo() {
 function getPageTitle() {
   const host = location.hostname.replace(/^www\./, '')
 
-  // YouTube: 末尾の " - YouTube" を除去
-  // Shorts はさらに末尾に "#shorts"（全角/半角）が付くことが多く、内容と無関係な
-  // 装飾なので除去する（それ以外のハッシュタグは投稿者が意図した内容の一部として残す）
+  // YouTube: 末尾の " - YouTube" を除去。ハッシュタグは投稿者が意図した内容の一部として残す
+  // （Shorts の #shorts だけ削っていたが、Shorts 自体を対応外にしたのでやめた）。
   if (host === 'youtube.com') {
     // 未読通知があると document.title の先頭に "(3) " 等の件数が付く。内容と無関係な
     // 装飾なので、タイムライン等のグルーピングキーに使われるタイトルからは除去する。
-    const base = document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '').trim() || document.title
-    if (location.pathname.startsWith('/shorts/')) {
-      const stripped = base.replace(/[#＃]shorts\s*$/i, '').trim()
-      if (stripped) return stripped
-    }
-    return base
+    return document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '').trim() || document.title
   }
 
   // niconico: 末尾の " - ニコニコ動画" を除去
   if (host === 'nicovideo.jp') {
     return document.title.replace(/ - ニコニコ動画$/, '').trim() || document.title
+  }
+
+  // Bilibili: タブ名に作品名が入るので、末尾のサイト名だけ削る（YouTube / niconico と同じ形）。
+  // 投稿動画が主体のサイトなので、タイトルの中身は投稿者が付けたそのまま残す。装飾に見える
+  // 部分（『』や "DUBBING & SUBBING ENGLISH" のような但し書き）を推測で削ると、投稿者が
+  // 意図した表記まで落とす。実例:
+  //   『 DUBBING & SUBBING ENGLISH 幼女戦記 』 Youjo Senki 1st Season episode 12 - BiliBili
+  //   Genshin Impact Fan Creation: AMV (Anime Music Video) - BiliBili
+  // 区切りは確認できたのが「 - 」だけ。他の形（`_哔哩哔哩_bilibili` 等）は実物を見てから足す。
+  if (host === 'bilibili.com' || host === 'bilibili.tv') {
+    return document.title.replace(/\s*[-–—|｜]\s*bilibili\s*$/i, '').trim() || document.title
   }
 
   // Disney+: 左上タイトル表示の Shadow DOM から作品名 + 話数・サブタイトルを取得
@@ -1233,6 +1278,9 @@ function getPageTitle() {
     if (title) return sub ? `${title} ${sub}` : title
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim()
     if (og && og.length > 1) return og
+    // タブ名は常に「再生 | U-NEXT」で作品名を含まない。document.title へ落とすと
+    // それがそのまま作品名として記録されるため、DMM TV と同じく空を返す。
+    return ''
   }
 
   return document.title

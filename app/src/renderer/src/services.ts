@@ -15,6 +15,7 @@ export const SUPPORTED_SERVICES: SupportedService[] = [
   { label: 'niconico', hosts: ['nicovideo.jp'] },
   { label: 'DMM TV', hosts: ['tv.dmm.com'] },
   { label: 'dアニメストア', hosts: ['animestore.docomo.ne.jp'] },
+  { label: 'Bilibili', hosts: ['bilibili.com', 'bilibili.tv'] },
 ]
 
 export const DEFAULT_SERVICE_ORDER = SUPPORTED_SERVICES.map((service) => service.label)
@@ -30,6 +31,7 @@ const SERVICE_COLORS: Record<string, string> = {
   niconico: '#b8a4ff',
   'DMM TV': '#f2a65a',
   'dアニメストア': '#f4d35e',
+  Bilibili: '#fb7299',
 }
 
 // host（例: youtube.com）→ 表示名（例: YouTube）。未知ホストは host をそのまま返す。

@@ -37,7 +37,9 @@
     "*://*.netflix.com/*",
     "*://*.amazon.co.jp/*",
     "*://*.primevideo.com/*",
-    "*://*.disneyplus.com/*"
+    "*://*.disneyplus.com/*",
+    "*://*.bilibili.com/*",
+    "*://*.bilibili.tv/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -57,7 +59,9 @@
         "*://*.netflix.com/*",
         "*://*.amazon.co.jp/*",
         "*://*.primevideo.com/*",
-        "*://*.disneyplus.com/*"
+        "*://*.disneyplus.com/*",
+        "*://*.bilibili.com/*",
+        "*://*.bilibili.tv/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
