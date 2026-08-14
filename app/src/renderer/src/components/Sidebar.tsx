@@ -10,14 +10,25 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { releaseNotesFor } from '../../../shared/releaseNotes'
 import { usePanelResize } from '../hooks/usePanelResize'
 
-// 不具合報告ページ。**本文に入れてよいのは版と実行環境だけ**——ライブラリ由来の文字列
-// （タイトルには作品名が入る）は絶対に混ぜない。**送信経路はアプリに持たせず**、報告ページを
-// 開くところで止める（全ローカル完結・外部接続はモデル取得と更新確認だけ、という説明を崩さない）。
-const ISSUE_URL = 'https://github.com/salty032/shiori/issues/new'
+// 不具合・要望の報告フォーム（Tally）。**URL に載せてよいのは版と実行環境だけ**——ライブラリ
+// 由来の文字列（タイトルには作品名が入る）は絶対に混ぜない。**送信経路はアプリに持たせず**、
+// フォームを開くところで止める（全ローカル完結・外部接続はモデル取得と更新確認だけ、という
+// 説明を崩さない）。GitHub Issues から移したのは、報告にアカウントを要求しないため。
+const FEEDBACK_FORM_URL = 'https://tally.so/r/QK9X8G'
 
-function issueUrl(appVersion: string | null): string {
-  const body = `\n\n---\nShiori ${appVersion ? `v${appVersion}` : '(version unknown)'}\n${navigator.userAgent}`
-  return `${ISSUE_URL}?body=${encodeURIComponent(body)}`
+// UA を丸ごと渡さない。切り分けに要るのは OS と Electron の版だけで、残り（WebKit や
+// Safari の版）は生々しいわりに使い道がない。取れなければ黙って省く。
+function shortEnv(): string {
+  const ua = navigator.userAgent
+  const os = /\(([^)]+)\)/.exec(ua)?.[1]?.split(';')[0]?.trim()
+  const electron = /Electron\/([\d.]+)/.exec(ua)?.[1]
+  return [os, electron && `Electron ${electron}`].filter(Boolean).join(' / ') || 'unknown'
+}
+
+// フォーム側は version / env という名前の隠し項目で受ける。名前を変えると黙って空で届く。
+function feedbackUrl(appVersion: string | null): string {
+  const params = new URLSearchParams({ version: appVersion ?? 'unknown', env: shortEnv() })
+  return `${FEEDBACK_FORM_URL}?${params}`
 }
 // .ico を img に渡すと最大サイズ（128px）だけが選ばれて 16px へ縮小され、ぼやける上に
 // 絵が枠内でわずかに上寄りなぶんだけ文字とズレる。実寸の PNG を表示倍率ごとに渡す。
@@ -497,7 +508,7 @@ export default function Sidebar({
               <span style={s.sidebarLinkSep}>・</span>
             </>
           )}
-          <button style={s.sidebarLink} onClick={() => window.api.openUrl(issueUrl(appVersion))} title={t('help.feedbackHint')}>
+          <button style={s.sidebarLink} onClick={() => window.api.openUrl(feedbackUrl(appVersion))} title={t('help.feedbackHint')}>
             {t('help.feedback')}
           </button>
         </div>

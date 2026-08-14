@@ -81,7 +81,7 @@ export const ja = {
   'help.whatsNew': '変更点を見る',
   'help.feedback': '不具合・要望を報告',
   // 「アプリからは何も送らない」ことを必ず添える（全ローカル完結が前提のため）。
-  'help.feedbackHint': 'ブラウザで GitHub の報告ページが開きます。アプリから内容が送信されることはありません。',
+  'help.feedbackHint': 'ブラウザで報告フォームが開きます。アプリから内容が送信されることはありません。',
   'shortcuts.group.global': '全体',
   'shortcuts.group.selection': '選択・グリッド',
   'shortcuts.group.viewer': 'ビューア',

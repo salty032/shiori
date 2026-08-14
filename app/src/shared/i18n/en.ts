@@ -89,7 +89,7 @@ export const en: Record<keyof typeof ja, string> = {
   'shortcuts.hint': 'You can change the capture hotkey in Settings → Capture.',
   'help.whatsNew': 'See what’s new',
   'help.feedback': 'Report a bug or idea',
-  'help.feedbackHint': 'Opens the GitHub report page in your browser. Nothing is sent from the app.',
+  'help.feedbackHint': 'Opens the report form in your browser. Nothing is sent from the app.',
   'shortcuts.group.global': 'Global',
   'shortcuts.group.selection': 'Selection and grid',
   'shortcuts.group.viewer': 'Viewer',
