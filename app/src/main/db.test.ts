@@ -29,10 +29,29 @@ describe('buildImageFilter', () => {
     expect(result.params).toEqual(['%ab%'])
   })
 
-  it('長さ判定は正規化後の長さで行う（空白が落ちて3文字未満に縮む入力は LIKE 側へ落ちる）', () => {
+  it('空白区切りの語は「すべて含む」で絞る（打った語順を要求しない）', () => {
+    const result = buildImageFilter({ search: '第3話 指揮官' })
+    expect(result.where).toBe('WHERE id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?)')
+    expect(result.params).toEqual(['"第3話" AND "指揮官"'])
+  })
+
+  it('短い語は FTS へ混ぜず LIKE を足す（trigram を作れない語を入れると MATCH ごと0件になる）', () => {
+    const result = buildImageFilter({ search: 'ab cat' })
+    expect(result.where).toBe(
+      `WHERE id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?) AND search_text LIKE ? ESCAPE '\\'`
+    )
+    expect(result.params).toEqual(['"cat"', '%ab%'])
+  })
+
+  it('長さ判定は語ごとに正規化後の長さで行う（3文字未満の語は LIKE 側へ落ちる）', () => {
     const result = buildImageFilter({ search: 'a b' })
-    expect(result.where).toBe(`WHERE search_text LIKE ? ESCAPE '\\'`)
-    expect(result.params).toEqual(['%ab%'])
+    expect(result.where).toBe(`WHERE search_text LIKE ? ESCAPE '\\' AND search_text LIKE ? ESCAPE '\\'`)
+    expect(result.params).toEqual(['%a%', '%b%'])
+  })
+
+  it('語数には上限があり、超えたぶんは無視する（壊れた入力で条件が無限に伸びない）', () => {
+    const result = buildImageFilter({ search: 'aaa bbb ccc ddd eee fff ggg hhh iii jjj' })
+    expect(result.params).toEqual(['"aaa" AND "bbb" AND "ccc" AND "ddd" AND "eee" AND "fff" AND "ggg" AND "hhh"'])
   })
 
   it('正規化して空文字になる入力（記号だけ等）は絞り込み自体を付けない（0件にするより素直）', () => {

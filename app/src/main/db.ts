@@ -33,11 +33,28 @@ function escapeLike(value: string): string {
 // それ未満の短い検索語は従来どおり LIKE の全件走査にフォールバックする。
 const FTS_MIN_LEN = 3
 
-// search 文字列全体を「1つの連続したフレーズ」として MATCH させる（既存の部分一致 LIKE と
-// 同じ「まるごと一致」のセマンティクスに合わせるため）。FTS5 のフレーズ構文はダブルクォートの
-// エスケープだけ気をつければよい。
+// 1語を「連続したフレーズ」として MATCH させる（部分一致 LIKE と同じ「まるごと一致」の
+// セマンティクスに合わせるため）。FTS5 のフレーズ構文はダブルクォートのエスケープだけ
+// 気をつければよい。
 function ftsPhraseQuery(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
+}
+
+// 検索語を空白で区切り、**すべて含む**行を引く（AND）。
+//
+// **区切りは正規化の前に取る。** normalizeSearchText は空白を落とすので、後から分けようが
+// ない。分けずに 1 フレーズのまま当てていた頃は、打った語順どおりに並んでいる行しか
+// 引けなかった（`指揮官 春野` で `春野…指揮官` のタイトルが出ない）。配信のタイトルは
+// 作品名・話数・配信元が任意の順で並ぶので、語順を要求する方が実態に合っていない。
+//
+// 1 語だけのときの結果は従来と同じ（フレーズ 1 つの AND）。
+const MAX_SEARCH_TERMS = 8
+export function searchTerms(raw: string): string[] {
+  return raw
+    .split(/\s+/)
+    .map((term) => normalizeSearchText(term))
+    .filter((term) => term.length > 0)
+    .slice(0, MAX_SEARCH_TERMS)
 }
 
 // search_text 列の中身。title/memo それぞれを正規化して1列にまとめる（アプリは列を
@@ -399,15 +416,21 @@ export function buildImageFilter(f: ImageFilter): { where: string; params: unkno
     // 長さで行う（正規化前が3文字以上でも、空白や記号が落ちて trigram を作れない長さに
     // 縮む入力があるため）。正規化で空文字になった（記号だけを打った等）場合は絞り込み
     // 自体を付けない — 0件にするより素直。
-    const q = normalizeSearchText(f.search)
-    if (q) {
-      if (q.length >= FTS_MIN_LEN) {
-        conds.push('id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?)')
-        params.push(ftsPhraseQuery(q))
-      } else {
-        conds.push("search_text LIKE ? ESCAPE '\\'")
-        params.push(`%${escapeLike(q)}%`)
-      }
+    //
+    // 空白区切りの語は**すべて含む**行に絞る（searchTerms）。3文字以上の語は FTS の
+    // フレーズを AND でまとめて 1 回の MATCH に載せ、trigram を作れない短い語だけ
+    // LIKE を足す。**短い語を FTS 側へ混ぜない**——1 つでもトライグラムを作れない
+    // フレーズが入ると、その MATCH は他の語ごと 0 件になる。
+    const terms = searchTerms(f.search)
+    const ftsTerms = terms.filter((term) => term.length >= FTS_MIN_LEN)
+    const likeTerms = terms.filter((term) => term.length < FTS_MIN_LEN)
+    if (ftsTerms.length > 0) {
+      conds.push('id IN (SELECT rowid FROM images_fts_v2 WHERE images_fts_v2 MATCH ?)')
+      params.push(ftsTerms.map(ftsPhraseQuery).join(' AND '))
+    }
+    for (const term of likeTerms) {
+      conds.push("search_text LIKE ? ESCAPE '\\'")
+      params.push(`%${escapeLike(term)}%`)
     }
   }
   if (f.after != null) { conds.push('captured_at >= ?'); params.push(f.after) }

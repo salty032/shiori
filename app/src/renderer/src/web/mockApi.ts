@@ -78,10 +78,11 @@ export async function installMockApi(): Promise<void> {
   // （docs/SPEC.md 5章）。
   function matches(row: ImageRow, f: ImageQuery): boolean {
     if (f.search) {
-      const needle = normalizeSearchText(f.search)
-      if (needle) {
+      // 空白区切りは「すべて含む」（db.ts の searchTerms と同じ扱い。語順は問わない）。
+      const needles = f.search.split(/\s+/).map(normalizeSearchText).filter(Boolean)
+      if (needles.length > 0) {
         const haystack = normalizeSearchText(`${row.title ?? ''}\n${row.memo ?? ''}`)
-        if (!haystack.includes(needle)) return false
+        if (!needles.every((needle) => haystack.includes(needle))) return false
       }
     }
     if (f.after != null && row.captured_at < f.after) return false
