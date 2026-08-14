@@ -1180,6 +1180,18 @@ function getVideo() {
     .sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0] ?? null
 }
 
+// bilibili.com の投稿動画のタブ名から、末尾のサイト名だけ落とす。
+// `_哔哩哔哩_bilibili` のほか `_哔哩哔哩 (゜-゜)つロ 干杯~-bilibili` の形もあるため、
+// `_哔哩哔哩` から末尾の `bilibili` までをまとめて落とす。**前は一切切らない**——
+// 作品名に半角 `-` / `_` が入る実例があり（`Spider-Man: No Way Home (2021)`、
+// `张少林 - SpiderMan（Official MV）`、末尾が `_` の `原神 MMD 优菈 Eula_`）、
+// 「最初の区切りより前」で切ると黙って壊れる。
+// サイト名で終わらない形（`…_游戏热门视频` のようにタグだけ）は落とせないので素通しする。
+function stripBilibiliTabName(tabName) {
+  const stripped = tabName.replace(/_哔哩哔哩.*bilibili\s*$/i, '').trim()
+  return stripped && stripped !== tabName ? stripped : ''
+}
+
 // サービスによってはタブ名が汎用プレーヤー名になるため DOM を優先する
 function getPageTitle() {
   const host = location.hostname.replace(/^www\./, '')
@@ -1208,23 +1220,75 @@ function getPageTitle() {
     return document.title.replace(/\s*-\s*bilibili\s*$/i, '').trim() || document.title
   }
   if (host === 'bilibili.com') {
-    // .com のタブ名は2種類あり、**末尾のサイト名の並び順が逆**なので見分けられる。
-    //   投稿動画:   “原神进入大回忆时代”_哔哩哔哩_bilibili        （哔哩哔哩 → bilibili、区切りは _）
-    //   公式ページ: 记忆管理局-国创-高清独家在线观看-bilibili-哔哩哔哩（bilibili → 哔哩哔哩、区切りは -）
-    //              妖神记之黑狱篇-国创-全集-高清正版在线观看-bilibili-哔哩哔哩
+    // 投稿動画のページ（`/video/`）は h1 に**動画全体の名前**を持ち、タブ名には**いま見て
+    // いるパートの名前**が入る。分割投稿（分P）だと両者が食い違うので、両方を使って
+    // 「作品名 + 話数」にする（他サービスと同じ形）。実物で確認:
+    //   /video/BV1XY411o7Cv/?p=2
+    //     h1  = 3分钟学会 视频选集 视频合集 视频列表 分p怎么弄   ← 全体
+    //     タブ = 手机端添加分p_哔哩哔哩_bilibili               ← パート（2/3）
+    //   分割していない動画は両者が一致するので、そのまま1つ分になる:
+    //     h1 = Spider-Man: No Way Home (2021) / タブ = 同じ + サイト名
+    //     h1 = 原神 MMD 优菈 Eula_（末尾の `_` まで一致）
     //
-    // 公式ページは「作品名 - カテゴリ - (収録範囲) - 宣伝文句 - サイト名」という並び。
-    // **飾りの語を数え上げず、最初の `-` より前だけを作品名とする。** カテゴリ語は無数に
-    // あり、知っている語だけ消す形だと作品ごとに見た目が揃わない（`国创` は消えるが
-    // `番剧` は残る、等）。飾りが何であっても同じ結果になる方を採る。
+    // h1 を信じるのは `/video/` のときだけにする。**「公式かどうか」を当てているのではなく、
+    // 「実物で h1 の中身を確認できたページか」で分けている。** 公式ページ（番剧）に h1 は
+    // 無いことを実機で確認済みだが、他のページ種別（ランキング等）の h1 が何かは見ていない。
+    if (location.pathname.startsWith('/video/')) {
+      for (const heading of document.querySelectorAll('h1')) {
+        const series = heading.textContent?.trim()
+        if (!series) continue
+        const part = stripBilibiliTabName(document.title)
+        if (!part || part === series) return series
+        // パート名が全体の名前を丸ごと含む形の分Pがある（言語違いを並べる投稿など。
+        // 全体「《原神》奥黛塔角色PV——「柔雪的幻象」」に対しパートが
+        // 「英-《原神》奥黛塔角色PV——「柔雪的幻象」」）。そのまま繋ぐと同じ文字が2回出るので、
+        // 含む側＝詳しい方だけを使う。
+        if (part.includes(series)) return part
+        if (series.includes(part)) return series
+        return `${series} ${part}`
+      }
+    }
+
+    // ここから下は h1 を使えないページ用。タブ名は2種類あり、種類ごとに安全な切り方を使う。
     //
-    // 代償: 作品名そのものに `-` が入っていると、そこで切れて後ろが消える。これは画面から
-    // 気づけない。中国語の作品名に `-` はまず使われないという判断で、揃う方を優先している。
+    // 【公式ページ】末尾が `-bilibili-哔哩哔哩`。「作品名-ジャンル-(収録範囲)-宣伝文句-サイト名」
+    // という並びで、飾りの語は数え上げられない（ジャンルは無数にある）ので**最初の `-` より前**を
+    // 作品名とする。
+    //   记忆管理局-国创-高清独家在线观看-bilibili-哔哩哔哩              → 记忆管理局
+    //   妖神记之黑狱篇-国创-全集-高清正版在线观看-bilibili-哔哩哔哩      → 妖神记之黑狱篇
+    //   Re：从零开始的异世界生活 第二季 前半-番剧-全集-…-bilibili-哔哩哔哩 → Re：从零开始的异世界生活 第二季 前半
+    //
+    // 【投稿動画】末尾が `_哔哩哔哩…bilibili`。**末尾のサイト名だけ落とし、前は一切切らない。**
+    //   “原神进入大回忆时代”_哔哩哔哩_bilibili                        → “原神进入大回忆时代”
+    //   2020 LG NanoCell 8K HDR 60fps_哔哩哔哩 (゜-゜)つロ 干杯~-bilibili → 2020 LG NanoCell 8K HDR 60fps
+    //
+    // **投稿動画側で「最初の `-` / `_` より前」をやってはいけない。** 実在するタイトルが壊れる:
+    //   Spider-Man: No Way Home (2021)_哔哩哔哩_bilibili   → "Spider" になる
+    //   张少林 - SpiderMan（Official MV）_哔哩哔哩_bilibili  → "张少林" になる
+    // 中国語のタブ名でも英語のタイトルは普通に混ざるので、半角 `-` は作品名の一部でありうる。
+    //
+    // 落とせないもの: 末尾がサイト名でなくタグだけの形（`…_游戏热门视频`）。タグを落とすには
+    // 「最後の `_` より後ろ」を切るしかないが、それは作品名に `_` が入っている場合と区別が
+    // つかない。タグが残るのは画面で見えるが、作品名が切れるのは見えないので、残す方を選ぶ。
     const title = document.title
-    const ugc = title.replace(/_哔哩哔哩_bilibili\s*$/i, '')
-    if (ugc !== title) return ugc.trim() || title  // 投稿動画は作品名に何が入っていても触らない
-    if (/-bilibili-哔哩哔哩\s*$/i.test(title)) return title.split('-')[0].trim() || title
-    return title
+    if (/-bilibili-哔哩哔哩\s*$/i.test(title)) {
+      // 番剧（公式）は右のエピソード一覧で、再生中の行に `Active` が付く。そこから
+      // 話数＋話タイトルを取り、他サービスと同じ「作品名 + 話数」にする。
+      //   button.PlayerEpisodePanel_episodeRow__X_Ee2.PlayerEpisodePanel_episodeRowActive__5CIAY
+      //     └ span.PlayerEpisodePanel_rowTitle__tUWZG  "第1话 在世界末日前回到过去吧"
+      // 末尾の `__X_Ee2` はビルドごとに変わるので、変わらない部分だけで指す
+      // （U-NEXT の `styles__Title`、ABEMA の `com-video-EpisodeTitle__` と同じ方針）。
+      //
+      // **行そのものではなく中の `rowTitle` を取る。** 行には `限免`（期間限定無料）等の
+      // バッジが子要素として入っており、行の textContent だと
+      // 「第2话 陀螺，记忆层，管理员们限免」のようにバッジまで作品名に混ざる。
+      const episode = document.querySelector('[class*="episodeRowActive"] [class*="rowTitle"]')?.textContent?.trim()
+      // タブ名は話によって変わる。1話目は `记忆管理局`、2話目は `记忆管理局第2集` のように
+      // 話数が付く。`episode` 側と二重になるので、末尾の `第N集` は落とす。
+      const series = (title.split('-')[0].trim() || title).replace(/第\d+集\s*$/, '').trim()
+      return episode ? `${series} ${episode}` : series || title
+    }
+    return stripBilibiliTabName(title) || title
   }
 
   // Disney+: 左上タイトル表示の Shadow DOM から作品名 + 話数・サブタイトルを取得
