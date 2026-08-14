@@ -20,6 +20,12 @@ function isValidCaptureKey(k) {
 // 自動検出時はフレーム間隔（秒, float）を直接保持し、整数fps丸めによる
 // 23.976/29.97 などのドリフトを避ける
 let measuredFrameDur = null
+// コマ送りの探索が「隣り合うコマの間隔」として確定させた実測値。再生中の実測（上）が
+// 溜まっていない場面（読み込み直後・一時停止のまま操作）でも、1手目の探索で必ず埋まる。
+// **設定の自動判定が OFF でも保持する**：これは推定ではなく実測なので、近道の置き場所
+// （getSeedFrameSec）には使ってよい。手で fps を指定している間ずっと最小刻みから詰め直す
+// のを避けるため。刻みの見積もり（getFrameSec）には設定どおり反映しない。
+let stepMeasuredDur = null
 
 // 実測フレーム間隔を採用するのに要るサンプル数。中央値を取るので外れ値1つは無害な一方、
 // 溜まるまでは推定値（1/settingsFps, 既定24）で動くため、60fps 素材だと刻みが 2.5 倍になる。
@@ -33,6 +39,12 @@ let lastFrameTime = null
 // lastFrameTime が rVFC の実測ではなくコマ送りの楽観更新（推定）で入った値か。
 // 推定値は実コマの先頭とは限らないため、コマ長の実測にも着地判定にも使わない。
 let lastFrameTimeEstimated = false
+// **rVFC が実際に返した最後の mediaTime。画面の読み取り表示に出してよい唯一の値。**
+// lastFrameTime はコマ送り中だけ楽観更新（推定）で上書きされるため、そのまま出すと
+// 「押したが動かなかった」ときにも数字が動いてしまい、動いた証拠として使えない。
+let confirmedFrameTime = null
+// いま進行中の1手が始まった時点の confirmedFrameTime（終わりに動いたかを比べる）。
+let stepStartedFrom = null
 
 // 常時 rVFC ループ: lastFrameTime の追従と、再生中のフレーム間隔の実測を兼ねる
 let frameTrackId = null
@@ -52,8 +64,13 @@ function stopFrameTracker() {
 }
 function resetFrameTracking() {
   measuredFrameDur = null
+  stepMeasuredDur = null
   lastFrameTime = null
   lastFrameTimeEstimated = false
+  confirmedFrameTime = null
+  // 待ち行列は前の動画のもの。進行中の1手（stepping）は自分で終わって片付くので触らない。
+  pendingSteps = 0
+  droppedSteps = 0
   frameDiffs = []
 }
 function startFrameTracker(video) {
@@ -66,6 +83,7 @@ function startFrameTracker(video) {
     if (frameTrackVideo !== video || !document.contains(video)) { stopFrameTracker(); return }
     lastFrameTime = meta.mediaTime
     lastFrameTimeEstimated = false
+    confirmedFrameTime = meta.mediaTime
     reportFrame(now, meta)
     // フレーム間隔は連続再生中のみ計測（ステップ中のシーク差分で汚さない）
     if (prev !== null && !video.paused) {
@@ -177,6 +195,22 @@ function getFrameSec() {
   return 1 / settingsFps
 }
 
+// 前進の初手を「まだ同じコマの中」へ置く近道に使う値（秒）。無ければ null＝近道を使わない。
+//
+// **推定（1/settingsFps, 既定24）をここに使ってはいけない。** 見積もりが実際のコマ長より
+// 長いと初手が次のコマへ入る。行き過ぎは着地の実 mediaTime で検出して捨てるので1手＝1コマ
+// は保たれるが、**捨てる前の絵は画面に出てしまう**（進む→戻る→また進む、が見える。
+// YouTube は 30/60fps が普通なので 24fps 既定のままだと毎手これになる）。実測が無いうちは
+// 後退と同じく最小刻みで下から詰める。1手ぶんシークが数回増えるだけで、見え方は一直線。
+//
+// 実測の中でも**中央値ではなく一番短いコマ長**を採る。可変フレームレートの動画では中央値が
+// 短いコマより長くなりうるので、そこから置いた初手は同じ理由で次のコマへ入る。
+function getSeedFrameSec() {
+  const observed = frameDiffs.length >= MIN_FRAME_SAMPLES ? Math.min(...frameDiffs) : null
+  const known = [observed, measuredFrameDur, stepMeasuredDur].filter((v) => v)
+  return known.length ? Math.min(...known) : null
+}
+
 // コマ送りの探索に使う定数。対応 fps の範囲（10〜120fps）は startFrameTracker が
 // 実測値を採用する条件と揃えてある。
 const STEP_PROBE_SEC = 1 / 120       // 上限120fpsのコマ長。これ以下しか進めないシークは必ず同じコマに留まる
@@ -195,19 +229,23 @@ const STEP_SEEK_START_MS = 40        // シークが始まった気配（seeking
 // 収まるので、飛んだことを着地値からは検出できない。そこで**必ず「下から」詰める**。
 // 1刻みを対応上限120fpsのコマ長（STEP_PROBE_SEC）にすると、まだ同じコマに居る位置から
 // 1刻み伸ばした先は最悪でも隣のコマ止まりになるため、素材の fps を知らないまま確実に
-// 1コマだけ動ける。見積もりは初手をコマ長の少し手前へ置く「近道」にだけ使う（通常2回で着地）。
+// 1コマだけ動ける。**実測のコマ長がある場合に限り**、初手をその少し手前へ置く「近道」で
+// 詰める回数を減らす（通常2回で着地）。seedDur が null なら近道は使わない（getSeedFrameSec）。
 //
 // 後退はコマ先頭から僅かに戻せば必ず直前のコマなので、初手から最小刻みでよい（1回で着地）。
 // 基準が実コマの先頭か分からないとき（外部シーク直後など）は、まず現在位置へシークして
 // 表示中コマの先頭を確定させてから本番の1手に入る（resolving）。
-function initialFrameStep(dir, base, dur, exact) {
-  if (!exact) return { dir, base, dur, exact, resolving: true, seeded: false, offset: 0, attempt: 0, target: null }
-  const seed = Math.min(Math.max(dur * STEP_SEED_RATIO, STEP_PROBE_SEC), STEP_MAX_FRAME_SEC)
+function initialFrameStep(dir, base, dur, exact, seedDur) {
+  if (!exact) return { dir, base, dur, seedDur, exact, resolving: true, seeded: false, offset: 0, attempt: 0, target: null }
+  const shortcut = dir > 0 && seedDur > 0
+  const seed = shortcut ? Math.min(Math.max(seedDur * STEP_SEED_RATIO, STEP_PROBE_SEC), STEP_MAX_FRAME_SEC) : STEP_PROBE_SEC
   return {
-    dir, base, dur, exact,
+    dir, base, dur, seedDur, exact,
     resolving: false,
-    seeded: dir > 0,                                     // 初手が「同じコマ内」と保証できない置き方か
-    offset: (dir > 0 ? seed : STEP_PROBE_SEC) * dir,
+    // 初手が「同じコマ内」と保証できない置き方か。最小刻みまで縮んだ近道は保証できる側なので
+    // 立てない（立てると、動いた着地を隣のコマだと分かっていながら捨ててしまう）。
+    seeded: seed > STEP_PROBE_SEC,
+    offset: seed * dir,
     attempt: 0,
     target: null
   }
@@ -235,7 +273,7 @@ function planFrameStep(step, landed) {
       }
     }
     // 表示中コマの先頭が分かったので、そこを基準に取り直して本番の1手へ。
-    const resolved = initialFrameStep(step.dir, landed, step.dur, true)
+    const resolved = initialFrameStep(step.dir, landed, step.dur, true, step.seedDur)
     return { done: false, frameDur: null, next: { ...resolved, resolving: false, attempt: step.attempt + 1, target: step.target } }
   }
   const progress = landed === null ? 0 : (landed - step.base) * step.dir
@@ -267,6 +305,50 @@ let stepSeq = 0
 // タイマーはアテンプトのローカルに持ち、追い越し時はこの関数経由で自分の分だけ畳む。
 let abortStepAttempt = null
 
+// 連打は**捨てずに溜める**。1手ずつ順に処理し、着地してから次の手に入る。
+//
+// かつては新しい手が古い手を追い越して畳んでいたため、押した回数と進んだコマ数が食い違った。
+// しかも**絵が変わらないのが正常**（コマ打ち。ANIME-FRAMES.md 1章）なので、画面からは
+// 「進んだが同じ絵」なのか「手が捨てられた」のか区別できず、止まったように見えていた。
+// 溜めれば速くもなる：追い越しが無くなると基準が確定済みのまま次へ入れるので、
+// 追い越しのたびに踏んでいた「基準を取り直す1シーク」が消える。
+const MAX_PENDING_STEPS = 8   // 溜め込みの上限。超えたぶんは捨てて、捨てたことを画面に出す
+let stepping = false
+let pendingSteps = 0          // 待っている手（前進 +1 / 後退 -1 の差し引き）
+let droppedSteps = 0          // 上限を超えて捨てた手（画面に出したら 0 に戻す）
+
+// キー入力の入口。進行中なら待ち行列へ積むだけ。
+function requestFrameStep(video, dir) {
+  if (stepping) {
+    // 行って戻れば同じコマなので差し引きでよい（←→ を混ぜても押した通りの位置に着く）。
+    const next = pendingSteps + dir
+    if (Math.abs(next) > MAX_PENDING_STEPS) droppedSteps++
+    else pendingSteps = next
+    showStepReadout(video)
+    return
+  }
+  stepping = true
+  stepStartedFrom = confirmedFrameTime
+  stepFrame(video, dir)
+  showStepReadout(video)
+}
+
+// 1手の終わり。**runStepAttempt からの出口はすべてここを通す**（どれか1つでも
+// 素通りさせると stepping が立ったままになり、以降の入力が待ち行列で詰まる）。
+function endStep(video) {
+  sendTimecode({ force: true })
+  if (pendingSteps !== 0) {
+    const dir = pendingSteps > 0 ? 1 : -1
+    pendingSteps -= dir
+    stepStartedFrom = confirmedFrameTime
+    stepFrame(video, dir)
+    showStepReadout(video)
+    return
+  }
+  stepping = false
+  showStepReadout(video)
+}
+
 function stepFrame(video, dir) {
   const seq = ++stepSeq
   if (abortStepAttempt) abortStepAttempt()
@@ -282,18 +364,18 @@ function stepFrame(video, dir) {
   // これを基準にしたステップでは着地差をコマ長の実測値として採用しない。
   lastFrameTime = Math.max(0, base + dir * dur)
   lastFrameTimeEstimated = true
-  runStepAttempt(video, seq, initialFrameStep(dir, base, dur, exact))
+  runStepAttempt(video, seq, initialFrameStep(dir, base, dur, exact, getSeedFrameSec()))
 }
 
 function runStepAttempt(video, seq, step) {
   const target = seekVideo(video, step.base + step.offset)
   if (!('requestVideoFrameCallback' in video)) {
-    sendTimecode({ force: true })
+    endStep(video)
     return
   }
   // 尺の端でクランプされて前回と同じ位置になったら、これ以上伸ばしても動かない
   if (step.target !== null && Math.abs(target - step.target) < 1e-6) {
-    sendTimecode({ force: true })
+    endStep(video)
     return
   }
   step.target = target
@@ -321,15 +403,18 @@ function runStepAttempt(video, seq, step) {
     settled = true
     cleanup()
     if (seq !== stepSeq) return  // 新しいステップに追い越された。この着地は捨てる
-    if (landed !== null) { lastFrameTime = landed; lastFrameTimeEstimated = false }
+    if (landed !== null) { lastFrameTime = landed; lastFrameTimeEstimated = false; confirmedFrameTime = landed }
     const verdict = planFrameStep(step, landed)
-    if (verdict.frameDur !== null && settingsFpsAuto && measuredFrameDur === null
+    if (verdict.frameDur !== null
       && verdict.frameDur >= STEP_PROBE_SEC && verdict.frameDur <= STEP_MAX_FRAME_SEC) {
-      // 探索で確定した隣接コマ間隔は実測値。再生中の中央値が入るまでの暫定として採る。
-      measuredFrameDur = verdict.frameDur
+      // 探索で確定した隣接コマ間隔は実測値。近道の置き場所には設定に関係なく使う
+      // （手で fps を指定していても、実測を捨てて毎手最小刻みから詰め直す理由は無い）。
+      stepMeasuredDur = stepMeasuredDur === null ? verdict.frameDur : Math.min(stepMeasuredDur, verdict.frameDur)
+      // 刻みの見積もりそのものに採るのは自動判定のときだけ（再生中の中央値が入るまでの暫定）。
+      if (settingsFpsAuto && measuredFrameDur === null) measuredFrameDur = verdict.frameDur
     }
     if (verdict.done) {
-      sendTimecode({ force: true })
+      endStep(video)
       return
     }
     runStepAttempt(video, seq, verdict.next)
@@ -579,6 +664,7 @@ function hideCursor() {
 
 function hidePlayerUI(holdMs, isVideo) {
   restorePlayerUI()
+  hideStepReadout()   // コマ送りの読み取り表示は撮影範囲に入る。合図が来たら即消す
   // 失敗・早期 return・post-capture 未達のいずれでも UI が固着しないよう、実際に隠す前に
   // 最後の砦の強制復元を仕込む（隠した要素が 0 でも restorePlayerUI は安全な no-op）。
   hiddenWatchdogTimer = setTimeout(() => {
@@ -811,6 +897,110 @@ function scheduleRestorePlayerUI(immediate) {
     restorePlayerUITimer = null
     restorePlayerUI({ deferPassive: host === 'abema.tv' })
   }, delay)
+}
+
+// ── コマ送りの読み取り表示 ───────────────────────────────────────
+//
+// **絵が変わらないのが正常**（コマ打ち）なので、押した手が通ったかどうかは画面の絵からは
+// 判断できない。確定した再生位置（rVFC が返した実 mediaTime）と待ち数を映像の左下に出し、
+// 「数字が動けば通った・動かなければ動いていない」を絵に頼らず読めるようにする。
+//
+// **撮影中は出さない。** キャプチャ範囲に入るので、出せば録画に焼き込まれる。
+const STEP_READOUT_MS = 1200        // 最後の更新から消えるまで
+const MAX_STEP_LABEL_LENGTH = 120   // アプリから配られる文言の上限（ja.ts が原本）
+let stepLabels = { blocked: '', dropped: '' }
+let stepReadoutTimer = null
+
+function formatMediaTime(sec) {
+  const s = Math.max(0, sec)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = (s % 60).toFixed(3).padStart(6, '0')
+  const h = Math.floor(s / 3600)
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
+function hideStepReadout() {
+  if (stepReadoutTimer) { clearTimeout(stepReadoutTimer); stepReadoutTimer = null }
+  document.getElementById('shiori-step-readout')?.remove()
+}
+
+function showStepReadout(video) {
+  // 撮影中（UI を隠している間）と録画中は出さない
+  if (hiddenWatchdogTimer || reportingFrames) { droppedSteps = 0; hideStepReadout(); return }
+  if (confirmedFrameTime === null) return
+
+  const moved = stepStartedFrom !== null && confirmedFrameTime !== stepStartedFrom
+  const note = droppedSteps > 0
+    ? stepLabels.dropped.replace('{count}', String(droppedSteps))
+    : (!stepping && !moved ? stepLabels.blocked : '')
+  droppedSteps = 0
+
+  let host = document.getElementById('shiori-step-readout')
+  // フルスクリーン時に body 直下が隠されるサイト（niconico 等）向けの置き場所は通知と同じ。
+  const fsVideo = document.fullscreenElement ? document.fullscreenElement.querySelector('video') : null
+  const root = (fsVideo?.parentElement) || document.fullscreenElement || document.documentElement
+  if (!host) {
+    host = document.createElement('div')
+    host.id = 'shiori-step-readout'
+    const s = host.style
+    s.setProperty('position', 'fixed', 'important')
+    s.setProperty('z-index', '2147483647', 'important')
+    s.setProperty('pointer-events', 'none', 'important')
+    s.setProperty('width', 'auto', 'important')
+    s.setProperty('height', 'auto', 'important')
+    const shadow = host.attachShadow({ mode: 'open' })
+    const style = document.createElement('style')
+    style.textContent = `
+      .readout {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        color: #fcfcfa;
+        background: rgba(20, 24, 31, .92);
+        border: 1px solid rgba(255, 255, 255, .16);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
+        font: 600 15px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        white-space: nowrap;
+      }
+      .pending { color: #7dd3fc; font-size: 13px; }
+      .note { color: #fbbf24; font-size: 12px; font-family: system-ui, sans-serif; }
+    `
+    const box = document.createElement('div')
+    box.className = 'readout'
+    box.setAttribute('role', 'status')
+    shadow.append(style, box)
+  }
+  if (host.parentElement !== root) root.appendChild(host)
+
+  // 映像の左下へ。動画が動く・大きさが変わるサイトがあるので毎回置き直す。
+  const r = video.getBoundingClientRect()
+  host.style.setProperty('left', `${Math.round(Math.max(8, r.left + 16))}px`, 'important')
+  host.style.setProperty('top', `${Math.round(Math.min(window.innerHeight - 44, r.bottom - 52))}px`, 'important')
+
+  const box = host.shadowRoot?.querySelector('.readout')
+  if (box) {
+    box.textContent = ''
+    const time = document.createElement('span')
+    time.textContent = formatMediaTime(confirmedFrameTime)
+    box.append(time)
+    if (pendingSteps !== 0) {
+      const pending = document.createElement('span')
+      pending.className = 'pending'
+      pending.textContent = `${pendingSteps > 0 ? '+' : ''}${pendingSteps}`
+      box.append(pending)
+    }
+    if (note) {
+      const noteEl = document.createElement('span')
+      noteEl.className = 'note'
+      noteEl.textContent = note
+      box.append(noteEl)
+    }
+  }
+
+  if (stepReadoutTimer) clearTimeout(stepReadoutTimer)
+  stepReadoutTimer = setTimeout(hideStepReadout, STEP_READOUT_MS)
 }
 
 function showShioriNotice(level, message) {
@@ -1276,11 +1466,17 @@ function normalizePortMessage(msg) {
   }
   if (msg.type === 'settings') {
     const rawKey = typeof msg.captureKey === 'string' ? msg.captureKey : ''
+    const label = (v) => (typeof v === 'string' ? v.slice(0, MAX_STEP_LABEL_LENGTH) : '')
     return {
       type: 'settings',
       frameFps: clampNumber(Number(msg.frameFps), 24, 1, 240),
       frameFpsAuto: msg.frameFpsAuto !== false,
-      captureKey: isValidCaptureKey(rawKey) ? rawKey : 'S'
+      captureKey: isValidCaptureKey(rawKey) ? rawKey : 'S',
+      // コマ送りの読み取り表示に出す文言。拡張は文言を持たない（原本は app の ja.ts）。
+      stepLabels: {
+        blocked: label(msg.stepLabels?.blocked),
+        dropped: label(msg.stepLabels?.dropped)
+      }
     }
   }
   return null
@@ -1326,6 +1522,7 @@ function connectPort() {
       settingsFps = safeMsg.frameFps
       settingsFpsAuto = safeMsg.frameFpsAuto
       settingsCaptureKey = safeMsg.captureKey
+      stepLabels = safeMsg.stepLabels
     } else if (safeMsg.type === 'pre-capture') {
       clearShioriNotice()
       hidePlayerUI(safeMsg.holdMs, safeMsg.video)
@@ -1372,7 +1569,7 @@ document.addEventListener('keydown', (e) => {
   e.stopPropagation()
   pauseVideo(video)
   startFrameTracker(video)  // 初回接続前でも lastFrameTime を追従できるよう保証（冪等）
-  stepFrame(video, e.key === 'ArrowRight' ? 1 : -1)
+  requestFrameStep(video, e.key === 'ArrowRight' ? 1 : -1)
   startStepGuard(video)
 }, true)
 

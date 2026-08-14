@@ -12,6 +12,7 @@ const MAX_TITLE_LENGTH = 500
 const MAX_URL_LENGTH = 2048
 const MAX_REQUEST_ID_LENGTH = 80
 const MAX_NOTICE_MESSAGE_LENGTH = 240
+const MAX_STEP_LABEL_LENGTH = 120
 const MAX_TIMECODE_SECONDS = 10000000
 const MIN_SCREEN_COORD = -100000
 const MAX_SCREEN_COORD = 100000
@@ -189,7 +190,14 @@ function normalizeServerMessage(data) {
     const frameFps = boundedNumber(Number(msg.frameFps), 1, 240) ?? 24
     const rawKey = typeof msg.captureKey === 'string' ? msg.captureKey : ''
     const captureKey = isValidCaptureKey(rawKey) ? rawKey : 'S'
-    return { type: 'settings', frameFps, frameFpsAuto: msg.frameFpsAuto !== false, captureKey }
+    // **ここは項目を1つずつ書き写して作り直す。** 書き足し忘れると content.js まで届かない
+    // （過去にビットレートの連動をこれで丸ごと落とした。extension-parity.test.ts が固定）。
+    const label = (v) => (typeof v === 'string' ? v.slice(0, MAX_STEP_LABEL_LENGTH) : '')
+    const stepLabels = {
+      blocked: label(msg.stepLabels?.blocked),
+      dropped: label(msg.stepLabels?.dropped)
+    }
+    return { type: 'settings', frameFps, frameFpsAuto: msg.frameFpsAuto !== false, captureKey, stepLabels }
   }
   return null
 }

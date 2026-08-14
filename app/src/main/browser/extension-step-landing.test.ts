@@ -42,11 +42,17 @@ type FrameCb = (now: number, meta: { mediaTime: number }) => void
  * 発火しない**（seeked だけが返る）。テストからは seek 完了・描画フレーム・新しい絵の提示を
  * それぞれ明示的に起こす。
  */
-function createHarness(opts: { frameSec?: number } = {}) {
-  // 拡張が「1コマの長さ」として使う見積もり。実際の素材（FRAME）とわざとずらせるようにして、
+function createHarness(opts: { frameSec?: number, srcFrameSec?: number, seedSec?: number | null } = {}) {
+  // 拡張が「1コマの長さ」として使う見積もり。実際の素材（SRC）とわざとずらせるようにして、
   // 見積もりが外れている場面（＝連打で基準確定のシークが同じコマの中に着く場面）を作る。
   const estimatedFrameSec = opts.frameSec ?? FRAME
+  // 素材の実際のコマ長。既定は 24fps だが、YouTube のように 30/60fps の素材も作れる。
+  const SRC = opts.srcFrameSec ?? FRAME
+  // 近道の置き場所（実測されたコマ長）。null なら近道を使わない＝最小刻みから詰める。
+  const seedSec = opts.seedSec === undefined ? estimatedFrameSec : opts.seedSec
   const seeks: number[] = []
+  const shown: number[] = []
+  const readouts: { pending: number, dropped: number }[] = []
   let timecodes = 0
   let displayedFrame = 0
   let nextCbId = 0
@@ -91,9 +97,16 @@ function createHarness(opts: { frameSec?: number } = {}) {
     frameSec(): number {
       return estimatedFrameSec
     },
+    seedSec(): number | null {
+      return seedSec
+    },
     requestAnimationFrame(fn: () => void): number {
       rafs.push(fn)
       return ++nextRafId
+    },
+    // 読み取り表示は DOM に触るのでスタブ。何を出そうとしたかだけ控える。
+    showReadout(pending: number, dropped: number): void {
+      readouts.push({ pending, dropped })
     },
     cancelAnimationFrame(): void {
       // 個別取り消しは模さない（drawFrame で settled 済みのコールバックは自分で降りる）。
@@ -104,30 +117,45 @@ function createHarness(opts: { frameSec?: number } = {}) {
   // eslint-disable-next-line no-new-func
   const api = Function('deps', `"use strict";
 ${STEP_CONSTS}
+const MAX_PENDING_STEPS = ${constant('MAX_PENDING_STEPS')}
 let lastFrameTime = null
 let lastFrameTimeEstimated = false
+let confirmedFrameTime = null
+let stepStartedFrom = null
 let measuredFrameDur = null
+let stepMeasuredDur = null
 const settingsFpsAuto = false
 let stepSeq = 0
 let abortStepAttempt = null
+let stepping = false
+let pendingSteps = 0
+let droppedSteps = 0
 const seekVideo = deps.seekVideo
 const sendTimecode = deps.sendTimecode
 const requestAnimationFrame = deps.requestAnimationFrame
 const cancelAnimationFrame = deps.cancelAnimationFrame
 function getFrameSec() { return deps.frameSec() }
+function getSeedFrameSec() { return deps.seedSec() }
+function showStepReadout() { deps.showReadout(pendingSteps, droppedSteps); droppedSteps = 0 }
 ${extractFunction(contentJs, 'initialFrameStep')}
 ${extractFunction(contentJs, 'planFrameStep')}
+${extractFunction(contentJs, 'requestFrameStep')}
+${extractFunction(contentJs, 'endStep')}
 ${extractFunction(contentJs, 'stepFrame')}
 ${extractFunction(contentJs, 'runStepAttempt')}
 return {
-  stepFrame,
-  seedLastFrame(t) { lastFrameTime = t; lastFrameTimeEstimated = false },
-  lastFrameTime() { return lastFrameTime }
+  stepFrame: requestFrameStep,
+  seedLastFrame(t) { lastFrameTime = t; lastFrameTimeEstimated = false; confirmedFrameTime = t },
+  lastFrameTime() { return lastFrameTime },
+  pendingSteps() { return pendingSteps },
+  stepping() { return stepping }
 }
 `)(deps) as {
     stepFrame: (video: unknown, dir: number) => void
     seedLastFrame: (t: number) => void
     lastFrameTime: () => number | null
+    pendingSteps: () => number
+    stepping: () => boolean
   }
 
   const h = {
@@ -160,9 +188,14 @@ return {
     present(t: number): void {
       const cb = frameCbs.get(nextCbId)
       if (!cb) throw new Error('提示できる rVFC コールバックが無い')
-      displayedFrame = Math.floor((t + 1e-9) / FRAME)
-      cb(0, { mediaTime: displayedFrame * FRAME })
+      displayedFrame = Math.floor((t + 1e-9) / SRC)
+      shown.push(displayedFrame)
+      cb(0, { mediaTime: displayedFrame * SRC })
     },
+    /** 1手の途中で画面に出たコマの並び（着地が正しくても、ここが往復すれば画面は変に見える）。 */
+    shown: (): number[] => shown,
+    /** 読み取り表示に出そうとした内容（待ち数・捨てた数）。 */
+    readouts: (): { pending: number, dropped: number }[] => readouts,
     /** シーク完了 → 新しい絵は出ない、という実機の挙動をまとめて起こす。 */
     settleWithoutNewFrame(): void {
       h.completeSeek()
@@ -179,8 +212,8 @@ return {
     /** 途中のコマを表示している状態から始めるための初期化。 */
     seedDisplayed(frameIndex: number): void {
       displayedFrame = frameIndex
-      video.currentTime = frameIndex * FRAME
-      api.seedLastFrame(frameIndex * FRAME)
+      video.currentTime = frameIndex * SRC
+      api.seedLastFrame(frameIndex * SRC)
     },
     /**
      * 直前のシークに対するブラウザの反応を1回ぶん進める。
@@ -188,7 +221,7 @@ return {
      */
     react(): void {
       const target = h.lastSeek()
-      if (Math.floor((target + 1e-9) / FRAME) !== displayedFrame) h.present(target)
+      if (Math.floor((target + 1e-9) / SRC) !== displayedFrame) h.present(target)
       else h.settleWithoutNewFrame()
     },
     /** 1手が終わる（sendTimecode が呼ばれる）まで反応を進める。 */
@@ -274,73 +307,107 @@ describe('コマ送り1手の進行（extension/content.js）', () => {
     expect(h.seeks).toHaveLength(2)
   })
 
-  it('連打で追い越しても、後の手は着地待ちを失わず最後まで進む', () => {
+  it('進行中に押した手は待ち行列へ積み、着地してから順に処理する', () => {
     const h = createHarness()
-    h.seedLastFrame(0)
+    h.seedDisplayed(0)
+
+    h.stepFrame(h.video, 1)
+    const seeksAfterFirst = h.seeks.length
+    // 2手目。まだ1手目が飛んでいるので、この時点ではシークを重ねない。
+    h.stepFrame(h.video, 1)
+    expect(h.seeks).toHaveLength(seeksAfterFirst)
+    expect(h.pendingSteps()).toBe(1)
+
+    h.runStepToEnd()            // 1手目が着地 → 2手目が自動で始まる
+    expect(h.displayedFrame()).toBe(1)
+    expect(h.pendingSteps()).toBe(0)
+    expect(h.stepping()).toBe(true)
+
+    h.runStepToEnd()
+    expect(h.displayedFrame()).toBe(2)
+    expect(h.stepping()).toBe(false)
+  })
+
+  it('遅れて届いた古い着地は、次の手の着地待ちを巻き添えにしない', () => {
+    const h = createHarness()
+    h.seedDisplayed(0)
 
     h.stepFrame(h.video, 1)
     const staleCallback = h.latestFrameCallback()
     expect(staleCallback).toBeDefined()
+    h.stepFrame(h.video, 1)     // 待ち行列へ
+    h.runStepToEnd()            // 1手目が着地し、2手目が走り出す
+    const seeksInSecond = h.seeks.length
 
-    h.stepFrame(h.video, 1)
-    const seeksAtOvertake = h.seeks.length
-
-    // 1手目の着地が遅れて届く。cancelVideoFrameCallback では既に発火待ちのコールバックまでは
-    // 止められないので、取り消し済みでも呼ばれうる。ここで2手目の着地待ちを巻き添えに消すと、
-    // 2手目が待ちっぱなしになる。
+    // 1手目のコールバックが遅れて届く。cancelVideoFrameCallback では既に発火待ちのものまでは
+    // 止められないので、取り消し済みでも呼ばれうる。ここで2手目の着地待ちを消してしまうと、
+    // 2手目が待ちっぱなしになる（押した手が黙って消える）。
     staleCallback?.(0, { mediaTime: 0 })
-    expect(h.seeks).toHaveLength(seeksAtOvertake)
-    expect(h.timecodes()).toBe(0)
+    expect(h.seeks).toHaveLength(seeksInSecond)
 
-    h.settleWithoutNewFrame()
-    expect(h.seeks.length).toBeGreaterThan(seeksAtOvertake)
+    h.runStepToEnd()
+    expect(h.displayedFrame()).toBe(2)
   })
 
-  it('連打の基準確定が無反応でも、1手を捨てずに隣のコマへ入る', () => {
+  it('連打しても、押した回数ぶんだけコマが進む', () => {
+    const h = createHarness({ frameSec: 1 / 60 })
+    h.seedDisplayed(0)
+
+    // 着地を待たずに3回押す（実機の連打）。1手も捨てない。
+    h.stepFrame(h.video, 1)
+    h.stepFrame(h.video, 1)
+    h.stepFrame(h.video, 1)
+    h.runStepToEnd()
+    h.runStepToEnd()
+    h.runStepToEnd()
+    expect(h.displayedFrame()).toBe(3)
+    expect(h.stepping()).toBe(false)
+  })
+
+  it('連打に ←→ が混ざったら差し引きになる（行って戻れば同じコマ）', () => {
+    const h = createHarness()
+    h.seedDisplayed(10)
+
+    h.stepFrame(h.video, 1)     // 1手目。すぐ走り出す
+    h.stepFrame(h.video, 1)     // 待ち +1
+    h.stepFrame(h.video, -1)    // 待ち 0（この2手は打ち消し合う）
+    expect(h.pendingSteps()).toBe(0)
+
+    h.runStepToEnd()
+    expect(h.displayedFrame()).toBe(11)   // 押した通り合計 +1
+    expect(h.stepping()).toBe(false)
+  })
+
+  it('溜め込みは上限で頭打ちにし、捨てたことを画面に出す', () => {
+    const max = constant('MAX_PENDING_STEPS')
+    const h = createHarness()
+    h.seedDisplayed(0)
+
+    for (let i = 0; i < max + 3; i++) h.stepFrame(h.video, 1)
+    expect(h.pendingSteps()).toBe(max)
+    // 捨てた手は黙って消さない（読み取り表示に出す）
+    expect(h.readouts().some((r) => r.dropped > 0)).toBe(true)
+  })
+
+  it('基準が確定していないとき（外部シーク直後）でも、1手を捨てずに隣のコマへ入る', () => {
     // 見積もりが実際のコマ長より短い状況（素材 24fps に対し 60fps 相当の見積もり）。
     // このとき基準確定のシークは同じコマの中に着くので、実機では必ず無反応になる。
     const h = createHarness({ frameSec: 1 / 60 })
-    h.seedLastFrame(0)
-
-    // 1手目。着地はまだ返ってこない。
-    h.stepFrame(h.video, 1)
-    // 追い越して2手目。基準が楽観更新値なので「表示中コマの先頭が未確定」の経路に入り、
-    // まず現在位置へシークして基準を取り直そうとする。
+    h.seedDisplayed(4)
+    h.seedLastFrame(0)          // lastFrameTime が現在位置から乖離＝外部シーク直後
     h.stepFrame(h.video, 1)
     const seeksBefore = h.seeks.length
 
     h.settleWithoutNewFrame()
 
-    // ここで打ち切ると、押した1手が黙って消える（連打すると押した回数ぶんコマが進まない）。
+    // ここで打ち切ると、押した1手が黙って消える。
     expect(h.seeks.length).toBeGreaterThan(seeksBefore)
     expect(h.timecodes()).toBe(0)
 
     // 以後は最小刻みで下から詰めていき、コマの境目を跨いだところで1手が完了する。
     h.runStepToEnd()
     expect(h.timecodes()).toBe(1)
-    // ちょうど1コマだけ進んでいること（飛び越していない）。
-    expect(h.displayedFrame()).toBe(1)
-    expect(h.lastFrameTime()).toBeCloseTo(FRAME, 6)
-  })
-
-  it('連打しても、押した回数ぶんだけコマが進む', () => {
-    const h = createHarness({ frameSec: 1 / 60 })
-    h.seedLastFrame(0)
-
-    // 着地を待たずに3回押す（実機の連打）。最後の1手だけが生き残る。
-    h.stepFrame(h.video, 1)
-    h.stepFrame(h.video, 1)
-    h.stepFrame(h.video, 1)
-    h.runStepToEnd()
-    // 追い越された手は進まないので、この時点では1コマ。ここが0コマだと「押しても動かない」。
-    expect(h.displayedFrame()).toBe(1)
-
-    // 続けて、着地を待ちながら2回押す。押した回数ぶん進むこと。
-    h.stepFrame(h.video, 1)
-    h.runStepToEnd()
-    h.stepFrame(h.video, 1)
-    h.runStepToEnd()
-    expect(h.displayedFrame()).toBe(3)
+    expect(h.displayedFrame()).toBe(5)
   })
 
   it('下から詰める刻みは最短コマ長以下（隣のコマを飛び越さない）', () => {
@@ -352,6 +419,41 @@ describe('コマ送り1手の進行（extension/content.js）', () => {
     const first = h.seeks[0]
     const second = h.seeks[1]
     expect(second - first).toBeCloseTo(PROBE_SEC, 9)
+  })
+
+  it('実測が無いうちは、素材が何fpsでも画面が行ったり戻ったりしない', () => {
+    // 見積もり 24fps（既定）のまま 30fps / 60fps の素材を送る＝YouTube で起きていた状況。
+    // 近道を推定から置くと初手が次のコマへ入り、着地の検証でそれを捨てて元の位置から
+    // 詰め直すため、画面には「進む→戻る→また進む」が出ていた。
+    for (const srcFps of [30, 60]) {
+      const h = createHarness({ frameSec: FRAME, srcFrameSec: 1 / srcFps, seedSec: null })
+      h.seedDisplayed(100)
+
+      h.stepFrame(h.video, 1)
+      h.runStepToEnd()
+
+      expect(h.displayedFrame()).toBe(101)
+      expect(h.shown()).toEqual([101])   // 途中で 102 や 100 を出さない
+    }
+  })
+
+  it('探索で確定したコマ長を近道に使うと、次の手は2回のシークで済む', () => {
+    const h = createHarness({ frameSec: FRAME, srcFrameSec: 1 / 30, seedSec: null })
+    h.seedDisplayed(100)
+    h.stepFrame(h.video, 1)
+    h.runStepToEnd()
+    const seeksWithoutShortcut = h.seeks.length
+
+    // 実測（1/30）が入った後の1手。content.js では onLand が stepMeasuredDur に採る値。
+    const after = createHarness({ frameSec: FRAME, srcFrameSec: 1 / 30, seedSec: 1 / 30 })
+    after.seedDisplayed(100)
+    after.stepFrame(after.video, 1)
+    after.runStepToEnd()
+
+    expect(after.displayedFrame()).toBe(101)
+    expect(after.shown()).toEqual([101])
+    expect(after.seeks).toHaveLength(2)
+    expect(after.seeks.length).toBeLessThan(seeksWithoutShortcut)
   })
 
   it('後退は1回のシークで直前のコマへ着く', () => {

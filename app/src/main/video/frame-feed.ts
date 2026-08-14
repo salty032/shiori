@@ -67,10 +67,6 @@ export function stopFrameFeed(): void {
   unsubscribe = null
 }
 
-function getCollectedFrames(): SourceFrame[] {
-  return frames
-}
-
 export interface FrameMatch {
   /** 素材のコマの時刻（秒）。動画時刻の表示とコマの同定に使う */
   mediaTime: number

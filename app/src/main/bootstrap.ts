@@ -85,6 +85,12 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
   return response === 0
 }
 
+// ブラウザ側 Shift+←/→ の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
+// settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
+function browserStepLabels(): { blocked: string; dropped: string } {
+  return { blocked: t('video.stepBlocked'), dropped: t('video.stepDropped') }
+}
+
 export function bootstrap(features: MainFeature[] = []): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
@@ -263,7 +269,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     const wsSettings = loadSettings()
     onWsClientConnect((send) => {
       const s = loadSettings()
-      send({ type: 'settings', frameFps: s.frameFps ?? 24, frameFpsAuto: s.frameFpsAuto !== false, captureKey: captureHotkeyMainKey(s.captureHotkey) })
+      send({ type: 'settings', frameFps: s.frameFps ?? 24, frameFpsAuto: s.frameFpsAuto !== false, captureKey: captureHotkeyMainKey(s.captureHotkey), stepLabels: browserStepLabels() })
     })
     // listen 開始前に接続コールバックを登録し、起動直後の接続にも必ず設定を返す。
     startWsServer({ allowedExtensionIds: wsSettings.allowedExtensionIds })
@@ -329,7 +335,7 @@ export function bootstrap(features: MainFeature[] = []): void {
       // 言語変更に自動では追随しない。言語が実際に変わったときだけ組み直す。
       if (saved.language !== prevLang) rebuildTrayMenu()
       setAllowedExtensionIds(saved.allowedExtensionIds)
-      broadcastMessage({ type: 'settings', frameFps: saved.frameFps, frameFpsAuto: saved.frameFpsAuto, captureKey: captureHotkeyMainKey(saved.captureHotkey) })
+      broadcastMessage({ type: 'settings', frameFps: saved.frameFps, frameFpsAuto: saved.frameFpsAuto, captureKey: captureHotkeyMainKey(saved.captureHotkey), stepLabels: browserStepLabels() })
     })
     handleTrusted(CH.captureSetHotkey, (_event, hotkey: string) => {
       const normalized = normalizeCaptureHotkey(hotkey)
@@ -339,7 +345,7 @@ export function bootstrap(features: MainFeature[] = []): void {
         const updated = { ...loadSettings(), captureHotkey: normalized }
         saveSettings(updated)
         // content.js の Prime Video キー抑止がホットキー変更に追随するよう再送する
-        broadcastMessage({ type: 'settings', frameFps: updated.frameFps, frameFpsAuto: updated.frameFpsAuto, captureKey: captureHotkeyMainKey(normalized) })
+        broadcastMessage({ type: 'settings', frameFps: updated.frameFps, frameFpsAuto: updated.frameFpsAuto, captureKey: captureHotkeyMainKey(normalized), stepLabels: browserStepLabels() })
       }
       return ok
     })

@@ -294,6 +294,9 @@ export const ja = {
 
   // ── 動画（トリミング） ──
   'video.trim': 'トリミング',
+  // ブラウザ側 Shift+←/→ の読み取り表示。拡張は文言を持たないので settings で配る
+  'video.stepBlocked': 'これ以上進めません',
+  'video.stepDropped': '押しすぎ（{count}回ぶん捨てました）',
   'trim.selection': '選択範囲: {seconds}s',
   'trim.seekHint': 'クリックでシーク',
   'trim.setIn': 'ここをIN',

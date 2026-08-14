@@ -60,6 +60,20 @@ describe('extension との定数パリティ（M-1）', () => {
     expect(backgroundJs).toMatch(/frameDurMs:\s*boundedNumber\(\s*msg\.frameDurMs/)
   })
 
+  // コマ送りの読み取り表示に出す文言は bootstrap.ts（原本は ja.ts）→ background.js →
+  // content.js の3段を通る。**拡張は文言を持たない**ので、どこか1段でも落ちると
+  // 「これ以上進めません」が黙って空文字になり、動けなかったことが画面から消える。
+  it('コマ送りの文言が bootstrap → background.js → content.js の3段を素通りする', () => {
+    const bootstrapTs = readFileSync(join(__dirname, '../bootstrap.ts'), 'utf-8')
+    expect(bootstrapTs).toMatch(/stepLabels: browserStepLabels\(\)/)
+    expect(bootstrapTs).toMatch(/blocked: t\('video\.stepBlocked'\), dropped: t\('video\.stepDropped'\)/)
+    for (const src of [backgroundJs, contentJs]) {
+      expect(src).toMatch(/blocked: label\(msg\.stepLabels\?\.blocked\)/)
+      expect(src).toMatch(/dropped: label\(msg\.stepLabels\?\.dropped\)/)
+    }
+    expect(extractConst(contentJs, 'MAX_STEP_LABEL_LENGTH')).toBe(extractConst(backgroundJs, 'MAX_STEP_LABEL_LENGTH'))
+  })
+
   it('background.js の NAMED_CAPTURE_KEYS が shared/hotkey.ts の正規化後キー名と一致する', () => {
     expect(extractSet(backgroundJs, 'NAMED_CAPTURE_KEYS')).toEqual(NAMED_CAPTURE_KEY_VALUES)
   })

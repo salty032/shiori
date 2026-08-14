@@ -297,6 +297,9 @@ export const en: Record<keyof typeof ja, string> = {
 
   // ── Video (trimming) ──
   'video.trim': 'Trim',
+  // Readout for Shift+←/→ in the browser. The extension carries no wording of its own
+  'video.stepBlocked': 'Cannot step any further',
+  'video.stepDropped': 'Too fast — dropped {count}',
   'trim.selection': 'Selection: {seconds}s',
   'trim.seekHint': 'Click to seek',
   'trim.setIn': 'Set in',
