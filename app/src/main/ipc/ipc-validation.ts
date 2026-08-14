@@ -2,7 +2,6 @@
 // すべてモジュール state に依存しない純粋関数（テスト容易・index.ts から切り出し）。
 import { join, extname } from 'path'
 import { access } from 'fs/promises'
-import { resolveRealCapturePath } from '../system/paths'
 import type { ImageQuery, ImageListRequest, SortOrder } from '../../shared/types'
 import { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../../shared/constants'
 
@@ -92,12 +91,6 @@ export function imageListRequest(raw: unknown): ImageListRequest {
     beforeId: optionalPositiveInteger(o.beforeId),
     sortOrder: sortOrder(o.sortOrder),
   }
-}
-
-async function requireRealCapturePath(value: unknown): Promise<string> {
-  const filePath = await resolveRealCapturePath(value)
-  if (!filePath) throw new Error('Invalid capture path')
-  return filePath
 }
 
 export function sanitizeFilename(value: string): string {

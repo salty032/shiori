@@ -92,7 +92,7 @@ interface RecorderApi {
   onStart: (cb: (data: { sourceId: string; fps: number; supplyFps: number; sourceFps: number | null; maxSeconds: number; sessionId: number }) => void) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
-  sendDone: (webm: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
+  sendDone: (webm: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
   reportStopped: (sessionId: number) => void
   reportError: (msg: string, sessionId: number) => void
   onBench: (cb: (data: { variants: BenchVariant[]; seconds: number }) => void) => void
@@ -427,10 +427,6 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, sourceFps, maxSeco
   rVfcRunning = true
   // 供給を引き上げるティッカーを回す。録画中だけで十分なのでここで開始し、cleanup で止める。
   startCaptureTicker()
-  // 実際に記録へ供給したフレームの枚数。実測 fps（frameCount / duration）を main 側で
-  // 算出するために録画終了時に渡す。重複供給を弾いた後の回数なので、素材として
-  // 別物だったフレーム数と一致する（下の scheduleFrame 参照）。
-  let frameCount = 0
   // 供給した各フレームが「いつ画面から取り込まれたか」（epoch ミリ秒）。
   //
   // 録画後に、配信ページ側が知っている素材のコマ時刻と突き合わせて「素材のコマ N は
@@ -447,7 +443,6 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, sourceFps, maxSeco
     drawnAt.push(captureTime === undefined
       ? Date.now()
       : performance.timeOrigin + captureTime)
-    frameCount++
   }
   // 直前に供給した動画フレームの mediaTime。同じ値なら供給しない。
   //
@@ -594,7 +589,7 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, sourceFps, maxSeco
       // キャプチャ本体の供給量そのものが分かる（受け取り ≈ 供給 なら増やす余地は無い）。
       const quality = typeof video.getVideoPlaybackQuality === 'function' ? video.getVideoPlaybackQuality() : null
       const webmBuf = await blob.arrayBuffer()
-      window.recorderApi.sendDone(webmBuf, duration, frameCount, sessionId, drawnAt, {
+      window.recorderApi.sendDone(webmBuf, duration, sessionId, drawnAt, {
         callbacks,
         presented: presentedFirst !== null && presentedLast !== null ? presentedLast - presentedFirst + 1 : 0,
         skippedByCallback,

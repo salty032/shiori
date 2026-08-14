@@ -1,5 +1,5 @@
 ﻿import { ipcRenderer, webUtils } from 'electron'
-import type { ImageRow, ImageTag, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest } from '../shared/types'
+import type { ImageRow, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest } from '../shared/types'
 import type { ShioriApi } from '../shared/api'
 import { CH } from '../shared/api'
 
@@ -23,14 +23,8 @@ export function buildCoreApi(): ShioriApi {
     listSites: (): Promise<string[]> =>
       ipcRenderer.invoke(CH.imagesListSites),
 
-    listSiteCounts: (): Promise<Record<string, number>> =>
-      ipcRenderer.invoke(CH.imagesListSiteCounts),
-
     listAllTags: (includeAi?: boolean): Promise<TagWithCount[]> =>
       ipcRenderer.invoke(CH.imagesListAllTags, includeAi),
-
-    listTagCounts: (): Promise<Record<string, number>> =>
-      ipcRenderer.invoke(CH.imagesListTagCounts),
 
     exportImages: (imageIds: number[]): Promise<{ canceled: boolean; count?: number; truncated?: boolean }> =>
       ipcRenderer.invoke(CH.imagesExport, imageIds),
@@ -61,9 +55,6 @@ export function buildCoreApi(): ShioriApi {
 
     updateImageMemo: (id: number, memo: string): Promise<void> =>
       ipcRenderer.invoke(CH.imagesUpdateMemo, id, memo),
-
-    deleteImage: (id: number) =>
-      ipcRenderer.invoke(CH.imagesDelete, id),
 
     deleteImagesBulk: (ids: number[]) =>
       ipcRenderer.invoke(CH.imagesDeleteBulk, ids),
@@ -120,7 +111,6 @@ export function buildCoreApi(): ShioriApi {
     taggerRemoveTagBulk: (imageIds: number[], tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTagBulk, imageIds, tagName),
     taggerRemoveTagFromAll: (tagName: string): Promise<number> => ipcRenderer.invoke(CH.taggerRemoveTagFromAll, tagName),
     onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
-    onFpsBackfilled: (cb: (data: { id: number; fps: number }) => void) => listen(CH.fpsBackfilled, cb),
     onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null }) => void) =>
       listen(CH.framesVerified, cb),
     onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),

@@ -57,7 +57,7 @@ describe('web デモの window.api', () => {
   it('サービス絞り込みは完全一致', async () => {
     expect(await window.api.countImages({ site: 'youtube.com' })).toBe(2)
     expect(await window.api.countImages({ site: 'youtube' })).toBe(0)
-    expect(await window.api.listSiteCounts()).toEqual({ 'youtube.com': 2, 'netflix.com': 1 })
+    expect(await window.api.listSites()).toEqual(['netflix.com', 'youtube.com'])
   })
 
   it('メディア種別で絞り込める', async () => {
@@ -89,7 +89,7 @@ describe('web デモの window.api', () => {
   })
 
   it('削除すると一覧から消える', async () => {
-    expect(await window.api.deleteImage(2)).toEqual({ ok: true, id: 2 })
+    expect(await window.api.deleteImagesBulk([2])).toEqual([{ ok: true, id: 2 }])
     expect((await window.api.listImages({})).map((row) => row.id)).toEqual([1, 3])
   })
 })

@@ -119,7 +119,7 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
   it('recorder:done: sessionId が一致しなければ無視する（新しい録画を保存確定させない）', async () => {
     isCurrentRecordingSession.mockReturnValue(false)
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 5, 120, 999)
+    await handler({}, new ArrayBuffer(10), 5, 999)
     expect(finishRecordingState).not.toHaveBeenCalled()
     expect(registerCapturedMedia).not.toHaveBeenCalled()
   })
@@ -127,7 +127,7 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
   it('recorder:done: sessionId が一致すれば通常どおり保存する', async () => {
     isCurrentRecordingSession.mockReturnValue(true)
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 5, 120, 1)
+    await handler({}, new ArrayBuffer(10), 5, 1)
     expect(finishRecordingState).toHaveBeenCalled()
     expect(registerCapturedMedia).toHaveBeenCalled()
   })
@@ -179,14 +179,14 @@ describe('recorder:done - duration 上限（多層防御）', () => {
 
   it('上限(40秒)ちょうどは保存する', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 40, 960, 1)
+    await handler({}, new ArrayBuffer(10), 40, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
     expect(sendNotice).not.toHaveBeenCalled()
   })
 
   it('上限(40秒)超は拒否し保存しない', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 40.1, 960, 1)
+    await handler({}, new ArrayBuffer(10), 40.1, 1)
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(finishRecordingState).toHaveBeenCalled()
     expect(sendNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
@@ -214,38 +214,26 @@ describe('recorder:done - fps に入るのは素材のフレームレートだ�
   it('素材の fps が分かればそれを保存する', async () => {
     getSourceFps.mockReturnValue(23.976)
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 240, 1)
+    await handler({}, new ArrayBuffer(10), 10, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
     expect(insertedFps()).toBe(23.976)
   })
 
   it('素材の fps が取れなければ空欄にする（画面キャプチャの供給レートで埋めない）', async () => {
-    // 10秒で240枚＝24枚/秒だが、これは画面キャプチャが寄越した枚数であって素材の fps では
+    // drawnAt の件数から画面キャプチャの供給レートは計算できるが、素材の fps では
     // ない。以前はここを退避先にしていたため、詳細パネルに素材のものと読める数字が出ていた。
     // コマ打ちを数える用途では、空欄より誤った数字の方が害が大きい。
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 240, 1)
+    await handler({}, new ArrayBuffer(10), 10, 1)
     expect(registerCapturedMedia).toHaveBeenCalled()
     expect(insertedFps()).toBeNull()
-  })
-
-  it('供給枚数が不正な値でも fps に影響せず、クリップ保存は続行する', async () => {
-    // fps は情報表示用であり、これが取れないことを理由に保存を失敗させない
-    // （サムネ生成と同じベストエフォート方針）。
-    for (const frameCount of [NaN, -5, 10 * 120 + 1]) {
-      registerCapturedMedia.mockClear()
-      const handler = handlers.get('recorder:done')!
-      await handler({}, new ArrayBuffer(10), 10, frameCount, 1)
-      expect(registerCapturedMedia, `frameCount=${frameCount}`).toHaveBeenCalled()
-      expect(insertedFps(), `frameCount=${frameCount}`).toBeNull()
-    }
   })
 
   // 記録画素数は画質を語るときの母数。1 コマあたりのビット数は解像度をまたぐと
   // 比べられないので、これが残らないと後から画質の判断ができない。
   it('記録した画素数を保存する', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 240, 1, [], {
+    await handler({}, new ArrayBuffer(10), 10, 1, [], {
       callbacks: 240, presented: 240, skippedByCallback: 0, duplicateSuppressed: 0,
       cropWidth: 1920, cropHeight: 1080
     })
@@ -256,7 +244,7 @@ describe('recorder:done - fps に入るのは素材のフレームレートだ�
 
   it('画素数が届かなければ空欄にする（推定で埋めない）', async () => {
     const handler = handlers.get('recorder:done')!
-    await handler({}, new ArrayBuffer(10), 10, 240, 1)
+    await handler({}, new ArrayBuffer(10), 10, 1)
     const insert = registerCapturedMedia.mock.calls[0][0] as { insert: { width: number | null; height: number | null } }
     expect(insert.insert.width).toBeNull()
     expect(insert.insert.height).toBeNull()
@@ -269,7 +257,7 @@ describe('recorder:done - fps に入るのは素材のフレームレートだ�
     buildFrameTable.mockClear()
     const drawnAt = Array.from({ length: 3600 }, (_, i) => 1_700_000_000_000 + i * (1000 / 120))
     const handler = handlers.get('recorder:done')!
-    return Promise.resolve(handler({}, new ArrayBuffer(10), 30, 3600, 1, drawnAt)).then(() => {
+    return Promise.resolve(handler({}, new ArrayBuffer(10), 30, 1, drawnAt)).then(() => {
       expect(buildFrameTable).toHaveBeenCalled()
       expect(buildFrameTable.mock.calls[0][0]).toHaveLength(3600)
     })

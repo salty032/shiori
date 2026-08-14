@@ -310,10 +310,6 @@ export default function App() {
   // （文面が無いバージョンでは main 側が上の app:notice トーストにフォールバックする）。
   useEffect(() => window.api.onWhatsNew(setWhatsNew), [])
 
-  // 既存クリップへの fps 遡及埋め（backfillFps, main/ipc-images.ts）は起動後バックグラウンドで
-  // 進む。画像一覧は起動時取得のスナップショットなので、後から書き換わった行をこれで反映する。
-  useEffect(() => window.api.onFpsBackfilled(({ id, fps }) => patchImage(id, { fps })), [patchImage])
-
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで終わる。反映しないと
   // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
   useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported }) =>

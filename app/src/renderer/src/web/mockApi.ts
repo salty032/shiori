@@ -145,14 +145,6 @@ export async function installMockApi(): Promise<void> {
     listAllImages: async (query) =>
       sorted(state.rows.filter((row) => matches(row, query)), 'date_desc').slice(0, MAX_TIMELINE_LIMIT),
     listSites: async () => [...new Set(state.rows.map((row) => state.hostById.get(row.id)!))].filter(Boolean).sort(),
-    listSiteCounts: async () => {
-      const counts: Record<string, number> = {}
-      for (const row of state.rows) {
-        const host = state.hostById.get(row.id)
-        if (host) counts[host] = (counts[host] ?? 0) + 1
-      }
-      return counts
-    },
     listAllTags: async (includeAi = false) => {
       const acc = new Map<string, TagWithCount>()
       for (const row of state.rows) {
@@ -173,16 +165,6 @@ export async function installMockApi(): Promise<void> {
         || b.count - a.count
         || a.name.localeCompare(b.name))
     },
-    listTagCounts: async () => {
-      const counts: Record<string, number> = {}
-      for (const row of state.rows) {
-        for (const tag of tagsOf(row.id)) {
-          if (tag.source !== 'manual') continue
-          counts[tag.name] = (counts[tag.name] ?? 0) + 1
-        }
-      }
-      return counts
-    },
     getImage: async (id) => state.rows.find((row) => row.id === id) ?? null,
 
     // ── 編集 ────────────────────────────────────────────────────
@@ -194,7 +176,6 @@ export async function installMockApi(): Promise<void> {
       const row = state.rows.find((r) => r.id === id)
       if (row) row.memo = memo || null
     },
-    deleteImage: async (id) => removeRows([id])[0],
     deleteImagesBulk: async (ids) => removeRows(ids),
 
     // ── タグ ────────────────────────────────────────────────────
@@ -274,7 +255,6 @@ export async function installMockApi(): Promise<void> {
     onTaggerRetagProgress: noop.on,
     onTaggerRetagDone: noop.on,
     onUpdateDownloaded: noop.on,
-    onFpsBackfilled: noop.on,
     onFramesVerified: noop.on,
   }
 

@@ -6,7 +6,7 @@ import {
   sanitizeFilename, imageQuery, imageListRequest,
   formatDateForFilename, formatTimecodeForFilename,
   normalizeTagName, optionalText, tagsFilter,
-  MAX_IMAGE_LIMIT, MAX_TAGS_PER_FILTER, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH,
+  MAX_IMAGE_LIMIT, MAX_TAGS_PER_FILTER, MAX_TAG_LOOKUP_LENGTH,
 } from './ipc-validation'
 
 describe('sanitizeFilename', () => {

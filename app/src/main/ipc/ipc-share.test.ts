@@ -98,7 +98,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     extractThumbMock.mockResolvedValue(undefined)
     getVideoMetaMock.mockClear()
     getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
-    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoMeta: getVideoMetaMock, countFrames: vi.fn() })
+    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoMeta: getVideoMetaMock })
     metadataContent = JSON.stringify({ version: 1, file: 'clip.webm', captured_at: 1700000000000 })
     registerShareHandlers()
   })

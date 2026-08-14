@@ -3,11 +3,10 @@
 import { ipcMain } from 'electron'
 import { unlink } from 'fs/promises'
 import { computeVideoCrop, writeCaptureFile } from '../capture/capture'
-import { sendNotice, sendToRenderer } from '../system/windows'
+import { sendNotice } from '../system/windows'
 import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { loadSettings } from '../system/settings'
 import { sendBrowserNotice } from '../browser/browser-notice'
-import { CH } from '../../shared/api'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
@@ -82,7 +81,7 @@ export function registerRecorderIpc(): void {
     }
   })
 
-  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, frameCount: number, sessionId: number, drawnAt: number[], diag: unknown) => {
+  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: unknown) => {
     if (!isTrustedRecorderSender(event)) return
     // recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、現在のセッションと
     // 一致しない完了通知は無視する。新しい録画を誤って確定・保存させない。
@@ -104,7 +103,7 @@ export function registerRecorderIpc(): void {
 
     // fps 列が意味するのは**素材のフレームレート**（研究用途で意味を持つのはこちらだけ）。
     //
-    // frameCount/duration は「画面キャプチャが何枚寄越したか」でしかなく、素材とは無関係な
+    // drawnAt.length/duration は「画面キャプチャが何枚寄越したか」でしかなく、素材とは無関係な
     // 値になる（23.976fps の素材に対し 50 枚/秒前後）。以前はこれを退避先にしていたが、
     // 詳細パネルに「50fps の素材」と読める数字が出てしまい、コマ打ちを数える用途では
     // 誤解が実害になる。素材の fps が取れないとき（拡張未接続・非対応サイト）は空欄のまま

@@ -42,12 +42,6 @@ function parseSearchDateEnd(s: string): number | null {
   return null
 }
 
-// Toolbar のサジェスト表示（from:/to: の不正値警告）が個別にパース可否だけ知りたいための公開関数。
-// from/to で境界の扱い（当日を含む/含まない）が違うだけで妥当性判定自体は共通のため片方だけで足りる。
-function isValidSearchDateToken(s: string): boolean {
-  return parseSearchDate(s) !== null
-}
-
 export function parseSearchQuery(raw: string): { q: string | undefined; fromDate: number | null; toDate: number | null; tags: string[]; site: string | null; mediaType: 'image' | 'video' | null } {
   const fromMatch = raw.match(/(?:^|\s)from:(\S+)/i)
   const toMatch = raw.match(/(?:^|\s)to:(\S+)/i)

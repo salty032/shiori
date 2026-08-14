@@ -4,10 +4,9 @@ import { access, stat, copyFile, unlink } from 'fs/promises'
 import { basename, extname } from 'path'
 import { getMainWindow, handleTrusted, sendToRenderer } from '../system/windows'
 import {
-  listImages, countImages, listImagesAll, listSites, listSiteCounts, listAllTags, listTagCounts,
-  getImage, deleteImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
-  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath,
-  listImagesMissingFps, setFps
+  listImages, countImages, listImagesAll, listSites, listAllTags,
+  getImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
+  listImagesMissingThumb, listImagesForThumbCheck, setThumbPath
 } from '../db'
 import {
   MAX_EXPORT_IDS,
@@ -101,50 +100,6 @@ export async function backfillThumbnails(): Promise<void> {
   }
 }
 
-let isFpsBackfilling = false
-
-// fps 未計測の動画（listImagesMissingFps、db.ts）に実測値を補完する。この機能を追加する
-// 前に録画・取り込み済みだったクリップは fps が NULL のまま残るため、起動時に1本ずつ
-// 解析して埋める。backfillThumbnails と同じくマーカーは持たず、毎起動対象行を数える形に
-// する（埋まった後は該当行が無いので即座に終わる）。
-//
-// getVideoMeta（ffmpeg -i だけの軽い解析）ではなく countFrames（フルデコード）を使う。
-// 自前録画は「画面が変化したフレームだけ」を可変間隔で書き出す可変フレームレートの webm
-// で、ffmpeg の -i がコンテナに固定 fps を見出せず "NN fps" 表記自体を出さないケースが
-// 実機で確認された（tbr のみ）。新規録画時に fps を実フレーム数(frameCount)/duration で
-// 直接算出しているのと同じ定義に揃えるには、遡及側もフルデコードでフレーム数を数える
-// しかない。コストは高いが1クリップ1回・バックグラウンドなので許容する。
-//
-// duration は上書きしない。ここは表示用の fps だけを埋める処理で、60秒上限判定に使った
-// duration を実体からの再取得値で動かす理由が無い。
-//
-// renderer の画像一覧は起動直後に一度取得したスナップショットで、この処理が裏で書き換える
-// DB の値を自動では拾わない。1件埋めるたびに fpsBackfilled を飛ばし、renderer 側
-// （useCaptureSync 等と同じ購読パターン）が patchImage で該当行だけ更新する。
-export async function backfillFps(): Promise<void> {
-  if (isFpsBackfilling) return
-  isFpsBackfilling = true
-  try {
-    for (const { id, filepath, duration } of listImagesMissingFps()) {
-      if (duration == null || duration <= 0) continue
-      try {
-        const resolved = await resolveRealCapturePath(filepath)
-        if (!resolved) continue
-        const frameCount = await getVideoThumbProvider().countFrames(resolved)
-        if (frameCount > 0) {
-          const fps = Math.round((frameCount / duration) * 100) / 100
-          setFps(id, fps)
-          sendToRenderer(CH.fpsBackfilled, { id, fps })
-        }
-      } catch (err) {
-        console.warn(`[fps-backfill] skip id=${id}`, err)
-      }
-    }
-  } finally {
-    isFpsBackfilling = false
-  }
-}
-
 // 手動の「サムネイル修復」。全画像を走査し、サムネ未生成のものと、thumb_path は記録済みだが
 // 実ファイルが消えているものを再生成する。ディスクアクセスが件数に比例するため自動では呼ばない。
 async function repairThumbnails(): Promise<{ repaired: number; failed: number }> {
@@ -185,9 +140,7 @@ export function registerImageHandlers(): void {
   handleTrusted(CH.imagesListAll, (_event, query: unknown) => listImagesAll(imageQuery(query)))
 
   handleTrusted(CH.imagesListSites, () => listSites())
-  handleTrusted(CH.imagesListSiteCounts, () => listSiteCounts())
   handleTrusted(CH.imagesListAllTags, (_event, includeAi: unknown) => listAllTags(includeAi === true))
-  handleTrusted(CH.imagesListTagCounts, () => listTagCounts())
 
   handleTrusted(CH.imagesExport, async (_event, imageIds: number[]) => {
     // renderer 側（exportStore の exportKind ガード）だけだと、拡張機能の別ウィンドウや
@@ -271,28 +224,6 @@ export function registerImageHandlers(): void {
     if (imageId) updateImageMemo(imageId, optionalText(memo, MAX_MEMO_LENGTH) ?? '')
   })
 
-  handleTrusted(CH.imagesDelete, async (_event, id: number) => {
-    const imageId = optionalPositiveInteger(id)
-    if (!imageId) return { ok: false, id: 0, error: 'invalid id' }
-    const image = getImage(imageId)
-    if (!image) return { ok: false, id: imageId, error: 'not found' }
-    try {
-      // 1) まず DB 行を削除して確定させる。ここを先にすることで、原本/サムネの削除が
-      //    途中で失敗しても「DB行は消えたのにファイルだけ残る（孤立ファイル）」にしかならず、
-      //    逆順（先にファイルを消す）だと起きうる「ファイルは消えたのに DB 行が残るゴースト表示」
-      //    を構造的に避けられる。孤立ファイルは害がなく後で手動/再生成で掃除できるが、ゴースト
-      //    行は一覧上にサムネ等が破損した項目として残り続け、ユーザーには直しようがない。
-      deleteImage(imageId)
-      // 2) 原本・サムネを削除（非クリティカルな後始末。失敗しても DB 削除は巻き戻さない）。
-      await removeImageFiles(image, imageId, 'images:delete')
-      return { ok: true, id: imageId }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.error(`[images:delete] failed id=${imageId}`, err)
-      return { ok: false, id: imageId, error: message }
-    }
-  })
-
   handleTrusted(CH.imagesDeleteBulk, async (_event, ids: unknown): Promise<DeleteImageResult[]> => {
     const validIds = Array.isArray(ids)
       ? [...new Set(ids.map(optionalPositiveInteger).filter((id): id is number => id != null))].slice(0, MAX_BULK_IDS)
@@ -307,7 +238,7 @@ export function registerImageHandlers(): void {
       .filter((id) => !foundIdSet.has(id))
       .map((id) => ({ ok: false, id, error: 'not found' }))
 
-    // DB 行はまとめて 1 トランザクションで削除して確定させる（B-7）。単体削除と同じ理由で、
+    // DB 行はまとめて 1 トランザクションで削除して確定させる（B-7）。原本よりDBを先に消し、
     // ファイル削除が後で失敗しても DB は戻さない（孤立ファイルは無害・ゴースト行は避けたい）。
     deleteImagesBulk(found.map((x) => x.id))
 

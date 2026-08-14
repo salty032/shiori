@@ -12,9 +12,7 @@ export interface ShioriApi {
   countImages: (query: ImageQuery) => Promise<number>
   listAllImages: (query: ImageQuery) => Promise<ImageRow[]>
   listSites: () => Promise<string[]>
-  listSiteCounts: () => Promise<Record<string, number>>
   listAllTags: (includeAi?: boolean) => Promise<TagWithCount[]>
-  listTagCounts: () => Promise<Record<string, number>>
   exportImages: (imageIds: number[]) => Promise<{ canceled: boolean; count?: number; truncated?: boolean }>
   // 進行中の imagesExport を中断する（数百枚規模のコピーが分単位になりうるため）。
   // count が届いている exportImages の戻り値と canceled: true の組み合わせで
@@ -25,9 +23,6 @@ export interface ShioriApi {
   onExportProgress: (cb: (data: { current: number; total: number }) => void) => () => void
   getImage: (id: number) => Promise<ImageRow | null>
   onCapture: (cb: (data: CaptureData) => void) => () => void
-  // 起動時バックグラウンドの fps 遡及埋め（backfillFps, ipc-images.ts）が1件埋めるたびに届く。
-  // 画像一覧は初回取得時点のスナップショットなので、後から書き換わった値をこれで反映する。
-  onFpsBackfilled: (cb: (data: { id: number; fps: number }) => void) => () => void
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで走り、終わってから
   // 「N コマ未取得」を「N コマ要確認」へ変える。一覧は保存時点のスナップショットなので、
   // これを飛ばさないと**検証済みなのに未検証の表示のまま**になる（実測で 90コマ未取得 のまま
@@ -39,9 +34,8 @@ export interface ShioriApi {
   onExtensionTimecode: (cb: (data: ExtensionTimecode) => void) => () => void
   updateImageTitle: (id: number, title: string) => Promise<void>
   updateImageMemo: (id: number, memo: string) => Promise<void>
-  deleteImage: (id: number) => Promise<DeleteImageResult>
   // DB 削除は main 側で 1 トランザクションにまとめる（B-7）。ファイル削除はサーバ側で
-  // 逐次ベストエフォート実行し、id ごとの成否を deleteImage と同じ形で返す。
+  // 逐次ベストエフォート実行し、id ごとの成否を返す。
   deleteImagesBulk: (ids: number[]) => Promise<DeleteImageResult[]>
   // 画像を他アプリへドラッグ&ドロップで渡す（main が OS のドラッグを開始する）。
   // 唯一の送りっぱなし IPC。Promise を待つとドラッグ開始に間に合わないため戻り値を持たない
@@ -106,16 +100,13 @@ export const CH = {
   imagesCount: 'images:count',
   imagesListAll: 'images:listAll',
   imagesListSites: 'images:listSites',
-  imagesListSiteCounts: 'images:listSiteCounts',
   imagesListAllTags: 'images:listAllTags',
-  imagesListTagCounts: 'images:listTagCounts',
   imagesExport: 'images:export',
   imagesExportCancel: 'images:exportCancel',
   imagesRepairThumbs: 'images:repairThumbs',
   imagesGet: 'images:get',
   imagesUpdateTitle: 'images:updateTitle',
   imagesUpdateMemo: 'images:updateMemo',
-  imagesDelete: 'images:delete',
   imagesDeleteBulk: 'images:deleteBulk',
   imagesStartDrag: 'images:startDrag',
   imagesDragTruncated: 'images:dragTruncated',
@@ -170,7 +161,6 @@ export const CH = {
   exportProgress: 'export:progress',
   // push (main 竊・renderer)
   captureDone: 'capture:done',
-  fpsBackfilled: 'fps:backfilled',
   framesVerified: 'frames:verified',
   openSettings: 'open-settings',
   appNotice: 'app:notice',

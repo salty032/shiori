@@ -471,13 +471,6 @@ export function listSites(): string[] {
   return (prepare("SELECT DISTINCT host FROM images WHERE host IS NOT NULL AND host != '' ORDER BY host").all() as { host: string }[]).map((r) => r.host)
 }
 
-export function listSiteCounts(): Record<string, number> {
-  const rows = prepare(
-    "SELECT host, COUNT(*) as count FROM images WHERE host IS NOT NULL AND host != '' GROUP BY host"
-  ).all() as { host: string; count: number }[]
-  return Object.fromEntries(rows.map((r) => [r.host, r.count]))
-}
-
 export function getImage(id: number): ImageRowBase | null {
   const row = prepare(`SELECT ${PUBLIC_IMAGE_COLUMNS} FROM images WHERE id = ?`).get(id) as RawImageRowBase | undefined
   return row ? normalizeImageRow(row) as ImageRowBase : null
@@ -488,17 +481,6 @@ export function getImage(id: number): ImageRowBase | null {
 // テーブルだけが肥大化する。画像削除の直後に同じトランザクション内で呼ぶ。
 function pruneOrphanTags(): void {
   prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM image_tags)').run()
-}
-
-export function deleteImage(id: number): string | null {
-  return db.transaction(() => {
-    const row = prepare('SELECT filepath FROM images WHERE id = ?').get(id) as { filepath: string } | undefined
-    if (!row) return null
-    prepare('DELETE FROM image_tags WHERE image_id = ?').run(id)
-    prepare('DELETE FROM images WHERE id = ?').run(id)
-    pruneOrphanTags()
-    return row.filepath
-  })()
 }
 
 // 一括削除の DB 側を 1 トランザクションにまとめる（B-7）。1枚ずつ IPC 往復していた旧経路は
@@ -650,13 +632,6 @@ export function listAllTags(includeAi = false): TagWithCount[] {
   }))
 }
 
-export function listTagCounts(): Record<string, number> {
-  const rows = prepare(
-    'SELECT t.name, COUNT(*) as count FROM tags t JOIN image_tags it ON it.tag_id = t.id WHERE it.source = \'manual\' GROUP BY t.id'
-  ).all() as { name: string; count: number }[]
-  return Object.fromEntries(rows.map((r) => [r.name, r.count]))
-}
-
 export function updateImageTitle(id: number, title: string): void {
   const row = prepare('SELECT memo FROM images WHERE id = ?').get(id) as { memo: string | null } | undefined
   const searchText = buildSearchText(title || null, row?.memo ?? null)
@@ -699,22 +674,6 @@ export function setThumbPath(id: number, thumbPath: string): void {
   prepare('UPDATE images SET thumb_path = ? WHERE id = ?').run(thumbPath, id)
 }
 
-// fps 未計測の動画を起動時バックフィルの対象にする（backfillFps、ipc-images.ts）。
-//
-// **録画クリップ（source='capture'）は対象外。** fps 列が意味するのは素材のフレームレートで、
-// 録画クリップのそれは拡張から届くコマ通知でしか分からない（recorder-ipc.ts の getSourceFps）。
-// ファイルを解析して得られるのは画面キャプチャの供給レート（50枚/秒前後）で、素材とは
-// 無関係な数字になる。ここで埋めると、録画時に「素材の fps が取れなかったので空欄にした」
-// 判断を起動のたびに上書きして、誤った数字を復活させることになる。
-// 対象は取り込み動画（source='import'）— こちらはファイルそのものが素材なので解析値が正しい。
-export function listImagesMissingFps(): { id: number; filepath: string; duration: number | null }[] {
-  return prepare(
-    `SELECT id, filepath, duration FROM images
-     WHERE media_type = 'video' AND fps IS NULL AND source != 'capture'
-     ORDER BY captured_at DESC`
-  ).all() as { id: number; filepath: string; duration: number | null }[]
-}
-
 // 撮り逃した枚数と、その母数である素材のコマ総数。**必ず一緒に書く** —— 片方だけ更新すると
 // 割合が別々の時点の数から算出され、詳細パネルの「多い / 少ない」が静かに狂う。
 export function setFrameCounts(id: number, uncaptured: number, total: number, unreported: number): void {
@@ -726,10 +685,6 @@ export function setFrameCounts(id: number, uncaptured: number, total: number, un
 // 「検証したが0コマだった」クリップを区別する必要があるため、0 も明示的に書く。
 export function setAmbiguousFrames(id: number, count: number): void {
   prepare('UPDATE images SET ambiguous_frames = ? WHERE id = ?').run(count, id)
-}
-
-export function setFps(id: number, fps: number): void {
-  prepare('UPDATE images SET fps = ? WHERE id = ?').run(fps, id)
 }
 
 // 孤立ファイル掃除用（sweep-orphans.ts）。DB が参照している実ファイルの一覧。
