@@ -10,6 +10,8 @@ import { join } from 'path'
 
 export const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
 export const backgroundJs = readFileSync(join(__dirname, '../../../../extension/background.js'), 'utf-8')
+export const keyGuardJs = readFileSync(join(__dirname, '../../../../extension/key-guard.js'), 'utf-8')
+export const manifestJson = readFileSync(join(__dirname, '../../../../extension/manifest.json'), 'utf-8')
 
 // 名前で関数 1 つ分のソースを切り出す。波括弧の対応で終端を見つけるので、
 // 関数内の文字列に `}` が含まれていても数え違えない限りは通る。

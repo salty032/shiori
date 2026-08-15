@@ -57,6 +57,7 @@ cd app
 npm run typecheck
 node --check ../extension/background.js
 node --check ../extension/content.js
+node --check ../extension/key-guard.js
 ```
 
 ## テスト

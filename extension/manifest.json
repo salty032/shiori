@@ -63,6 +63,26 @@
         "*://*.bilibili.com/*",
         "*://*.bilibili.tv/*"
       ],
+      "js": ["key-guard.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://youtube.com/*",
+        "*://*.youtube.com/*",
+        "*://*.dmm.com/*",
+        "*://*.dmm.co.jp/*",
+        "*://*.animestore.docomo.ne.jp/*",
+        "*://*.abema.tv/*",
+        "*://*.nicovideo.jp/*",
+        "*://*.unext.jp/*",
+        "*://*.netflix.com/*",
+        "*://*.amazon.co.jp/*",
+        "*://*.primevideo.com/*",
+        "*://*.disneyplus.com/*",
+        "*://*.bilibili.com/*",
+        "*://*.bilibili.tv/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     },

@@ -20,7 +20,7 @@ WD Tagger and filtering by tag or date.
 - **Automatic tagging**: WD Tagger (a local AI) tags the contents of each capture
 - **Search and filter**: search titles and notes, and filter by tag (AND/OR), date, or service
 - **Grid and timeline views**: organize in bulk with drag-rectangle selection, Shift/Ctrl-click, and arrow keys
-- **Frame stepping**: `Shift+←/→` over the player
+- **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer)
 - **Local import**: paste a clipboard image with `Ctrl+V`, or drop a folder of images and videos (`.webm` / `.mp4`, up to 30 seconds) to import them in bulk
 - **Delete**: press `Delete`. The toast that appears has an "Undo" you can use for a few seconds
   (after the grace period the files are gone for good, and **they are not sent to the Windows Recycle Bin**)
@@ -135,7 +135,7 @@ keeps running even when you close the window.
 
 ## What it works with
 
-Automatic title and timecode capture, temporary hiding of the player UI, and `Shift+←/→`
+Automatic title and timecode capture, temporary hiding of the player UI, and `,` / `.`
 frame stepping work **only on the services the browser extension explicitly declares support
 for**. On any other site the extension is not loaded and does nothing.
 

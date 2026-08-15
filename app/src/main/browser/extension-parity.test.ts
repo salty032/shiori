@@ -8,7 +8,7 @@ import {
   MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
 } from './ws-server'
 import { NAMED_CAPTURE_KEY_VALUES } from '../../shared/hotkey'
-import { backgroundJs, contentJs } from './extension-source'
+import { backgroundJs, contentJs, keyGuardJs, manifestJson } from './extension-source'
 
 // extension/background.js・content.js はバンドラ無しで配布されるため、app 側（ws-server.ts /
 // shared/hotkey.ts）と同じ検証定数・キー集合をコピー実装として持っている（M-1）。
@@ -174,5 +174,57 @@ describe('コマ通知が途切れる経路（content.js の rVFC ループ）',
     const wsServerTs = readFileSync(join(__dirname, './ws-server.ts'), 'utf-8')
     expect(backgroundJs).toContain("msg.type === 'frame-gap'")
     expect(wsServerTs).toContain("msg.type === 'frame-gap'")
+  })
+})
+
+describe('コマ送りのキー入口（key-guard.js → content.js）', () => {
+  // 入口（key-guard.js）と中身（content.js）を別ファイルに分けた代償として、**片方だけ直すと
+  // キーが黙って死ぬ**（押しても何も起きないだけで、原因は画面からもログからも読めない）。
+  // 名前の一致と、早く走ることの 2 点をここで固定する。
+  const manifest = JSON.parse(manifestJson) as {
+    content_scripts: { js: string[]; run_at?: string; matches: string[] }[]
+  }
+  const guardEntry = manifest.content_scripts.find((s) => s.js.includes('key-guard.js'))
+  const contentEntry = manifest.content_scripts.find((s) => s.js.includes('content.js'))
+
+  it('受け渡しの名前が両側で一致する', () => {
+    expect(contentJs).toContain('window.__shioriFrameStepKey = (dir)')
+    expect(keyGuardJs).toContain('window.__shioriFrameStepKey')
+  })
+
+  it('キーの入口は document_start で、content.js より先に走る', () => {
+    // **ここが document_idle に戻ると DMM TV の倍速が復活する**（サイトのハンドラが先に
+    // 登録され、こちらの stopImmediatePropagation では止まらない）。コマ送りは効いたままなので、
+    // 倍速が変わっていることに気づけない＝素材の時間軸が打鍵のたびに伸縮する。
+    expect(guardEntry?.run_at).toBe('document_start')
+    expect(contentEntry?.run_at).toBe('document_idle')
+  })
+
+  it('入口は window のキャプチャ段階に立つ', () => {
+    // document ではサイトが document 自身へ登録したハンドラを止められない
+    // （イベントは window → document の順に降りるため）。
+    expect(keyGuardJs).toMatch(/window\.addEventListener\('keydown',[\s\S]*?\}, true\)/)
+  })
+
+  it('奪ったキーは keydown だけでなく keypress / keyup も塞ぐ', () => {
+    // **keydown だけ塞いだ版では DMM TV の倍速が変わり続けた**（コマ送りは正常に効くので、
+    // 倍速が変わっていることに気づけない＝素材の時間軸が打鍵のたびに伸縮する）。
+    // サイトがどのイベントを見ているかは分からないので、3 つとも塞ぐ。
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+      expect(keyGuardJs, type).toContain(`window.addEventListener('${type}'`)
+    }
+    expect(keyGuardJs).toMatch(/window\.addEventListener\('keypress', shioriSwallowTail, true\)/)
+    expect(keyGuardJs).toMatch(/window\.addEventListener\('keyup', shioriSwallowTail, true\)/)
+  })
+
+  it('入口は content.js と同じサイトで動く', () => {
+    // 片方にだけサービスを足すと、そのサイトだけコマ送りが効かない（または倍速が混ざる）。
+    expect(guardEntry?.matches).toEqual(contentEntry?.matches)
+  })
+
+  it('動画が無いページではサイトの , / . を奪わない', () => {
+    // 一覧・検索ページでサイト本来のキーを潰すと、拡張が壊しているとは気づけない。
+    expect(keyGuardJs).toContain('if (!step(')
+    expect(contentJs).toMatch(/const video = getVideo\(\)\s*\n\s*if \(!video\) return false/)
   })
 })

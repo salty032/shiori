@@ -1704,33 +1704,54 @@ function connectPort() {
   })
 }
 
+// コマ送りのシーク後にサイト側が再生を再開してしまうことがあるので、1 秒だけ止め直す見張り。
 let stepGuardTimer = null
+let stepGuardRelease = null
+function stopStepGuard() {
+  if (stepGuardTimer) { clearInterval(stepGuardTimer); stepGuardTimer = null }
+  if (stepGuardRelease) {
+    document.removeEventListener('pointerdown', stepGuardRelease, true)
+    document.removeEventListener('keydown', stepGuardRelease, true)
+    stepGuardRelease = null
+  }
+}
 function startStepGuard(video) {
-  if (stepGuardTimer) clearInterval(stepGuardTimer)
+  stopStepGuard()
   const deadline = performance.now() + 1000
   stepGuardTimer = setInterval(() => {
-    if (performance.now() >= deadline || !document.contains(video)) {
-      clearInterval(stepGuardTimer)
-      stepGuardTimer = null
-      return
-    }
+    if (performance.now() >= deadline || !document.contains(video)) { stopStepGuard(); return }
     pauseVideo(video)
   }, 50)
+  // **人が再生しようとしたら見張りは即やめる。** 見張りは「サイトが勝手に再開した」場合の
+  // ためのものなのに、押した本人の再生まで 50ms 以内に止め直していた。コマ送りの直後 1 秒だけ
+  // 再生ボタンも Space も効かない状態になり、画面からは原因が読めない（アプリが固まったように
+  // 見えるだけ）。クリックでもキーでも、人の操作が来た時点で見張りの役目は終わりとみなす。
+  // コマ送りの連打（, / .）だけは解除の合図にしない——連打の途中で再開されては意味が無い。
+  stepGuardRelease = (e) => {
+    if (e.type === 'keydown' && (e.key === ',' || e.key === '.')) return
+    stopStepGuard()
+  }
+  document.addEventListener('pointerdown', stepGuardRelease, true)
+  document.addEventListener('keydown', stepGuardRelease, true)
 }
 
-document.addEventListener('keydown', (e) => {
-  if (!e.shiftKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
-  const target = e.target
-  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+// コマ送りは , / .（アプリのビューア・トリミング画面と同じキー。動画編集ソフトの慣習でもあり、
+// 日本語配列では「、」「。」の位置がそのまま前コマ・次コマになる）。ブラウザとアプリで指を
+// 使い分けずに済むよう、以前の Shift+←/→ から移した。
+//
+// **キーを受けるのはこのファイルではなく key-guard.js**（document_start 起動）。理由はそちらに
+// 書いてある。ここはコマ送りの中身だけを提供し、動画が無ければ false を返してサイトに任せる。
+// 同じ拡張のコンテンツスクリプトは同じ isolated world を共有するので、この代入がそのまま
+// key-guard.js から見える。
+window.__shioriFrameStepKey = (dir) => {
   const video = getVideo()
-  if (!video) return
-  e.preventDefault()
-  e.stopPropagation()
+  if (!video) return false
   pauseVideo(video)
   startFrameTracker(video)  // 初回接続前でも lastFrameTime を追従できるよう保証（冪等）
-  requestFrameStep(video, e.key === 'ArrowRight' ? 1 : -1)
+  requestFrameStep(video, dir)
   startStepGuard(video)
-}, true)
+  return true
+}
 
 window.addEventListener('focus', () => sendTimecode({ force: true }))
 window.addEventListener('pagehide', () => {

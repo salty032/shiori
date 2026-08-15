@@ -376,14 +376,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     e.stopPropagation()
     if (e.key === 'Escape') { if (!trimming) requestClose(); return }
     if (trimming) return
-    // コマ送りは 2 系統とも受ける。Shift+←/→ は拡張のプレーヤー操作と、, / . は
-    // ビューア（Viewer）および動画編集ソフトの慣習と揃えたもの。どちらの手で来ても
-    // 同じ結果になるよう、画面ごとに片方だけ効く状態を作らない。
-    if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-      e.preventDefault()
-      stepPlayhead(e.key === 'ArrowRight' ? 1 : -1)
-      return
-    }
+    // コマ送りは , / . のみ。ビューア（Viewer）・ブラウザ拡張・動画編集ソフトの慣習と同じで、
+    // 画面ごとに違うキーを覚えずに済む。以前ここだけ Shift+←/→ も受けていたが、拡張側を
+    // , / . へ移したので役目が終わった。
     // , / . は文字入力なので入力欄では通さない。ボタンは除外しない
     // （−1f 等を押した直後にフォーカスが残っていてもコマ送りが死なないようにする）。
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
