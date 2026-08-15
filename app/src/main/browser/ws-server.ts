@@ -1,7 +1,29 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 
-export const PORT = 39821
+// 拡張との接続に使うポートの候補。**extension/background.js の WS_PORTS と同じ並びで
+// あること**（extension-parity.test.ts が検知する）。アプリは先頭から順に listen を試し、
+// 拡張は先頭から順に接続を試す。同じ並びを両側が持つので、どこに落ち着いても設定は要らない。
+//
+// なぜ 1 つでは足りないか — Windows は Hyper-V / WSL2 / Docker Desktop が有効だと、
+// 起動のたびに TCP ポートを**ブロック単位でまとめて予約**する
+// （netsh int ipv4 show excludedportrange protocol=tcp で見える）。予約範囲は再起動ごとに
+// 変わるため、固定 1 ポートだと「昨日まで動いていたのに今日は繋がらない」が利用者側で
+// 突然起きる。利用者に心当たりは無く、拡張を入れ直しても直らない。
+//
+// 候補の選び方 — 予約は連続ブロックで来るので、隣（39822 など）は同じブロックに巻き込まれる。
+// 2000 ずつ離す。全部 Windows の既定の動的ポート範囲（49152-65535）より下に置き、
+// そちらの自動割り当てとは衝突しないようにする。
+// 先頭は必ず 39821 のまま（既存の利用者が今そこで繋がっているため、並べ替えると
+// 更新直後の 1 回だけ全員が候補探しをすることになる）。
+export const WS_PORTS = [39821, 41821, 43821, 45821] as const
+
+// 実際に listen できたポート。どれも確保できなければ null のまま。
+let activePort: number | null = null
+export function getActivePort(): number | null {
+  return activePort
+}
+
 const HOST = '127.0.0.1'
 // extension/background.js（バンドラ無しのため import 不可）にも同じ値のコピーがある。
 // 片側だけ変えると静かに食い違うため、ws-server.test.ts のパリティテストが
@@ -299,14 +321,33 @@ export function startWsServer(options?: { allowedExtensionIds?: string[] }): voi
 
   wss.on('error', (err) => console.error('[WS] server error', err))
 
-  httpServer.listen(PORT, HOST, () => {
-    console.log(`[WS] listening on ws://${HOST}:${PORT}`)
+  // 候補を先頭から順に試す。EADDRINUSE は listen 後の非同期 error で来るので、
+  // ハンドラ側から次の候補へ進める（同じ server オブジェクトに listen し直せる）。
+  let portIndex = 0
+
+  httpServer.on('listening', () => {
+    activePort = WS_PORTS[portIndex]
+    console.log(`[WS] listening on ws://${HOST}:${activePort}`)
   })
 
   httpServer.on('error', (err) => {
-    console.error('[WS] http server error', err)
-    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') notifyPortInUse()
+    if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') {
+      console.error('[WS] http server error', err)
+      return
+    }
+    console.warn(`[WS] port ${WS_PORTS[portIndex]} unavailable, trying next`)
+    portIndex++
+    if (portIndex < WS_PORTS.length) {
+      httpServer?.listen(WS_PORTS[portIndex], HOST)
+      return
+    }
+    // 候補を使い切った。ここで初めて利用者に知らせる（1 つ塞がっただけで
+    // 警告を出すと、自動で回避できた場合まで不安にさせる）。
+    portIndex = WS_PORTS.length - 1
+    notifyPortInUse()
   })
+
+  httpServer.listen(WS_PORTS[portIndex], HOST)
 }
 
 // ハンドラ登録。戻り値を呼ぶと解除できる（一時ハンドラ用）
@@ -334,6 +375,7 @@ export function setAllowedExtensionIds(ids: string[]): void {
 export function stopWsServer(): void {
   wss?.close()
   httpServer?.close()
+  activePort = null
 }
 
 export function _resetWsStateForTest(opts?: { allowedIds?: string[] }): void {

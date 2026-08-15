@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanTitle, siteName, formatTime, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
+import { cleanTitle, siteName, formatTime, formatBytes, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
 import { parseSearchQuery, buildImageQuery } from './stores/imageQuery'
 import type { ImageRow } from './types'
 
@@ -93,6 +93,21 @@ describe('formatTime', () => {
   it('3661 → 1:01:01', () => expect(formatTime(3661)).toBe('1:01:01'))
   it('null → —', () => expect(formatTime(null)).toBe('—'))
   it('小数点は切り捨て: 90.9 → 1:30', () => expect(formatTime(90.9)).toBe('1:30'))
+})
+
+describe('formatBytes', () => {
+  it('0 → 0 B', () => expect(formatBytes(0)).toBe('0 B'))
+  it('1023 は繰り上がらない', () => expect(formatBytes(1023)).toBe('1023 B'))
+  it('1024 → 1 KB', () => expect(formatBytes(1024)).toBe('1 KB'))
+  // 10 未満は小数第1位まで、10 以上は整数。桁が増えるほど小数の情報量は減る。
+  it('10未満は小数第1位: 1.5 KB', () => expect(formatBytes(1536)).toBe('1.5 KB'))
+  it('10以上は整数: 12 KB', () => expect(formatBytes(12 * 1024)).toBe('12 KB'))
+  // 単位を上げるのは 1000 以上。999 MB の次が 0.98 GB になるのを避けている。
+  it('999 MB はそのまま MB', () => expect(formatBytes(999 * 1024 * 1024)).toBe('999 MB'))
+  it('1000 MB は GB へ上がる', () => expect(formatBytes(1000 * 1024 * 1024)).toBe('1 GB'))
+  it('TB で止まる（それ以上の単位は持たない）', () => expect(formatBytes(5 * 1024 ** 5)).toBe('5120 TB'))
+  it('負値 → —', () => expect(formatBytes(-1)).toBe('—'))
+  it('NaN → —', () => expect(formatBytes(NaN)).toBe('—'))
 })
 
 describe('computeGridLayout', () => {

@@ -5,7 +5,7 @@ import {
   MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
   MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MAX_EPOCH_MS,
   MIN_SCREEN_SIZE, MAX_SCREEN_SIZE, MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO,
-  MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
+  MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS, WS_PORTS,
 } from './ws-server'
 import { NAMED_CAPTURE_KEY_VALUES } from '../../shared/hotkey'
 import { backgroundJs, contentJs, keyGuardJs, manifestJson } from './extension-source'
@@ -23,6 +23,13 @@ function extractConst(source: string, name: string): number {
   // 外部入力は含まないため Function での評価は許容する）。
   // eslint-disable-next-line no-new-func
   return Function(`"use strict"; return (${m[1]});`)() as number
+}
+
+function extractNumberArray(source: string, name: string): number[] {
+  const m = source.match(new RegExp(`const\\s+${name}\\s*=\\s*\\[([^\\]]*)\\]`))
+  if (!m) throw new Error(`array not found in extension source: ${name}`)
+  // eslint-disable-next-line no-new-func
+  return Function(`"use strict"; return [${m[1]}];`)() as number[]
 }
 
 function extractSet(source: string, name: string): Set<string> {
@@ -72,6 +79,26 @@ describe('extension との定数パリティ（M-1）', () => {
       expect(src).toMatch(/dropped: label\(msg\.stepLabels\?\.dropped\)/)
     }
     expect(extractConst(contentJs, 'MAX_STEP_LABEL_LENGTH')).toBe(extractConst(backgroundJs, 'MAX_STEP_LABEL_LENGTH'))
+  })
+
+  // アプリは WS_PORTS の先頭から listen を試し、拡張は先頭から接続を試す。**同じ並びで
+  // あることだけが両者の合流条件**で、片側に候補を足しただけだと、そのポートに落ち着いた
+  // ときに拡張が永久に見つけられない（画面には「未接続」としか出ない）。
+  it('background.js の WS_PORTS が ws-server.ts と同じ並びで一致する', () => {
+    expect(extractNumberArray(backgroundJs, 'WS_PORTS')).toEqual([...WS_PORTS])
+  })
+
+  it('先頭は従来のポートのまま（更新直後に既存利用者が候補探しをしないため）', () => {
+    expect(WS_PORTS[0]).toBe(39821)
+  })
+
+  it('候補どうしが十分に離れている（予約はブロック単位で来るため隣は同時に潰れる）', () => {
+    for (let i = 1; i < WS_PORTS.length; i++) {
+      expect(WS_PORTS[i] - WS_PORTS[i - 1]).toBeGreaterThanOrEqual(1000)
+    }
+    // Windows の既定の動的ポート範囲（49152-65535）より下に置き、OS の自動割り当てと
+    // 衝突しないようにする。
+    for (const port of WS_PORTS) expect(port).toBeLessThan(49152)
   })
 
   it('background.js の NAMED_CAPTURE_KEYS が shared/hotkey.ts の正規化後キー名と一致する', () => {

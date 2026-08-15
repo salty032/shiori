@@ -46,7 +46,7 @@ export const en: Record<keyof typeof ja, string> = {
     'Check that no other program is locking the file, or restart your PC and try again.',
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
   'notice.portInUse':
-    'Port {port} is in use by another app, so Shiori cannot connect to the browser extension.',
+    'Shiori cannot connect to the browser extension. Ports {ports} are all taken by other apps or reserved by Windows. Restarting your PC often clears this.',
   'notice.updated': 'Shiori updated to v{version}',
 
   // ── Capture ──────────────────────────────────────────────────
@@ -326,7 +326,7 @@ export const en: Record<keyof typeof ja, string> = {
 
   // ── Video (trimming) ──
   'video.trim': 'Trim',
-  // Readout for Shift+←/→ in the browser. The extension carries no wording of its own
+  // Readout for , / . in the browser. The extension carries no wording of its own
   'video.stepBlocked': 'Cannot step any further',
   'video.stepDropped': 'Too fast — dropped {count}',
   'trim.selection': 'Selection: {seconds}s',
@@ -335,7 +335,7 @@ export const en: Record<keyof typeof ja, string> = {
   'trim.setOut': 'Set out',
   'trim.analyzing': 'Analyzing frames…',
   'trim.analyzeFailed': 'Frame analysis failed (lower frame precision)',
-  'trim.shortcutHint': ', . / Shift+←→ step a frame · I/O set in/out · Space play/pause',
+  'trim.shortcutHint': ', . step a frame · I/O set in/out · Space play/pause',
   'trim.error': 'Error: {message}',
   'trim.working': 'Trimming…',
   'trim.save': 'Trim and save',
@@ -475,10 +475,13 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.extDisconnected': 'Not connected',
   'settings.extReloadHint': 'Reload the extension on your browser’s extensions page to pick up the latest version.',
   'settings.extStatusHint': 'Shows whether Shiori is receiving data from video pages on supported sites.',
+  'settings.extPort': 'Port in use: {port}',
+  'settings.extPortBlocked': 'No port available',
+  'settings.extPortBlockedHint': 'Shiori could not claim any port, so it cannot connect to the browser extension. Reinstalling the extension or reloading the page will not help. Windows often reserves these ports at startup — restarting your PC usually clears it.',
   'settings.services': 'Supported services',
   'settings.hotkey': 'Hotkeys',
   'settings.captureHotkey': 'Capture hotkey',
-  'settings.frameStep': 'Frame step (Shift+←/→)',
+  'settings.frameStep': 'Frame step (, / .)',
   'settings.autoDetect': 'Auto-detect',
   'settings.fpsHint': 'Auto-detect on: measured from the video. Off: fixed fps (anime ≈ 24, live action ≈ 30).',
   'settings.notifications': 'Notifications',
@@ -494,6 +497,19 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.sidebarDisplay': 'Sidebar',
   'settings.showAiTags': 'Show AI tags in the sidebar too',
   'settings.showAiTagsHint': 'While off, only manual tags are shown. Turning it on also shows AI tags, but manual tags stay at the top.',
+  'settings.storage': 'Storage location',
+  'settings.openCapturesFolder': 'Open folder',
+  'settings.storageHint': 'Everything you capture is stored here. This location cannot be changed.',
+  'settings.usage': 'Disk usage',
+  'settings.usageCalculating': 'Calculating...',
+  'settings.usageFailed': 'Could not read disk usage. Try reopening settings.',
+  // Written so the numbers need no plural agreement — the counts can be anything including 0 or 1.
+  'settings.usageCounts': 'Images {images} / Videos {videos}',
+  'settings.usageCaptures': 'Captures (originals)',
+  'settings.usageThumbnails': 'Thumbnails (regenerated if deleted)',
+  'settings.usageDatabase': 'Database',
+  'settings.usageModel': 'AI model',
+  'settings.usageModelAbsent': 'Not downloaded',
   'settings.exportHint': 'Saves your captures, tags, notes, clip frame-accuracy data and smart folders to a folder. (Locally imported items are not included.)',
   'settings.stoppedCount.one': 'Stopped after {count} item',
   'settings.stoppedCount.other': 'Stopped after {count} items',

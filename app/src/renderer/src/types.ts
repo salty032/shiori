@@ -1,6 +1,6 @@
 export type {
   TagMode, SortOrder, ImageTagSource, ImageSource, ImageRow, ImageTag, TagWithCount,
-  SmartFolder, Settings, CaptureData, ExtensionTimecode, AppNotice,
+  SmartFolder, Settings, CaptureData, ExtensionTimecode, AppNotice, StorageInfo,
   DeleteImageResult,
   ImageQuery, ImageListRequest,
 } from '../../shared/types'

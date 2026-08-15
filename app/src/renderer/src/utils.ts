@@ -212,6 +212,23 @@ export function formatTime(sec: number | null): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
+// 使用量表示（設定 > データ）。桁数を揃えるのではなく有効数字を揃える——12.4 GB / 210 MB / 8 MB の
+// ように、大きいものだけ小数第1位まで出す。1000 未満で単位を上げるのは、999 MB の次が 1.0 GB に
+// なるより 0.98 GB のほうが読みにくいため。
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—'
+  if (bytes < 1024) return `${Math.round(bytes)} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes / 1024
+  let unit = 0
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1024
+    unit++
+  }
+  // 10 以上は整数（12 GB）、10 未満は小数第1位（8.4 GB）。桁が増えるほど小数の情報量は減る。
+  return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10} ${units[unit]}`
+}
+
 // メディア URL の解決口。既定は Electron の capfile:// プロトコル（bootstrap.ts が処理する）。
 // Web デモ版は capfile:// を持てないため、起動時に web/mockApi.ts が同梱アセットの URL を
 // 返す関数へ差し替える。features/registry.ts と同じく「コアは差し替え口だけ知る」形にして、

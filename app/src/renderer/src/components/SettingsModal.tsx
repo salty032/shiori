@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Settings, ExtensionTimecode } from '../types'
+import type { Settings, ExtensionTimecode, StorageInfo } from '../types'
 import { font, color, modal, radius } from '../styles'
-import { buildAccelerator } from '../utils'
+import { buildAccelerator, formatBytes } from '../utils'
 import { SUPPORTED_SERVICES, alpha, serviceColor } from '../services'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { XIcon } from './Icon'
@@ -96,6 +96,13 @@ export default function SettingsModal(p: Props) {
   useEffect(() => {
     window.api.getAppVersion().then(setAppVersion).catch(() => {})
   }, [])
+  // 拡張と繋がるポート。候補を全部確保できなかったときは null で、この場合は拡張を入れ直しても
+  // ページを再読み込みしても直らない（原因がアプリの外にある）。未取得の undefined と区別する。
+  const [wsPort, setWsPort] = useState<number | null | undefined>(undefined)
+  useEffect(() => {
+    window.api.getWsPort().then(setWsPort).catch(() => setWsPort(null))
+  }, [])
+  const wsPortUnavailable = wsPort === null
   const extensionConnected = p.extensionStatus !== null && now - p.extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
   // 拡張の更新案内は起動直後のOS通知1回だけで見逃しやすいため、受信中の拡張バージョンが
   // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
@@ -134,6 +141,27 @@ export default function SettingsModal(p: Props) {
   }, [capturing])
 
   const [activeTab, setActiveTab] = useState<TabId>('general')
+
+  // 保存場所と使用量。全ファイルを stat するので数万件では数秒かかる。モーダルを開くたびに
+  // 走らせると「基本」タブだけ見て閉じる人にも毎回コストがかかるため、実際に数字を出す
+  // タブ（データ・タグ）へ切り替わった最初の一回だけ取りに行く。
+  const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [storageLoading, setStorageLoading] = useState(false)
+  const [storageFailed, setStorageFailed] = useState(false)
+  const storageRequested = useRef(false)
+  useEffect(() => {
+    if (activeTab !== 'data' && activeTab !== 'tag') return
+    if (storageRequested.current) return
+    storageRequested.current = true
+    setStorageLoading(true)
+    window.api.getStorageInfo()
+      .then(setStorage)
+      .catch((err) => {
+        console.error('[settings] storage info failed', err)
+        setStorageFailed(true)
+      })
+      .finally(() => setStorageLoading(false))
+  }, [activeTab])
 
   // fps カスタム数値入力は1打鍵ごとに保存すると IPC + 拡張への再送が無駄に多い（R-3）。
   // ローカル state に持ち、300ms 入力が止まってから確定する。プリセットボタン側は
@@ -236,22 +264,32 @@ export default function SettingsModal(p: Props) {
                 <div style={s.group}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={s.section}>{t('settings.extension')}</div>
-                    <span style={{ ...s.statusBadge, ...(extensionVersionMismatch ? s.statusWarn : extensionConnected ? s.statusOk : s.statusMuted) }}>
-                      {t(extensionVersionMismatch ? 'settings.extReloadNeeded' : extensionConnected ? 'settings.extConnected' : 'settings.extDisconnected')}
+                    <span style={{ ...s.statusBadge, ...(wsPortUnavailable ? s.statusWarn : extensionVersionMismatch ? s.statusWarn : extensionConnected ? s.statusOk : s.statusMuted) }}>
+                      {t(wsPortUnavailable ? 'settings.extPortBlocked' : extensionVersionMismatch ? 'settings.extReloadNeeded' : extensionConnected ? 'settings.extConnected' : 'settings.extDisconnected')}
                     </span>
                   </div>
                   <div style={s.actionRow}>
                     <div style={s.hint}>
-                      {extensionVersionMismatch
-                        ? t('settings.extReloadHint')
-                        : t('settings.extStatusHint')}
+                      {/* ポートを1つも確保できていないなら、拡張を入れ直してもページを再読み込みしても
+                          直らない（原因がアプリの外にある）。ここで従来の案内を出すと、直らない手順を
+                          延々と繰り返させることになるので、先に理由へ差し替える。 */}
+                      {wsPortUnavailable
+                        ? t('settings.extPortBlockedHint')
+                        : extensionVersionMismatch
+                          ? t('settings.extReloadHint')
+                          : t('settings.extStatusHint')}
                     </div>
-                    {(!extensionConnected || extensionVersionMismatch) && (
+                    {!wsPortUnavailable && (!extensionConnected || extensionVersionMismatch) && (
                       <button style={s.addBtn} onClick={() => window.api.showExtensionFolder()}>
                         {t('onboarding.openExtensionFolder')}
                       </button>
                     )}
                   </div>
+                  {/* 繋がらないときに自分で確かめられる唯一の手掛かりなので、正常時も出しておく
+                      （不調になってから探しても、そのときには表示が出ない状態になっている）。 */}
+                  {wsPort != null && (
+                    <div style={s.hint}>{t('settings.extPort', { port: String(wsPort) })}</div>
+                  )}
                 </div>
                 <div style={s.group}>
                   <div style={s.section}>{t('settings.services')}</div>
@@ -304,7 +342,7 @@ export default function SettingsModal(p: Props) {
                     <Slot key={i} onCapturingChange={setSlotCapturing} placement="hotkey" />
                   ))}
                 </div>
-                {/* UX-8: コマ送り(Shift+←/→)もキャプチャ体験の設定のため「基本」タブから移動 */}
+                {/* UX-8: コマ送り(, / .)もキャプチャ体験の設定のため「基本」タブから移動 */}
                 <div style={s.group}>
                   <div style={s.section}>{t('settings.frameStep')}</div>
                   <div style={s.row}>
@@ -374,8 +412,15 @@ export default function SettingsModal(p: Props) {
                   <div style={s.hint}>{t('settings.autoTaggingHint')}</div>
                   {p.taggerReady ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {/* 数百MBの実体に「削除」だけがあり、押していいか判断する材料が無かった。
+                          消える容量を削除ボタンと同じ行に出す。 */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ ...s.statusBadge, ...s.statusOk }}>{t('settings.taggerReady')}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ ...s.statusBadge, ...s.statusOk }}>{t('settings.taggerReady')}</span>
+                          {storage && storage.modelBytes > 0 && (
+                            <span style={s.usageValue}>{formatBytes(storage.modelBytes)}</span>
+                          )}
+                        </div>
                         <button style={s.deleteBtn} onClick={p.onTaggerDelete}>{t('settings.deleteModel')}</button>
                       </div>
                       {p.retagProgress ? (
@@ -424,7 +469,50 @@ export default function SettingsModal(p: Props) {
 
             {activeTab === 'data' && (
               <>
+                {/* 撮ったものの置き場所は、これまでアプリのどこにも出ていなかった。拡張のフォルダは
+                    開けるのに自分の何百枚には辿り着けない状態だったので、パスをそのまま出して開ける
+                    ようにする。保存先の変更は既存ファイルの移動と DB のパス書き換えを伴うため別件。 */}
                 <div style={{ ...s.group, ...s.groupFirst }}>
+                  <div style={s.section}>{t('settings.storage')}</div>
+                  <div style={s.actionRow}>
+                    <div style={s.pathBox}>{storage?.captureDir ?? '—'}</div>
+                    <button style={s.addBtn} onClick={() => window.api.showCapturesFolder()}>
+                      {t('settings.openCapturesFolder')}
+                    </button>
+                  </div>
+                  <div style={s.hint}>{t('settings.storageHint')}</div>
+                </div>
+                {/* 書き出し・読み込み・修復はどれも分単位の作業なのに、「今どれだけあるか」が
+                    無いまま押すことになっていた。作業ボタンより先に現状を出す。 */}
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.usage')}</div>
+                  {storageLoading ? (
+                    <div style={s.hint}>{t('settings.usageCalculating')}</div>
+                  ) : storageFailed || !storage ? (
+                    <div style={s.hint}>{t('settings.usageFailed')}</div>
+                  ) : (
+                    <>
+                      <div style={s.label}>
+                        {t('settings.usageCounts', {
+                          images: storage.imageCount.toLocaleString(),
+                          videos: storage.videoCount.toLocaleString(),
+                        })}
+                      </div>
+                      {([
+                        ['settings.usageCaptures', formatBytes(storage.captureBytes)],
+                        ['settings.usageThumbnails', formatBytes(storage.thumbnailBytes)],
+                        ['settings.usageDatabase', formatBytes(storage.dbBytes)],
+                        ['settings.usageModel', storage.modelBytes > 0 ? formatBytes(storage.modelBytes) : t('settings.usageModelAbsent')],
+                      ] as const).map(([labelKey, value]) => (
+                        <div key={labelKey} style={s.row}>
+                          <span style={s.hint}>{t(labelKey)}</span>
+                          <span style={s.usageValue}>{value}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+                <div style={s.group}>
                   <div style={s.section}>{t('action.export')}</div>
                   <div style={s.actionRow}>
                     <div style={s.hint}>{t('settings.exportHint')}</div>
@@ -596,6 +684,11 @@ export const s: Record<string, React.CSSProperties> = {
   hint: { fontSize: font.sm, color: 'var(--text-secondary)', lineHeight: 1.7 },
   creditLink: { padding: 0, background: 'none', border: 'none', color: 'var(--accent-text)', fontSize: font.sm, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' },
   hotkeyBadge: { ...btnBase, cursor: 'default', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', fontFamily: 'monospace', fontWeight: 400 },
+  // hotkeyBadge と同じ「値そのものを見せる枠」。パスは省略すると意味を失う（どこか分からなく
+  // なるのが元の問題）ので、切らずに折り返して全文を出し、選択してコピーできるようにする。
+  pathBox: { flex: 1, minWidth: 0, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.sm, color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: font.sm, lineHeight: 1.5, wordBreak: 'break-all' as const, userSelect: 'text' as const },
+  // 使用量の数値。行の左は hint（説明側）なので、右の数字だけ primary で拾えるようにする。
+  usageValue: { fontSize: font.base, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' as const },
   hotkeyCapture: { ...btnBase, cursor: 'text', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--accent-text)', fontFamily: 'monospace', fontWeight: 400, minWidth: 140, outline: 'none' },
   toggleSwitch: { width: 44, height: 28, padding: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
   toggleSwitchOn: { background: 'rgba(var(--accent-rgb), 0.24)', borderColor: 'rgba(var(--accent-rgb), 0.6)' },

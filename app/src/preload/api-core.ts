@@ -1,5 +1,5 @@
 ﻿import { ipcRenderer, webUtils } from 'electron'
-import type { ImageRow, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest } from '../shared/types'
+import type { ImageRow, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest, StorageInfo } from '../shared/types'
 import type { ShioriApi } from '../shared/api'
 import { CH } from '../shared/api'
 
@@ -79,6 +79,15 @@ export function buildCoreApi(): ShioriApi {
 
     showExtensionFolder: (): Promise<void> =>
       ipcRenderer.invoke(CH.shellShowExtensionFolder),
+
+    showCapturesFolder: (): Promise<void> =>
+      ipcRenderer.invoke(CH.shellShowCapturesFolder),
+
+    getStorageInfo: (): Promise<StorageInfo> =>
+      ipcRenderer.invoke(CH.storageGetInfo),
+
+    getWsPort: (): Promise<number | null> =>
+      ipcRenderer.invoke(CH.wsGetPort),
 
     getSettings: (): Promise<Settings> =>
       ipcRenderer.invoke(CH.settingsGet),

@@ -3,13 +3,13 @@ import { extname, join } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream, mkdirSync } from 'fs'
 import { Readable } from 'stream'
-import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, PORT as WS_PORT } from './browser/ws-server'
+import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, getActivePort, WS_PORTS } from './browser/ws-server'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, shouldSuppressBrowserTargetUpdate, SilentCaptureAbort
 } from './capture/capture'
-import { initDb, getImage } from './db'
+import { initDb, getImage, countImages } from './db'
 import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
 import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './system/settings'
@@ -19,7 +19,8 @@ import { compareVersions } from './system/version'
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
 import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
 import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
-import { resolveRealCapturePath, thumbPathFor } from './system/paths'
+import { resolveRealCapturePath, thumbPathFor, captureDir } from './system/paths'
+import { collectStorageUsage } from './system/storage'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
 import { createImageThumb } from './capture/image-thumb'
 import {
@@ -85,7 +86,7 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
   return response === 0
 }
 
-// ブラウザ側 Shift+←/→ の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
+// ブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
 // settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
 function browserStepLabels(): { blocked: string; dropped: string } {
   return { blocked: t('video.stepBlocked'), dropped: t('video.stepDropped') }
@@ -314,6 +315,24 @@ export function bootstrap(features: MainFeature[] = []): void {
     handleTrusted(CH.shellShowExtensionFolder, () => {
       shell.showItemInFolder(join(installedExtensionPath(), 'manifest.json'))
     })
+    handleTrusted(CH.shellShowCapturesFolder, async () => {
+      // 1枚も撮っていないと captures 自体が無く openPath は黙って失敗する。作ってから開く。
+      const dir = captureDir()
+      mkdirSync(dir, { recursive: true })
+      // showItemInFolder は「親を開いて対象を選択」なので、フォルダ自体を開くには openPath を使う。
+      await shell.openPath(dir)
+    })
+
+    handleTrusted(CH.wsGetPort, () => getActivePort())
+
+    handleTrusted(CH.storageGetInfo, async () => {
+      const usage = await collectStorageUsage()
+      return {
+        ...usage,
+        imageCount: countImages({ mediaType: 'image' }),
+        videoCount: countImages({ mediaType: 'video' }),
+      }
+    })
 
     handleTrusted(CH.settingsGet, () => loadSettings())
     handleTrusted(CH.settingsSet, (_event, patch: Partial<Settings>) => {
@@ -480,7 +499,8 @@ export function bootstrap(features: MainFeature[] = []): void {
     // 「キャプチャ対象を検出できませんでした」に化けるのを防ぐため、明示的に案内する。
     // EADDRINUSE は listen 後の非同期イベントで初めて分かるため、ここで購読しておく。
     onPortInUse(() => {
-      sendNoticeWhenRendererReady('error', t('notice.portInUse', { port: WS_PORT }))
+      // ここに来るのは候補を全部試して駄目だったときだけ（1 つ塞がっただけなら自動で隣へ移る）。
+      sendNoticeWhenRendererReady('error', t('notice.portInUse', { ports: WS_PORTS.join(', ') }))
     })
     registerHotkey(loadSettings().captureHotkey, (message) => {
       sendBrowserNotice('error', message)

@@ -35,7 +35,8 @@ export const ja = {
     'データベースを開けなかったため起動できませんでした。\n\n' +
     '他のプロセスがファイルをロックしていないか確認するか、PCを再起動してから再度お試しください。',
   'notice.settingsCorrupt': '設定ファイルが破損していたため、デフォルト設定で起動しました。',
-  'notice.portInUse': 'ポート{port}が他のアプリに使用されているため、ブラウザ拡張と接続できません。',
+  // 候補ポートを全部試して駄目だったときだけ出る。1つ塞がっただけなら黙って隣へ移る。
+  'notice.portInUse': 'ブラウザ拡張と接続できません。ポート {ports} がすべて他のアプリに使われているか、Windows に予約されています。PCを再起動すると直ることがあります。',
   'notice.updated': 'Shiori を v{version} に更新しました',
 
   // ── キャプチャ ────────────────────────────────────────────────
@@ -329,7 +330,7 @@ export const ja = {
 
   // ── 動画（トリミング） ──
   'video.trim': 'トリミング',
-  // ブラウザ側 Shift+←/→ の読み取り表示。拡張は文言を持たないので settings で配る
+  // ブラウザ側 , / . の読み取り表示。拡張は文言を持たないので settings で配る
   'video.stepBlocked': 'これ以上進めません',
   'video.stepDropped': '押しすぎ（{count}回ぶん捨てました）',
   'trim.selection': '選択範囲: {seconds}s',
@@ -338,7 +339,7 @@ export const ja = {
   'trim.setOut': 'ここをOUT',
   'trim.analyzing': 'フレーム解析中...',
   'trim.analyzeFailed': 'フレーム解析失敗（フレーム精度低下）',
-  'trim.shortcutHint': ', . / Shift+←→ コマ送り · I/O 設定 · Space 再生/停止',
+  'trim.shortcutHint': ', . コマ送り · I/O 設定 · Space 再生/停止',
   'trim.error': 'エラー: {message}',
   'trim.working': 'トリミング中...',
   'trim.save': 'トリミングして保存',
@@ -478,10 +479,15 @@ export const ja = {
   'settings.extDisconnected': '未受信',
   'settings.extReloadHint': 'ブラウザの拡張機能ページで再読み込みすると最新版が反映されます。',
   'settings.extStatusHint': '対応サイトの動画ページから Shiori に情報が届いているかを表示します。',
+  'settings.extPort': '接続ポート: {port}',
+  'settings.extPortBlocked': 'ポートを確保できません',
+  // 拡張の入れ直しでもページの再読み込みでも直らない状態。原因がアプリの外（OS のポート予約）に
+  // あることと、実際に効く手（PC の再起動）を先に伝える。
+  'settings.extPortBlockedHint': '通信に使えるポートが1つも空いていないため、ブラウザ拡張と接続できません。拡張の入れ直しやページの再読み込みでは直りません。Windows が起動時にポートを予約していることが多く、PCを再起動すると直ることがあります。',
   'settings.services': '対応サービス',
   'settings.hotkey': 'ホットキー',
   'settings.captureHotkey': 'キャプチャホットキー',
-  'settings.frameStep': 'コマ送り (Shift+←/→)',
+  'settings.frameStep': 'コマ送り (, / .)',
   'settings.autoDetect': '自動検出',
   'settings.fpsHint': '自動検出ON: 動画から計測。OFF: 固定fps（アニメ ≈ 24、実写 ≈ 30）',
   'settings.notifications': '通知',
@@ -497,6 +503,18 @@ export const ja = {
   'settings.sidebarDisplay': 'サイドバー表示',
   'settings.showAiTags': 'AIタグもサイドバーに表示する',
   'settings.showAiTagsHint': 'OFFの間は手動で付けたタグのみを表示します。ONにするとAIタグも表示されますが、手動タグを優先して上位に並べます。',
+  'settings.storage': '保存場所',
+  'settings.openCapturesFolder': 'フォルダを開く',
+  'settings.storageHint': '撮ったものはすべてこの中にあります。保存先の変更はできません。',
+  'settings.usage': '使用量',
+  'settings.usageCalculating': '計算中...',
+  'settings.usageFailed': '使用量を取得できませんでした',
+  'settings.usageCounts': '画像 {images}枚 ／ 動画 {videos}本',
+  'settings.usageCaptures': 'キャプチャ（原本）',
+  'settings.usageThumbnails': 'サムネイル（消しても再生成されます）',
+  'settings.usageDatabase': 'データベース',
+  'settings.usageModel': 'AIモデル',
+  'settings.usageModelAbsent': '未取得',
   'settings.exportHint': 'キャプチャ、タグ、メモ、録画のコマ精度情報、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',

@@ -223,6 +223,13 @@ export async function installMockApi(): Promise<void> {
     imagesRepairThumbs: async () => { unsupported(); return { repaired: 0, failed: 0 } },
     showInFolder: async () => unsupported(),
     showExtensionFolder: async () => unsupported(),
+    showCapturesFolder: async () => unsupported(),
+    // デモにはファイルシステムが無い。0 バイトを返すと「空っぽ」という嘘の数字が出てしまうので、
+    // 理由をトーストで出したうえで失敗させ、使用量の欄は数字を出さないままにする。
+    getStorageInfo: async () => { unsupported(); throw new Error(t('demo.unavailable')) },
+    // デモには WS サーバーも拡張も無い。null は「ポートを確保できていない」を意味し、
+    // デモではそれが正しい状態（拡張の欄自体が接続なしとして出る）。
+    getWsPort: async () => null,
     startImageDrag: () => unsupported(),
     updaterQuitAndInstall: async () => {},
     taggerEnsure: async () => unsupported(),

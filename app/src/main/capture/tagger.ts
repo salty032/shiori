@@ -12,7 +12,8 @@ const TAGS_URL = 'https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/ma
 const MODEL_SHA256 = '35f23693620b668f4d53fd3c62bf65e40af739bc52c7eb0fbc49258b58d065b6'
 const TAGS_SHA256 = '298633d94d0031d2081c0893f29c82eab7f0df00b08483ba8f29d1e979441217'
 
-function modelDir(): string { return join(app.getPath('userData'), 'models', 'wd-vit-tagger-v3') }
+// 設定画面がモデルの占有サイズを出すために参照する（system/storage.ts）。
+export function modelDir(): string { return join(app.getPath('userData'), 'models', 'wd-vit-tagger-v3') }
 function modelPath(): string { return join(modelDir(), 'model.onnx') }
 function tagsPath(): string { return join(modelDir(), 'selected_tags.csv') }
 

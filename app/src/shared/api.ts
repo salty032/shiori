@@ -3,7 +3,7 @@
 // 片方だけ変更すると型エラーになるため、両者がズレることはない。
 import type {
   ImageRow, ImageTag, TagWithCount, ImageTagSource, Settings,
-  CaptureData, ExtensionTimecode, AppNotice, WhatsNewData,
+  CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, StorageInfo,
   ImageQuery, ImageListRequest, DeleteImageResult,
 } from './types'
 
@@ -52,6 +52,14 @@ export interface ShioriApi {
   openUrl: (url: string) => Promise<void>
   showInFolder: (imageId: number) => Promise<void>
   showExtensionFolder: () => Promise<void>
+  // 撮ったものが置いてあるフォルダを Explorer で開く。以前は拡張のフォルダだけが開けて、
+  // 自分の何百枚の置き場所には辿り着けなかった。
+  showCapturesFolder: () => Promise<void>
+  // 保存場所と使用量。全ファイルを stat するため数万件では数秒かかる（画面側は「計算中」を出す）。
+  getStorageInfo: () => Promise<StorageInfo>
+  // 拡張との接続に実際に使っているポート。候補を全部確保できなかったときは null。
+  // 繋がらないときに原因を画面から読むための情報なので、接続中でも表示する。
+  getWsPort: () => Promise<number | null>
   getSettings: () => Promise<Settings>
   // main 側で loadSettings() とマージしてから保存する部分パッチ（旧: 全体オブジェクト送信）。
   // renderer は自分が変更したいキーだけを渡せばよく、他キーを巻き戻す競合が構造的に起きない。
@@ -120,6 +128,11 @@ export const CH = {
   shellOpenUrl: 'shell:openUrl',
   shellShowInFolder: 'shell:showInFolder',
   shellShowExtensionFolder: 'shell:showExtensionFolder',
+  shellShowCapturesFolder: 'shell:showCapturesFolder',
+  // storage
+  storageGetInfo: 'storage:getInfo',
+  // ws
+  wsGetPort: 'ws:getPort',
   // settings
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',

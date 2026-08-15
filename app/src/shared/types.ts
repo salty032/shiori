@@ -122,5 +122,17 @@ export type ExtensionTimecode = {
   // （main 側で version と bundled 版を比較して算出。UX-9）。
   versionMismatch?: boolean
 }
+// 設定 > データ に出す保存場所と使用量。captureDir は「撮ったものが実際に置いてある場所」で、
+// 画面にそのまま表示してフォルダを開く導線にも使う（変更はできない）。
+export type StorageInfo = {
+  captureDir: string
+  captureBytes: number
+  thumbnailBytes: number
+  dbBytes: number
+  // 0 = AIモデル未取得。「削除」ボタンの隣に出して、押す前に大きさが分かるようにする。
+  modelBytes: number
+  imageCount: number
+  videoCount: number
+}
 export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string }
 export type WhatsNewData = { version: string; notes: string[] }

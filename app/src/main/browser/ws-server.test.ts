@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { createServer } from 'http'
-import { parseExtensionMessage, isAllowedHttpOrigin, isAllowedWsOrigin, _resetWsStateForTest, onPortInUse, startWsServer, stopWsServer, PORT } from './ws-server'
+import { parseExtensionMessage, isAllowedHttpOrigin, isAllowedWsOrigin, _resetWsStateForTest, onPortInUse, startWsServer, stopWsServer, getActivePort, WS_PORTS } from './ws-server'
 
 // 有効な timecode メッセージの最小構成
 const VALID_TIMECODE = {
@@ -188,28 +188,58 @@ describe('parseExtensionMessage — 不正ペイロード', () => {
   })
 })
 
-describe('onPortInUse — ポート占有の通知', () => {
-  beforeEach(() => _resetWsStateForTest())
-
-  it('EADDRINUSE を購読者へ通知し、検知後に登録した購読者にも即時通知する', async () => {
-    // EADDRINUSE は listen 後の非同期 error イベントで初めて分かる。旧実装のように
-    // startWsServer 直後に同期でフラグを見る方式だと、この通知を必ず取りこぼしていた。
+// 指定ポートを別サーバーで占有する。既に他プロセスが握っていて bind できなくても、
+// 「そのポートが使えない」状態は同じなので、そのまま続行してよい（閉じる対象から外すだけ）。
+async function occupyPorts(ports: readonly number[]): Promise<Array<() => Promise<void>>> {
+  const closers: Array<() => Promise<void>> = []
+  for (const port of ports) {
     const blocker = createServer()
     const boundHere = await new Promise<boolean>((resolve) => {
-      blocker.once('error', () => resolve(false)) // 既に他プロセスが占有 → それでも占有状態は同じ
-      blocker.listen(PORT, '127.0.0.1', () => resolve(true))
+      blocker.once('error', () => resolve(false))
+      blocker.listen(port, '127.0.0.1', () => resolve(true))
     })
+    if (boundHere) closers.push(() => new Promise<void>((resolve) => blocker.close(() => resolve())))
+  }
+  return closers
+}
+
+describe('ポート候補のフォールバック', () => {
+  beforeEach(() => _resetWsStateForTest())
+
+  // Windows の Hyper-V / WSL2 / Docker Desktop はポートをブロック単位で予約するため、
+  // 固定 1 ポートだと利用者側で突然「未接続」になる。塞がっていたら黙って次へ移る。
+  it('先頭が塞がっていれば次の候補で listen し、利用者には何も出さない', async () => {
+    const closers = await occupyPorts([WS_PORTS[0]])
+    let notified = false
+    onPortInUse(() => { notified = true })
+    try {
+      startWsServer({ allowedExtensionIds: [] })
+      await vi.waitFor(() => expect(getActivePort()).not.toBeNull())
+      expect(getActivePort()).toBe(WS_PORTS[1])
+      // 自動で回避できたのに警告を出すと、直っているのに不安にさせる。
+      expect(notified).toBe(false)
+    } finally {
+      stopWsServer()
+      for (const close of closers) await close()
+    }
+  })
+
+  it('候補を全部使い切って初めて通知し、検知後に登録した購読者にも即時通知する', async () => {
+    // EADDRINUSE は listen 後の非同期 error イベントで初めて分かる。同期でフラグを見る
+    // 方式だと、この通知を必ず取りこぼす。
+    const closers = await occupyPorts(WS_PORTS)
     try {
       const notified = new Promise<void>((resolve) => onPortInUse(resolve))
       startWsServer({ allowedExtensionIds: [] })
       await notified
+      expect(getActivePort()).toBeNull()
 
       let lateSubscriberNotified = false
       onPortInUse(() => { lateSubscriberNotified = true })
       expect(lateSubscriberNotified).toBe(true)
     } finally {
       stopWsServer()
-      if (boundHere) await new Promise<void>((resolve) => blocker.close(() => resolve()))
+      for (const close of closers) await close()
     }
   })
 })

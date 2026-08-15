@@ -1,12 +1,22 @@
 // 平文 ws:// のまま繋ぐ。Firefox の MV3 既定 CSP は upgrade-insecure-requests を含むため、
 // manifest.json の content_security_policy.extension_pages でそれを外した CSP を明示している。
 // この指定を消すと Firefox だけ wss:// に格上げされ、TLS 非対応のローカルサーバーに繋がらなくなる。
-const WS_URL = 'ws://127.0.0.1:39821'
+// 接続先ポートの候補。**app 側 src/main/browser/ws-server.ts の WS_PORTS と同じ並びで
+// あること**（extension-parity.test.ts が両者を突き合わせる）。アプリは先頭から順に
+// listen を試し、こちらは先頭から順に接続を試すので、どのポートに落ち着いても合流する。
+//
+// 複数ある理由は app 側のコメントに書いたとおりで、Windows の Hyper-V / WSL2 /
+// Docker Desktop が起動ごとにポートをブロック単位で予約してしまうため。
+const WS_PORTS = [39821, 41821, 43821, 45821]
+let portIndex = 0
 let ws = null
 let reconnectTimer = null
 let reconnectDelay = 2000
 const RECONNECT_DELAY_MIN = 2000
 const RECONNECT_DELAY_MAX = 30000
+// 候補から候補へ移るときの待ち。ローカルの接続拒否は即座に返るので短くてよい。
+// ここに指数バックオフをかけると、開いているポートに辿り着くまで分単位かかる。
+const RECONNECT_DELAY_NEXT_PORT = 300
 const MAX_WS_MESSAGE_BYTES = 16 * 1024
 const MAX_TITLE_LENGTH = 500
 const MAX_URL_LENGTH = 2048
@@ -245,11 +255,17 @@ function sendToLastActive(msg) {
 function connectWS() {
   if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return
 
-  console.log('[Shiori SW] connecting to', WS_URL)
-  ws = new WebSocket(WS_URL)
+  const url = `ws://127.0.0.1:${WS_PORTS[portIndex]}`
+  // 一度でも open したかを憶えておく。open せずに閉じた＝そのポートにアプリが居ない
+  // ので次の候補へ進む。open 後の close はアプリの終了・再起動なので、同じポートで待つ。
+  let opened = false
+
+  console.log('[Shiori SW] connecting to', url)
+  ws = new WebSocket(url)
 
   ws.addEventListener('open', () => {
-    console.log('[Shiori SW] WS connected')
+    opened = true
+    console.log('[Shiori SW] WS connected on port', WS_PORTS[portIndex])
     clearTimeout(reconnectTimer)
     reconnectTimer = null
     reconnectDelay = RECONNECT_DELAY_MIN
@@ -269,11 +285,24 @@ function connectWS() {
 
   ws.addEventListener('close', () => {
     ws = null
-    console.log('[Shiori SW] WS disconnected, retry in', reconnectDelay, 'ms')
     notifyAllPorts({ type: 'ws-disconnected' })
     clearTimeout(reconnectTimer)
-    reconnectTimer = setTimeout(connectWS, reconnectDelay)
-    reconnectDelay = Math.min(RECONNECT_DELAY_MAX, reconnectDelay * 2)
+
+    if (opened) {
+      // 繋がっていた相手が消えた（アプリの終了・更新）。ポートは変えず、最短で待ち直す。
+      console.log('[Shiori SW] WS disconnected, retry in', reconnectDelay, 'ms')
+      reconnectTimer = setTimeout(connectWS, reconnectDelay)
+      reconnectDelay = Math.min(RECONNECT_DELAY_MAX, reconnectDelay * 2)
+      return
+    }
+
+    // 繋がらなかった。次の候補へ。待ち時間を伸ばすのは候補を 1 周してからにする。
+    portIndex = (portIndex + 1) % WS_PORTS.length
+    const cycled = portIndex === 0
+    console.log('[Shiori SW] no app on that port, next candidate in',
+      cycled ? reconnectDelay : RECONNECT_DELAY_NEXT_PORT, 'ms')
+    reconnectTimer = setTimeout(connectWS, cycled ? reconnectDelay : RECONNECT_DELAY_NEXT_PORT)
+    if (cycled) reconnectDelay = Math.min(RECONNECT_DELAY_MAX, reconnectDelay * 2)
   })
 
   ws.addEventListener('error', () => ws?.close())
