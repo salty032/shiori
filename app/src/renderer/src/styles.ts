@@ -114,7 +114,7 @@ export const s: Record<string, CSSProperties> = {
   thumbImgWrap: { position: 'relative', width: '100%', aspectRatio: '16/9', overflow: 'hidden', flexShrink: 0 },
   // 縦長画像（Shorts等）は16:9セルからはみ出るため cover→contain に切り替え、
   // 余白は viewer と同様に画像鑑賞用途として意図的に非テーマの暗色で埋める
-  thumbImgWrapVertical: { background: '#0e0d0c' },
+  thumbImgWrapVertical: { background: '#0d0d0d' },
   thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
   thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   thumbHovered: { border: '1px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
@@ -178,17 +178,19 @@ export const s: Record<string, CSSProperties> = {
   sidebarTagList: { display: 'flex', flexWrap: 'wrap' as const, gap: 6 },
   sidebarTagChip: { maxWidth: '100%', minHeight: 30, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.6)', border: '1px solid var(--border-default)', borderRadius: 999, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   sidebarTagChipText: { display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  // 由来ごとに色相を固定（手動=緑・AI=藍）。非選択=点線＋薄い色、選択=実線＋濃い色。
-  // 色の濃淡に加えて「点線/実線」という非色の手掛かりでも選択状態を分け、選択で別色相に化けないよう
-  // 由来別に active スタイルを持つ。
+  // 手動=緑。**AI には色を持たせない**（非選択は灰）。
+  // 藍はアクセント色で、選択・フォーカス・進捗・CTA に使っている。AIタグを常時その色にすると、
+  // 画面じゅうで AI タグだけがブランド色を持つことになり「AI がこのアプリの主役」に見えていた。
+  // 選択中だけは由来にかかわらずはっきり色が付く（藍＝選択中、はアプリ全体で共通）。
+  // 非選択=点線、選択=実線という非色の手掛かりも併せて残す。
   sidebarTagChipManual: { background: 'rgba(var(--success-rgb), 0.05)', border: '1px dashed rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
   sidebarTagChipActive: { background: 'rgba(var(--success-rgb), 0.18)', border: '1px solid rgba(var(--success-rgb), 0.6)', color: 'var(--success)' },
-  sidebarTagChipAi: { background: 'rgba(var(--accent-rgb), 0.06)', border: '1px dashed rgba(var(--accent-rgb), 0.4)', color: 'var(--accent)' },
+  sidebarTagChipAi: { background: 'transparent', border: '1px dashed var(--border-strong)', color: 'var(--text-secondary)' },
   sidebarTagChipAiActive: { background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.62)', color: 'var(--accent-text)' },
   // TagEditor と DetailPanel の一括編集で同一定義が重複していたタグチップ／追加ボタン（C-2）。
-  // 色 = 由来（緑=手動 / 藍=AI）を単一/一括/サイドバーで一貫させるため、AI版もここへ集約。
+  // 色 = 由来（緑=手動 / 灰=AI）を単一/一括/サイドバーで一貫させるため、AI版もここへ集約。
   tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: 999, color: 'var(--success)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
-  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.5)', borderRadius: 999, color: 'var(--accent-text)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
+  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
   addTagChip: { height: 32, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer', lineHeight: 1 },
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid rgba(var(--border-rgb), 0.85)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: 7 },
@@ -213,12 +215,12 @@ export const s: Record<string, CSSProperties> = {
   toastStack: { position: 'fixed' as const, left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 8000, width: 'max-content', maxWidth: 'calc(100vw - 36px)', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 8, pointerEvents: 'none' as const },
   // トースト/タスクカードは常に濃色地に明色文字の「エレベーテッド」な見た目で、
   // ライトモードでも意図的にダーク寄りに統一する（背景に溶け込ませず通知として即座に視認させるため）。
-  // 地が紙色になったので、この濃色も青みを抜いた墨色にする（青いカードだけが別製品に見えるため）。
-  notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'rgba(26,23,19,0.97)', border: 'none', borderRadius: 5, boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 2px 8px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.045)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: '#f2ede4' },
-  toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, borderRadius: '5px 0 0 5px', flexShrink: 0, background: '#8d8477' },
+  // 地が無彩色になったので、この濃色も色を持たせない（色の付いたカードだけが別製品に見えるため）。
+  notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'rgba(20,20,20,0.97)', border: 'none', borderRadius: 5, boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 2px 8px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.045)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: '#f0f0f0' },
+  toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, borderRadius: '5px 0 0 5px', flexShrink: 0, background: '#888888' },
   toastBody: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  toastMessage: { minWidth: 0, color: '#f2ede4', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
-  toastActionBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(240,234,224,0.08)', border: '1px solid rgba(240,234,224,0.16)', borderRadius: 4, color: '#fdfbf7', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  toastMessage: { minWidth: 0, color: '#f0f0f0', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
+  toastActionBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(238,238,238,0.08)', border: '1px solid rgba(238,238,238,0.16)', borderRadius: 4, color: '#fbfbfb', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   toastInfo: {},
   toastSuccess: {},
   toastWarning: {},
@@ -229,11 +231,11 @@ export const s: Record<string, CSSProperties> = {
   toastErrorMark: { background: color.danger },
   taskToast: { width: 'min(340px, calc(100vw - 36px))', flexDirection: 'column' as const, gap: 9 },
   taskHeader: { display: 'flex', alignItems: 'center', gap: 10 },
-  taskLabel: { flex: 1, minWidth: 0, color: '#ece7de', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  taskBarTrack: { width: '100%', height: 4, background: 'rgba(58,53,45,0.92)', borderRadius: 999, overflow: 'hidden' },
+  taskLabel: { flex: 1, minWidth: 0, color: '#e6e6e6', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  taskBarTrack: { width: '100%', height: 4, background: 'rgba(52,52,52,0.92)', borderRadius: 999, overflow: 'hidden' },
   taskFill: { height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width 0.25s ease' },
-  taskDetail: { flexShrink: 0, color: '#a49b8e', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
-  taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(240,234,224,0.08)', border: '1px solid rgba(240,234,224,0.16)', borderRadius: 4, color: '#fdfbf7', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  taskDetail: { flexShrink: 0, color: '#9a9a9a', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
+  taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(238,238,238,0.08)', border: '1px solid rgba(238,238,238,0.16)', borderRadius: 4, color: '#fbfbfb', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
   // DetailPanel はレイアウト上そもそもこの外側にあるので、ビューア表示中も隠れず操作できる（P1）。
   // overflow:hidden 必須: ズーム時の scale() で拡大された画像は箱をはみ出すが、ビューアは

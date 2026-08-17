@@ -399,8 +399,8 @@ export default function Sidebar({
             <div style={s.sidebarTagList}>
               {visibleTags.map((tag) => {
                 const active = filters.tagFilters.includes(tag) || searchTags.includes(tag)
-                // 由来ごとに色相を固定し、非選択=薄い色 / 選択=濃い色で表す（手動: 薄緑→濃緑 / AI: 薄藍→濃藍）。
-                // 選択で別色相に化けて色が混ざらないよう、由来別の active スタイルを使い分ける。
+                // 手動は薄緑→濃緑、AI は灰→藍。AI に色を持たせないのは styles.ts の
+                // sidebarTagChipAi のコメント参照（藍はアクセント色なので選択中だけに使う）。
                 const aiOnly = filters.aiOnlyTags.has(tag)
                 const chipStyle = active
                   ? (aiOnly ? s.sidebarTagChipAiActive : s.sidebarTagChipActive)

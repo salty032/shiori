@@ -4,102 +4,110 @@
    :root の既定値＝ダークが使われる（旧デフォルトと同じ見た目を維持しFOUCを避ける）。
    低透明度で使う色は rgba(var(--*-rgb), x) で任意の濃さを取れるよう RGB 成分も併記する。
 
-   地の色は「紙とインク」。以前は青みのグレー（ライト #f2f3f8 / ダーク #0d0f14）に
-   高彩度の青紫（#8b8cff）というSaaS管理画面の配色で、資料を並べて見る道具に見えなかった。
-   ニュートラルを暖色寄り（色相 40 前後・低彩度）に振り、アクセントは彩度を落とした藍にする。
+   **地は無彩色（R=G=B）に固定する。** 以前は青みのグレー（ライト #f2f3f8 / ダーク #0d0f14）で、
+   高彩度の青紫（#8b8cff）と合わさって SaaS 管理画面の配色に見えていた。
+   いちど暖色（クリーム／こげ茶）に振ったが、画面全体が茶色く濁って使い物にならなかった。
+   青にも茶にも転ばせない。地に色相を足したくなったら、それはアクセントか
+   意味の色（success/warning/danger）の仕事。
 
-   **アクセントを赤系（アイコンの栞の色）にはしない。** アクセントは選択枠・フォーカスリング・
-   進捗バーに使われ、--danger の削除ボタンと隣り合って出る。焼き色は --danger と色相が近く、
-   詳細パネルで「選択枠＝焼き色／すぐ下の削除ボタン＝赤」という見分けにくい並びになる。
-   アイコンの赤と金は --danger と --warning が引き受けている。
+   **地と文字を両端まで振り切らない。** ダークは「ほぼ黒地にほぼ白文字」、ライトは
+   「純白地に黒文字」で、長時間見ていると目が痛い。両端を内側へ寄せてある
+   （ダーク地 #202020 / 文字 #cdcdcd、ライト地 #f2f2f2 / 文字 #3a3a3a）。
+   枠線も面より目立たない位置まで弱めてある。**ここを「見やすくしよう」として
+   両端へ戻すと元の眩しさに戻る。**
+
+   アクセントは彩度を落とした藍。**赤系（アイコンの栞の色）にはしない**——アクセントは
+   選択枠・フォーカスリング・進捗バーに使われ、--danger の削除ボタンと隣り合って出るため、
+   色相が近いと「選択枠と削除ボタン」が見分けにくくなる。
+   意味の色（success/warning/danger）は元の値のまま触っていない。
 
    ビューア・タイムシート・サムネの余白は画像を見る面なので元からテーマ非依存で、
    ここを変えても素材の見え方は変わらない。 */
 :root {
-  --bg-page: #151412;
-  --bg-content: #1a1916;
-  --bg-well: #11110f;
-  --bg-surface: #201e1a;
-  --bg-surface-hover: #292620;
-  --surface-rgb: 32, 30, 26;
-  --scrim-rgb: 8, 7, 5;
+  --bg-page: #1b1b1b;
+  --bg-content: #202020;
+  --bg-well: #171717;
+  --bg-surface: #262626;
+  --bg-surface-hover: #2e2e2e;
+  --surface-rgb: 38, 38, 38;
+  --scrim-rgb: 8, 8, 8;
   /* サイドバー下部のユーティリティ帯など「一段沈んだ」領域。ダークは暗く沈め、
      ライトでは濃いグレー帯として浮かないようごく薄いグレーにする。 */
-  --bg-inset: rgba(8, 7, 5, 0.36);
-  --bg-inset-strong: rgba(10, 9, 6, 0.44);
+  --bg-inset: rgba(8, 8, 8, 0.32);
+  --bg-inset-strong: rgba(8, 8, 8, 0.4);
 
-  --text-primary: #ece7de;
-  --text-bright: #fdfbf7;
-  --text-secondary: #a8a095;
-  --text-muted: #746d62;
+  --text-primary: #cdcdcd;
+  --text-bright: #e9e9e9;
+  --text-secondary: #949494;
+  --text-muted: #6d6d6d;
   --text-rgb: 255, 255, 255;
 
-  --border-default: #34312b;
-  --border-strong: #46423a;
-  --border-rgb: 60, 56, 48;
+  --border-default: #2f2f2f;
+  --border-strong: #3d3d3d;
+  --border-rgb: 58, 58, 58;
   /* 入力欄・検索バーなど、translucent surface の上でもう少し視認性が要る境界線用
      （--border-rgb より明るい中間トーン）。 */
-  --hairline-rgb: 108, 100, 88;
+  --hairline-rgb: 92, 92, 92;
 
   --accent: #7fa3c0;
   --accent-text: #9dbdd6;
   --accent-rgb: 92, 130, 160;
 
-  --success: #74c79a;
-  --success-rgb: 60, 170, 120;
+  --success: #54d6a8;
+  --success-rgb: 34, 197, 145;
 
   --warning: #d2ad62;
   --warning-rgb: 210, 173, 98;
 
-  --danger: #ef8189;
-  --danger-border: #6b332f;
-  --danger-rgb: 240, 120, 118;
+  --danger: #ff7f89;
+  --danger-border: #713039;
+  --danger-rgb: 255, 111, 122;
 
-  --scrollbar-track: #131210;
-  --scrollbar-thumb: #3d3931;
-  --scrollbar-thumb-hover: #575046;
+  --scrollbar-track: #1b1b1b;
+  --scrollbar-thumb: #3a3a3a;
+  --scrollbar-thumb-hover: #4e4e4e;
   --hover-brightness: 1.13;
 }
 
 :root[data-theme='light'] {
-  --bg-page: #f3f0ea;
-  --bg-content: #fbfaf7;
-  --bg-well: #eae5dc;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #f4f1ea;
-  --surface-rgb: 255, 255, 255;
-  --scrim-rgb: 45, 40, 33;
-  --bg-inset: rgba(45, 40, 33, 0.05);
-  --bg-inset-strong: rgba(45, 40, 33, 0.08);
+  --bg-page: #ececec;
+  --bg-content: #f2f2f2;
+  --bg-well: #e4e4e4;
+  --bg-surface: #f9f9f9;
+  --bg-surface-hover: #efefef;
+  --surface-rgb: 249, 249, 249;
+  --scrim-rgb: 45, 45, 45;
+  --bg-inset: rgba(45, 45, 45, 0.045);
+  --bg-inset-strong: rgba(45, 45, 45, 0.07);
 
-  --text-primary: #25231f;
-  --text-bright: #0f0e0c;
-  --text-secondary: #666158;
-  --text-muted: #8a8377;
-  --text-rgb: 37, 35, 31;
+  --text-primary: #3a3a3a;
+  --text-bright: #1e1e1e;
+  --text-secondary: #6b6b6b;
+  --text-muted: #8f8f8f;
+  --text-rgb: 58, 58, 58;
 
-  --border-default: #d8d1c7;
-  --border-strong: #c2b9ac;
-  --border-rgb: 200, 192, 181;
-  --hairline-rgb: 168, 158, 144;
+  --border-default: #dcdcdc;
+  --border-strong: #c9c9c9;
+  --border-rgb: 210, 210, 210;
+  --hairline-rgb: 176, 176, 176;
 
   --accent: #2f5471;
   --accent-text: #2b4e69;
   --accent-rgb: 47, 84, 113;
 
-  --success: #2f6b4d;
-  --success-rgb: 47, 122, 88;
+  --success: #167a56;
+  --success-rgb: 22, 163, 113;
 
   --warning: #8a5b12;
   --warning-rgb: 158, 111, 30;
 
-  --danger: #b12f3d;
-  --danger-border: #e3bfbc;
-  --danger-rgb: 190, 47, 61;
+  --danger: #c22a3e;
+  --danger-border: #f3c4cb;
+  --danger-rgb: 214, 42, 63;
 
-  --scrollbar-track: #eae5dc;
-  --scrollbar-thumb: #cfc7ba;
-  --scrollbar-thumb-hover: #b3a998;
+  --scrollbar-track: #e4e4e4;
+  --scrollbar-thumb: #cbcbcb;
+  --scrollbar-thumb-hover: #b2b2b2;
   --hover-brightness: 0.95;
 }
 
