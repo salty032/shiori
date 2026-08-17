@@ -131,7 +131,7 @@ type Props = {
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
-  // このクリップのコマ情報。取得できるまで（および capture 版）は null のまま。
+  // このクリップのコマ情報。取得できるまで（および動画機能を落とした構成）は null のまま。
   const framesRef = useRef<ClipFrames | null>(null)
   // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
   //
@@ -175,7 +175,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     pendingStepsRef.current = 0
     if (!preloadFrameTable) { setReadoutKind('off'); return }
     const resolve = getClipFramesResolver()
-    // capture 版（video 機能ごと落とした構成）。コマの位置は分からないので fps 換算になる。
+    // 解決役が未登録（video 機能ごと落とした構成）。コマの位置は分からないので fps 換算になる。
     if (!resolve) { setReadoutKind('estimated'); return }
     setReadoutKind('loading')
     let canceled = false
@@ -266,7 +266,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   }
 
   // delta コマ動かす（正で先へ、負で前へ）。
-  // コマ表があるときは隣のコマへ直接移る。表がないとき（capture 版・解析失敗）だけ従来の
+  // コマ表があるときは隣のコマへ直接移る。表がないとき（解決役が未登録・解析失敗）だけ従来の
   // fps 換算に落ちる。その場合は境界を必ず跨ぐよう半コマ余分に送る（進む側 +1.5 / 戻る側 -0.5）。
   function moveFrames(delta: number): void {
     const v = videoRef.current

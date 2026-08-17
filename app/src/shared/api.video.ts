@@ -1,9 +1,11 @@
+import type { ShioriApi } from './api'
+
 // 動画（録画クリップ・トリミング）専用の型・チャンネル。ShioriApi へ宣言マージ（declare
 // module）で足すのではなく、独立した VideoApi として定義する。宣言マージはコンパイル単位
-// 全体で ShioriApi の形を変えてしまい、capture 専用ファイル（preload/index.ts 等）まで
-// 動画メソッドを実装するよう要求されてしまう（tsconfig を capture/full で分けない限り）。
-// VideoApi を独立させ、参照側（video/ 配下）だけがローカルにキャストして使うことで、
-// コア側の型・tsconfig は一切変えずに済む。
+// 全体で ShioriApi の形を変えてしまい、動画を持たない構成を切り出すときに、コア側の
+// ファイルまで動画メソッドの実装を要求されてしまう（tsconfig を分けない限り）。
+// 独立させておけば、コア（ShioriApi）の型は動画の有無に関わらず変わらない。
+// 実際に公開される形は下の AppApi。
 type TrimVideoResult = { ok: true; newId: number } | { ok: false; error: string }
 
 /**
@@ -50,6 +52,21 @@ export interface VideoApi {
   getTimelineStrip: (imageId: number, count: number) => Promise<string | null>
   trimVideo: (imageId: number, inSec: number, outSec: number) => Promise<TrimVideoResult>
 }
+
+/**
+ * preload が実際に window.api として公開する形。
+ *
+ * VideoApi を ShioriApi へ宣言マージしない（上のコメント）代わりに、**合成した型に名前を
+ * 付けてここへ置く**。renderer 側のグローバル宣言・preload の実装・video/ からの参照が
+ * すべてこの 1 つを見るので、動画メソッドを preload から落とせば renderer のコンパイルが
+ * 落ちる。以前は renderer 側のグローバルが ShioriApi のみで、video/ が
+ * `as unknown as ShioriApi & VideoApi` で迂回していたため、preload から動画 API が
+ * 消えても型検査は素通りしていた（実行時に undefined になって初めて分かる）。
+ *
+ * 動画機能を持たない構成をビルドするなら、そちら専用の tsconfig と
+ * エントリポイントで window.api を ShioriApi のみに宣言し直すこと。
+ */
+export type AppApi = ShioriApi & VideoApi
 
 export const VIDEO_CH = {
   clipSetHotkey: 'clip:setHotkey',

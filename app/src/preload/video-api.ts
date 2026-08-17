@@ -2,7 +2,7 @@ import { ipcRenderer } from 'electron'
 import type { VideoApi, ClipFrames } from '../shared/api.video'
 import { VIDEO_CH } from '../shared/api.video'
 
-// full 版のみが追加する動画（録画クリップ・トリミング）API。
+// 動画（録画クリップ・トリミング）API。index.ts がコア API と合成して window.api に出す。
 export function buildVideoApi(): VideoApi {
   return {
     setClipHotkey: (hotkey: string): Promise<boolean> =>

@@ -5,12 +5,13 @@ export type {
   ImageQuery, ImageListRequest,
 } from '../../shared/types'
 
-import type { ShioriApi } from '../../shared/api'
+import type { AppApi } from '../../shared/api.video'
 
 declare global {
   interface Window {
-    // window.api の型は preload と共有の契約（ShioriApi）に一本化されている。
-    // 実装（preload/index.ts）はこの型で縛られるため、両者がズレることはない。
-    api: ShioriApi
+    // window.api の型は preload と共有の契約（AppApi = ShioriApi & VideoApi）に
+    // 一本化されている。実装（preload/index.ts）も同じ型で縛られるため、
+    // 片方から消せばもう片方のコンパイルが落ちる。
+    api: AppApi
   }
 }

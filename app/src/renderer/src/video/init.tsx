@@ -1,6 +1,6 @@
-// full 版のみが読み込む動画機能のレンダラー側エントリ。renderer/src/main.full.tsx が
-// App を描画する前に import することで、features/registry へ以下を登録する。
-// capture ソースドロップでは renderer/src/video/ ごと削除すればこのファイルも消える。
+// 動画機能のレンダラー側エントリ。renderer/src/main.tsx が App を描画する前に import し、
+// その副作用で features/registry へ以下を登録する。
+// 動画機能を落とすなら renderer/src/video/ ごと削除する（main/feature.ts の注記を参照）。
 import { registerMediaAction, registerContextMenuItems, registerModal, registerSettingsSlot, registerClipFramesResolver } from '../features/registry'
 import { videoApi } from './api'
 import { useTrimStore } from './trimStore'

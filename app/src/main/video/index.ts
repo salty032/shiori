@@ -1,5 +1,6 @@
-// 動画機能（録画クリップ・トリミング）のエントリ。full 版の bootstrap にのみ渡される
-// MainFeature 実装。capture ソースドロップではこのディレクトリごと削除する。
+// 動画機能（録画クリップ・トリミング）のエントリ。main/index.ts が bootstrap へ渡す
+// MainFeature 実装。動画機能を落とすならこのディレクトリごと削除する
+// （main/feature.ts の注記を参照）。
 import { app, session, globalShortcut } from 'electron'
 import type { MainFeature } from '../feature'
 import { loadSettings, saveSettings } from '../system/settings'

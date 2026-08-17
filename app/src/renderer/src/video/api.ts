@@ -1,7 +1,5 @@
-import type { ShioriApi } from '../../../shared/api'
-import type { VideoApi } from '../../../shared/api.video'
-
-// window.api の型はコア ShioriApi のみ（capture 版が実体を持つため）。full 版では
-// preload/index.full.ts が実際に動画メソッドも実装済みなので、video/ 配下からだけ
-// ローカルにキャストして使う（コアの Window.api 型は変えない）。
-export const videoApi = window.api as unknown as ShioriApi & VideoApi
+// video/ 配下から使う window.api。グローバル宣言（renderer/src/types.ts）が
+// AppApi = ShioriApi & VideoApi なので、キャストは要らない。
+// 参照をこの 1 か所に集めているのは、動画機能を持たない構成を切り出すときに
+// 差し替える場所を 1 つにしておくため。
+export const videoApi = window.api

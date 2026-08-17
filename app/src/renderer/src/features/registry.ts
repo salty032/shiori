@@ -1,6 +1,8 @@
-// レンダラーのコア（App/DetailPanel/Viewer 等）が参照する拡張点。
-// full 版のみが読み込む video/init 等がここへ登録する。コア側はこのファイル以外、
-// video/ を一切 import しない（capture ソースドロップで video/ を消しても core はそのまま動く）。
+// レンダラーのコア（App/DetailPanel/Viewer 等）が参照する拡張点。video/init がここへ登録する。
+// コア側はこのファイル以外、video/ を一切 import しない（video/ を消しても core は動く）。
+// 動画機能を落とした構成は今のところビルドしていない（main/feature.ts の注記を参照）。
+// ただし未登録時のフォールバックは実際に効いている——登録は video/init の副作用なので、
+// 初期化の順番次第で「まだ登録されていない」瞬間が存在する。
 import type { ReactNode } from 'react'
 import type { ImageRow } from '../types'
 import type { ClipFrames } from '../../../shared/api.video'
@@ -26,7 +28,7 @@ type SettingsSlot = (props: { onCapturingChange: (capturing: boolean) => void; p
 // クリップのコマ情報（実フレーム時刻と、コマごとの確からしさ）の取得口。コマ送りを
 // 素材の実コマへ吸着させるためにビューアのプレーヤー（コア側）が使うが、取得そのものは
 // video/ の IPC なのでここで橋渡しする。
-// 未登録（capture 版）なら呼び出し側が fps 換算のコマ送りにフォールバックする。
+// 未登録なら呼び出し側が fps 換算のコマ送りにフォールバックする。
 type ClipFramesResolver = (imageId: number) => Promise<ClipFrames>
 let clipFramesResolver: ClipFramesResolver | null = null
 
