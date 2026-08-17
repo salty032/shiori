@@ -55,10 +55,13 @@ npm run dev
 ```
 cd app
 npm run typecheck
-node --check ../extension/background.js
-node --check ../extension/content.js
-node --check ../extension/key-guard.js
 ```
+
+`extension/` は型検査の対象外（バンドラを通さない素の JS）。構文が通るか・manifest が
+指すファイルが実在するかは `npm test` の `extension-integrity.test.ts` が見ているので、
+手で `node --check` を回す必要は無い。より広い検査は `npm run ext:lint`
+（web-ext。ネットワークからの取得を伴うため verify には入れていない。拡張を触った
+リリース前に一度回すこと）。
 
 ## テスト
 
