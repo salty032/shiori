@@ -114,7 +114,7 @@ export const s: Record<string, CSSProperties> = {
   thumbImgWrap: { position: 'relative', width: '100%', aspectRatio: '16/9', overflow: 'hidden', flexShrink: 0 },
   // 縦長画像（Shorts等）は16:9セルからはみ出るため cover→contain に切り替え、
   // 余白は viewer と同様に画像鑑賞用途として意図的に非テーマの暗色で埋める
-  thumbImgWrapVertical: { background: '#0d0f14' },
+  thumbImgWrapVertical: { background: '#0e0d0c' },
   thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
   thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   thumbHovered: { border: '1px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
@@ -213,11 +213,12 @@ export const s: Record<string, CSSProperties> = {
   toastStack: { position: 'fixed' as const, left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 8000, width: 'max-content', maxWidth: 'calc(100vw - 36px)', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 8, pointerEvents: 'none' as const },
   // トースト/タスクカードは常に濃色地に明色文字の「エレベーテッド」な見た目で、
   // ライトモードでも意図的にダーク寄りに統一する（背景に溶け込ませず通知として即座に視認させるため）。
-  notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'rgba(18,21,30,0.97)', border: 'none', borderRadius: 5, boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 2px 8px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.045)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: '#eef2ff' },
-  toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, borderRadius: '5px 0 0 5px', flexShrink: 0, background: '#8290aa' },
+  // 地が紙色になったので、この濃色も青みを抜いた墨色にする（青いカードだけが別製品に見えるため）。
+  notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'rgba(26,23,19,0.97)', border: 'none', borderRadius: 5, boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 2px 8px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.045)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: '#f2ede4' },
+  toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, borderRadius: '5px 0 0 5px', flexShrink: 0, background: '#8d8477' },
   toastBody: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  toastMessage: { minWidth: 0, color: '#eef2ff', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
-  toastActionBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(232,236,248,0.08)', border: '1px solid rgba(232,236,248,0.16)', borderRadius: 4, color: '#f7f9ff', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  toastMessage: { minWidth: 0, color: '#f2ede4', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
+  toastActionBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(240,234,224,0.08)', border: '1px solid rgba(240,234,224,0.16)', borderRadius: 4, color: '#fdfbf7', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   toastInfo: {},
   toastSuccess: {},
   toastWarning: {},
@@ -228,11 +229,11 @@ export const s: Record<string, CSSProperties> = {
   toastErrorMark: { background: color.danger },
   taskToast: { width: 'min(340px, calc(100vw - 36px))', flexDirection: 'column' as const, gap: 9 },
   taskHeader: { display: 'flex', alignItems: 'center', gap: 10 },
-  taskLabel: { flex: 1, minWidth: 0, color: '#e2e7f3', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  taskBarTrack: { width: '100%', height: 4, background: 'rgba(48,55,72,0.92)', borderRadius: 999, overflow: 'hidden' },
+  taskLabel: { flex: 1, minWidth: 0, color: '#ece7de', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  taskBarTrack: { width: '100%', height: 4, background: 'rgba(58,53,45,0.92)', borderRadius: 999, overflow: 'hidden' },
   taskFill: { height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width 0.25s ease' },
-  taskDetail: { flexShrink: 0, color: '#98a3ba', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
-  taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(232,236,248,0.08)', border: '1px solid rgba(232,236,248,0.16)', borderRadius: 4, color: '#f7f9ff', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  taskDetail: { flexShrink: 0, color: '#a49b8e', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
+  taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(240,234,224,0.08)', border: '1px solid rgba(240,234,224,0.16)', borderRadius: 4, color: '#fdfbf7', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
   // DetailPanel はレイアウト上そもそもこの外側にあるので、ビューア表示中も隠れず操作できる（P1）。
   // overflow:hidden 必須: ズーム時の scale() で拡大された画像は箱をはみ出すが、ビューアは

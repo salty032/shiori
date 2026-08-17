@@ -2,92 +2,104 @@
    var(--...) で参照する唯一の色定義。data-theme は settingsStore が起動時・変更時・
    OS設定変化時（system選択時）に <html> へ付与する。属性が付く前（初回描画）は
    :root の既定値＝ダークが使われる（旧デフォルトと同じ見た目を維持しFOUCを避ける）。
-   低透明度で使う色は rgba(var(--*-rgb), x) で任意の濃さを取れるよう RGB 成分も併記する。 */
+   低透明度で使う色は rgba(var(--*-rgb), x) で任意の濃さを取れるよう RGB 成分も併記する。
+
+   地の色は「紙とインク」。以前は青みのグレー（ライト #f2f3f8 / ダーク #0d0f14）に
+   高彩度の青紫（#8b8cff）というSaaS管理画面の配色で、資料を並べて見る道具に見えなかった。
+   ニュートラルを暖色寄り（色相 40 前後・低彩度）に振り、アクセントは彩度を落とした藍にする。
+
+   **アクセントを赤系（アイコンの栞の色）にはしない。** アクセントは選択枠・フォーカスリング・
+   進捗バーに使われ、--danger の削除ボタンと隣り合って出る。焼き色は --danger と色相が近く、
+   詳細パネルで「選択枠＝焼き色／すぐ下の削除ボタン＝赤」という見分けにくい並びになる。
+   アイコンの赤と金は --danger と --warning が引き受けている。
+
+   ビューア・タイムシート・サムネの余白は画像を見る面なので元からテーマ非依存で、
+   ここを変えても素材の見え方は変わらない。 */
 :root {
-  --bg-page: #0d0f14;
-  --bg-content: #101218;
-  --bg-well: #0b0d12;
-  --bg-surface: #171a23;
-  --bg-surface-hover: #1c2030;
-  --surface-rgb: 23, 26, 35;
-  --scrim-rgb: 3, 5, 10;
+  --bg-page: #151412;
+  --bg-content: #1a1916;
+  --bg-well: #11110f;
+  --bg-surface: #201e1a;
+  --bg-surface-hover: #292620;
+  --surface-rgb: 32, 30, 26;
+  --scrim-rgb: 8, 7, 5;
   /* サイドバー下部のユーティリティ帯など「一段沈んだ」領域。ダークは暗く沈め、
      ライトでは濃いグレー帯として浮かないようごく薄いグレーにする。 */
-  --bg-inset: rgba(8, 10, 15, 0.36);
-  --bg-inset-strong: rgba(12, 14, 20, 0.4);
+  --bg-inset: rgba(8, 7, 5, 0.36);
+  --bg-inset-strong: rgba(10, 9, 6, 0.44);
 
-  --text-primary: #dce3f2;
-  --text-bright: #f7f9ff;
-  --text-secondary: #8791a8;
-  --text-muted: #5c6480;
+  --text-primary: #ece7de;
+  --text-bright: #fdfbf7;
+  --text-secondary: #a8a095;
+  --text-muted: #746d62;
   --text-rgb: 255, 255, 255;
 
-  --border-default: #20242f;
-  --border-strong: #2b3243;
-  --border-rgb: 40, 44, 58;
+  --border-default: #34312b;
+  --border-strong: #46423a;
+  --border-rgb: 60, 56, 48;
   /* 入力欄・検索バーなど、translucent surface の上でもう少し視認性が要る境界線用
      （--border-rgb より明るい中間トーン）。 */
-  --hairline-rgb: 73, 82, 108;
+  --hairline-rgb: 108, 100, 88;
 
-  --accent: #8b8cff;
-  --accent-text: #aeb8ff;
-  --accent-rgb: 101, 111, 245;
+  --accent: #7fa3c0;
+  --accent-text: #9dbdd6;
+  --accent-rgb: 92, 130, 160;
 
-  --success: #54d6a8;
-  --success-rgb: 34, 197, 145;
+  --success: #74c79a;
+  --success-rgb: 60, 170, 120;
 
   --warning: #d2ad62;
   --warning-rgb: 210, 173, 98;
 
-  --danger: #ff7f89;
-  --danger-border: #713039;
-  --danger-rgb: 255, 111, 122;
+  --danger: #ef8189;
+  --danger-border: #6b332f;
+  --danger-rgb: 240, 120, 118;
 
-  --scrollbar-track: #111;
-  --scrollbar-thumb: #3a3a3a;
-  --scrollbar-thumb-hover: #555;
+  --scrollbar-track: #131210;
+  --scrollbar-thumb: #3d3931;
+  --scrollbar-thumb-hover: #575046;
   --hover-brightness: 1.13;
 }
 
 :root[data-theme='light'] {
-  --bg-page: #f2f3f8;
-  --bg-content: #ffffff;
-  --bg-well: #eceef4;
+  --bg-page: #f3f0ea;
+  --bg-content: #fbfaf7;
+  --bg-well: #eae5dc;
   --bg-surface: #ffffff;
-  --bg-surface-hover: #eef0f7;
+  --bg-surface-hover: #f4f1ea;
   --surface-rgb: 255, 255, 255;
-  --scrim-rgb: 40, 44, 58;
-  --bg-inset: rgba(40, 44, 58, 0.05);
-  --bg-inset-strong: rgba(40, 44, 58, 0.08);
+  --scrim-rgb: 45, 40, 33;
+  --bg-inset: rgba(45, 40, 33, 0.05);
+  --bg-inset-strong: rgba(45, 40, 33, 0.08);
 
-  --text-primary: #1b2030;
-  --text-bright: #05070d;
-  --text-secondary: #5b6278;
-  --text-muted: #7d84a0;
-  --text-rgb: 20, 23, 35;
+  --text-primary: #25231f;
+  --text-bright: #0f0e0c;
+  --text-secondary: #666158;
+  --text-muted: #8a8377;
+  --text-rgb: 37, 35, 31;
 
-  --border-default: #dfe2ea;
-  --border-strong: #c9cedc;
-  --border-rgb: 195, 200, 216;
-  --hairline-rgb: 165, 171, 190;
+  --border-default: #d8d1c7;
+  --border-strong: #c2b9ac;
+  --border-rgb: 200, 192, 181;
+  --hairline-rgb: 168, 158, 144;
 
-  --accent: #4b4fd0;
-  --accent-text: #4649c4;
-  --accent-rgb: 91, 98, 232;
+  --accent: #2f5471;
+  --accent-text: #2b4e69;
+  --accent-rgb: 47, 84, 113;
 
-  --success: #167a56;
-  --success-rgb: 22, 163, 113;
+  --success: #2f6b4d;
+  --success-rgb: 47, 122, 88;
 
   --warning: #8a5b12;
   --warning-rgb: 158, 111, 30;
 
-  --danger: #c22a3e;
-  --danger-border: #f3c4cb;
-  --danger-rgb: 214, 42, 63;
+  --danger: #b12f3d;
+  --danger-border: #e3bfbc;
+  --danger-rgb: 190, 47, 61;
 
-  --scrollbar-track: #eceef4;
-  --scrollbar-thumb: #c3c8d6;
-  --scrollbar-thumb-hover: #a5abbd;
+  --scrollbar-track: #eae5dc;
+  --scrollbar-thumb: #cfc7ba;
+  --scrollbar-thumb-hover: #b3a998;
   --hover-brightness: 0.95;
 }
 
