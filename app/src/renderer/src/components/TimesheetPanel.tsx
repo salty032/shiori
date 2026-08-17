@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useT } from '../i18n'
 import { font } from '../styles'
 import { usePanelResize } from '../hooks/usePanelResize'
+import { useWindowWidth } from '../hooks/useWindowWidth'
+import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
 import { requiredSheetLength, timesheetGlyph, timesheetLabels, TOEI_SYMBOL } from '../../../shared/timesheet'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { XIcon } from './Icon'
@@ -72,10 +74,14 @@ type Props = {
 export default function TimesheetPanel({ sheet, fps }: Props) {
   const { t } = useT()
   const currentRowRef = useRef<HTMLDivElement>(null)
+  const windowWidth = useWindowWidth()
   const { width, handleResizeStart } = usePanelResize({
     // **詳細パネルと同じ設定**（storageKey も同じ）。入れ替わっても幅が変わらないので、
-    // 左の一覧が動かない。片方を広げればもう片方も同じ幅になる。
-    storageKey: 'shiori-detail-width', min: 300, max: 600, defaultWidth: 300, direction: 'left',
+    // 左の一覧が動かない。片方を広げればもう片方も同じ幅になる。上限も同じにする。
+    storageKey: 'shiori-detail-width',
+    min: DETAIL_MIN_WIDTH, max: DETAIL_MAX_WIDTH, defaultWidth: DETAIL_DEFAULT_WIDTH,
+    direction: 'left',
+    limit: panelLimits(windowWidth).detail,
   })
 
   // コマ送りに追従して現在行を見える位置へ寄せる。**block: 'nearest' にする**——常に中央へ

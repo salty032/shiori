@@ -9,6 +9,8 @@ import ShortcutsFlyout from './ShortcutsFlyout'
 import { useSettingsStore } from '../stores/settingsStore'
 import { releaseNotesFor } from '../../../shared/releaseNotes'
 import { usePanelResize } from '../hooks/usePanelResize'
+import { useWindowWidth } from '../hooks/useWindowWidth'
+import { SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_DEFAULT_WIDTH, panelLimits } from '../layout'
 
 // 不具合・要望の報告フォーム（Tally）。**URL に載せてよいのは版と実行環境だけ**——ライブラリ
 // 由来の文字列（タイトルには作品名が入る）は絶対に混ぜない。**送信経路はアプリに持たせず**、
@@ -46,9 +48,6 @@ const SIDEBAR_TAG_MIN_COUNT = 5
 // 枚数がこの値に届くタグがまだ無い（＝ライブラリが小さい）間だけ、上位N件で代替する。
 // タグ欄が空のままになるのを防ぐための下駄。
 const SIDEBAR_TAG_FALLBACK_LIMIT = 12
-const SIDEBAR_MIN_WIDTH = 210
-const SIDEBAR_MAX_WIDTH = 340
-const SIDEBAR_DEFAULT_WIDTH = 210
 
 type Props = {
   count: number
@@ -113,12 +112,14 @@ export default function Sidebar({
   // これをフィルタ選択のトグルとして扱うと並べ替えのたびに一覧の絞り込みが変わって画面が
   // ガタつくので、ドラッグが発生した後の click は選択解除で統一し、選択トグルは行わない。
   const smartFolderDraggedRef = useRef(false)
+  const windowWidth = useWindowWidth()
   const { width: sidebarWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-sidebar-width',
     min: SIDEBAR_MIN_WIDTH,
     max: SIDEBAR_MAX_WIDTH,
     defaultWidth: SIDEBAR_DEFAULT_WIDTH,
     direction: 'right',
+    limit: panelLimits(windowWidth).sidebar,
   })
 
   // 長押し（一定時間ホールド）でドラッグ開始と見なす。移動が閾値を超える前にタイマーが

@@ -7,6 +7,8 @@ import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
 import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { usePanelResize } from '../hooks/usePanelResize'
+import { useWindowWidth } from '../hooks/useWindowWidth'
+import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
 import VideoPlayer from './VideoPlayer'
 import { getMediaActions } from '../features/registry'
 import { useT } from '../i18n'
@@ -57,12 +59,14 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
 
 export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { t, tp, locale } = useT()
+  const windowWidth = useWindowWidth()
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
-    min: 300,
-    max: 600,
-    defaultWidth: 300,
+    min: DETAIL_MIN_WIDTH,
+    max: DETAIL_MAX_WIDTH,
+    defaultWidth: DETAIL_DEFAULT_WIDTH,
     direction: 'left',
+    limit: panelLimits(windowWidth).detail,
   })
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
