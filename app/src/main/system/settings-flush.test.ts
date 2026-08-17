@@ -96,3 +96,69 @@ describe('flushSettings', () => {
     expect(writeFile).not.toHaveBeenCalled()
   })
 })
+
+// 保存 IPC はディスク反映を待たずに成功で返る（そうしないと、AV の一時的なロックのたびに
+// renderer が楽観更新を巻き戻して「設定がたまに反映されない」になる）。その代わり、
+// 書き込みを諦めたことは必ず外へ出す——黙って諦めると、症状は次に起動したときの
+// 「設定が戻っている」だけになり、利用者にも原因が辿れない。
+describe('永続化を諦めたときの通知', () => {
+  // ENOSPC は一時的なロックではないのでリトライ待ち（最大 800ms）に入らず、
+  // すぐ最終手段の直接書き込みへ進む。テストを待たせないための選択。
+  const fatal = (): Promise<never> => Promise.reject(Object.assign(new Error('no space'), { code: 'ENOSPC' }))
+
+  it('リトライを使い切ったら知らせる', async () => {
+    const { saveSettings, flushSettings, onSettingsPersistFailed } = await freshSettings()
+    const notified = vi.fn()
+    onSettingsPersistFailed(notified)
+
+    writeFile.mockImplementation(fatal)
+    saveSettings({ theme: 'light' })
+    await flushSettings()
+
+    expect(notified).toHaveBeenCalledTimes(1)
+  })
+
+  it('続けて失敗しても同じ知らせは重ねない', async () => {
+    const { saveSettings, flushSettings, onSettingsPersistFailed } = await freshSettings()
+    const notified = vi.fn()
+    onSettingsPersistFailed(notified)
+
+    writeFile.mockImplementation(fatal)
+    saveSettings({ theme: 'light' })
+    await flushSettings()
+    saveSettings({ theme: 'dark' })
+    await flushSettings()
+
+    expect(notified).toHaveBeenCalledTimes(1)
+  })
+
+  it('一度書けたら状態は戻り、次に失敗したらまた知らせる', async () => {
+    const { saveSettings, flushSettings, onSettingsPersistFailed } = await freshSettings()
+    const notified = vi.fn()
+    onSettingsPersistFailed(notified)
+
+    writeFile.mockImplementation(fatal)
+    saveSettings({ theme: 'light' })
+    await flushSettings()
+
+    writeFile.mockResolvedValue(undefined)
+    saveSettings({ theme: 'dark' })
+    await flushSettings()
+
+    writeFile.mockImplementation(fatal)
+    saveSettings({ theme: 'system' })
+    await flushSettings()
+
+    expect(notified).toHaveBeenCalledTimes(2)
+  })
+
+  it('書けなくてもセッション内の値は確定している', async () => {
+    const { saveSettings, flushSettings, loadSettings } = await freshSettings()
+
+    writeFile.mockImplementation(fatal)
+    saveSettings({ theme: 'light', thumbnailSize: 180 })
+    await flushSettings()
+
+    expect(loadSettings().thumbnailSize).toBe(180)
+  })
+})

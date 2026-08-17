@@ -1,7 +1,11 @@
 import { create } from 'zustand'
 import type { Settings } from '../types'
 import { SETTINGS_DEFAULTS } from '../../../shared/settingsDefaults'
-import { t } from '../i18n'
+// renderer/i18n.ts ではなく共有の translate を直接使う。renderer/i18n.ts は表示言語を
+// このストアから読むため、そちらを import すると settingsStore → i18n → settingsStore の
+// 循環になる（今は t() が遅延評価なので動いているだけで、初期化順に依存している）。
+// 表示言語はこのストア自身が持っているので、渡してしまえば循環は要らない。
+import { translate } from '../../../shared/i18n'
 
 type ShowToast = (message: string, tone?: 'info' | 'success' | 'warning' | 'error', ms?: number) => void
 
@@ -40,8 +44,14 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
       console.error('[settings] update failed', key, err)
       // 巻き戻しは対象キーのみを最新 state に対して行う。全体スナップショット（prev）へ戻すと、
       // await 中に成功した別キーの変更まで消えてしまう（連続操作時の巻き添え）。
-      set((s) => ({ settings: { ...s.settings, [key]: prevValue } }))
-      showToast?.(t('toast.settingsSaveFailed'), 'error')
+      //
+      // さらに**同じキーを続けて変えた場合**、後発が成功した後に先発の失敗が返ることがある
+      // （スライダーを動かす、テーマを続けて切り替える）。その巻き戻しを通すと、画面には
+      // 保存できた値ではなく 2 つ前の値が出る。今も自分が入れた値のままのときだけ戻す。
+      if (get().settings[key] === value) {
+        set((s) => ({ settings: { ...s.settings, [key]: prevValue } }))
+      }
+      showToast?.(translate(get().settings.language, 'toast.settingsSaveFailed'), 'error')
     }
   },
 

@@ -157,6 +157,30 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// 永続化の最終失敗を呼び出し側（bootstrap）へ伝える購読口。settings.ts は windows.ts に
+// 依存させたくない（_corruptOnLoad と同じ理由）ので、通知の実体は bootstrap 側に持たせる。
+//
+// **なぜ黙って諦めてはいけないか** — saveSettings はディスク反映を待たずに返る設計で、
+// 画面上は保存できたようにしか見えない。書き込みが最後まで通らなかった場合、次に起動した
+// ときだけ設定が巻き戻る。原因（AV のロック・ディスク満杯・権限）に心当たりが無いまま
+// 「たまに設定が戻る」が起きるので、その場で言う。
+let _persistFailed = false
+const persistFailedCallbacks: Array<() => void> = []
+
+export function onSettingsPersistFailed(cb: () => void): void {
+  persistFailedCallbacks.push(cb)
+  // 登録前に失敗していた場合（起動直後の保存など）も取りこぼさない。
+  if (_persistFailed) cb()
+}
+
+// 連続変更のたびに出すと、ロック中は同じトーストが何枚も重なる。一度知らせたら、
+// 次に 1 回でも書き込めるまでは黙る（＝失敗→成功→失敗なら 2 回目も出る）。
+function notifyPersistFailed(): void {
+  if (_persistFailed) return
+  _persistFailed = true
+  persistFailedCallbacks.forEach((cb) => cb())
+}
+
 // 直列化された永続化キュー。連続変更でもディスクへの書き込み順序が入れ替わらないようにする。
 let _persistChain: Promise<void> = Promise.resolve()
 
@@ -165,6 +189,7 @@ let _persistChain: Promise<void> = Promise.resolve()
 // これを同期書き込みで throw させると settingsSet IPC が reject し、renderer 側が楽観更新を
 // 巻き戻して「設定がたまに反映されない」原因になっていた。ここではリトライで吸収し、最終的に
 // 失敗しても throw しない（セッション内の値は _settingsCache が保持し、次の変更で再度書き込まれる）。
+// ただし**黙って諦めない**——リトライを使い切ったら onSettingsPersistFailed で画面に出す。
 async function persistToDisk(data: Settings): Promise<void> {
   const path = settingsPath()
   const tmp = `${path}.tmp`
@@ -176,6 +201,7 @@ async function persistToDisk(data: Settings): Promise<void> {
       // 書き込み途中のクラッシュ・電源断で settings.json 本体が壊れるのを防ぐ。
       await writeFile(tmp, json, 'utf-8')
       await rename(tmp, path)
+      _persistFailed = false
       return
     } catch (err) {
       await unlink(tmp).catch(() => {})
@@ -184,8 +210,12 @@ async function persistToDisk(data: Settings): Promise<void> {
       if (attempt === MAX_ATTEMPTS || !transient) {
         // tmp+rename が通らない場合の最終手段として実ファイルへ直接書き込む
         // （原子性は劣るが rename の EPERM を回避できる）。これも失敗したら諦める。
-        try { await writeFile(path, json, 'utf-8'); return }
-        catch (fallbackErr) { console.error('[settings] persist failed after retries:', fallbackErr); return }
+        try { await writeFile(path, json, 'utf-8'); _persistFailed = false; return }
+        catch (fallbackErr) {
+          console.error('[settings] persist failed after retries:', fallbackErr)
+          notifyPersistFailed()
+          return
+        }
       }
       await delay(80 * attempt)  // 80,160,240,320ms のバックオフ
     }

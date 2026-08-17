@@ -45,6 +45,8 @@ export const en: Record<keyof typeof ja, string> = {
     'Shiori could not start because its database could not be opened.\n\n' +
     'Check that no other program is locking the file, or restart your PC and try again.',
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
+  'notice.settingsPersistFailed':
+    'Shiori could not write your settings to disk. This change will be lost when you quit. Check your antivirus software and free disk space.',
   'notice.portInUse':
     'Shiori cannot connect to the browser extension. Ports {ports} are all taken by other apps or reserved by Windows. Restarting your PC often clears this.',
   'notice.updated': 'Shiori updated to v{version}',

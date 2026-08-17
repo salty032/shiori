@@ -12,7 +12,7 @@ import {
 import { initDb, getImage, countImages } from './db'
 import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
-import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, type Settings } from './system/settings'
+import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, onSettingsPersistFailed, type Settings } from './system/settings'
 import { activeTaskLabels } from './system/busy'
 import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion } from './browser/extension-updater'
 import { compareVersions } from './system/version'
@@ -480,6 +480,12 @@ export function bootstrap(features: MainFeature[] = []): void {
     if (consumeCorruptSettingsNotice()) {
       sendNoticeWhenRendererReady('error', t('notice.settingsCorrupt'))
     }
+    // 設定の保存は「セッション内は即確定・ディスクは非同期」なので、書き込みが最後まで
+    // 通らなくても renderer の setSettings は成功で返る（そうしないと AV のロックで
+    // 一時的に失敗するたびに UI が巻き戻る）。代わりに、諦めた時点でここから知らせる。
+    onSettingsPersistFailed(() => {
+      sendNoticeWhenRendererReady('error', t('notice.settingsPersistFailed'))
+    })
     // 自動アップデートはサイレント適用（終了時インストール）だと再起動後に何の表示もなく、
     // 更新されたのか判別できない。前回起動時のバージョンを設定に記録しておき、変わっていたら
     // 一度だけ知らせる（RELEASE_NOTES にそのバージョンの文面があればお知らせモーダル、
