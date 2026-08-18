@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeAll, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeAll, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
 import { installMockApi } from './mockApi'
 import type { DemoManifest } from './manifest'
 
@@ -26,6 +26,13 @@ beforeAll(async () => {
     addListener() {}, removeListener() {}, dispatchEvent: () => false,
   })) as never
   await installMockApi()
+})
+
+// 描いたまま放置すると、テストが終わって jsdom を畳んだ後に React の残りの仕事が動き、
+// window is not defined で落ちる（テスト自体は通るので、たまに出る謎のエラーに見える）。
+// vitest は globals: false なので @testing-library/react の自動後片付けは効かない。
+afterEach(() => {
+  cleanup()
 })
 
 it('素材が 0 件なら、デスクトップ版の初回案内ではなくデモ用の説明を出す', async () => {
