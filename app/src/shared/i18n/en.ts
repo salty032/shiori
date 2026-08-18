@@ -46,18 +46,18 @@ export const en: Record<keyof typeof ja, string> = {
     'Check that no other program is locking the file, or restart your PC and try again.',
   'error.startupFailed':
     'Shiori could not open because its startup stopped partway.\n\n' +
-    'Restart your PC and try again. If that does not help, please report the line below.\n\n' +
-    '{detail}',
+    'Restart your PC and try again.\n\n' +
+    'Cause: {detail}',
   'error.startupPartial':
     'Shiori did not finish starting up.\n\n' +
     'The window is open, but some parts such as the capture hotkey or the browser link may\n' +
     'not work. Please restart Shiori.\n\n' +
-    '{detail}',
+    'Cause: {detail}',
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
   'dialog.dbRestore.title': 'Restore the database',
   'dialog.dbRestore.message': 'Your database is damaged',
   'dialog.dbRestore.detail':
-    'Shiori can restore the backup taken on {date}.\n\n' +
+    'Shiori can restore the backup taken on {date}, then start itself again.\n\n' +
     'Tags, memos and timesheet entries added after that will be lost. The damaged file is kept\n' +
     'in the backups folder, so it can still be examined later.\n\n' +
     'Your images and videos are separate files and are not affected either way.',

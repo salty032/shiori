@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
 
 // Shiori.db の退避・健全性確認・復元。
@@ -156,6 +156,33 @@ export function restoreDatabase(backupPath: string, dbPath: string): void {
     }
   }
   copyFileSync(backupPath, dbPath)
+}
+
+/**
+ * 復元したことを次の起動へ伝える目印。
+ *
+ * 復元の直後はアプリを起動し直す（`bootstrap.ts` の recoverDatabase）ので、メモリ上の変数では
+ * 引き継げない。ダイアログはボタンを押した瞬間に消えるため、「何が含まれていないのか」を
+ * 起動後の画面にも出せないと、戻したこと自体を忘れたまま使い続けることになる。
+ * `.thumbnails-migrated` / `.orphan-sweep-last` と同じ、userData 直下の目印ファイル。
+ */
+function restoreMarkerPath(dbPath: string): string {
+  return join(dirname(dbPath), '.db-restored')
+}
+
+export function writeRestoreMarker(dbPath: string, backupPath: string): void {
+  writeFileSync(restoreMarkerPath(dbPath), backupPath, 'utf8')
+}
+
+/** 目印があれば戻した退避のパスを返して消す。無ければ null */
+export function consumeRestoreMarker(dbPath: string): string | null {
+  const marker = restoreMarkerPath(dbPath)
+  if (!existsSync(marker)) return null
+  let value: string | null = null
+  try { value = readFileSync(marker, 'utf8').trim() || null } catch { value = null }
+  // 読めなくても必ず消す。残ると毎起動「戻しました」と言い続ける。
+  try { unlinkSync(marker) } catch { /* 消せなければ次回また出るだけ */ }
+  return value
 }
 
 /**

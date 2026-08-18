@@ -50,7 +50,8 @@ import { waitForPreferredTimecode, type CaptureTimecode } from './browser/timeco
 import { t, currentLang } from './system/i18n'
 import { describeStartupError } from './system/startup-error'
 import {
-  isDatabaseDamaged, listBackups, restoreDatabase, setAsideBrokenDatabase
+  consumeRestoreMarker, isDatabaseDamaged, listBackups, restoreDatabase,
+  setAsideBrokenDatabase, writeRestoreMarker
 } from './system/db-maintenance'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
@@ -97,9 +98,6 @@ function browserStepLabels(): { blocked: string; dropped: string } {
   return { blocked: t('video.stepBlocked'), dropped: t('video.stepDropped') }
 }
 
-// 退避から戻したときに、ウィンドウが出てから知らせるための持ち越し。
-let restoredBackupLabel: string | null = null
-
 function backupDateLabel(path: string): string {
   try {
     return statSync(path).mtime.toLocaleString(LOCALE_TAG[currentLang()])
@@ -144,15 +142,25 @@ function recoverDatabase(err: unknown): boolean {
     // 壊れたファイルは消さずに退避フォルダへ移す。後から取り出せる可能性を捨てない。
     const broken = setAsideBrokenDatabase(dbPath, new Date())
     restoreDatabase(newest, dbPath)
+    writeRestoreMarker(dbPath, newest)
     console.warn(`[startup] restored the database from ${newest} (broken file kept at ${broken})`)
-    initDb()
   } catch (restoreErr) {
     console.error('[startup] database restore failed', restoreErr)
     dialog.showErrorBox('Shiori', t('error.dbRestoreFailed', { detail: describeStartupError(restoreErr) }))
     return false
   }
-  restoredBackupLabel = label
-  return true
+  // 戻した DB でそのまま起動を続けず、必ず起動し直す。
+  //
+  // ここへ来るまでにメインプロセスはダイアログの前で数十秒〜数分止まっている。その間に
+  // Chromium のネットワークサービスが落ちて再起動することがあり（実際に踏んだ:
+  // 'Network service crashed or was terminated'）、直後に作ったウィンドウが読み込みに
+  // 失敗して**真っ白のまま**残った。復元できたのに何も映らないのでは、直したことにならない。
+  // 戻した DB は普通の起動で開き直すのが素直で、半端な状態のプロセスを使い回す理由も無い。
+  //
+  // exit(0) なのは、この時点でまだ設定を変えておらず、before-quit の後片付けに用が無いため。
+  app.relaunch()
+  app.exit(0)
+  return false
 }
 
 export function bootstrap(features: MainFeature[] = []): void {
@@ -539,11 +547,12 @@ export function bootstrap(features: MainFeature[] = []): void {
     if (consumeCorruptSettingsNotice()) {
       sendNoticeWhenRendererReady('error', t('notice.settingsCorrupt'))
     }
-    // 退避から戻したこと・退避が取れなかったことは、起動直後のダイアログだけだと
-    // 読み飛ばされる。何が含まれていないのかを、画面にも残す。
-    if (restoredBackupLabel) {
-      sendNoticeWhenRendererReady('warning', t('notice.dbRestored', { date: restoredBackupLabel }))
-      restoredBackupLabel = null
+    // 戻したこと・退避が取れなかったことは、起動直後のダイアログだけだと読み飛ばされる。
+    // 何が含まれていないのかを、画面にも残す。復元の直後は起動し直しているので、
+    // メモリ上の変数ではなく目印ファイルから拾う。
+    const restoredFrom = consumeRestoreMarker(databasePath())
+    if (restoredFrom) {
+      sendNoticeWhenRendererReady('warning', t('notice.dbRestored', { date: backupDateLabel(restoredFrom) }))
     }
     if (consumeDbBackupFailure()) {
       sendNoticeWhenRendererReady('warning', t('notice.dbBackupFailed'))

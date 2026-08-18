@@ -14,8 +14,10 @@ import {
   listBackups,
   pruneBackups,
   readSchemaVersion,
+  consumeRestoreMarker,
   restoreDatabase,
   setAsideBrokenDatabase,
+  writeRestoreMarker,
   writeSchemaVersion,
   type SqlRunner
 } from './db-maintenance'
@@ -182,6 +184,20 @@ describe('復元', () => {
   it('退避も壊れた DB も同じフォルダに置く', () => {
     const backup = backupDatabase(runnerFor(db), dbPath, new Date())
     expect(backup.startsWith(backupDirFor(dbPath))).toBe(true)
+  })
+})
+
+describe('戻したことを次の起動へ伝える目印', () => {
+  it('書いた退避のパスを 1 回だけ返し、次からは返さない', () => {
+    const backup = backupDatabase(runnerFor(db), dbPath, new Date())
+    writeRestoreMarker(dbPath, backup)
+    expect(consumeRestoreMarker(dbPath)).toBe(backup)
+    // 消し損ねると毎起動「戻しました」と言い続けることになる
+    expect(consumeRestoreMarker(dbPath)).toBeNull()
+  })
+
+  it('目印が無ければ null（普通の起動では通知を出さない）', () => {
+    expect(consumeRestoreMarker(dbPath)).toBeNull()
   })
 })
 
