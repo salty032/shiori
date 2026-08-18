@@ -3,6 +3,7 @@ import { readFile, unlink, mkdir } from 'fs/promises'
 import { dirname, join } from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
+import { StderrCollector } from './ffmpeg-stderr'
 // ffmpeg は npm パッケージ経由ではなく resources に直接同梱する。
 // ffmpeg-static は GPL-3.0-or-later で公開されており、その JS を本体プロセスが require すると
 // Shiori 本体まで GPL の派生物と解される余地が生まれる（本体は proprietary ライセンス）。
@@ -16,21 +17,37 @@ function getFfmpegPath(): string {
 const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000  // 5分
 const FFPROBE_TIMEOUT_MS = 60 * 1000      // 1分
 
+// 1 本の動画から解析するフレーム数の上限。録画は 30 秒（強制上限 40 秒）、取り込みも
+// 30 秒までで、取得レートの上限が 120枚/秒なので、正規の素材は 4,800 コマを超えない。
+// 尺の申告が嘘のファイルでもここで必ず止まるよう、4 倍の余裕を見た固定値を置く。
+//
+// 超えたら throw する。途中までの結果を「全フレーム分」として返すと、撮り逃しの判定が
+// 黙って嘘になる（呼び出し側は例外を「検証できなかった」として扱い、未検証のまま残す）。
+export const MAX_ANALYZED_FRAMES = 20000
+
+// showinfo が出す 1 行から表示時刻を取る。行単位で当てるので g フラグは付けない
+// （付けると lastIndex が行をまたいで持ち越され、拾い漏れる）。
+const PTS_TIME_RE = /pts_time:(\d+(?:\.\d+)?)/
+
+function analysisLimitError(): Error {
+  return new Error(`ffmpeg output exceeded the analysis limit (${MAX_ANALYZED_FRAMES} frames)`)
+}
+
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     let bin: string
     try { bin = getFfmpegPath() } catch (err) { reject(err); return }
     const proc = spawn(bin, args, { stdio: 'pipe' })
-    let stderr = ''
+    const stderr = new StderrCollector()
     const timer = setTimeout(() => {
       proc.kill()
       reject(new Error('ffmpeg timeout'))
     }, FFMPEG_TIMEOUT_MS)
-    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.stderr?.on('data', (d: Buffer) => { stderr.push(d.toString()) })
     proc.on('close', (code) => {
       clearTimeout(timer)
       if (code === 0) resolve()
-      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-1000)}`))
+      else reject(new Error(`ffmpeg exited ${code}: ${stderr.text.slice(-1000)}`))
     })
     proc.on('error', (err) => { clearTimeout(timer); reject(err) })
   })
@@ -38,40 +55,95 @@ function runFfmpeg(args: string[]): Promise<void> {
 
 // stderr を収集して返す（プローブ用: 非ゼロ終了も許容）。タイムアウトで打ち切った場合は
 // timedOut を立てる（呼び出し側が「途中までの結果を正常値として扱わない」判断に使う）。
-function runFfmpegCollect(args: string[]): Promise<{ stderr: string; timedOut: boolean }> {
+// onStderrLine を渡すと、テキストとして残らない中間行も 1 行ずつ受け取れる。
+function runFfmpegCollect(
+  args: string[],
+  onStderrLine?: (line: string) => boolean | void
+): Promise<{ stderr: string; timedOut: boolean }> {
   return new Promise((resolve, reject) => {
     let bin: string
     try { bin = getFfmpegPath() } catch (err) { reject(err); return }
     const proc = spawn(bin, args, { stdio: 'pipe' })
-    let stderr = ''
-    const timer = setTimeout(() => { proc.kill(); resolve({ stderr, timedOut: true }) }, FFPROBE_TIMEOUT_MS)
-    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
-    proc.on('close', () => { clearTimeout(timer); resolve({ stderr, timedOut: false }) })
-    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    const stderr = new StderrCollector(onStderrLine)
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      proc.kill()
+      resolve({ stderr: stderr.text, timedOut: true })
+    }, FFPROBE_TIMEOUT_MS)
+    proc.stderr?.on('data', (d: Buffer) => {
+      stderr.push(d.toString())
+      if (!stderr.abortRequested || settled) return
+      settled = true
+      clearTimeout(timer)
+      proc.kill()
+      reject(analysisLimitError())
+    })
+    proc.on('close', () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      stderr.finish()
+      resolve({ stderr: stderr.text, timedOut: false })
+    })
+    proc.on('error', (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      reject(err)
+    })
   })
 }
 
-// stdout をバイナリのまま集める（rawvideo の取り出し用）。stderr も返す
-// （showinfo を挟んで「デコードされた実フレーム数」を数えるため）。
-function runFfmpegCollectStdout(args: string[]): Promise<{ stdout: Buffer; stderr: string }> {
+// stdout をバイナリのまま集める（rawvideo の取り出し用）。stderr は行ごとに
+// onStderrLine へ渡す（showinfo を挟んで「デコードされた実フレーム数」を数えるため）。
+// maxStdoutBytes を超えたら溜め込みをやめて打ち切る。途中までの署名で判定すると、
+// 撮り逃しの判定が黙って嘘になるので、部分的な結果は返さない。
+function runFfmpegCollectStdout(
+  args: string[],
+  options: { maxStdoutBytes: number; onStderrLine?: (line: string) => boolean | void }
+): Promise<{ stdout: Buffer }> {
   return new Promise((resolve, reject) => {
     let bin: string
     try { bin = getFfmpegPath() } catch (err) { reject(err); return }
     const proc = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
-    const chunks: Buffer[] = []
-    let stderr = ''
-    const timer = setTimeout(() => {
-      proc.kill()
-      reject(new Error('ffmpeg timeout'))
-    }, FFMPEG_TIMEOUT_MS)
-    proc.stdout?.on('data', (d: Buffer) => { chunks.push(d) })
-    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
-    proc.on('close', (code) => {
+    let chunks: Buffer[] = []
+    let stdoutBytes = 0
+    const stderr = new StderrCollector(options.onStderrLine)
+    let settled = false
+    let timer: ReturnType<typeof setTimeout>
+    const fail = (err: Error): void => {
+      if (settled) return
+      settled = true
       clearTimeout(timer)
-      if (code === 0) resolve({ stdout: Buffer.concat(chunks), stderr })
-      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-1000)}`))
+      chunks = []
+      proc.kill()
+      reject(err)
+    }
+    timer = setTimeout(() => fail(new Error('ffmpeg timeout')), FFMPEG_TIMEOUT_MS)
+    proc.stdout?.on('data', (d: Buffer) => {
+      if (settled) return
+      stdoutBytes += d.length
+      if (stdoutBytes > options.maxStdoutBytes) {
+        fail(analysisLimitError())
+        return
+      }
+      chunks.push(d)
     })
-    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    proc.stderr?.on('data', (d: Buffer) => {
+      stderr.push(d.toString())
+      if (stderr.abortRequested) fail(analysisLimitError())
+    })
+    proc.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      stderr.finish()
+      if (code === 0) resolve({ stdout: Buffer.concat(chunks) })
+      else reject(new Error(`ffmpeg exited ${code}: ${stderr.text.slice(-1000)}`))
+    })
+    proc.on('error', (err) => fail(err instanceof Error ? err : new Error(String(err))))
   })
 }
 
@@ -113,7 +185,11 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
   // 実フレーム」を1行ずつ出す。取り出した署名の枚数と突き合わせれば、複製が混ざったことを
   // その場で検出できる。ここが静かにずれると別のコマの絵で検証してしまい、結果は
   // もっともらしいまま無意味になる（実際に踏んだ）。1回のデコードで両方の数が取れる。
-  const { stdout, stderr } = await runFfmpegCollectStdout([
+  // pts は stderr を全文ためてから正規表現で走査するのではなく、届いた行をその場で
+  // 数値へ畳む。showinfo は 1 フレーム 1 行（実測 200 バイト前後）出すので、全文を
+  // 保持するとテキストだけで署名本体より重くなる。
+  const pts: number[] = []
+  const { stdout } = await runFfmpegCollectStdout([
     '-hide_banner',
     '-i', inputPath,
     '-an',
@@ -121,12 +197,18 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
     '-vf', `showinfo,scale=${SIGNATURE_GRID}:${SIGNATURE_GRID}:flags=area,format=gray`,
     '-f', 'rawvideo',
     '-'
-  ])
+  ], {
+    maxStdoutBytes: MAX_ANALYZED_FRAMES * SIGNATURE_BYTES,
+    onStderrLine: (line) => {
+      const m = PTS_TIME_RE.exec(line)
+      if (!m) return
+      // 上限に達したら打ち切らせる。ここで足し続けると、下の枚数照合が通ってしまい
+      // 「全フレーム分の署名」として扱われる。
+      if (pts.length >= MAX_ANALYZED_FRAMES) return false
+      pts.push(parseFloat(m[1]))
+    }
+  })
   const count = Math.floor(stdout.length / SIGNATURE_BYTES)
-  const pts: number[] = []
-  const re = /pts_time:(\d+(?:\.\d+)?)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(stderr)) !== null) pts.push(parseFloat(m[1]))
   if (pts.length > 0 && count !== pts.length) {
     // 呼び出し元（verify-clip.ts）は例外を「検証できなかった」として扱い、未検証のまま残す。
     // ずれた署名で判定を書き込むより、判定しない方がよい。
@@ -143,23 +225,23 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
 
 // showinfo フィルタで各フレームの pts_time を取得する
 export async function getVideoFramePts(inputPath: string): Promise<number[]> {
-  const { stderr, timedOut } = await runFfmpegCollect([
+  const pts: number[] = []
+  const { timedOut } = await runFfmpegCollect([
     '-i', inputPath,
     '-vf', 'showinfo',
     '-an',
     '-f', 'null',
     '-'
-  ])
+  ], (line) => {
+    const m = PTS_TIME_RE.exec(line)
+    if (!m) return
+    if (pts.length >= MAX_ANALYZED_FRAMES) return false
+    pts.push(parseFloat(m[1]))
+  })
   // タイムアウトで打ち切った場合、途中までの PTS を「全フレーム分」のように黙って返すと
   // VideoTrimmer のコマ送り・トリム範囲が途中までしか使えなくなる。呼び出し側
   // （ipc-video.ts）は catch → [] で安全側に倒すため、ここでは throw して委ねる。
   if (timedOut) throw new Error(`getVideoFramePts timed out after ${FFPROBE_TIMEOUT_MS}ms: ${inputPath}`)
-  const pts: number[] = []
-  const re = /pts_time:(\d+(?:\.\d+)?)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(stderr)) !== null) {
-    pts.push(parseFloat(m[1]))
-  }
   return pts
 }
 

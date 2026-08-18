@@ -47,6 +47,7 @@ import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
 import { waitForPreferredTimecode, type CaptureTimecode } from './browser/timecode-request'
 import { t } from './system/i18n'
+import { describeStartupError } from './system/startup-error'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
 // 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
@@ -522,7 +523,30 @@ export function bootstrap(features: MainFeature[] = []): void {
       showMainWindow()
     })
   }).catch((err) => {
+    // ここへ来るのは initDb の後（＝DB は開けた）で、残りの準備のどこかが落ちたとき。
+    // console にしか出さないと、使う人からは「ウィンドウが出ない」「トレイに居るのに
+    // 何もできない」としか見えず、原因を確かめる手段が画面上に一つも無い。
     console.error('[startup] initialization failed', err)
+    // 詳細はダイアログに1行だけ載せる（スタックは上の console に残す）。
+    const detail = describeStartupError(err)
+    const win = getMainWindow()
+    const hasWindow = win !== null && !win.isDestroyed()
+    try {
+      // t() は settings 経由で言語を引く。settings 自体が原因で落ちている可能性もあるので、
+      // 文言解決に失敗してもダイアログだけは必ず出す。
+      let message: string
+      try {
+        message = t(hasWindow ? 'error.startupPartial' : 'error.startupFailed', { detail })
+      } catch {
+        message = `Shiori did not finish starting up.\n\n${detail}`
+      }
+      dialog.showErrorBox('Shiori', message)
+    } catch (dialogErr) {
+      console.error('[startup] failed to show the startup error dialog', dialogErr)
+    }
+    // ウィンドウが無ければ操作手段が一つも無いので、ロックだけ握ったプロセスを残さず終了する
+    // （initDb 失敗時と同じ扱い）。ウィンドウがあるなら途中まで使えるので、勝手には落とさない。
+    if (!hasWindow) app.quit()
   })
 
   app.on('window-all-closed', () => {

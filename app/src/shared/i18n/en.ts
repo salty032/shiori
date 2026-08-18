@@ -44,6 +44,15 @@ export const en: Record<keyof typeof ja, string> = {
   'error.dbOpen':
     'Shiori could not start because its database could not be opened.\n\n' +
     'Check that no other program is locking the file, or restart your PC and try again.',
+  'error.startupFailed':
+    'Shiori could not open because its startup stopped partway.\n\n' +
+    'Restart your PC and try again. If that does not help, please report the line below.\n\n' +
+    '{detail}',
+  'error.startupPartial':
+    'Shiori did not finish starting up.\n\n' +
+    'The window is open, but some parts such as the capture hotkey or the browser link may\n' +
+    'not work. Please restart Shiori.\n\n' +
+    '{detail}',
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
   'notice.settingsPersistFailed':
     'Shiori could not write your settings to disk. This change will be lost when you quit. Check your antivirus software and free disk space.',
