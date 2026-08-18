@@ -89,7 +89,7 @@ export const s: Record<string, CSSProperties> = {
   viewToggle: { position: 'relative' as const, display: 'flex', alignItems: 'center' },
   viewToggleBtn: { position: 'relative' as const, zIndex: 1, width: 38, height: 32, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer' },
   thumbSizeControl: { position: 'relative' as const, display: 'flex', alignItems: 'center' },
-  thumbSizeBtn: { position: 'relative' as const, zIndex: 1, width: 34, height: 32, background: 'none', border: 'none', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, padding: 0 },
+  thumbSizeBtn: { position: 'relative' as const, zIndex: 1, width: 34, height: 32, background: 'none', border: 'none', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 700, padding: 0 },
   controlDivider: { flexShrink: 0, width: 1, alignSelf: 'stretch' as const, margin: '5px 3px', background: 'rgba(var(--hairline-rgb), 0.4)' },
   // セグメントコントロール（S/M/L・グリッド/タイムライン）の選択中ハイライト。
   // ボタン背面で transform:translateX して選択先へスライドする（「今こう変えた」を伝える）。
@@ -201,12 +201,16 @@ export const s: Record<string, CSSProperties> = {
   addTagChip: { height: 32, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer', lineHeight: 1 },
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid rgba(var(--border-rgb), 0.85)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: 7 },
-  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: 32, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: 9, padding: '6px 10px', background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textAlign: 'left' as const },
+  // サイドバー下部（セットアップ・サイズ・表示切替・設定）は毎日押すものではないのに、
+  // 面と枠を持っていて上のスマートフォルダやタグ一覧より目立っていた。地と枠を外す。
+  // セットアップだけは未完了のときに面を持たせる（済んだら普通のリンクまで落ちる）。
+  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: 32, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: 9, padding: '6px 10px', background: 'transparent', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 600, textAlign: 'left' as const },
+  sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: 700 },
   sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: 900 },
   sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
-  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'var(--bg-inset-strong)', border: '1px solid rgba(var(--hairline-rgb), 0.3)', borderRadius: 5, padding: 2 },
+  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid transparent', borderRadius: 5, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: 6 },
-  gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
+  gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
   // 設定ボタンの下に置く小さなリンク列（変更点・不具合報告）。常に見えることが目的なので
   // 隠さないが、毎回押すものではないので文字サイズと色で視線の重さを下げる。

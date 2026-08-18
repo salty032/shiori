@@ -455,7 +455,7 @@ export default function Sidebar({
       )}
 
       <div style={s.sidebarUtilitySection}>
-        <button className="shiori-hover-tint" style={s.sidebarSetupBtn} onClick={onShowSetup}>
+        <button className="shiori-hover-tint" style={{ ...s.sidebarSetupBtn, ...(setupCompleted === 3 ? {} : s.sidebarSetupBtnTodo) }} onClick={onShowSetup}>
           <span style={{ ...s.sidebarSetupMark, ...(setupCompleted === 3 ? s.sidebarSetupMarkDone : {}) }}>
             {setupCompleted === 3 ? '✓' : setupCompleted}
           </span>
@@ -490,7 +490,7 @@ export default function Sidebar({
           <button className="shiori-hover-tint" style={{ ...s.gearBtn, color: settingsActive ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={onToggleSettings}>
             <SettingsIcon size={16} />
-            <span style={{ fontSize: font.base, fontWeight: 800 }}>{t('menu.settings')}</span>
+            <span style={{ fontSize: font.base, fontWeight: 600 }}>{t('menu.settings')}</span>
           </button>
           <button className="shiori-hover-tint" ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={() => setShowShortcuts((v) => !v)} title={t('shortcuts.heading')}>
