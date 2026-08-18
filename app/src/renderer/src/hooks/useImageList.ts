@@ -11,6 +11,7 @@ export function useImageList(showToast: ShowToast) {
   const totalCount = useImageStore((s) => s.gridTotalCount)
   const loading = useImageStore((s) => s.gridLoading)
   const reloading = useImageStore((s) => s.gridReloading)
+  const loadFailed = useImageStore((s) => s.gridLoadFailed)
 
   // 検索条件(queryKey)が変わった場合も、一覧は即座に空にせず新しい1ページ目が届いてから
   // 丸ごと差し替える（loadMoreGrid の isFirstPage 分岐）。空にしてから出し直すと一瞬グリッドが
@@ -33,5 +34,5 @@ export function useImageList(showToast: ShowToast) {
   // 選択のクリアは useSelection 自身が queryKey を購読して行う（責務を分離）。
   useEffect(() => { reload() }, [queryKey, randomKey, reload])
 
-  return { images, loading, reloading, hasMore, totalCount, requestMore, reload }
+  return { images, loading, reloading, loadFailed, hasMore, totalCount, requestMore, reload }
 }

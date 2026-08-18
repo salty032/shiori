@@ -1037,7 +1037,6 @@ function showStepReadout(video) {
     `
     const box = document.createElement('div')
     box.className = 'readout'
-    box.setAttribute('role', 'status')
     shadow.append(style, box)
   }
   if (host.parentElement !== root) root.appendChild(host)
@@ -1125,7 +1124,6 @@ function showShioriNotice(level, message) {
     `
     const box = document.createElement('div')
     box.className = 'notice hidden'
-    box.setAttribute('role', 'status')
     shadow.append(style, box)
   }
   if (host.parentElement !== noticeRoot) noticeRoot.appendChild(host)

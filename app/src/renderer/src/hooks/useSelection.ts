@@ -13,8 +13,27 @@ import { t, tp, currentLocale } from '../i18n'
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
 const SELECTION_HISTORY_LIMIT = 30
-const DELETE_UNDO_MS = 4000
+// 削除の取り消し猶予。トーストが消えた後も Ctrl+Z で戻せるよう、**表示時間より長くとる**。
+// トースト自体を猶予いっぱい出しっぱなしにすると、連続削除で同じ通知が積み上がって邪魔になる。
+// 見えている間だけしか戻せないわけではないことは、トーストの文言（toast.deleted）で伝える。
+const DELETE_UNDO_MS = 15000
+const DELETE_TOAST_MS = 4000
 const GRID_NAV_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'] as const
+
+// 猶予（DELETE_UNDO_MS）が明けるまで確定しない削除 1 件分。
+type PendingDelete = {
+  ids: Set<number>
+  snapshot: RemovedImagesSnapshot
+  selectedBefore: Set<number>
+  timer: number
+  // 「元に戻す」付きトーストの id。Undo（クリック／Ctrl+Z どちらでも）が成立したら
+  // このトーストを即座に消す。放置すると Undo 後も「元に戻す」ボタンが残り、
+  // 押しても何も起きない（既に戻し済み）状態になる（BUG-8）。
+  toastId?: number
+  // ビューア内削除（deleteViewerImage）由来のときだけ、削除した画像の id を持つ。
+  // この削除が Undo されたとき、ビューアをその画像へ戻すために使う。
+  viewerRestoreId?: number
+}
 
 function sameIds(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false
@@ -211,19 +230,10 @@ export function useSelection({
   // 削除の確定は猶予タイマー・pagehide（空依存 effect）からも走るため、そのときの
   // クロージャに固まった古い関数ではなく常に最新のものを呼ぶ。
   const libraryChangedRef = useLatestRef(onLibraryChanged)
-  const pendingDeleteRef = useRef<{
-    ids: Set<number>
-    snapshot: RemovedImagesSnapshot
-    selectedBefore: Set<number>
-    timer: number
-    // 「元に戻す」付きトーストの id。Undo（クリック／Ctrl+Z どちらでも）が成立したら
-    // このトーストを即座に消す。放置すると Undo 後も「元に戻す」ボタンが残り、
-    // 押しても何も起きない（既に戻し済み）状態になる（BUG-8）。
-    toastId?: number
-    // ビューア内削除（deleteViewerImage）由来のときだけ、削除した画像の id を持つ。
-    // この削除が Undo されたとき、ビューアをその画像へ戻すために使う。
-    viewerRestoreId?: number
-  } | null>(null)
+  // 猶予中の削除は**同時に複数持てる**（古い順）。以前は1件だけ保持し、次の削除が来た瞬間に
+  // 前の分を確定させていたため、続けて2枚消すと1枚目はもう戻せなかった（しかも画面上は
+  // 「元に戻す」トーストが消えるだけで、戻せなくなったとは分からない）。
+  const pendingDeletesRef = useRef<PendingDelete[]>([])
 
   const latestLayoutRef = useRef(gridLayout)
   useEffect(() => { latestLayoutRef.current = gridLayout })
@@ -307,7 +317,7 @@ export function useSelection({
     setFocusIdx(null)
   }
 
-  function commitPendingDelete(pending: NonNullable<typeof pendingDeleteRef.current>, showProgress = true): void {
+  function commitPendingDelete(pending: PendingDelete, showProgress = true): void {
     window.clearTimeout(pending.timer)
     deleteImages(
       pending.ids,
@@ -336,10 +346,10 @@ export function useSelection({
     })
   }
 
+  // 取り消すのは常に一番新しい削除から。連続で消したときは、押した回数だけ新しい順に戻る。
   function undoPendingDelete(): boolean {
-    const pending = pendingDeleteRef.current
+    const pending = pendingDeletesRef.current.pop()
     if (!pending) return false
-    pendingDeleteRef.current = null
     window.clearTimeout(pending.timer)
     unmarkPendingDelete(pending.ids)
     if (pending.toastId != null) dismissToast(pending.toastId)
@@ -364,34 +374,28 @@ export function useSelection({
   function queueDelete(ids: Set<number>): void {
     if (ids.size === 0) return
     lastDeleteAtRef.current = performance.now()
-    const previous = pendingDeleteRef.current
-    if (previous) {
-      pendingDeleteRef.current = null
-      // 前回分はもう Undo 対象ではなくなる（早期確定）ので、出しっぱなしの
-      // 「元に戻す」トーストも一緒に消す（放置すると押しても無反応のまま残る）。
-      if (previous.toastId != null) dismissToast(previous.toastId)
-      commitPendingDelete(previous, false)
-    }
     const selectedBefore = new Set(latestRef.current.selectedIds)
     const snapshot = selectAfterDelete(ids)
     markPendingDelete(ids)
-    const pending: NonNullable<typeof pendingDeleteRef.current> = {
+    const pending: PendingDelete = {
       ids,
       snapshot,
       selectedBefore,
       timer: window.setTimeout(() => {
-        if (pendingDeleteRef.current !== pending) return
-        pendingDeleteRef.current = null
+        const list = pendingDeletesRef.current
+        const idx = list.indexOf(pending)
+        if (idx < 0) return
+        list.splice(idx, 1)
         commitPendingDelete(pending)
       }, DELETE_UNDO_MS),
     }
-    pendingDeleteRef.current = pending
-    // ms はここだけ既定値（トーンごとの自動値）に任せず DELETE_UNDO_MS を明示する。
-    // トーストの表示時間と「まだ元に戻せる」実際の猶予（上の setTimeout）を必ず一致させるため。
+    pendingDeletesRef.current.push(pending)
+    // トーストは猶予（DELETE_UNDO_MS）より短く出す。長く出すと連続削除で積み上がるため。
+    // 消えた後も Ctrl+Z で戻せることは文言側（toast.deleted）に書いてある。
     pending.toastId = showToast(
       tp('toast.deleted', ids.size),
       'success',
-      DELETE_UNDO_MS,
+      DELETE_TOAST_MS,
       { label: t('action.undo'), onClick: undoPendingDelete },
     )
   }
@@ -402,9 +406,10 @@ export function useSelection({
     const remaining = latestRef.current.images.filter((img) => img.id !== id)
     const next = remaining.length > 0 ? remaining[Math.min(currentViewerIdx, remaining.length - 1)] : null
     queueDelete(new Set([id]))
-    // queueDelete が pendingDeleteRef に積んだ直後なので、この削除だけを Undo したとき
-    // ビューアが元の画像へ戻れるよう印を付けておく。
-    if (pendingDeleteRef.current) pendingDeleteRef.current.viewerRestoreId = id
+    // queueDelete が積んだ直後なので、末尾がこの削除。Undo したときビューアが
+    // 元の画像へ戻れるよう印を付けておく。
+    const queued = pendingDeletesRef.current.at(-1)
+    if (queued) queued.viewerRestoreId = id
     setViewerId(next?.id ?? null)
   }
 
@@ -869,14 +874,14 @@ export function useSelection({
 
   useEffect(() => {
     const flushPendingDelete = (): void => {
-      const pending = pendingDeleteRef.current
-      if (!pending) return
-      pendingDeleteRef.current = null
-      commitPendingDelete(pending, false)
+      const list = pendingDeletesRef.current
+      if (list.length === 0) return
+      pendingDeletesRef.current = []
+      for (const pending of list) commitPendingDelete(pending, false)
     }
     // トレイの「終了」等でウィンドウごと畳まれる場合、この effect のクリーンアップは
     // JS コンテキストごと破棄されるため走らない。pagehide はウィンドウが閉じる過程で
-    // React のアンマウントより前に確実に発火するので、Undo 猶予（4秒）の途中で
+    // React のアンマウントより前に確実に発火するので、Undo 猶予の途中で
     // 終了しても「削除しました」の内容どおり削除が実行されるようにする
     // （main 側の IPC ハンドラは応答を待たれなくても独立して完走する）。
     window.addEventListener('pagehide', flushPendingDelete)

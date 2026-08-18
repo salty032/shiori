@@ -9,7 +9,8 @@ const FOCUSABLE_SELECTOR = [
 // ループさせる（U-4）。SettingsModal/QuickTagInput は独自の keydown ハンドラで window への
 // キーイベント伝搬は遮断しているが、Tab によるフォーカス移動自体はブラウザのネイティブ動作
 // なので防げず、モーダル背後のグリッド/サイドバーへフォーカスが抜けてしまっていた。
-// role="dialog" aria-modal="true" と組み合わせて使う想定。ライブラリ不要の最小実装。
+// パネル div の data-modal（useGlobalKeys が Tab の素通し判定に使う目印）と対で使う。
+// ライブラリ不要の最小実装。
 export function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, active: boolean): void {
   useEffect(() => {
     if (!active) return

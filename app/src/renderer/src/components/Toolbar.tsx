@@ -35,8 +35,6 @@ const SEARCH_COMMIT_DEBOUNCE_MS = 200
 
 // サジェスト枠は tag/site/type/プレフィックスの4種が排他で1つだけ描画されるため、
 // id は使い回してよい（同時に2つ存在しない）。
-const SUGGESTIONS_ID = 'shiori-search-suggestions'
-const optionId = (index: number): string => `shiori-search-option-${index}`
 
 const TAG_PREFIX_RE = /(?:^|\s)tag:(\S*)$/i
 const SITE_PREFIX_RE = /(?:^|\s)site:(\S*)$/i
@@ -302,15 +300,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </svg>
           )}
           <div style={s.searchInputInner}>
-            {/* ↑↓ で候補を送れる実装は元からあったが、支援技術には「ただのテキスト欄」に
-                見えていた。combobox として関連付け、今どの候補を指しているかを
-                aria-activedescendant で読み上げ側にも伝える。 */}
             <input ref={searchInputRef} data-tour="search-input" className="shiori-search-input" style={s.searchInput} value={filters.search}
-              role="combobox"
-              aria-expanded={hasOpenMenu}
-              aria-controls={SUGGESTIONS_ID}
-              aria-autocomplete="list"
-              aria-activedescendant={hasOpenMenu && highlightedIndex >= 0 ? optionId(highlightedIndex) : undefined}
               onChange={(e) => {
                 setForcedSuggestion(null)
                 const next = e.target.value
@@ -374,13 +364,10 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             }} title={t('search.clear')}><XIcon size={11} strokeWidth={2.2} /></button>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'tag' && (
-            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.prefix.tag')} style={s.searchSuggestions}>
+            <div ref={suggestionsRef} style={s.searchSuggestions}>
               {tagSuggestions.length > 0 ? tagSuggestions.map((tag, i) => (
                 <button
                   key={tag}
-                  id={optionId(i)}
-                  role="option"
-                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => { e.preventDefault(); confirmTag(tag) }}
@@ -393,13 +380,10 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </div>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'site' && (
-            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.prefix.site')} style={s.searchSuggestions}>
+            <div ref={suggestionsRef} style={s.searchSuggestions}>
               {siteSuggestions.length > 0 ? siteSuggestions.map((host, i) => (
                 <button
                   key={host}
-                  id={optionId(i)}
-                  role="option"
-                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => {
@@ -416,13 +400,10 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </div>
           )}
           {searchInteractionActive && suggestionsVisible && activePrefix === 'type' && typeSuggestions.length > 0 && (
-            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.prefix.type')} style={s.searchSuggestions}>
+            <div ref={suggestionsRef} style={s.searchSuggestions}>
               {typeSuggestions.map(({ value, label }, i) => (
                 <button
                   key={value}
-                  id={optionId(i)}
-                  role="option"
-                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchSuggestionItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => {
@@ -437,13 +418,10 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </div>
           )}
           {searchFocused && suggestionsVisible && activePrefix === null && (historySuggestions.length > 0 || prefixSuggestions.length > 0) && (
-            <div ref={suggestionsRef} id={SUGGESTIONS_ID} role="listbox" aria-label={t('search.placeholder')} style={s.searchPrefixMenu}>
+            <div ref={suggestionsRef} style={s.searchPrefixMenu}>
               {prefixSuggestions.map(({ prefix, labelKey }, i) => (
                 <button
                   key={prefix}
-                  id={optionId(i)}
-                  role="option"
-                  aria-selected={i === highlightedIndex}
                   className="shiori-menu-item"
                   style={{ ...s.searchPrefixItem, ...(i === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                   onMouseDown={(e) => {
@@ -464,9 +442,6 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
                     return (
                       <button
                         key={`history:${h}`}
-                        id={optionId(idx)}
-                        role="option"
-                        aria-selected={idx === highlightedIndex}
                         className="shiori-menu-item"
                         style={{ ...s.searchPrefixItem, ...(idx === highlightedIndex ? s.searchSuggestionItemActive : {}) }}
                         onMouseDown={(e) => {
@@ -490,9 +465,8 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
             </div>
           )}
           {searchFocused && suggestionsVisible && activePrefix === null && prefixSuggestions.length === 0 && dateHint && (
-            /* 選択できる候補ではなく書式ガイドなので listbox ではなく status。
-               combobox の aria-controls が指す先が消えないよう id だけは共有する。 */
-            <div id={SUGGESTIONS_ID} role="status" style={s.searchPrefixMenu}>
+            /* 選択できる候補ではなく、日付の書式ガイド。 */
+            <div style={s.searchPrefixMenu}>
               <div style={s.searchDateHint}>
                 {t('search.dateHint')}
               </div>

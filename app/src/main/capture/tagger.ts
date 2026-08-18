@@ -120,6 +120,19 @@ async function downloadFile(url: string, dest: string, onProgress?: ProgressCall
     let received = 0
     const tempDest = `${dest}.tmp`
     const file = createWriteStream(tempDest)
+    // WriteStream の 'error' は待ち受けが 1 つも無いと Node が未処理例外に変え、
+    // メインプロセスごと落とす。旧実装は write() が false を返した drain 待ちの間しか
+    // リスナーを張っていなかったため、**通常経路（write() が true）でディスクフルや
+    // I/O 障害が起きるとアプリが突然終了していた**。600MB のモデルを書いている最中なので
+    // ENOSPC は現実に起きる。ここで常設のリスナーに受け止め、待ち合わせ中なら
+    // その場で reject、そうでなければ次の待ち合わせ地点で throw させる
+    // （どちらの経路でも下の catch が .tmp を消し、IPC には「DL 失敗」として返る）。
+    let writeError: Error | null = null
+    let rejectPendingWait: ((err: Error) => void) | null = null
+    file.on('error', (err: Error) => {
+      writeError = err
+      rejectPendingWait?.(err)
+    })
     const reader = resp.body!.getReader()
     try {
       try {
@@ -136,8 +149,13 @@ async function downloadFile(url: string, dest: string, onProgress?: ProgressCall
             }
             if (total > 0) onProgress?.(received / total)
             await new Promise<void>((res, rej) => {
-              if (file.write(value)) res()
-              else { file.once('drain', res); file.once('error', rej) }
+              if (writeError) { rej(writeError); return }
+              if (file.write(value)) { res(); return }
+              // drain 待ちの間に落ちたら止まったままになるので、常設リスナーから
+              // reject できるよう受け口を預ける（drain したら外す。once('error') を
+              // 毎チャンク積むとリスナーが数百個残って警告になる）。
+              rejectPendingWait = rej
+              file.once('drain', () => { rejectPendingWait = null; res() })
             })
           }
         }
@@ -146,9 +164,11 @@ async function downloadFile(url: string, dest: string, onProgress?: ProgressCall
         }
       } finally {
         await new Promise<void>((res, rej) => {
+          // 既に落ちているストリームは end() しても 'finish' が来ない（待つと固着する）。
+          if (writeError) { rej(writeError); return }
+          rejectPendingWait = rej
           file.end()
-          file.once('finish', res)
-          file.once('error', rej)
+          file.once('finish', () => { rejectPendingWait = null; res() })
         })
       }
     } catch (err) {

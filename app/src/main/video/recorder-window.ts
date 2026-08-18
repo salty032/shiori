@@ -72,8 +72,15 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   recorderWindow.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer.getSources({ types: ['screen'] })
       .then((sources) => {
-        const source = sources.find((s) => s.id === pendingDisplaySourceId) ?? sources[0]
-        if (!source) { callback({}); return }
+        // 一致しないときに sources[0] へ落とすと、画面が複数ある環境で**別のモニターを
+        // 丸ごと録って、動画を開くまで気づけない**（そのぶんの撮り直しも効かない）。
+        // 空で返せばレンダラーは getUserMedia + chromeMediaSourceId の退避経路に回り、
+        // recording.ts が解決した ID そのもので録り直すので、録画自体は失われない。
+        const source = sources.find((s) => s.id === pendingDisplaySourceId)
+        if (!source) {
+          console.warn('[recorder] pending display source not in current sources, deferring to fallback path', pendingDisplaySourceId)
+          callback({}); return
+        }
         callback({ video: source, audio: 'loopback' })
       })
       .catch((err) => {

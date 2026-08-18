@@ -161,3 +161,42 @@ describe('imageStore timeline paging', () => {
     expect(useImageStore.getState().timelineImages.at(-1)?.id).toBe(201)
   })
 })
+
+// 読み込み失敗を「本当に0件」と取り違えると、画面には初回案内（まだ画像がありません）が
+// 出る。数千枚あるライブラリが消えたようにしか見えないため、失敗は状態として残す。
+describe('1ページ目の読み込み失敗', () => {
+  beforeEach(() => {
+    useFilterStore.setState({ sortOrder: 'date_desc' })
+    useImageStore.setState({ gridImages: [], gridLoadFailed: false })
+  })
+
+  it('失敗したら gridLoadFailed が立ち、追加読み込みは止まる', async () => {
+    ;(window as unknown as { api: unknown }).api = {
+      listImages: vi.fn(async () => { throw new Error('db down') }),
+      countImages: vi.fn(async () => 0),
+    }
+
+    useImageStore.getState().reloadGrid(vi.fn())
+    await vi.waitFor(() => expect(useImageStore.getState().gridLoadFailed).toBe(true))
+    expect(useImageStore.getState().gridHasMore).toBe(false)
+  })
+
+  it('「もう一度読み込む」が成功したら失敗表示は消える', async () => {
+    let fail = true
+    ;(window as unknown as { api: unknown }).api = {
+      listImages: vi.fn(async () => {
+        if (fail) throw new Error('db down')
+        return [img(1), img(2)]
+      }),
+      countImages: vi.fn(async () => 2),
+    }
+
+    useImageStore.getState().reloadGrid(vi.fn())
+    await vi.waitFor(() => expect(useImageStore.getState().gridLoadFailed).toBe(true))
+
+    fail = false
+    useImageStore.getState().reloadGrid(vi.fn())
+    await vi.waitFor(() => expect(useImageStore.getState().gridImages).toHaveLength(2))
+    expect(useImageStore.getState().gridLoadFailed).toBe(false)
+  })
+})

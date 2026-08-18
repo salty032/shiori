@@ -1,6 +1,6 @@
 // ローカルインポート（クリップボード貼り付け・フォルダドロップ）の IPC ハンドラ。
 import { clipboard, nativeImage } from 'electron'
-import { stat, copyFile, writeFile, readdir } from 'fs/promises'
+import { stat, copyFile, writeFile, readdir, unlink } from 'fs/promises'
 import { join, basename, extname } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted } from '../system/windows'
@@ -15,6 +15,11 @@ import { registerCapturedMedia } from '../capture/captured-media'
 import { beginTask, endTask } from '../system/busy'
 
 const IMPORT_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+// nativeImage が確実にデコードできる形式（Electron が対応を明記しているのは PNG / JPEG のみ）。
+// この範囲では「寸法もサムネも取れない＝中身が画像ではない」と断定できるので取り込みを失敗にする。
+// webp / gif を含めてはいけない：nativeImage は読めなくても表示は Chromium が行う（サムネが
+// 無い行は原本を直接表示する）ため、正常なファイルを弾いてしまう。
+const DECODABLE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg'])
 const IMPORT_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 const MAX_IMPORT_FILES = 200
 // インポート動画の尺上限（秒）。録画クリップの上限と同じく著作権対策の割り切りで、
@@ -195,6 +200,15 @@ export function registerImportHandlers(): void {
           const tf = thumbPathFor(destFile)
           try { await createImageThumb(destFile, tf); thumbFile = tf } catch (err) {
             console.warn('[import] createImageThumb failed', err)
+          }
+          // 動画は尺を取れないものを弾いているのに、画像は拡張子だけで通していた。
+          // 中身が画像でないファイル（拡張子だけ .png に変えたもの・転送で壊れたもの）が
+          // 「取り込み ○件」に数えられたまま、開けない項目としてライブラリに残る。
+          // 寸法もサムネも取れなければコピーを消して失敗として返す。
+          if (DECODABLE_IMAGE_EXTS.has(ext) && width === null && thumbFile === null) {
+            await unlink(destFile).catch(() => {})
+            errors.push(`not a valid image: ${basename(rawPath)}`)
+            continue
           }
         } else {
           const tf = thumbPathFor(destFile, '.png')

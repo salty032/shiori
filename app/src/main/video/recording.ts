@@ -88,6 +88,14 @@ export function getRecordingDisplayPixels(): { width: number; height: number } |
   return lastDisplayPixels
 }
 
+// 直近の解決で「どの画面を録るか確定できなかった」か。getDesktopSourceId が立て、
+// 録画開始時に警告として画面へ出す（診断ログではなくその場で読めること）。
+let lastDisplayAmbiguous = false
+
+export function wasRecordingDisplayAmbiguous(): boolean {
+  return lastDisplayAmbiguous
+}
+
 async function getDesktopSourceId(): Promise<string | null> {
   const rect = getBrowserWindowRect()
   if (!rect) return null
@@ -107,7 +115,15 @@ async function getDesktopSourceId(): Promise<string | null> {
   // 丸ごと無駄な待ち時間になる（ホットキーを押してから録画が始まるまでの遅延に直結する）。
   // 0x0 を指定してサムネイル生成を省く。
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
-  const source = sources.find(s => s.display_id === String(edisp.id)) ?? sources[0]
+  const matched = sources.find(s => s.display_id === String(edisp.id))
+  // display_id は環境によって空で返ることがあり、そのとき照合は必ず外れる。
+  // 画面が 1 つなら sources[0] はその画面に決まっているので黙って使ってよい。
+  // 危ないのは「画面が複数あるのに一致しない」場合だけで、ここで sources[0] を
+  // 使うと別のモニターを録った動画が、他と見分けの付かない形でライブラリに並ぶ。
+  // 録画自体は続ける（当たっている可能性もあり、止めると確実に撮り逃す）が、
+  // 保証できないことは画面に出す。
+  lastDisplayAmbiguous = !matched && sources.length > 1
+  const source = matched ?? sources[0]
   return source?.id ?? null
 }
 
@@ -201,6 +217,10 @@ export async function startRecording(): Promise<void> {
     if (!sourceId) {
       sendBrowserNotice('error', t('notice.recordingSourceNotFound'))
       return
+    }
+    if (lastDisplayAmbiguous) {
+      console.warn('[clip] recording display could not be identified among multiple screens')
+      sendBrowserNotice('warning', t('notice.recordingDisplayUncertain'))
     }
 
     const settings = loadSettings()

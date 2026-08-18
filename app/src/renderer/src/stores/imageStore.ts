@@ -73,6 +73,12 @@ type ImageState = {
   // クエリ変更（検索確定・フィルタ変更）による再読込中かどうか。gridLoading は無限スクロールの
   // 追加読み込み中も true になるため区別できず、検索ボックス側のローディング表示にはこちらを使う。
   gridReloading: boolean
+  // 1ページ目の取得に失敗したかどうか。**「読み込めなかった」と「本当に0件」を画面で
+  // 区別するために要る。**トーストは数秒で消えるため、消えた後は初回案内（まだ画像が
+  // ありません／セットアップを始めよう）だけが残り、数千枚あるライブラリが消えたように
+  // しか見えなかった。2ページ目以降（無限スクロールの追加読み込み）は一覧が既に見えていて
+  // 誤解のしようがないので、従来どおりトーストだけにする。
+  gridLoadFailed: boolean
   // --- タイムライン（カーソルページング） ---
   timelineImages: ImageRow[]
   timelineLoading: boolean
@@ -80,6 +86,8 @@ type ImageState = {
   // countImages の真値（ページング途中の timelineImages.length とは別。
   // サイドバーと「表示中 / 全件数」の表示に使う。D-3）
   timelineTotalCount: number | null
+  // gridLoadFailed と同じ役割（タイムライン表示側）。
+  timelineLoadFailed: boolean
   // --- 新着 NEW 表示（裏画面でも即時。消去は前面化後の数秒） ---
   newIds: Set<number>
 
@@ -115,10 +123,12 @@ export const useImageStore = create<ImageState>((set, get) => ({
   gridTotalCount: null,
   gridLoading: false,
   gridReloading: false,
+  gridLoadFailed: false,
   timelineImages: [],
   timelineLoading: false,
   timelineHasMore: true,
   timelineTotalCount: null,
+  timelineLoadFailed: false,
   newIds: new Set(),
 
   loadMoreGrid: async (showToast) => {
@@ -145,7 +155,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
       // 基準にする。表示用配列だけ保留中の行を除外すると、ページングの連続性を保ったまま
       // 削除待ちの行だけを一覧から隠せる（imageStore.ts 冒頭の pendingDeleteIds 参照）。
       const next = pendingDeleteIds.size > 0 ? fetched.filter((img) => !pendingDeleteIds.has(img.id)) : fetched
-      set((s) => ({ gridImages: isFirstPage ? next : [...s.gridImages, ...next] }))
+      set((s) => ({ gridImages: isFirstPage ? next : [...s.gridImages, ...next], gridLoadFailed: false }))
       if (fetched.length > 0) {
         grid.lastCapturedAt = fetched[fetched.length - 1].captured_at
         grid.lastId = fetched[fetched.length - 1].id
@@ -156,7 +166,15 @@ export const useImageStore = create<ImageState>((set, get) => ({
       }
     } catch (err) {
       console.error('[images] loadMore failed', err)
-      if (generation === grid.listGeneration) showToast(t('toast.loadImagesFailed'), 'error')
+      if (generation === grid.listGeneration) {
+        showToast(t('toast.loadImagesFailed'), 'error')
+        // 1ページ目の失敗だけ画面に残す。hasMore も落とすのは、失敗表示のまま無限スクロールが
+        // 同じ失敗を繰り返さないため（「もう一度読み込む」＝reloadGrid が true に戻す）。
+        if (isFirstPage) {
+          grid.hasMore = false
+          set({ gridLoadFailed: true, gridHasMore: false })
+        }
+      }
     } finally {
       if (generation === grid.listGeneration) {
         grid.loading = false
@@ -175,7 +193,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
     grid.lastId = null
     grid.hasMore = true
     grid.loading = false
-    set({ gridHasMore: true, gridReloading: true })
+    set({ gridHasMore: true, gridReloading: true, gridLoadFailed: false })
 
     get().loadMoreGrid(showToast)
 
@@ -207,7 +225,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
       if (generation !== timeline.generation) return
       const filteredRows = pendingDeleteIds.size > 0 ? rows.filter((img) => !pendingDeleteIds.has(img.id)) : rows
       const loadedAfter = isFirstPage ? filteredRows.length : get().timelineImages.length + filteredRows.length
-      set((s) => ({ timelineImages: isFirstPage ? filteredRows : [...s.timelineImages, ...filteredRows] }))
+      set((s) => ({ timelineImages: isFirstPage ? filteredRows : [...s.timelineImages, ...filteredRows], timelineLoadFailed: false }))
       if (rows.length > 0) {
         timeline.lastCapturedAt = rows[rows.length - 1].captured_at
         timeline.lastId = rows[rows.length - 1].id
@@ -217,7 +235,13 @@ export const useImageStore = create<ImageState>((set, get) => ({
       set({ timelineHasMore: timeline.hasMore })
     } catch (err) {
       console.error('[timeline] load failed', err)
-      if (generation === timeline.generation) showToast(t('toast.loadTimelineFailed'), 'error')
+      if (generation === timeline.generation) {
+        showToast(t('toast.loadTimelineFailed'), 'error')
+        if (isFirstPage) {
+          timeline.hasMore = false
+          set({ timelineLoadFailed: true, timelineHasMore: false })
+        }
+      }
     } finally {
       if (generation === timeline.generation) {
         timeline.loading = false
@@ -233,7 +257,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
     timeline.totalCount = null
     timeline.lastCapturedAt = null
     timeline.lastId = null
-    set({ timelineLoading: true, timelineHasMore: true, timelineTotalCount: null })
+    set({ timelineLoading: true, timelineHasMore: true, timelineTotalCount: null, timelineLoadFailed: false })
     get().loadMoreTimeline(showToast)
 
     const generation = timeline.generation

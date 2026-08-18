@@ -40,10 +40,12 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
   // キーボードで操作できなくなる。判定は target の closest ではなく「開いているか」で行う:
   // モーダルを開いた直後などフォーカスがまだ body にある状態では target が
   // パネル外になり、closest 判定だとモーダルへ入る最初の Tab を潰してしまう。
+  //
+  // モーダルの目印は data-modal 属性（各モーダルのパネル div に付けてある）。
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       if (e.key !== 'Tab') return
-      if (document.querySelector('[role="dialog"]')) return
+      if (document.querySelector('[data-modal]')) return
       e.preventDefault()
     }
     window.addEventListener('keydown', handler)
@@ -64,7 +66,7 @@ export function useGlobalKeys(opts: GlobalKeysOptions): void {
     const handler = (e: MouseEvent): void => {
       const el = e.target as HTMLElement | null
       const button = el?.closest?.('button')
-      if (!button || button.closest('[role="dialog"]')) return
+      if (!button || button.closest('[data-modal]')) return
       e.preventDefault()
     }
     window.addEventListener('mousedown', handler)

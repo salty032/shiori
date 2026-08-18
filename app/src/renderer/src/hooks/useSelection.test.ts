@@ -275,7 +275,7 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
     expect(removeImages).toHaveBeenCalledWith(new Set([images[0].id]))
     expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
 
-    await vi.advanceTimersByTimeAsync(4000)
+    await vi.advanceTimersByTimeAsync(15000)
 
     expect(window.api.deleteImagesBulk).toHaveBeenCalledWith([images[0].id])
   })
@@ -294,20 +294,20 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
 
     expect(restoreImages).toHaveBeenCalled()
 
-    await vi.advanceTimersByTimeAsync(10000)
+    await vi.advanceTimersByTimeAsync(20000)
     expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
   })
 
-  it('連続削除では前回分が即座にコミットされる（Undoの猶予をすり抜けない）', async () => {
+  // 以前は次の削除が来た時点で前の分を確定させていたため、続けて2枚消すと1枚目は
+  // もう戻せなかった（画面上は「元に戻す」トーストが消えるだけで、戻せなくなったとは
+  // 分からない）。猶予中の削除は同時に複数持ち、新しい順に戻せる。
+  it('連続削除しても前回分は確定せず、Ctrl+Z で新しい順に戻せる', async () => {
     vi.useFakeTimers()
     const images = makeImages(3)
-    const { result } = setup({ images })
+    const { result, restoreImages } = setup({ images })
 
     act(() => result.current.selectIndex(0))
     act(() => { result.current.deleteSelected() })
-    expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
-
-    // 猶予が明ける前に2件目を削除 → 1件目は即座にコミットされる
     act(() => result.current.selectIndex(1))
     await act(async () => {
       result.current.deleteSelected()
@@ -315,7 +315,34 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
       await Promise.resolve()
     })
 
-    expect(window.api.deleteImagesBulk).toHaveBeenCalledWith([images[0].id])
+    // 1件目は確定していない
+    expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })))
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })))
+    expect(restoreImages).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
+  })
+
+  // トーストは4秒で消えるが、戻せる猶予は15秒。消えた後の手段が Ctrl+Z（文言でも案内）。
+  it('トーストが消えた後でも Ctrl+Z で戻せる', async () => {
+    vi.useFakeTimers()
+    const images = makeImages(3)
+    const { result, restoreImages } = setup({ images })
+
+    act(() => result.current.selectIndex(0))
+    act(() => { result.current.deleteSelected() })
+
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })))
+    expect(restoreImages).toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(window.api.deleteImagesBulk).not.toHaveBeenCalled()
   })
 
   it('削除が確定したらサイドバーの集計を取り直す（消した画像のタグが残らない）', async () => {
@@ -329,7 +356,7 @@ describe('削除フロー（queueDelete → Undo → 猶予明けコミット）
     // 猶予中はまだ DB に反映されていないので取り直さない
     expect(onLibraryChanged).not.toHaveBeenCalled()
 
-    await vi.advanceTimersByTimeAsync(4000)
+    await vi.advanceTimersByTimeAsync(15000)
 
     expect(onLibraryChanged).toHaveBeenCalledTimes(1)
   })

@@ -96,9 +96,9 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
 
   return (
     <div style={s.overlay} onMouseDown={onClose} data-keep-selection>
-      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="quick-tag-title">
+      <div style={s.panel} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
-          <span id="quick-tag-title" style={s.title}>{t('tag.addTitle')}</span>
+          <span style={s.title}>{t('tag.addTitle')}</span>
           <span style={s.target}>{targetLabel}</span>
         </div>
         <input
@@ -141,7 +141,7 @@ const s: Record<string, React.CSSProperties> = {
   target: { minWidth: 0, color: 'var(--text-muted)', fontSize: font.xs, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   input: { width: '100%', height: 36, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 11px', fontSize: font.base, outline: 'none' },
   suggestions: { marginTop: 6, maxHeight: 220, overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const, gap: 2 },
-  suggestion: { width: '100%', minHeight: 28, padding: '5px 9px', border: 'none', borderRadius: radius.sm, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
+  suggestion: { width: '100%', minHeight: 28, padding: '5px 9px', border: 'none', borderRadius: radius.md, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
   suggestionActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   normalizePreview: { marginTop: 6, padding: '2px 2px 0', fontSize: font.xs, color: 'var(--text-muted)' },
   hint: { marginTop: 8, padding: '6px 2px 0', borderTop: '1px solid var(--border-default)', fontSize: font.xs, color: 'var(--text-muted)' },

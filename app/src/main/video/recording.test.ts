@@ -75,7 +75,9 @@ vi.mock('../browser/timecode', () => ({
 vi.mock('../browser/browser-notice', () => ({ sendBrowserNotice: vi.fn() }))
 vi.mock('../system/i18n', () => ({ t: (key: string) => key }))
 
-import { finishRecordingState, isCurrentlyRecording, releaseCaptureUi, startRecording } from './recording'
+import { desktopCapturer } from 'electron'
+import { sendBrowserNotice } from '../browser/browser-notice'
+import { finishRecordingState, isCurrentlyRecording, releaseCaptureUi, startRecording, wasRecordingDisplayAmbiguous } from './recording'
 
 function postCaptureCount(): number {
   return broadcastMessage.mock.calls.filter(([msg]) => (msg as { type: string }).type === 'post-capture').length
@@ -132,5 +134,75 @@ describe('プレーヤー UI の復帰（post-capture）', () => {
     broadcastMessage.mockClear()
     releaseCaptureUi()
     expect(postCaptureCount()).toBe(1)
+  })
+})
+
+// 録画する画面が確定できないケース。display_id は環境によって空で返ることがあり、
+// 照合が外れたときに先頭の画面へ落とすと、別のモニターを 30 秒撮った動画が他と
+// 見分けの付かない形で残る。録画は続ける（当たっている可能性もある）が、
+// 保証できないことはログではなく画面へ出す。
+describe('録画する画面が特定できないとき', () => {
+  const getSources = desktopCapturer.getSources as unknown as ReturnType<typeof vi.fn>
+  const notice = sendBrowserNotice as unknown as ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    finishRecordingState()
+    vi.useFakeTimers()
+    notice.mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    finishRecordingState()
+  })
+
+  it('画面が複数あってどれとも一致しないとき、警告を出したうえで録画する', async () => {
+    getSources.mockResolvedValueOnce([
+      { id: 'screen:9:0', display_id: '9' },
+      { id: 'screen:8:0', display_id: '8' },
+    ])
+    await startRecording()
+
+    expect(wasRecordingDisplayAmbiguous()).toBe(true)
+    expect(notice).toHaveBeenCalledWith('warning', 'notice.recordingDisplayUncertain')
+    // 撮り逃しのほうが実害が大きいので、警告を出しても録画自体は止めない。
+    expect(isCurrentlyRecording()).toBe(true)
+  })
+
+  it('画面が 1 つなら、一致しなくても黙って撮る（先頭がその画面に決まっている）', async () => {
+    getSources.mockResolvedValueOnce([{ id: 'screen:9:0', display_id: '' }])
+    await startRecording()
+
+    expect(wasRecordingDisplayAmbiguous()).toBe(false)
+    expect(notice).not.toHaveBeenCalled()
+    expect(isCurrentlyRecording()).toBe(true)
+  })
+
+  it('一致する画面があれば警告を出さない', async () => {
+    getSources.mockResolvedValueOnce([
+      { id: 'screen:9:0', display_id: '9' },
+      { id: 'screen:1:0', display_id: '1' },
+    ])
+    await startRecording()
+
+    expect(wasRecordingDisplayAmbiguous()).toBe(false)
+    expect(notice).not.toHaveBeenCalled()
+  })
+
+  it('前の録画で立った警告フラグを次の録画へ持ち越さない', async () => {
+    getSources.mockResolvedValueOnce([
+      { id: 'screen:9:0', display_id: '9' },
+      { id: 'screen:8:0', display_id: '8' },
+    ])
+    await startRecording()
+    expect(wasRecordingDisplayAmbiguous()).toBe(true)
+
+    finishRecordingState()
+    notice.mockClear()
+    await startRecording()
+
+    expect(wasRecordingDisplayAmbiguous()).toBe(false)
+    expect(notice).not.toHaveBeenCalled()
   })
 })
