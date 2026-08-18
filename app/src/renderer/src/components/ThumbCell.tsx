@@ -48,13 +48,12 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
   const titleLabel = img.title ? cleanTitle(img.title, titleStrip) : ''
   const showNew = isNew || newExiting
   return (
-    // role/aria は表示には一切影響しない付加情報。選択・矢印移動・ビューア起動の実体は
-    // すべて useSelection の window レベルのキーハンドラ側にあるため、ここに tabIndex は
-    // 付けない（付けると Tab がサムネイル全件を巡回して検索欄へ戻れなくなる）。
+    // 選択・矢印移動・ビューア起動の実体はすべて useSelection の window レベルの
+    // キーハンドラ側にあるため、ここに tabIndex は付けない
+    // （付けると Tab がサムネイル全件を巡回して検索欄へ戻れなくなる）。
+    // data-selected は ProductTour が「選択中のサムネイル」を指すための目印。
     <div data-img-id={img.id}
-      role="option"
-      aria-selected={selected}
-      aria-label={titleLabel || t('grid.untitled')}
+      data-selected={selected ? 'true' : undefined}
       style={{ ...s.thumb, ...(hovered ? s.thumbHovered : {}), ...(selected ? s.thumbSelected : {}), ...(isNew ? s.thumbNew : newExiting ? s.thumbNewExit : {}) }}
       onContextMenu={(e) => onContextMenu(e, img.id)}
       onMouseEnter={() => setHovered(true)}
@@ -64,7 +63,7 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
         {/* サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
             フォールバックのプレースホルダに切り替える */}
         {thumbFailed
-          ? <div style={s.thumbFallback} />
+          ? <div style={s.thumbFallback}><span style={s.thumbFallbackText}>{t('thumb.loadFailed')}</span></div>
           : <img src={thumbSrc(img)} style={{ ...s.thumbImg, ...(vertical ? s.thumbImgVertical : {}), opacity: thumbLoaded ? 1 : 0 }} alt="" draggable={false}
               decoding="async" loading="lazy"
               onLoad={(e) => { setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight); setThumbLoaded(true) }}

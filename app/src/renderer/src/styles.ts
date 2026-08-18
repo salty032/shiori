@@ -118,11 +118,15 @@ export const s: Record<string, CSSProperties> = {
   thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
   thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   thumbHovered: { border: '1px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
-  thumbSelected: { outline: '1.5px solid var(--accent)', outlineOffset: '-1.5px', boxShadow: '0 0 0 2px rgba(var(--accent-rgb), 0.22)' },
+  // 選択・NEW の枠は**外側**に出す（枠線が絵に食い込まない）。外へ出るのは光まで含めて 3px で、
+  // タイル同士の隙間 6px（App.tsx の COL_GAP）のちょうど半分。隣り合うタイルを両方選んでも
+  // 光同士が触れるだけで重ならない。**隙間を縮めるならここも縮める。**
+  // 以前は線だけ内側（outlineOffset 負）で光は外側という中途半端な状態だった。
+  thumbSelected: { outline: '1.5px solid var(--accent)', outlineOffset: '0px', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.22)' },
   // 新着 NEW（ウィンドウ表示後の数秒だけ）。選択（インディゴ）と区別できる緑系アクセント。
-  thumbNew: { outline: '1px solid rgba(var(--success-rgb), 0.9)', outlineOffset: '-1px', boxShadow: '0 0 0 2px rgba(var(--success-rgb), 0.3)', animation: 'shioriNewPulse 1.6s ease-in-out infinite' },
+  thumbNew: { outline: '1px solid rgba(var(--success-rgb), 0.9)', outlineOffset: '0px', boxShadow: '0 0 0 3px rgba(var(--success-rgb), 0.3)', animation: 'shioriNewPulse 1.6s ease-in-out infinite' },
   // NEW表示が外れる瞬間（リング/グローをふわっとフェードアウト）
-  thumbNewExit: { outline: '1px solid rgba(var(--success-rgb), 0)', outlineOffset: '-1px', boxShadow: '0 0 0 2px rgba(var(--success-rgb), 0)', transition: 'outline-color 0.9s ease, box-shadow 0.9s ease' },
+  thumbNewExit: { outline: '1px solid rgba(var(--success-rgb), 0)', outlineOffset: '0px', boxShadow: '0 0 0 3px rgba(var(--success-rgb), 0)', transition: 'outline-color 0.9s ease, box-shadow 0.9s ease' },
   // バッジ自体は彩度の高い緑グラデーション地に固定文字色で、どちらのテーマでも
   // そのまま視認できるため意図的にテーマ非依存（var化しない）。
   thumbNewBadge: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: 4, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' },
@@ -136,7 +140,10 @@ export const s: Record<string, CSSProperties> = {
   thumbFocusFrame: { position: 'absolute', inset: -3, zIndex: 6, border: '1px solid var(--text-bright)', borderRadius: 6, pointerEvents: 'none' },
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'opacity 0.15s ease' },
   thumbImgVertical: { objectFit: 'contain' as const },
-  thumbFallback: { width: '100%', height: '100%', display: 'block', background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
+  // サムネが読めなかったとき。**無地で済ませない**——ファイルが消えたのか読み込み中なのかが
+  // 画面から分からず、黙って欠けた状態になる。一番小さいセル（横120px）では文字が折り返す。
+  thumbFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' as const, background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
+  thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 700, textAlign: 'center' as const, lineHeight: 1.35 },
   thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-secondary)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: 2, padding: '0 1px' },
   // 初回ロード中（まだ1枚も届いていない）に実グリッドと同じ寸法で敷くプレースホルダ。

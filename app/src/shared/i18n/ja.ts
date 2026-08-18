@@ -71,6 +71,8 @@ export const ja = {
     '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',
   'notice.recordingSourceNotFound': '録画ソースが見つかりませんでした',
+  'notice.recordingDisplayUncertain':
+    'どの画面を録るか特定できませんでした。別のモニターが録れている可能性があります。',
   'notice.recordingTimeout': '録画処理がタイムアウトしました。もう一度お試しください。',
 
   // ── データ書き出し / 読み込み ─────────────────────────────────
@@ -145,8 +147,8 @@ export const ja = {
   'toast.copyFailed': '画像のコピーに失敗しました',
   'toast.deleting.one': '{count}枚を削除中...',
   'toast.deleting.other': '{count}枚を削除中...',
-  'toast.deleted.one': '画像を削除しました',
-  'toast.deleted.other': '{count}枚を削除しました',
+  'toast.deleted.one': '画像を削除しました（Ctrl+Z でも戻せます）',
+  'toast.deleted.other': '{count}枚を削除しました（Ctrl+Z でも戻せます）',
   'toast.deletedPartial': '{deleted}枚を削除しました。{failed}枚は削除できませんでした。',
   'toast.deleteFailed': '画像を削除できませんでした。ファイルの状態を確認してください。',
   'toast.deleteUndone': '削除を取り消しました',
@@ -264,10 +266,11 @@ export const ja = {
   'grid.noMatchesHint': '検索語を短くするか、絞り込み条件を外すと見つかることがあります。',
   'grid.clearFilters': 'フィルタをクリア',
   'grid.empty': 'まだ画像がありません',
+  'grid.loadFailed': '一覧を読み込めませんでした',
+  'thumb.loadFailed': '画像を読み込めません',
+  'grid.loadFailedHint': '画像が消えたわけではありません。もう一度読み込んでください。繰り返す場合は Shiori を再起動してください。',
+  'grid.reload': 'もう一度読み込む',
   'grid.untitled': 'タイトルなし',
-  // スクリーンリーダー向けのラベル（画面には出ない）
-  'grid.ariaLabel': '画像一覧',
-  'grid.ariaLoading': '画像を読み込み中',
   'timeline.displaying': '{shown} / {total} 件を表示',
   'timeline.loadOlder': 'さらに古い項目を読み込む',
   'timeline.loadNewer': 'さらに新しい項目を読み込む',

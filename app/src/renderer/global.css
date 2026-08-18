@@ -208,7 +208,7 @@ button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
    ContextMenu は再オープン動線があるため出現のみ使う（本体側のコメント参照）。 */
 @keyframes shioriPopoverIn  { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes shioriPopoverOut { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-4px) } }
-@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 2px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 3px rgba(84,214,168,0.55) } }
+@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 3px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 4px rgba(84,214,168,0.55) } }
 /* NEW バッジが消える際のフェードアウト */
 @keyframes shioriNewBadgeOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.78) } }
 /* in-app トーストの出現/消滅。中央寄せは親(toastStack)側の transform で行うため、

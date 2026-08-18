@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { buildTimeline, cleanTitle, computeGridLayout } from './utils'
-import { s } from './styles'
+import { s, color } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import WhatsNewModal from './components/WhatsNewModal'
@@ -683,15 +683,24 @@ export default function App() {
             )}
             {imageList.images.length === 0 && !imageList.loading ? (
               <div style={s.empty}>
-                {filters.hasActiveFilter() ? (
-                  // 0件は「探し方が悪かった」状態なので、ここから抜ける手段を必ず添える。
-                  // 以前は見出し1行だけで、フィルタを外すにはツールバーまで戻る必要があった。
+                {imageList.loadFailed ? (
+                  // **読み込み失敗を「0件」と一緒にしない。** トーストは数秒で消えるため、
+                  // 消えた後は初回案内（まだ画像がありません／セットアップを始めよう）だけが
+                  // 残り、ライブラリが消えたようにしか見えなかった。ここは消えない表示にし、
+                  // 戻る手段（もう一度読み込む）も必ず添える。
+                  <>
+                    <div style={{ ...s.emptyTitle, color: color.danger }}>{t('grid.loadFailed')}</div>
+                    <div style={s.emptyHint}>{t('grid.loadFailedHint')}</div>
+                    <div style={s.emptyActions}>
+                      <button style={s.emptyBtn} onClick={() => imageList.reload()}>{t('grid.reload')}</button>
+                    </div>
+                  </>
+                ) : filters.hasActiveFilter() ? (
+                  // 0件のときに解除ボタンは置かない。絞り込みは検索欄とサイドバーに
+                  // 見えたままなので、外す場所はそこで、ここではない。
                   <>
                     <div style={s.emptyTitle}>{t('grid.noMatches')}</div>
                     <div style={s.emptyHint}>{t('grid.noMatchesHint')}</div>
-                    <div style={s.emptyActions}>
-                      <button style={s.emptyBtn} onClick={() => filters.clearAllFilters()}>{t('grid.clearFilters')}</button>
-                    </div>
                   </>
                 ) : isDemoMode() ? (
                   // Web デモ版で素材が 1 件も無いとき。下のデスクトップ版の初回案内は
@@ -723,22 +732,19 @@ export default function App() {
               // 初回ロード中。ここは以前まったくの空白で、画面下端の「読み込み中...」だけが
               // 手掛かりだった（起動直後に一瞬「空のライブラリ」に見えていた）。実グリッドと
               // 同じ列数・セル高でプレースホルダを敷き、レイアウトが飛ばないようにする。
-              <div role="status" aria-label={t('grid.ariaLoading')} aria-busy="true"
-                style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, ${cellWidth}px)`, columnGap: COL_GAP, rowGap: ROW_GAP }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, ${cellWidth}px)`, columnGap: COL_GAP, rowGap: ROW_GAP }}>
                 {Array.from({ length: Math.min(columns * 3, 24) }, (_, i) => (
                   <div key={i} style={{ ...s.skeletonCell, height: cellHeight, animationDelay: `${(i % columns) * 70}ms` }} />
                 ))}
               </div>
             ) : containerWidth > 0 ? (
-              <div role="listbox" aria-label={t('grid.ariaLabel')} aria-multiselectable="true"
-                style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+              <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
                 {virtualItems.map((vRow) => {
                   const start = vRow.index * columns
                   const rowImages = imageList.images.slice(start, start + columns)
                   return (
-                    // 行は仮想スクロールの都合で挟まっているだけの入れ物。role="presentation" で
-                    // アクセシビリティツリーから外し、listbox の直下に option が並ぶ形を保つ。
-                    <div key={vRow.key} role="presentation"
+                    // 行は仮想スクロールの都合で挟まっているだけの入れ物。
+                    <div key={vRow.key}
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%',
                         transform: `translateY(${vRow.start - gridOffsetTop}px)`,
                         display: 'grid', gridTemplateColumns: `repeat(${columns}, ${cellWidth}px)`, columnGap: COL_GAP }}>
@@ -785,11 +791,6 @@ export default function App() {
               {toast.toasts.map((t) => (
                 <div
                   key={t.id}
-                  // スクリーンリーダー通知。error は割り込み(assertive)、それ以外は polite。
-                  // 拡張のページ内通知（content.js の role="status"）とアプリ側を揃える（U-6）。
-                  role={t.tone === 'error' ? 'alert' : 'status'}
-                  aria-live={t.tone === 'error' ? 'assertive' : 'polite'}
-                  aria-atomic="true"
                   style={{
                     ...s.notificationCard,
                     animation: t.closing ? 'shioriToastOut 0.3s ease-in forwards' : 'shioriToastIn 0.22s ease-out',

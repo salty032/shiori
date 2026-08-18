@@ -79,6 +79,8 @@ export const en: Record<keyof typeof ja, string> = {
     'No video found. Open a video page on a supported site and check that the browser extension is enabled.',
   'notice.recorderPrepareFailed': 'Could not start the recorder. Please try again.',
   'notice.recordingSourceNotFound': 'No recording source found',
+  'notice.recordingDisplayUncertain':
+    'Could not tell which display to record. Another monitor may have been captured.',
   'notice.recordingTimeout': 'Recording timed out. Please try again.',
 
   // ── Library export / import ──────────────────────────────────
@@ -150,8 +152,8 @@ export const en: Record<keyof typeof ja, string> = {
   'toast.copyFailed': 'Could not copy the image',
   'toast.deleting.one': 'Deleting {count} image…',
   'toast.deleting.other': 'Deleting {count} images…',
-  'toast.deleted.one': 'Image deleted',
-  'toast.deleted.other': 'Deleted {count} images',
+  'toast.deleted.one': 'Image deleted (Ctrl+Z also undoes this)',
+  'toast.deleted.other': 'Deleted {count} images (Ctrl+Z also undoes this)',
   'toast.deletedPartial': 'Deleted {deleted}. Could not delete {failed}.',
   'toast.deleteFailed': 'Could not delete the images. Check whether the files are still available.',
   'toast.deleteUndone': 'Delete undone',
@@ -260,10 +262,11 @@ export const en: Record<keyof typeof ja, string> = {
   'grid.noMatchesHint': 'Try a shorter search term, or drop one of the filters.',
   'grid.clearFilters': 'Clear filters',
   'grid.empty': 'No images yet',
+  'grid.loadFailed': 'Could not load the library',
+  'thumb.loadFailed': 'Can’t load image',
+  'grid.loadFailedHint': 'Your images are still there. Try loading again, and restart Shiori if it keeps failing.',
+  'grid.reload': 'Load again',
   'grid.untitled': 'Untitled',
-  // Screen-reader only labels (never rendered visually)
-  'grid.ariaLabel': 'Image library',
-  'grid.ariaLoading': 'Loading images',
   'timeline.displaying': 'Showing {shown} of {total}',
   'timeline.loadOlder': 'Load older items',
   'timeline.loadNewer': 'Load newer items',
