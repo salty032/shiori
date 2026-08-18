@@ -13,7 +13,9 @@ const TRAY = [16, 24, 32]
 // Chrome / Firefox の manifest が要求するサイズ。
 const EXT = [16, 32, 48, 128]
 // .ico に詰めるサイズ。用意された PNG をすべて入れ、OS に選ばせる。
-const ICO = [16, 24, 32, 48, 128]
+// **256 は必須。** electron-builder が 256 未満の .ico を拒否するため、無いとパッケージが
+// 「Icon must be at least 256x256 pixels」で落ちる（テストも型検査も通るので気づけない）。
+const ICO = [16, 24, 32, 48, 128, 256]
 
 // ICO は Vista 以降 PNG 圧縮エントリを扱えるため、デコードも再エンコードもせず
 // PNG をそのまま格納する。こうすると出力される絵は元ファイルとビット単位で同じになる。
