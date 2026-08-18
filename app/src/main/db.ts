@@ -1,8 +1,13 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
+import { existsSync } from 'fs'
 import { join } from 'path'
 import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase, ImageTag, TagWithCount } from '../shared/types'
 import { normalizeSearchText, SEARCH_NORMALIZE_VERSION } from '../shared/normalize'
+import {
+  DatabaseCorruptError, SCHEMA_VERSION, backupDatabase, integrityProblem,
+  pruneBackups, readSchemaVersion, writeSchemaVersion, type SqlRunner
+} from './system/db-maintenance'
 
 let db: Database.Database
 const MAX_LIST_LIMIT = 200
@@ -64,6 +69,8 @@ function buildSearchText(title: string | null | undefined, memo: string | null |
   return `${normalizeSearchText(title ?? '')}\n${normalizeSearchText(memo ?? '')}`
 }
 
+// 列を足すときはここを通す。**足したら db-maintenance.ts の SCHEMA_VERSION も上げること。**
+// 上げないと、作りを変える前の退避（backups/）が取られないまま ALTER が走る。
 function addColumnIfMissing(sql: string): void {
   try {
     db.exec(sql)
@@ -88,9 +95,36 @@ function isCorruptVtabError(err: unknown): boolean {
     (err as { code?: unknown }).code === 'SQLITE_CORRUPT_VTAB'
 }
 
+/** userData 直下の DB 本体。退避・復元の宛先を決めるのに bootstrap 側からも使う */
+export function databasePath(): string {
+  return join(app.getPath('userData'), 'Shiori.db')
+}
+
+// 退避処理が失敗したことをウィンドウ準備後に伝えるための持ち越し。設定ファイルの破損
+// （settings.ts の consumeCorruptSettingsNotice）と同じ持ち方。退避が取れなかったこと自体は
+// 起動を止める理由にならないが、黙っていると「取れているつもり」で使い続けることになる。
+let _backupFailed = false
+
+export function consumeDbBackupFailure(): boolean {
+  const v = _backupFailed
+  _backupFailed = false
+  return v
+}
+
+function sqlRunner(): SqlRunner {
+  return {
+    pragma: (sql) => db.pragma(sql, { simple: true }) as string | number | null,
+    exec: (sql) => { db.exec(sql) }
+  }
+}
+
 export function initDb(): void {
   stmtCache.clear()
-  db = new Database(join(app.getPath('userData'), 'Shiori.db'))
+  const dbPath = databasePath()
+  // 新規インストールかどうかは開く前にしか分からない（new Database が空のファイルを作る）。
+  // 中身の無い DB を退避しても意味が無いので、ここで見ておく。
+  const isNewDatabase = !existsSync(dbPath)
+  db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   // WAL 併用時は NORMAL で十分な耐久性があり、書き込みが速くなる（キャプチャ連打時に効く）
@@ -99,6 +133,32 @@ export function initDb(): void {
   db.pragma('cache_size = -16000')
   // 一時テーブル・ソートをメモリ上で処理（ORDER BY / GROUP BY が速くなる）
   db.pragma('temp_store = MEMORY')
+
+  const runner = sqlRunner()
+  // 開けたことと壊れていないことは別。ここを通さないと、壊れたファイルへ以降の移行と
+  // 書き込みを重ねてしまい、気づいたときには退避も上書き済みになる。壊れていたら
+  // 呼び出し元（bootstrap.ts）が復元を提案するので、ここでは閉じて投げるだけにする。
+  const problem = integrityProblem(runner)
+  if (problem) {
+    db.close()
+    throw new DatabaseCorruptError(problem)
+  }
+
+  // 作りを変える前に 1 世代退避する。以降の CREATE / ALTER が途中で落ちても戻せるように。
+  // 毎起動ではなく、記録済みの版がアプリより古いときだけ（＝実際に作りが変わるときだけ）。
+  const storedVersion = readSchemaVersion(runner)
+  const schemaWillChange = storedVersion < SCHEMA_VERSION
+  if (schemaWillChange && !isNewDatabase) {
+    try {
+      backupDatabase(runner, dbPath, new Date())
+      pruneBackups(dbPath)
+    } catch (err) {
+      // ディスクフル・権限などで退避が取れないこと自体は起動を止める理由にならない。
+      // ただし黙って進むと「退避があるつもり」で使い続けることになるので画面へ出す。
+      console.warn('[db] backup before migration failed', err)
+      _backupFailed = true
+    }
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS images (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -337,6 +397,10 @@ export function initDb(): void {
     }
   })
   backfill()
+
+  // 版の記録は移行が全部通ってから。途中で落ちれば記録は残らず、次回起動で退避から
+  // やり直す（search_normalize_version と同じコミットマーカーの置き方）。
+  if (schemaWillChange) writeSchemaVersion(runner, SCHEMA_VERSION)
 }
 
 // DB の images 行。レンダラー公開用の ImageRow（shared/types.ts）を単一の情報源とし、

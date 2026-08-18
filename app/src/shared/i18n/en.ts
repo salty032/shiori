@@ -54,6 +54,28 @@ export const en: Record<keyof typeof ja, string> = {
     'not work. Please restart Shiori.\n\n' +
     '{detail}',
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
+  'dialog.dbRestore.title': 'Restore the database',
+  'dialog.dbRestore.message': 'Your database is damaged',
+  'dialog.dbRestore.detail':
+    'Shiori can restore the backup taken on {date}.\n\n' +
+    'Tags, memos and timesheet entries added after that will be lost. The damaged file is kept\n' +
+    'in the backups folder, so it can still be examined later.\n\n' +
+    'Your images and videos are separate files and are not affected either way.',
+  'dialog.dbRestore.restore': 'Restore backup',
+  'dialog.dbRestore.quit': 'Quit',
+  'error.dbCorruptNoBackup':
+    'Your database is damaged and there is no backup to restore.\n\n' +
+    'Your images and videos are separate files and are still there. Tags, memos and timesheet\n' +
+    'entries will be lost. Move the file below somewhere safe, then start Shiori again.\n\n' +
+    '{path}',
+  'error.dbRestoreFailed':
+    'Shiori could not restore the database from a backup.\n\n' +
+    'Check free disk space and your antivirus software, then start Shiori again.\n\n' +
+    '{detail}',
+  'notice.dbRestored':
+    'Your database was damaged, so Shiori restored the backup from {date}. Anything added after that is not included.',
+  'notice.dbBackupFailed':
+    'Shiori could not back up your database before changing its structure, so it cannot be rolled back. Check your free disk space.',
   'notice.settingsPersistFailed':
     'Shiori could not write your settings to disk. This change will be lost when you quit. Check your antivirus software and free disk space.',
   'notice.portInUse':
