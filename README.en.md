@@ -59,14 +59,18 @@ Once the extension connects to the app, player info is sent automatically each t
 2. In Firefox, open `about:debugging#/runtime/this-firefox`
 3. Choose "Load Temporary Add-on" and select `manifest.json` inside the folder from step 1
 
-> A temporary add-on is removed when Firefox closes. For ongoing use, install the signed
-> Firefox extension package instead.
+> **A temporary add-on is removed when you close Firefox.**
+> Firefox does not allow unsigned extensions to be installed permanently, so for now you have
+> to repeat steps 2-3 every time you start Firefox (a signed package is not distributed yet).
+> If you would rather not reload it each time, use a Chromium-based browser.
 
 ### 4. Updates
 
 After the first install, new versions download in the background automatically.
 When a download finishes, a banner appears in the app — press "Restart and update" to apply
 it on the spot (no manual downloading or running needed).
+If you close Shiori without pressing it, the downloaded update is applied when you quit, so the
+next start is already on the new version.
 
 ### 5. Turn off your browser's hardware acceleration
 
@@ -163,7 +167,7 @@ AI tagging of your captures.
 - Your captures, clips, metadata, and tags are all stored **locally**
 - There is no feature that uploads your captures, clips, or metadata to any external server
 - Shiori connects to HuggingFace when downloading the model, and to GitHub Releases when checking for and downloading updates
-- On video pages where it is active, the browser extension reads the title, playback position, window position, and URL, and sends them only to the local Shiori app (`ws://127.0.0.1:39821`)
+- On video pages where it is active, the browser extension reads the title, playback position, window position, and URL, and sends them only to the local Shiori app on your own machine (`ws://127.0.0.1`, port 39821; if that port is taken it moves on to 41821, 43821, or 45821)
 
 ---
 
