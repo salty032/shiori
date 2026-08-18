@@ -9,11 +9,16 @@ export const font = {
   xxl: 20,
 } as const
 
-// 角丸トークン（C-1）。sm=メニュー/サジェスト等の小さいポップオーバー、md=モーダル/パネル/入力欄、
-// pill=チップ・トグル等の完全な丸み。既存の 2/3/4/5/999 混在から、少なくともメニュー系はここへ寄せる。
+// 角丸は3種類だけ。以前は 2/3/4/5/6/999 が混在し、同じ役割の部品でも場所ごとに
+// 丸みが違っていた（メニューは3、チップは999、カードは4、通知は5）。
+//   md  = 入力欄・ボタン・カード・メニュー（画面のほとんど）
+//   lg  = モーダル（画面の手前に浮くものだけ大きく取る）
+//   pill= タグ・トグル
+// 例外は「4px の角を持つ要素の外側に出すリング」だけ（サムネのフォーカス枠・ツアーの
+// ハイライト）。外側へ N px ずらしたリングは 4+N にしないと角が合わないので 6 のまま。
 export const radius = {
-  sm: 3,
   md: 4,
+  lg: 8,
   pill: 999,
 } as const
 
@@ -52,7 +57,7 @@ export const color = {
 // スクリム濃度・zIndex・panel のサイズは各モーダルでスプレッド上書きする前提（C-1）。
 export const modal: Record<string, CSSProperties> = {
   overlay: { position: 'fixed' as const, inset: 0, zIndex: 7000, background: 'rgba(var(--scrim-rgb), 0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: 4, boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
+  panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: radius.lg, boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
 }
 
 const LABEL_HEIGHT = 22
@@ -64,27 +69,32 @@ export const s: Record<string, CSSProperties> = {
   // Sidebar+main だけを束ねるラッパー。ビューア（position:absolute, inset:0）はこの中だけを
   // 覆うので、隣の DetailPanel は最初からレイアウト上覆われずビューア表示中も操作できる（P1）。
   viewerHost: { position: 'relative' as const, display: 'flex', flex: 1, minWidth: 0 },
-  sidebar: { background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: font.base, position: 'relative' as const },
-  sidebarResizeHandle: { position: 'absolute' as const, right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
+  sidebar: { background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'visible', fontSize: font.base, position: 'relative' as const },
+  // 掴める幅は見た目の線より広く取る（線は境界の 1px、当たり判定は 8px）。
+  // 4px だと狙って掴む必要があり、掴めないと「動かせないパネル」に見える。
+  // **境界線の真上に置く**（右へ 4px はみ出させて左右 4px ずつ）。内側だけに寄せると、
+  // 掴める側とそうでない側ができて「片側からしか掴めない」感じになる。
+  // はみ出させるため sidebar 側の overflow は visible（中身は sidebarScroll が自前で切る）。
+  sidebarResizeHandle: { position: 'absolute' as const, right: -4, top: 0, bottom: 0, width: 8, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
   sidebarScroll: { flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '18px 14px 12px' },
   sidebarHeaderRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   sidebarBrand: { minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 },
-  sidebarIcon: { flexShrink: 0, borderRadius: 3, display: 'block' },
+  sidebarIcon: { flexShrink: 0, borderRadius: 4, display: 'block' },
   sidebarBrandName: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, letterSpacing: 0 },
   count: { color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700 },
   main: { flex: 1, overflowY: 'scroll', scrollbarGutter: 'stable' as const, padding: '0 20px 18px', position: 'relative', display: 'flex', flexDirection: 'column' as const, gap: 16, background: 'var(--bg-content)' },
   // ドロップ受け口はウィンドウ全体なので、枠も端まで詰める（inset/角丸を入れると
   // 「枠の外側は受け付けない」ように見えてしまうが、実際はそこも受け付ける）。
   dropOverlay: { position: 'absolute' as const, inset: 0, zIndex: 400, pointerEvents: 'none' as const, background: 'rgba(var(--accent-rgb), 0.12)', border: '2px dashed rgba(var(--accent-rgb), 0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dropOverlayText: { fontSize: font.lg, fontWeight: 800, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: 6 },
+  dropOverlayText: { fontSize: font.lg, fontWeight: 800, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: 4 },
   stickyHeader: { position: 'sticky' as const, top: 0, zIndex: 200, background: 'var(--bg-content)', borderBottom: '1px solid rgba(var(--border-rgb), 0.62)', margin: '0 -20px', padding: '12px 20px 9px', display: 'flex', flexDirection: 'column' as const, gap: 8 },
   searchBar: { display: 'flex', alignItems: 'center', gap: 8 },
-  searchInputWrap: { position: 'relative' as const, flex: '1 1 360px', display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 4, minWidth: 260, minHeight: 32, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid rgba(var(--hairline-rgb), 0.72)', borderRadius: 3, padding: '3px 24px 3px 8px', boxShadow: 'inset 0 1px 0 rgba(var(--text-rgb), 0.035)' },
+  searchInputWrap: { position: 'relative' as const, flex: '1 1 360px', display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 4, minWidth: 260, minHeight: 32, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid rgba(var(--hairline-rgb), 0.72)', borderRadius: 4, padding: '3px 24px 3px 8px', boxShadow: 'inset 0 1px 0 rgba(var(--text-rgb), 0.035)' },
   searchInputInner: { flex: '1 1 100px', position: 'relative' as const, display: 'flex', alignItems: 'center', height: 26, minWidth: 100 },
   searchInput: { flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: 0, fontSize: font.sm, outline: 'none' },
   sortBtn: { height: 30, padding: '0 10px', background: 'transparent', border: 'none', borderLeft: '1px solid rgba(var(--hairline-rgb), 0.44)', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  sortMenu: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, padding: 4, zIndex: 500, boxShadow: '0 8px 24px rgba(var(--scrim-rgb), 0.5)', minWidth: 100 },
-  sortMenuItem: { display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none', borderRadius: 2, color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const },
+  sortMenu: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, zIndex: 500, boxShadow: '0 8px 24px rgba(var(--scrim-rgb), 0.5)', minWidth: 100 },
+  sortMenuItem: { display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none', borderRadius: 4, color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const },
   sortMenuItemActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   viewToggle: { position: 'relative' as const, display: 'flex', alignItems: 'center' },
   viewToggleBtn: { position: 'relative' as const, zIndex: 1, width: 38, height: 32, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer' },
@@ -97,11 +107,11 @@ export const s: Record<string, CSSProperties> = {
   segSlider: { position: 'absolute' as const, top: 1, left: 1, height: 30, borderRadius: 4, background: 'rgba(var(--accent-rgb), 0.42)', boxShadow: 'inset 0 0 0 1px rgba(var(--accent-rgb), 0.6), 0 1px 3px rgba(var(--scrim-rgb), 0.35)', pointerEvents: 'none' as const, zIndex: 0, transition: 'transform 0.22s cubic-bezier(.22,1,.36,1), width 0.22s cubic-bezier(.22,1,.36,1)' },
   searchIcon: { flexShrink: 0, width: 14, height: 14, color: 'var(--text-secondary)', pointerEvents: 'none' as const },
   searchSpinner: { flexShrink: 0, width: 14, height: 14, color: 'var(--text-secondary)', pointerEvents: 'none' as const, animation: 'shioriSpin 0.7s linear infinite' },
-  searchPrefixMenu: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.sm, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)' },
+  searchPrefixMenu: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)' },
   searchPrefixItem: { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 30, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const },
   searchDateHint: { padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm },
   searchDateWarning: { padding: '6px 12px', color: 'var(--warning)', fontSize: font.xs },
-  searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), 0.32)', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: 3, display: 'flex', alignItems: 'center' },
+  searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), 0.32)', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: 4, display: 'flex', alignItems: 'center' },
   smartFolderEmpty: { fontSize: font.sm, color: 'var(--text-secondary)', padding: '3px 0 2px', lineHeight: 1.5 },
   smartFolderCreateInput: { flex: 1, minWidth: 0, height: 32, background: 'var(--bg-content)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-primary)', padding: '0 9px', fontSize: font.sm, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const },
   smartFolderAddIconBtn: { width: 32, height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: 4, color: 'var(--success)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 900, lineHeight: 1, boxSizing: 'border-box' as const },
@@ -145,7 +155,7 @@ export const s: Record<string, CSSProperties> = {
   thumbFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' as const, background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
   thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 700, textAlign: 'center' as const, lineHeight: 1.35 },
   thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-secondary)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: 2, padding: '0 1px' },
+  thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: 4, padding: '0 1px' },
   // 初回ロード中（まだ1枚も届いていない）に実グリッドと同じ寸法で敷くプレースホルダ。
   // 以前はここが完全な空白で、画面下の「読み込み中...」だけが手掛かりだった。
   skeletonCell: { background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 4, animation: 'shioriSkeletonPulse 1.4s ease-in-out infinite' },
@@ -160,10 +170,10 @@ export const s: Record<string, CSSProperties> = {
   // 数行の文章を入れるとグリッド幅いっぱいに伸びて 1 行が長くなりすぎる。
   emptyLead: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75, maxWidth: 520, textAlign: 'center' as const },
   loadingMore: { textAlign: 'center', padding: 16, color: 'var(--text-secondary)', fontSize: font.base },
-  filterBtn: { background: 'none', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: font.base, textAlign: 'left' as const, padding: '6px 8px' },
+  filterBtn: { background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: font.base, textAlign: 'left' as const, padding: '6px 8px' },
   smartFolderRow: { width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, cursor: 'grab' },
-  smartFolderRowDragging: { position: 'relative' as const, zIndex: 5, opacity: 0.85, background: 'var(--bg-surface-hover)', border: '1px solid var(--border-strong)', borderRadius: 3, boxShadow: '0 10px 24px rgba(var(--scrim-rgb), 0.5)', cursor: 'grabbing' },
-  smartFolderInsertLine: { height: 2, margin: '2px 0', borderRadius: 2, background: 'var(--accent)', boxShadow: '0 0 0 1px rgba(var(--accent-rgb), 0.18)', transition: 'opacity .08s ease' },
+  smartFolderRowDragging: { position: 'relative' as const, zIndex: 5, opacity: 0.85, background: 'var(--bg-surface-hover)', border: '1px solid var(--border-strong)', borderRadius: 4, boxShadow: '0 10px 24px rgba(var(--scrim-rgb), 0.5)', cursor: 'grabbing' },
+  smartFolderInsertLine: { height: 2, margin: '2px 0', borderRadius: 4, background: 'var(--accent)', boxShadow: '0 0 0 1px rgba(var(--accent-rgb), 0.18)', transition: 'opacity .08s ease' },
   smartFolderBtn: { flex: 1, minWidth: 0, minHeight: 32, display: 'flex', alignItems: 'center', gap: 7, padding: '6px 9px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   smartFolderDeleteBtn: { width: 32, height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, lineHeight: 1 },
   smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.46)', color: 'var(--accent-text)' },
@@ -172,7 +182,7 @@ export const s: Record<string, CSSProperties> = {
   tagLabelActions: { display: 'flex', alignItems: 'center', gap: 8 },
   tagModeBtn: { minWidth: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid var(--border-default)', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800, padding: '0 6px', lineHeight: 1 },
   tagClearBtn: { width: 28, height: 28, padding: 0, justifyContent: 'center', color: 'var(--text-secondary)', lineHeight: 1 },
-  searchSuggestions: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.sm, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)', maxHeight: 200, overflowY: 'auto' as const },
+  searchSuggestions: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)', maxHeight: 200, overflowY: 'auto' as const },
   searchSuggestionItem: { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 30, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' },
   searchSuggestionItemActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   searchSuggestionPlain: { minWidth: 0, color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
@@ -181,7 +191,7 @@ export const s: Record<string, CSSProperties> = {
   searchSuggestionEmpty: { minHeight: 30, padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm, display: 'flex', alignItems: 'center' },
   searchHistoryHeader: { padding: '4px 12px 2px', color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.03em' },
   searchPrefixDivider: { height: 1, margin: '4px 0', background: 'rgba(var(--hairline-rgb), 0.22)' },
-  searchHistoryRemove: { flexShrink: 0, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: 4, color: 'var(--text-muted)', borderRadius: 3 },
+  searchHistoryRemove: { flexShrink: 0, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: 4, color: 'var(--text-muted)', borderRadius: 4 },
   sidebarTagList: { display: 'flex', flexWrap: 'wrap' as const, gap: 6 },
   sidebarTagChip: { maxWidth: '100%', minHeight: 30, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.6)', border: '1px solid var(--border-default)', borderRadius: 999, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   sidebarTagChipText: { display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
@@ -208,7 +218,7 @@ export const s: Record<string, CSSProperties> = {
   sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: 700 },
   sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: 900 },
   sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
-  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid transparent', borderRadius: 5, padding: 2 },
+  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid transparent', borderRadius: 4, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: 6 },
   gearBtn: { flex: 1, height: 34, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid transparent', borderRadius: 4, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
@@ -224,14 +234,14 @@ export const s: Record<string, CSSProperties> = {
   // 動画トリミング(6000)やタグ入力(6100)、確認ダイアログ(7000)の裏で通知が
   // 見えなくなるのを防ぐため。
   toastStack: { position: 'fixed' as const, left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 8000, width: 'max-content', maxWidth: 'calc(100vw - 36px)', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 8, pointerEvents: 'none' as const },
-  // トースト/タスクカードは常に濃色地に明色文字の「エレベーテッド」な見た目で、
-  // ライトモードでも意図的にダーク寄りに統一する（背景に溶け込ませず通知として即座に視認させるため）。
-  // 地が無彩色になったので、この濃色も色を持たせない（色の付いたカードだけが別製品に見えるため）。
-  notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'rgba(20,20,20,0.97)', border: 'none', borderRadius: 5, boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 2px 8px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.045)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: '#f0f0f0' },
-  toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, borderRadius: '5px 0 0 5px', flexShrink: 0, background: '#888888' },
+  // トースト/タスクカードもテーマに従う。以前はライトでも黒い地に白文字で固定しており、
+  // 明るい画面で通知が出た瞬間だけ別のアプリが顔を出したように見えていた。
+  // 「浮いている」ことは色ではなく、枠と濃い影とぼかしで出す（溶け込ませない目的は同じ）。
+  notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: 10, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, boxShadow: '0 12px 32px rgba(var(--scrim-rgb), 0.42), 0 2px 8px rgba(var(--scrim-rgb), 0.3)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: 'var(--text-primary)' },
+  toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, borderRadius: '4px 0 0 4px', flexShrink: 0, background: 'var(--text-secondary)' },
   toastBody: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  toastMessage: { minWidth: 0, color: '#f0f0f0', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
-  toastActionBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(238,238,238,0.08)', border: '1px solid rgba(238,238,238,0.16)', borderRadius: 4, color: '#fbfbfb', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  toastMessage: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
+  toastActionBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: 4, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   toastInfo: {},
   toastSuccess: {},
   toastWarning: {},
@@ -242,11 +252,11 @@ export const s: Record<string, CSSProperties> = {
   toastErrorMark: { background: color.danger },
   taskToast: { width: 'min(340px, calc(100vw - 36px))', flexDirection: 'column' as const, gap: 9 },
   taskHeader: { display: 'flex', alignItems: 'center', gap: 10 },
-  taskLabel: { flex: 1, minWidth: 0, color: '#e6e6e6', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  taskBarTrack: { width: '100%', height: 4, background: 'rgba(52,52,52,0.92)', borderRadius: 999, overflow: 'hidden' },
+  taskLabel: { flex: 1, minWidth: 0, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  taskBarTrack: { width: '100%', height: 4, background: 'rgba(var(--text-rgb), 0.14)', borderRadius: 999, overflow: 'hidden' },
   taskFill: { height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width 0.25s ease' },
-  taskDetail: { flexShrink: 0, color: '#9a9a9a', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
-  taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(238,238,238,0.08)', border: '1px solid rgba(238,238,238,0.16)', borderRadius: 4, color: '#fbfbfb', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  taskDetail: { flexShrink: 0, color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
+  taskCancelBtn: { flexShrink: 0, height: 32, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: 4, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
   // DetailPanel はレイアウト上そもそもこの外側にあるので、ビューア表示中も隠れず操作できる（P1）。
   // overflow:hidden 必須: ズーム時の scale() で拡大された画像は箱をはみ出すが、ビューアは
@@ -267,7 +277,7 @@ export const s: Record<string, CSSProperties> = {
   viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: 24, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, pointerEvents: 'none' as const },
   viewerZoomValue: { color: 'rgba(232,236,248,0.68)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
   filmstrip: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, padding: '30px 80px 18px', background: 'linear-gradient(transparent, rgba(0,0,0,0.82))', zIndex: 1 },
-  filmstripThumb: { width: 64, height: 36, objectFit: 'cover' as const, borderRadius: 3, cursor: 'pointer', border: '2px solid transparent', flexShrink: 0, opacity: 0.6 },
+  filmstripThumb: { width: 64, height: 36, objectFit: 'cover' as const, borderRadius: 4, cursor: 'pointer', border: '2px solid transparent', flexShrink: 0, opacity: 0.6 },
   filmstripThumbPlaceholder: { width: 64, height: 36, border: '2px solid transparent', flexShrink: 0, opacity: 0, pointerEvents: 'none' as const },
   filmstripThumbActive: { border: '2px solid rgba(255,255,255,0.9)', opacity: 1 },
   viewerArrow: { position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, color: '#fff', cursor: 'pointer', zIndex: 1 },

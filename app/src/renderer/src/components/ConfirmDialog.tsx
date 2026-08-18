@@ -80,9 +80,9 @@ export default function ConfirmDialog({
 
   return (
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={() => { if (!busy) close() }}>
-      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
-          <div id="confirm-dialog-title" style={s.title}>{title}</div>
+          <div style={s.title}>{title}</div>
           <button style={s.closeBtn} onClick={close} disabled={busy} title={t('action.close')}><XIcon size={16} /></button>
         </div>
         <div style={s.body}>{message}</div>
@@ -109,8 +109,8 @@ const s: Record<string, React.CSSProperties> = {
   closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   body: { padding: '16px 18px 18px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.65, whiteSpace: 'pre-wrap' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
-  cancelBtn: { height: 34, padding: '0 14px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
-  confirmBtn: { height: 34, padding: '0 14px', border: '1px solid', borderRadius: 3, cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  cancelBtn: { height: 34, padding: '0 14px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  confirmBtn: { height: 34, padding: '0 14px', border: '1px solid', borderRadius: 4, cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
   confirmPrimary: { background: 'rgba(var(--accent-rgb), 0.16)', borderColor: 'rgba(var(--accent-rgb), 0.48)', color: 'var(--accent-text)' },
   confirmDanger: { background: 'rgba(var(--danger-rgb), 0.12)', borderColor: color.dangerBorder, color: color.danger },
 }

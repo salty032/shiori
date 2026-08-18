@@ -75,7 +75,7 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
       action: (
         <div style={s.actionRow}>
           <button style={s.primaryBtn} onClick={() => window.api.showExtensionFolder()}>{t('onboarding.openExtensionFolder')}</button>
-          <span role="status" style={{ ...s.status, ...(extensionConnected ? s.statusLive : state.extensionReady ? s.statusDone : {}) }}>
+          <span style={{ ...s.status, ...(extensionConnected ? s.statusLive : state.extensionReady ? s.statusDone : {}) }}>
             {t(extensionConnected ? 'setup.receiving' : state.extensionReady ? 'setup.detectedBefore' : 'setup.waiting')}
           </span>
         </div>
@@ -87,7 +87,7 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
       body: t('setup.captureBody'),
       detail: t('setup.captureDetail', { hotkey: captureHotkey }),
       action: (
-        <span role="status" style={{ ...s.status, ...(state.firstCaptureDone ? s.statusDone : {}) }}>
+        <span style={{ ...s.status, ...(state.firstCaptureDone ? s.statusDone : {}) }}>
           {t(state.firstCaptureDone ? 'setup.captureDone' : 'setup.captureWaiting')}
         </span>
       ),
@@ -96,10 +96,10 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
 
   return (
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={close}>
-      <div ref={panelRef} style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="setup-guide-title">
+      <div ref={panelRef} style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
           <div>
-            <div id="setup-guide-title" style={s.title}>{t('setup.title')}</div>
+            <div style={s.title}>{t('setup.title')}</div>
             <div style={s.subtitle}>{t('setup.progress', { completed, total: 3 })}</div>
           </div>
           <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
@@ -108,7 +108,7 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
           <div style={s.intro}>{t('setup.intro')}</div>
           {steps.map((step, index) => (
             <section key={index} style={{ ...s.step, ...(step.done ? s.stepDone : {}) }}>
-              <div aria-hidden="true" style={{ ...s.stepNumber, ...(step.done ? s.stepNumberDone : {}) }}>{step.done ? '✓' : index + 1}</div>
+              <div style={{ ...s.stepNumber, ...(step.done ? s.stepNumberDone : {}) }}>{step.done ? '✓' : index + 1}</div>
               <div style={s.stepContent}>
                 <div style={s.stepTitle}>{step.title}</div>
                 <div style={s.stepBody}>{step.body}</div>
@@ -139,7 +139,7 @@ const s: Record<string, React.CSSProperties> = {
   closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   content: { minHeight: 0, overflowY: 'auto', padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: 10 },
   intro: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.65, marginBottom: 2 },
-  step: { display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 5 },
+  step: { display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 4 },
   stepDone: { borderColor: 'rgba(var(--success-rgb), 0.42)', background: 'rgba(var(--success-rgb), 0.045)' },
   stepNumber: { flexShrink: 0, width: 25, height: 25, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: font.sm, fontWeight: 900 },
   stepNumberDone: { background: 'rgba(var(--success-rgb), 0.16)', borderColor: 'rgba(var(--success-rgb), 0.5)', color: 'var(--success)' },
@@ -158,5 +158,5 @@ const s: Record<string, React.CSSProperties> = {
   tourBtn: { padding: 0, background: 'transparent', border: 'none', color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textDecoration: 'underline' },
   tourBtnDisabled: { color: 'var(--text-muted)', cursor: 'not-allowed', textDecoration: 'none' },
   tourHint: { marginTop: 3, color: 'var(--text-muted)', fontSize: font.xs },
-  closeAction: { flexShrink: 0, height: 34, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: 3, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  closeAction: { flexShrink: 0, height: 34, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: 4, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
 }

@@ -50,8 +50,6 @@ export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={checked}
       style={{ ...s.toggleSwitch, ...(checked ? s.toggleSwitchOn : {}) }}
       onClick={() => onChange(!checked)}
     >
@@ -200,9 +198,9 @@ export default function SettingsModal(p: Props) {
 
   return (
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={closeSettings}>
-      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
-          <span id="settings-modal-title" style={s.title}>{t('menu.settings')}</span>
+          <span style={s.title}>{t('menu.settings')}</span>
           <button style={s.close} onClick={closeSettings} title={t('action.close')}><XIcon size={17} /></button>
         </div>
 
@@ -657,7 +655,7 @@ export default function SettingsModal(p: Props) {
 //    以前は addBtn/sizeBtn/cancelBtn/deleteBtn が全部別の padding と font-size を持っていた。
 const btnBase: React.CSSProperties = {
   height: 32, boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  flexShrink: 0, padding: '0 14px', borderRadius: radius.sm, fontSize: font.base, fontWeight: 700,
+  flexShrink: 0, padding: '0 14px', borderRadius: radius.md, fontSize: font.base, fontWeight: 700,
   cursor: 'pointer', whiteSpace: 'nowrap' as const,
 }
 
@@ -666,7 +664,7 @@ export const s: Record<string, React.CSSProperties> = {
   panel: { ...modal.panel, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
   sidebar: { width: 124, padding: '8px 10px', gap: 2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
-  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: 3, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
+  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
   tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: 700 },
   tabContent: { overflowY: 'auto' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
   title: { fontSize: font.xxl, fontWeight: 800, color: 'var(--text-bright)' },
@@ -686,7 +684,7 @@ export const s: Record<string, React.CSSProperties> = {
   hotkeyBadge: { ...btnBase, cursor: 'default', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', fontFamily: 'monospace', fontWeight: 400 },
   // hotkeyBadge と同じ「値そのものを見せる枠」。パスは省略すると意味を失う（どこか分からなく
   // なるのが元の問題）ので、切らずに折り返して全文を出し、選択してコピーできるようにする。
-  pathBox: { flex: 1, minWidth: 0, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.sm, color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: font.sm, lineHeight: 1.5, wordBreak: 'break-all' as const, userSelect: 'text' as const },
+  pathBox: { flex: 1, minWidth: 0, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: font.sm, lineHeight: 1.5, wordBreak: 'break-all' as const, userSelect: 'text' as const },
   // 使用量の数値。行の左は hint（説明側）なので、右の数字だけ primary で拾えるようにする。
   usageValue: { fontSize: font.base, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' as const },
   hotkeyCapture: { ...btnBase, cursor: 'text', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--accent-text)', fontFamily: 'monospace', fontWeight: 400, minWidth: 140, outline: 'none' },
@@ -699,19 +697,19 @@ export const s: Record<string, React.CSSProperties> = {
   statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'rgba(var(--border-rgb), 0.6)' },
   statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
   inputRow: { display: 'flex', gap: 8 },
-  input: { flex: 1, height: 32, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
+  input: { flex: 1, height: 32, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
   actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), 0.45)', color: 'var(--accent-text)' },
   patternEmpty: { color: 'var(--text-secondary)', fontSize: font.base },
   patternList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
-  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.sm, padding: '6px 10px' },
+  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.md, padding: '6px 10px' },
   code: { fontFamily: 'monospace', fontSize: font.sm, color: 'var(--text-secondary)', flex: 1 },
   removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 },
   deleteBtn: { ...btnBase, background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, color: color.danger },
   cancelBtn: { ...btnBase, background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' },
   progressWrap: { display: 'flex', alignItems: 'center', gap: 8 },
-  progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', background: 'var(--accent)', borderRadius: 2, transition: 'width 0.3s' },
+  progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', background: 'var(--accent)', borderRadius: 4, transition: 'width 0.3s' },
   progressLabel: { color: 'var(--text-secondary)', fontSize: font.sm, width: 36, textAlign: 'right' as const },
   statusLine: { fontSize: font.sm, fontWeight: 700 },
   statusLineOk: { color: 'var(--success)' },

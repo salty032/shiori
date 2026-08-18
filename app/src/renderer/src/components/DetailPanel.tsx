@@ -597,7 +597,9 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
 
 const s: Record<string, React.CSSProperties> = {
   panel: { background: 'var(--bg-page)', borderLeft: '1px solid var(--border-default)', flexShrink: 0, display: 'flex', flexDirection: 'column', position: 'relative' as const },
-  resizeHandle: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
+  // 当たり判定は 8px。ただし**外へは出さない**（サイドバー側とは違う）。このパネルの左隣は
+  // 一覧のスクロールバー（10px）で、外へ張り出すとバーのつまみが掴めなくなる。
+  resizeHandle: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 8, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
   // scrollbar-gutter: stable — スクロールバーの有無でコンテンツ幅が変わると、
   // 画像(短い→バー無し)と動画(バー分長い→スクロールバー出現)で calc(100%-20px) の基準が
   // ズレて右端が合わなくなる。gutter を常に確保して幅を一定にし、画像/動画を厳密に揃える。
@@ -653,6 +655,6 @@ const s: Record<string, React.CSSProperties> = {
   multiHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   multiCount: { color: 'var(--text-secondary)', fontSize: font.lg },
   multiClearBtn: { flexShrink: 0, padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 700 },
-  showInFolderBtn: { width: '100%', height: 34, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 3, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
-  deleteActionBtn: { width: '100%', height: 34, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: 3, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  showInFolderBtn: { width: '100%', height: 34, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  deleteActionBtn: { width: '100%', height: 34, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: 4, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
 }

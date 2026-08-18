@@ -89,7 +89,7 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  flyout: { position: 'fixed' as const, width: FLYOUT_WIDTH, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
+  flyout: { position: 'fixed' as const, width: FLYOUT_WIDTH, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: 14, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
   heading: { fontSize: font.sm, fontWeight: 800, color: 'var(--accent-text)' },
   group: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
   groupTitle: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
@@ -100,6 +100,6 @@ const s: Record<string, React.CSSProperties> = {
   // 説明側だけを縮ませる（キーは省略されると意味を失うため flexShrink: 0）。
   desc: { flex: '1 1 auto', minWidth: 0, fontSize: font.xs, color: 'var(--text-primary)', lineHeight: 1.5 },
   keys: { flexShrink: 0, display: 'flex', flexWrap: 'wrap' as const, justifyContent: 'flex-end', gap: 4, maxWidth: '58%' },
-  key: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--accent-text)', background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 3, padding: '1px 7px', whiteSpace: 'nowrap' as const },
+  key: { fontFamily: 'monospace', fontSize: font.xs, color: 'var(--accent-text)', background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: 4, padding: '1px 7px', whiteSpace: 'nowrap' as const },
   hint: { fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 },
 }

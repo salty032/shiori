@@ -78,12 +78,12 @@ export const vcSeekTrackStyle: React.CSSProperties = {
 // 下に落とす影で映像から浮かせる。薄いスクリムでも溝の輪郭が残るのはこの影のおかげ。
 export const vcSeekBarStyle: React.CSSProperties = {
   position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
-  height: 6, background: 'rgba(255,255,255,0.46)', borderRadius: 3, pointerEvents: 'none',
+  height: 6, background: 'rgba(255,255,255,0.46)', borderRadius: 4, pointerEvents: 'none',
   boxShadow: '0 1px 3px rgba(0,0,0,0.55)'
 }
 export const vcSeekFillStyle: React.CSSProperties = {
   position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-  height: 6, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 3, pointerEvents: 'none'
+  height: 6, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 4, pointerEvents: 'none'
 }
 export const vcSeekThumbStyle: React.CSSProperties = {
   position: 'absolute', top: '50%', marginTop: -6, width: 12, height: 12, borderRadius: 999,
@@ -274,7 +274,6 @@ export function LoopButton({ loop, onToggle }: { loop: boolean; onToggle: () => 
     <button
       style={{ ...vcBtnStyle, ...(loop ? s.vcLoopActive : {}) }}
       onClick={onToggle}
-      aria-pressed={loop}
     >
       <LoopIcon />
     </button>
@@ -297,14 +296,14 @@ const s: Record<string, React.CSSProperties> = {
   // 手で送っているのか自動なのかが画面から区別できないと迷う）。
   vcStepBtnActive: { color: 'var(--accent-text)' },
   vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: 4, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcStepItem: { background: 'none', border: 'none', borderRadius: 3, color: 'rgba(255,255,255,0.82)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
+  vcStepItem: { background: 'none', border: 'none', borderRadius: 4, color: 'rgba(255,255,255,0.82)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
   vcStepItemActive: { background: 'rgba(var(--accent-rgb), 0.22)', color: 'var(--accent-text)' },
   // 選択肢ではなく見出しなので、押せる行と同じ明るさにしない（押せるものと見分けが付かなくなる）。
   vcStepGroup: { display: 'flex', alignItems: 'center', gap: 5, padding: '4px 4px 2px', color: 'rgba(255,255,255,0.5)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
   vcStepRule: { flex: 1, height: 1, background: 'rgba(255,255,255,0.16)' },
   vcLoopActive: { color: 'var(--accent-text)' },
   vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcVolTrack: { position: 'relative', width: 6, height: 60, background: '#272c3a', borderRadius: 3, cursor: 'pointer', flexShrink: 0 },
-  vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 3 },
+  vcVolTrack: { position: 'relative', width: 6, height: 60, background: '#272c3a', borderRadius: 4, cursor: 'pointer', flexShrink: 0 },
+  vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 4 },
   vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: 999, background: 'var(--accent-text)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
 }

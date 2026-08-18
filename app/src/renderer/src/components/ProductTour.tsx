@@ -12,7 +12,7 @@ type Props = {
 
 const STEPS: { selector: string; title: MessageKey; body: MessageKey; event?: 'interact' }[] = [
   { selector: '[data-img-id]', title: 'tour.selectTitle', body: 'tour.selectBody' },
-  { selector: '[aria-selected="true"]', title: 'tour.openTitle', body: 'tour.openBody' },
+  { selector: '[data-selected="true"]', title: 'tour.openTitle', body: 'tour.openBody' },
   { selector: '[data-tour="viewer-close"]', title: 'tour.viewerTitle', body: 'tour.viewerBody' },
   { selector: '[data-tour="memo-input"]', title: 'tour.memoTitle', body: 'tour.memoBody', event: 'interact' },
   { selector: '[data-tour="timeline-toggle"]', title: 'tour.timelineTitle', body: 'tour.timelineBody' },
@@ -62,9 +62,9 @@ export default function ProductTour({ step, onAdvance, onExit }: Props) {
   }, [definition, onAdvance])
 
   return (
-    <div style={s.host} aria-live="polite">
+    <div style={s.host}>
       {rect && <div style={{ ...s.highlight, left: rect.left - 5, top: rect.top - 5, width: rect.width + 10, height: rect.height + 10 }} />}
-      <div style={s.card} role="status">
+      <div style={s.card}>
         <div style={s.progress}>{t('tour.progress', { current: step + 1, total: STEPS.length })}</div>
         <div style={s.title}>{t(definition.title)}</div>
         <div style={s.body}>{t(definition.body)}</div>
@@ -81,12 +81,12 @@ export default function ProductTour({ step, onAdvance, onExit }: Props) {
 const s: Record<string, React.CSSProperties> = {
   host: { position: 'fixed', inset: 0, zIndex: 6500, pointerEvents: 'none' },
   highlight: { position: 'fixed', border: '2px solid var(--accent)', borderRadius: 6, boxShadow: '0 0 0 4px rgba(var(--accent-rgb), 0.18), 0 0 24px rgba(var(--accent-rgb), 0.42)', pointerEvents: 'none', transition: 'left .12s ease, top .12s ease, width .12s ease, height .12s ease' },
-  card: { position: 'fixed', left: '50%', bottom: 22, transform: 'translateX(-50%)', width: 390, maxWidth: 'calc(100vw - 40px)', padding: '14px 16px', boxSizing: 'border-box', background: 'rgba(18,21,30,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, boxShadow: '0 16px 42px rgba(0,0,0,.55)', color: '#eef2ff', pointerEvents: 'auto' },
+  card: { position: 'fixed', left: '50%', bottom: 22, transform: 'translateX(-50%)', width: 390, maxWidth: 'calc(100vw - 40px)', padding: '14px 16px', boxSizing: 'border-box', background: 'rgba(18,21,30,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, boxShadow: '0 16px 42px rgba(0,0,0,.55)', color: '#eef2ff', pointerEvents: 'auto' },
   progress: { color: '#8e9ab2', fontSize: font.xs, fontWeight: 800 },
   title: { marginTop: 4, color: '#f7f9ff', fontSize: font.base, fontWeight: 900 },
   body: { marginTop: 5, color: '#b7c0d2', fontSize: font.sm, lineHeight: 1.55 },
   actions: { minHeight: 25, marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 },
   exit: { padding: 0, background: 'transparent', border: 'none', color: '#8e9ab2', cursor: 'pointer', fontSize: font.xs, textDecoration: 'underline' },
   waiting: { marginLeft: 'auto', color: '#8e9ab2', fontSize: font.xs, fontWeight: 700 },
-  next: { marginLeft: 'auto', height: 28, padding: '0 10px', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 3, color: '#eef2ff', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
+  next: { marginLeft: 'auto', height: 28, padding: '0 10px', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 4, color: '#eef2ff', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
 }

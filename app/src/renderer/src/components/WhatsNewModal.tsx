@@ -46,9 +46,9 @@ export default function WhatsNewModal({ version, notes, onClose }: Props) {
 
   return (
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={close}>
-      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="whats-new-title">
+      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
-          <div id="whats-new-title" style={s.title}>{t('whatsNew.title', { version })}</div>
+          <div style={s.title}>{t('whatsNew.title', { version })}</div>
           <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
         </div>
         <ul style={s.list}>
@@ -73,5 +73,5 @@ const s: Record<string, React.CSSProperties> = {
   list: { margin: 0, padding: '16px 18px 18px 34px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75, maxHeight: '50vh', overflowY: 'auto' },
   item: { marginBottom: 4 },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
-  closeAction: { height: 34, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: 3, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  closeAction: { height: 34, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: 4, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
 }

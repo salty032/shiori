@@ -131,7 +131,11 @@
 *::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
-body { background: var(--bg-page); color: var(--text-primary); font-family: system-ui, sans-serif; }
+/* Windows での日本語と英数字の組み合わせを固定する。system-ui だけだと、環境によって
+   英数字が Segoe UI・日本語が別の書体という組み合わせが変わり、字面の重さが揃わない。
+   Win11 = Segoe UI Variable Text + Yu Gothic UI、Win10 = Segoe UI + Yu Gothic UI、
+   それ以外（Web デモ）は system-ui へ落ちる。 */
+body { background: var(--bg-page); color: var(--text-primary); font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', Meiryo, system-ui, sans-serif; }
 input::placeholder,
 textarea::placeholder { color: var(--text-muted); }
 

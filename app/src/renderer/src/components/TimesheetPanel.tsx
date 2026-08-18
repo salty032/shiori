@@ -204,14 +204,15 @@ const st: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column', position: 'relative',
     color: c.ink, fontSize: 10, fontVariantNumeric: 'tabular-nums',
   },
-  resizeHandle: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize', zIndex: 10, userSelect: 'none' },
+  // 詳細パネルと同じ。左隣のスクロールバーを潰さないよう外へは出さない。
+  resizeHandle: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 8, cursor: 'col-resize', zIndex: 10, userSelect: 'none' },
   head: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
     padding: '8px 10px', background: c.headBand, borderBottom: `1px solid ${c.frame}`,
     flexShrink: 0, color: c.headText,
   },
   copyBtn: {
-    padding: '4px 10px', background: '#fff', border: `1px solid ${c.frame}`, borderRadius: 2,
+    padding: '4px 10px', background: '#fff', border: `1px solid ${c.frame}`, borderRadius: 4,
     color: c.ink, fontSize: font.xs, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
   },
   closeBtn: {

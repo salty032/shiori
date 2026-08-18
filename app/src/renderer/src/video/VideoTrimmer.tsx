@@ -680,7 +680,7 @@ const s: Record<string, React.CSSProperties> = {
   // 子なので、ドラッグで left% が動けば一緒に動く（追加の ref を持たなくてよい）。
   timelineWrap: { padding: '26px 16px 0', flexShrink: 0 },
   timeline: { position: 'relative', height: 52, background: 'var(--bg-inset-strong)', border: '1px solid var(--border-default)', cursor: 'crosshair', borderRadius: radius.md },
-  timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 3 },
+  timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 4 },
   // 範囲外は「暗くする」だけでなく彩度も落とす。選択範囲だけが色を保つので、
   // どこを切り出すのかがサムネイルの色の有無で一目で分かる。
   timelineDim: { position: 'absolute', top: 0, bottom: 0, background: 'rgba(var(--scrim-rgb), 0.62)', backdropFilter: 'grayscale(1) brightness(0.72)', WebkitBackdropFilter: 'grayscale(1) brightness(0.72)', pointerEvents: 'none' } as React.CSSProperties,
@@ -691,7 +691,7 @@ const s: Record<string, React.CSSProperties> = {
   handleTab: { position: 'absolute', top: -1, bottom: -1, width: 4, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2, boxShadow: '0 0 0 1px rgba(var(--scrim-rgb), 0.55)' },
   handleTabIn: { background: 'var(--success)', borderRadius: '2px 0 0 2px' },
   handleTabOut: { background: 'var(--danger)', borderRadius: '0 2px 2px 0' },
-  handleFlag: { position: 'absolute', bottom: 'calc(100% + 5px)', left: '50%', transform: 'translateX(-50%)', padding: '1px 6px', borderRadius: radius.sm, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, lineHeight: '15px', whiteSpace: 'nowrap' as const },
+  handleFlag: { position: 'absolute', bottom: 'calc(100% + 5px)', left: '50%', transform: 'translateX(-50%)', padding: '1px 6px', borderRadius: radius.md, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, lineHeight: '15px', whiteSpace: 'nowrap' as const },
   handleFlagIn: { background: 'var(--success)', color: 'var(--bg-page)' },
   handleFlagOut: { background: 'var(--danger)', color: 'var(--bg-page)' },
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
@@ -703,17 +703,17 @@ const s: Record<string, React.CSSProperties> = {
   boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 40px 1fr auto', alignItems: 'center', gap: 8, minWidth: 0, padding: '8px 10px', background: 'var(--bg-inset)', border: '1px solid var(--border-default)', borderRadius: radius.md },
   boundaryCardIn: { borderLeft: '3px solid rgba(var(--success-rgb), 0.75)' },
   boundaryCardOut: { borderLeft: '3px solid rgba(var(--danger-rgb), 0.75)' },
-  badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.sm, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textAlign: 'center' as const },
+  badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textAlign: 'center' as const },
   badgeIn: { background: 'rgba(var(--success-rgb), 0.16)', border: '1px solid rgba(var(--success-rgb), 0.5)', color: 'var(--success)' },
   badgeOut: { background: 'rgba(var(--danger-rgb), 0.16)', border: '1px solid rgba(var(--danger-rgb), 0.5)', color: 'var(--danger)' },
   time: { fontSize: font.base, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' as const, letterSpacing: 0.2 },
   frameNum: { fontSize: font.xs, fontWeight: 700, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' as const },
   // コマ送りは 2 つの独立したボタンではなく、枠を共有するセグメントにする
   // （個別のピルが並ぶと右端が揃わずガタついて見えた）。
-  stepper: { justifySelf: 'end', display: 'inline-flex', alignItems: 'stretch', height: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, overflow: 'hidden' },
+  stepper: { justifySelf: 'end', display: 'inline-flex', alignItems: 'stretch', height: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, overflow: 'hidden' },
   stepBtn: { width: 46, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, fontVariantNumeric: 'tabular-nums' as const, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   stepBtnRight: { borderLeft: '1px solid var(--border-strong)' },
-  setBtn: { boxSizing: 'border-box' as const, width: 108, height: 28, padding: 0, borderRadius: radius.sm, cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  setBtn: { boxSizing: 'border-box' as const, width: 108, height: 28, padding: 0, borderRadius: radius.md, cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   setBtnIn: { background: 'rgba(var(--success-rgb), 0.14)', border: '1px solid rgba(var(--success-rgb), 0.45)', color: 'var(--success)' },
   setBtnOut: { background: 'rgba(var(--danger-rgb), 0.14)', border: '1px solid rgba(var(--danger-rgb), 0.45)', color: 'var(--danger)' },
   infoRow: { display: 'flex', alignItems: 'center', gap: 12, minHeight: 18 },
@@ -727,7 +727,7 @@ const s: Record<string, React.CSSProperties> = {
   // var(--accent) のベタ塗り＋白文字で、明るい藤色に白を載せるためコントラストが約 2:1 しか
   // 出ず濁って見えていた（かつアプリ内で唯一の見た目でもあった）。ティント地＋アクセント文字なら
   // 地に対して文字が十分明るく、ライト/ダークどちらでも成立する。
-  cancelBtn: { boxSizing: 'border-box' as const, height: 34, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.sm, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
-  trimBtn: { boxSizing: 'border-box' as const, height: 34, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.sm, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  cancelBtn: { boxSizing: 'border-box' as const, height: 34, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  trimBtn: { boxSizing: 'border-box' as const, height: 34, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
   trimDisabled: { opacity: 0.4, cursor: 'not-allowed' },
 }
