@@ -16,9 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 開発機と同じ Node に揃える。**22 のままだと落ちる**——退避・復元のテストが
+      # node:sqlite を使っており、これが素で読めるのは 24 から（22 では実験扱いで
+      # フラグが要る）。手元では通り CI だけが落ちるので、原因の見当が付きにくい。
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: app/package-lock.json
 
