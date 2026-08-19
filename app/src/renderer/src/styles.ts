@@ -162,20 +162,31 @@ export const s: Record<string, CSSProperties> = {
   // そのまま視認できるため意図的にテーマ非依存（var化しない）。
   thumbNewBadge: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' },
   thumbNewBadgeExit: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)', animation: 'shioriNewBadgeOut 0.9s ease forwards' },
-  // Ctrl+矢印等の「選択を変えずにフォーカスだけ移動」時だけ表示する目印（呼び出し側で
-  // focused && !selected の時だけ描画）。通常の矢印キー移動は選択とフォーカスが常に同じ
+  // 「選択されていないのに、次のキー操作の起点になっている 1 枚」の目印（呼び出し側で
+  // focused && !selected の時だけ重ねる）。矢印キーでの移動は選択とフォーカスが常に同じ
   // セルを指すため、選択ハイライトと二重表示すると常時点灯してうるさくなる。
-  // outline は selected/new も使うため同じ要素に足すと上書きして消える
-  // （矢印キー移動で選択枠が消えて見えるバグの原因だった）。別要素にして完全に分離する（S7-2）。
-  // 色は surface に対して確実にコントラストが立つ text-bright を使う（テーマが変わっても機能する）。
-  thumbFocusFrame: { position: 'absolute', inset: -3, zIndex: 6, border: '1px solid var(--text-bright)', borderRadius: radius.md + 3, pointerEvents: 'none' },
+  // いま食い違うのは、Ctrl+クリックで選択から外した 1 枚と、範囲選択で選択が別の場所へ
+  // 移った後の 2 つ（Ctrl+矢印は廃止した。useSelection の GRID_NAV_KEYS 節を参照）。
+  //
+  // **選択と同じ形（枠の色＋タイルの地）にして、色だけ変える。** 以前はタイルの 3px 外側に
+  // 白い輪を別要素で描いていた。選択が「タイルを染める」形になったあとは、輪と塗りという
+  // 別の言語が 1 つの一覧に並ぶことになり、同じ「今どこ」を指す印なのに読み方が 2 通りあった。
+  // いまは 選ばれている＝アクセント色 / 起点なだけ＝無彩色、と色だけで読ませる。
+  // 別要素をやめて同じ要素に重ねられるのは、focused && !selected が呼び出し側の条件で
+  // 保証されていて、selected の枠色と衝突しないため（spread の順序も selected が後）。
+  // 濃さは控えめに。アクセントが彩度の低い藍なので、無彩色でも濃いと選択中と見分けが
+  // つかない。ただしホバーの枠（--border-strong）まで落とすと今度はホバーと紛れる。
+  thumbFocused: { border: '2px solid rgba(var(--text-rgb), 0.45)', background: 'rgba(var(--text-rgb), 0.055)' },
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'opacity 0.15s ease' },
   thumbImgVertical: { objectFit: 'contain' as const },
   // サムネが読めなかったとき。**無地で済ませない**——ファイルが消えたのか読み込み中なのかが
   // 画面から分からず、黙って欠けた状態になる。一番小さいセル（横120px）では文字が折り返す。
   thumbFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' as const, background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
   thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 700, textAlign: 'center' as const, lineHeight: 1.35 },
-  thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-secondary)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  // 題名は本文よりわずかに落とす（--text-label）。以前は --text-secondary で、サムネイルを
+  // 大きくしてからは薄すぎて読めなかった。逆に本文と同じ濃さまで上げると明るすぎる。
+  // 選択中はさらに一段明るくするので（thumbLabelSelected）、濃さの段は 2 つ残る。
+  thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-label)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: radius.sm, padding: '0 1px' },
   // 初回ロード中（まだ1枚も届いていない）に実グリッドと同じ寸法で敷くプレースホルダ。
   // 以前はここが完全な空白で、画面下の「読み込み中...」だけが手掛かりだった。
@@ -216,18 +227,24 @@ export const s: Record<string, CSSProperties> = {
   sidebarTagList: { display: 'flex', flexWrap: 'wrap' as const, gap: 6 },
   sidebarTagChip: { maxWidth: '100%', minHeight: 30, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.6)', border: '1px solid var(--border-default)', borderRadius: 999, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   sidebarTagChipText: { display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  // 手動=緑。**AI には色を持たせない**（非選択は灰）。
-  // 藍はアクセント色で、選択・フォーカス・進捗・CTA に使っている。AIタグを常時その色にすると、
-  // 画面じゅうで AI タグだけがブランド色を持つことになり「AI がこのアプリの主役」に見えていた。
-  // 選択中だけは由来にかかわらずはっきり色が付く（藍＝選択中、はアプリ全体で共通）。
-  // 非選択=点線、選択=実線という非色の手掛かりも併せて残す。
-  sidebarTagChipManual: { background: 'rgba(var(--success-rgb), 0.05)', border: '1px dashed rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
-  sidebarTagChipActive: { background: 'rgba(var(--success-rgb), 0.18)', border: '1px solid rgba(var(--success-rgb), 0.6)', color: 'var(--success)' },
+  // **由来は色、選択は塗りつぶし。** 手動=緑、AI=灰（無彩色）で、これは選んでいても
+  // 変わらない。選んだかどうかは「地が塗ってあるか」で読む——非選択は地が完全に透明で
+  // 点線の枠だけ、選択は地をしっかり塗って枠も実線になる。
+  //
+  // 一度は「非選択は由来にかかわらず無彩色」にしたが、そうすると由来を枠線の色だけが
+  // 背負うことになり、手動と AI が見分けられなくなった。逆に濃さだけで選択を示していた
+  // 頃（非選択も選択も緑で、地の濃さが 0.05 と 0.18）は、選択が読めなかった。
+  // **同じ手掛かりに 2 つの意味を持たせないこと。** 色＝由来、塗り＝選択で分けてある。
+  //
+  // AI に藍を持たせないのは、藍がアクセント色（選択・フォーカス・進捗・CTA）で、
+  // AI タグを常時その色にすると「AI がこのアプリの主役」に見えていたため。
+  sidebarTagChipManual: { background: 'transparent', border: '1px dashed rgba(var(--success-rgb), 0.5)', color: 'var(--tag-manual)' },
+  sidebarTagChipActive: { background: 'rgba(var(--success-rgb), 0.3)', border: '1px solid rgba(var(--success-rgb), 0.75)', color: 'var(--tag-manual)' },
   sidebarTagChipAi: { background: 'transparent', border: '1px dashed var(--border-strong)', color: 'var(--text-secondary)' },
-  sidebarTagChipAiActive: { background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.62)', color: 'var(--accent-text)' },
+  sidebarTagChipAiActive: { background: 'rgba(var(--accent-rgb), 0.3)', border: '1px solid rgba(var(--accent-rgb), 0.75)', color: 'var(--accent-text)' },
   // TagEditor と DetailPanel の一括編集で同一定義が重複していたタグチップ／追加ボタン（C-2）。
   // 色 = 由来（緑=手動 / 灰=AI）を単一/一括/サイドバーで一貫させるため、AI版もここへ集約。
-  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: 999, color: 'var(--success)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
+  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: 999, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
   tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
   addTagChip: { height: 32, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer', lineHeight: 1 },
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },

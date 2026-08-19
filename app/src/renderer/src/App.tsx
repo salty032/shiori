@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { buildTimeline, cleanTitle, computeGridLayout } from './utils'
+import { buildTimeline, cleanTitle, computeGridLayout, createSoftScroller } from './utils'
 import { s, color } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
@@ -179,6 +179,7 @@ export default function App() {
   const { columns: timelineColumns } = computeGridLayout(containerWidth, settings.settings.thumbnailSize, TIMELINE_CELL_GAP)
   const navigationColumnsRef = useLatestRef(viewMode === 'timeline' ? timelineColumns : columns)
 
+  const softScrollTo = useMemo(() => createSoftScroller(), [])
   const virtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => mainRef.current,
@@ -196,8 +197,20 @@ export default function App() {
       timelineViewRef.current?.scrollToFlatIndex(idx)
       return
     }
-    virtualizer.scrollToIndex(Math.floor(idx / Math.max(1, columns)), { align: 'auto' })
-  }, [columns, viewMode, virtualizer])
+    // 「画面内なら動かない・はみ出ている分だけ最小スクロール」を自前で判定してから
+    // アニメーションさせる（TimelineView.scrollToFlatIndex と同じ形）。
+    // **基準は el.scrollTop（実際の位置）。** virtualizer.scrollOffset は遅れて届くので、
+    // アニメーション中に次のキーが来ると逆方向へ引き返してしまう。
+    const el = mainRef.current
+    if (!el) return
+    const row = Math.floor(idx / Math.max(1, columns))
+    const itemTop = virtualizer.getOffsetForIndex(row, 'start')?.[0] ?? 0
+    const itemBottom = itemTop + rowHeight
+    const current = el.scrollTop
+    const viewSize = el.clientHeight
+    if (itemTop >= current && itemBottom <= current + viewSize) return
+    softScrollTo(el, itemBottom > current + viewSize ? itemBottom - viewSize : itemTop)
+  }, [columns, rowHeight, softScrollTo, viewMode, virtualizer])
 
   const selection = useSelection({
     images: activeImages,

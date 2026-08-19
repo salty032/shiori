@@ -54,11 +54,14 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
     // data-selected は ProductTour が「選択中のサムネイル」を指すための目印。
     <div data-img-id={img.id}
       data-selected={selected ? 'true' : undefined}
-      style={{ ...s.thumb, ...(hovered ? s.thumbHovered : {}), ...(selected ? s.thumbSelected : {}), ...(isNew ? s.thumbNew : newExiting ? s.thumbNewExit : {}) }}
+      style={{ ...s.thumb, ...(hovered ? s.thumbHovered : {}), ...(focused && !selected ? s.thumbFocused : {}), ...(selected ? s.thumbSelected : {}), ...(isNew ? s.thumbNew : newExiting ? s.thumbNewExit : {}) }}
       onContextMenu={(e) => onContextMenu(e, img.id)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onDoubleClick={() => onOpen(index)}>
+      // Ctrl+クリックは選択のトグルなので、外して付け直すと 2 回目が
+      // ダブルクリック扱いになりビューアが開いていた。Shift も同じ（範囲を
+      // 引き直しただけで開く）。修飾キーを押している間は開かない。
+      onDoubleClick={(e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onOpen(index) }}>
       <div style={{ ...s.thumbImgWrap, height: cellHeight, ...(vertical ? s.thumbImgWrapVertical : {}) }}>
         {/* サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
             フォールバックのプレースホルダに切り替える */}
@@ -79,7 +82,6 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
             : <span key={i}>{seg.text}</span>)
           : titleLabel}
       </div>
-      {focused && !selected && <div style={s.thumbFocusFrame} />}
     </div>
   )
 })

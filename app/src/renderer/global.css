@@ -52,6 +52,9 @@
   --text-bright: #e9e9e9;
   --text-secondary: #949494;
   --text-muted: #7e7e7e;
+  /* サムネイルの題名。本文（--text-primary）よりわずかに落とす。絵が主役なので本文と
+     同じ強さだと一覧が文字だらけに見えるが、--text-secondary まで落とすと読めない。 */
+  --text-label: #ababab;
   --text-rgb: 255, 255, 255;
 
   --border-default: #2f2f2f;
@@ -67,6 +70,13 @@
 
   --success: #54d6a8;
   --success-rgb: 34, 197, 145;
+  /* タグの「手動で付けた」を表す緑。--success をそのまま使うと、タグは画面に何十個も
+     並ぶので彩度の高い緑が一面に散って文字がビビッドに見えた。--success 自体は
+     完了トースト等の一瞬出るものに合わせた彩度なので触らず、常時並ぶタグ用に彩度だけ
+     落としたものを別に持つ（枠と地は --success-rgb を薄めて使うので十分おとなしい）。
+     **落としすぎるとくすんで緑に見えなくなる。** --success と、一度振り切った灰緑
+     （ダーク #9dc9b5 / ライト #3f6f5c）の中間で止めてある。 */
+  --tag-manual: #78cfae;
 
   --warning: #d2ad62;
   --warning-rgb: 210, 173, 98;
@@ -96,6 +106,7 @@
   --text-bright: #1e1e1e;
   --text-secondary: #6b6b6b;
   --text-muted: #7a7a7a;
+  --text-label: #5e5e5e;
   --text-rgb: 58, 58, 58;
 
   --border-default: #dcdcdc;
@@ -109,6 +120,7 @@
 
   --success: #167a56;
   --success-rgb: 22, 163, 113;
+  --tag-manual: #2a7459;
 
   --warning: #8a5b12;
   --warning-rgb: 158, 111, 30;
@@ -156,9 +168,31 @@
 }
 /* Windows での日本語と英数字の組み合わせを固定する。system-ui だけだと、環境によって
    英数字が Segoe UI・日本語が別の書体という組み合わせが変わり、字面の重さが揃わない。
-   Win11 = Segoe UI Variable Text + Yu Gothic UI、Win10 = Segoe UI + Yu Gothic UI、
-   それ以外（Web デモ）は system-ui へ落ちる。 */
-body { background: var(--bg-page); color: var(--text-primary); font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', Meiryo, system-ui, sans-serif; }
+
+   **英数字だけ、太字のときに 1 段細い面（Semibold）を使う。**
+   日本語は游ゴシック UI、英数字は Segoe。游ゴシックは線が細い設計なので、同じ
+   font-weight を指定しても Segoe のほうが常に濃く、「英語だけ太字に見える」状態だった。
+   太さの数値は日本語と英数字の両方に同時にかかるので、数値では詰められない。
+   日本語側を太い書体（BIZ UD）に替える案も試したが、今度は日本語が太すぎた。
+   そこで unicode-range で英数字の範囲だけ別ファミリーに切り出し、600 以上を要求されたら
+   Bold ではなく Semibold を返す。**画面の指定（fontWeight: 700/800）は一切変えない。**
+
+   代償：Windows 以外（Web デモ）では ShioriLatin のどの local() も見つからず、
+   英数字も日本語と同じ system-ui で描かれる。重さの差は元から出ないので実害はない。
+   unicode-range に無い文字（全角英数・記号・矢印）は日本語側の書体が描く。 */
+@font-face {
+  font-family: 'ShioriLatin';
+  src: local('Segoe UI Variable Text'), local('Segoe UI');
+  font-weight: 100 500;
+  unicode-range: U+0000-024F, U+2000-206F, U+20A0-20CF, U+2100-214F;
+}
+@font-face {
+  font-family: 'ShioriLatin';
+  src: local('Segoe UI Variable Text Semibold'), local('Segoe UI Semibold');
+  font-weight: 600 900;
+  unicode-range: U+0000-024F, U+2000-206F, U+20A0-20CF, U+2100-214F;
+}
+body { background: var(--bg-page); color: var(--text-primary); font-family: 'ShioriLatin', 'Yu Gothic UI', Meiryo, system-ui, sans-serif; }
 input::placeholder,
 textarea::placeholder { color: var(--text-muted); }
 

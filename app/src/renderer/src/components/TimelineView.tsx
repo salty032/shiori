@@ -2,7 +2,7 @@ import { memo, forwardRef, useImperativeHandle, useMemo, useState, useEffect } f
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
-import { cleanTitle, computeGridLayout, formatTime, thumbSrc } from '../utils'
+import { cleanTitle, computeGridLayout, createSoftScroller, formatTime, thumbSrc } from '../utils'
 import { font, badgeInset, s as appStyles, radius } from '../styles'
 import { currentLocale, useT } from '../i18n'
 
@@ -108,6 +108,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
     return { rows, groupRowStart, groupStartFlat }
   }, [p.groups, columns, cellHeight])
 
+  const softScrollTo = useMemo(() => createSoftScroller(), [])
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => p.scrollRef.current,
@@ -133,15 +134,17 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
       const rowIndex = groupRowStart[groupIndex] + 1 + Math.floor(within / columns)
       const itemTop = virtualizer.getOffsetForIndex(rowIndex, 'start')?.[0] ?? 0
       const itemBottom = itemTop + cellHeight
-      const viewSize = p.scrollRef.current?.clientHeight ?? 0
-      const current = virtualizer.scrollOffset ?? 0
-      // グリッド側（virtualizer.scrollToIndex({align:'auto'})）と同じ「既に画面内なら
-      // 動かさない・はみ出ている分だけ最小スクロール」という nearest 挙動に合わせる。
+      const el = p.scrollRef.current
+      if (!el) return
+      const viewSize = el.clientHeight
+      // 「既に画面内なら動かさない・はみ出ている分だけ最小スクロール」。基準は実際の
+      // scrollTop にする（virtualizer.scrollOffset は遅れて届く。utils の createSoftScroller
+      // のコメントを参照）。グリッド側（App.tsx の scrollToActiveIndex）と同じ形。
+      const current = el.scrollTop
       if (itemTop >= current && itemBottom <= current + viewSize) return
-      const target = itemBottom > current + viewSize ? itemBottom - viewSize : itemTop
-      virtualizer.scrollToOffset(Math.max(0, target))
+      softScrollTo(el, itemBottom > current + viewSize ? itemBottom - viewSize : itemTop)
     },
-  }), [groupRowStart, groupStartFlat, columns, cellHeight, virtualizer, p.groups])
+  }), [groupRowStart, groupStartFlat, columns, cellHeight, softScrollTo, virtualizer, p.groups, p.scrollRef])
 
   if (p.groups.length === 0) {
     if (p.loading) return <div style={s.empty}>{t('state.loading')}</div>
@@ -214,8 +217,11 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                 <div
                   key={img.id}
                   data-img-id={img.id}
-                  style={{ ...s.thumb, height: cellHeight, ...(isSelected ? appStyles.thumbSelected : {}) }}
-                  onDoubleClick={() => p.onOpen(flatIndex)}
+                  style={{ ...s.thumb, height: cellHeight, ...(flatIndex === p.focusedIndex && !isSelected ? appStyles.thumbFocused : {}), ...(isSelected ? appStyles.thumbSelected : {}) }}
+                  // Ctrl+クリックは選択のトグルなので、外して付け直すと 2 回目が
+                  // ダブルクリック扱いになりビューアが開いていた。Shift も同じ（範囲を
+                  // 引き直しただけで開く）。修飾キーを押している間は開かない。
+                  onDoubleClick={(e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; p.onOpen(flatIndex) }}
                   onContextMenu={(e) => p.onContextMenu(flatIndex, e)}
                 >
                   <TimelineThumbImg img={img} cellHeight={cellHeight} />
@@ -226,7 +232,6 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                       バッジが既にあり、同じ「0:02」形式の時間が 1 セルに 2 つ並ぶと、
                       どちらが何なのか読み取れなくなるため。尺はグリッド側にだけ出す。 */}
                   {img.media_type === 'video' && <div style={appStyles.thumbVideoPlay}>▶</div>}
-                  {flatIndex === p.focusedIndex && !isSelected && <div style={appStyles.thumbFocusFrame} />}
                 </div>
               )
             })}

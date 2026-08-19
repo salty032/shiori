@@ -91,7 +91,7 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
     <div style={styles.tagSection}>
       <div style={{ ...styles.tagLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>{t('tag.sectionTitle')}</span>
-        <span style={styles.tagLegend}><span style={{ color: 'var(--success)' }}>●</span> {t('tag.legendManual')}　<span style={{ color: 'var(--text-secondary)' }}>●</span> {t('tag.legendAi')}</span>
+        <span style={styles.tagLegend}><span style={{ color: 'var(--tag-manual)' }}>●</span> {t('tag.legendManual')}　<span style={{ color: 'var(--text-secondary)' }}>●</span> {t('tag.legendAi')}</span>
       </div>
       <div className="shiori-tag-list" style={styles.tagList}>
         {[...tags].sort((a, b) => a.source === b.source ? 0 : a.source === 'manual' ? -1 : 1).map(tag => (

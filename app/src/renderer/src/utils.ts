@@ -258,11 +258,19 @@ export function thumbSrc(img: ImageRow): string {
 // gap の値がどこか一箇所だけズレたときに「見た目の列数とナビゲーションの列数が
 // 静かに食い違う」バグを生みやすいため、ここに一本化する。
 export type GridLayout = { columns: number; cellWidth: number; cellHeight: number }
+// **高さは整数に丸める。幅は丸めない。**
+// 幅は「画面幅を列数で割り切る」値なので端数が出る（例 233.43px）。そのまま 9/16 を掛けると
+// 行の高さも小数になり、仮想リストが行を index × 行高 の位置へ置くので、1 行ぶん送るたびに
+// 実際の移動量が 161px の回と 162px の回に分かれる。行の隙間も 4px と 5px が交互に見え、
+// 矢印キーで送ったときに画面が揺れて見えていた。
+// 縦だけ整数にすれば送り幅が毎回同じになる。幅は横方向にしか効かないので丸めない
+//（丸めると列の合計が画面幅に届かず、右端に半端な余りが残る）。
+// 代償：セルの縦横比が厳密な 16:9 から最大 0.5px ずれる。絵は cover で敷いているので見えない。
 export function computeGridLayout(containerWidth: number, minCellWidth: number, gap: number): GridLayout {
-  if (containerWidth <= 0) return { columns: 1, cellWidth: minCellWidth, cellHeight: minCellWidth * 9 / 16 }
+  if (containerWidth <= 0) return { columns: 1, cellWidth: minCellWidth, cellHeight: Math.round(minCellWidth * 9 / 16) }
   const columns = Math.max(1, Math.floor((containerWidth + gap) / (minCellWidth + gap)))
   const cellWidth = (containerWidth - gap * (columns - 1)) / columns
-  return { columns, cellWidth, cellHeight: cellWidth * 9 / 16 }
+  return { columns, cellWidth, cellHeight: Math.round(cellWidth * 9 / 16) }
 }
 
 type TimelineItem = { img: ImageRow; flatIndex: number }
@@ -330,4 +338,39 @@ export function buildTimeline(images: ImageRow[], titleStrip: string[], sortOrde
 // 末尾の 0 を落とすのは、24fps 素材が「24.000fps」と出ると精度を主張しすぎるため。
 export function formatFps(fps: number): string {
   return String(Math.round(fps * 1000) / 1000)
+}
+
+// キーボードで送ったときのスクロール。**ブラウザ標準の smooth は使わない。**
+// 標準は 1 回の動きに数百 ms かけるので、矢印を押しっぱなしにすると画面が選択に
+// まったく追いつかず、何十行も後ろを走る。かといって瞬間移動に戻すと 1 行ぶん飛ぶたびに
+// 絵が入れ替わって目が追えない。180ms で詰める（90ms まで詰めたら「速すぎて目が痛い」）。
+//
+// 押すたびに前の動きは捨てて、今いる位置から新しい目的地へ引き直す。
+// 端数は毎フレーム丸める（小数の scrollTop は描画時に丸められ、行の隙間が 1px 揺れて見える）。
+// OS の「視差効果を減らす」設定時は動かさず即座に飛ぶ。
+//
+// **仮想リストの scrollToFn には差さない。** 差すと行き先の計算が仮想リスト側の
+// 「今どこまでスクロールしたか」の記録を基準に行われるが、その記録はスクロールイベント
+// 経由で遅れて届く。アニメーション中に次のキーが来ると古い位置を基準に計算してしまい、
+// 送ったのに一瞬戻る動きが出る。**行き先は呼び出し側が実際の scrollTop から決めること。**
+const SOFT_SCROLL_MS = 180
+
+export function createSoftScroller(): (el: HTMLElement, top: number) => void {
+  let raf = 0
+  return (el, top) => {
+    cancelAnimationFrame(raf)
+    const to = Math.max(0, Math.round(top))
+    const from = el.scrollTop
+    const distance = to - from
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduced || Math.abs(distance) < 1) { el.scrollTop = to; return }
+    const startedAt = performance.now()
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - startedAt) / SOFT_SCROLL_MS)
+      const eased = 1 - (1 - t) ** 2
+      el.scrollTop = Math.round(from + distance * eased)
+      if (t < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+  }
 }

@@ -500,6 +500,14 @@ export function useSelection({
       }
       if ((GRID_NAV_KEYS as readonly string[]).includes(e.key)) {
         if (isEditing) return
+        // Ctrl（Mac は Cmd）を押しながらの矢印は何もしない。以前は「選択を変えずに枠だけ
+        // 動かす」に割り当てていたが、運んだ枠を選択に足すキーが無く（Space は動画の
+        // 再生/一時停止に取ってある）、使い道が Enter で開くことしか無かった。
+        if (e.ctrlKey || e.metaKey) return
+        // **必ず既定動作を止める。** 止めないと、ブラウザが「いま入力を受けている
+        // 一番近いスクロール領域」を勝手に動かす。タグを押したあとならサイドバーが動き、
+        // 一覧の上ではブラウザのスクロールと自前のスクロールが同時に走って引っ張り合う
+        // （送ったのに一瞬戻る、の原因だった）。
         e.preventDefault()
         const { images } = latestRef.current
         if (images.length === 0) return
@@ -525,8 +533,6 @@ export function useSelection({
           const anchor = anchorIdx.current ?? next
           const from = Math.min(anchor, next); const to = Math.max(anchor, next)
           setSelectedIds(new Set(images.slice(from, to + 1).map((img) => img.id)))
-        } else if (e.ctrlKey) {
-          // フォーカスのみ移動・選択変更なし
         } else {
           setSelectedIds(new Set([images[next].id]))
           anchorIdx.current = next
