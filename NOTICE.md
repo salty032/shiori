@@ -32,11 +32,11 @@ Shiori は動画クリップの録画後トリミング・サムネイル生成�
 - 呼び出し形態: アプリ本体とは**リンクせず、独立した実行ファイルを子プロセスとして起動**して利用します。
   バイナリは**改変せず**そのまま同梱・再配布します。
 - ライセンス全文: 配布物に同梱される `ffmpeg-LICENSE.txt`（LGPL v3 全文）を参照
-- 対応ソースコード: 本バイナリに対応する FFmpeg のソースは
-  [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git) のコミット `78690eba61` から取得できます
-  （リリース系列は `n6.1.2`）。ビルドスクリプトおよびビルド環境の構成は
+- 対応ソースコード: 本バイナリに対応する FFmpeg のソース一式を
+  [GitHub Releases](https://github.com/salty032/shiori/releases) の各リリースに添付しています。
+  同じソースは [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git) のコミット `78690eba61`
+  からも取得できます（リリース系列は `n6.1.2`）。ビルドスクリプトおよびビルド環境の構成は
   [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) で公開されています。
-  上記の手段でソースを入手できない場合は、リポジトリの Issue から連絡してください。
 
 ---
 
