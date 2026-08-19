@@ -14,7 +14,8 @@ import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCu
 import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { saveVideoFrames, setFrameCounts } from '../db'
+import { setFrameCounts } from '../db'
+import { saveVideoFrames } from '../db-video-frames'
 import { t } from '../system/i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策

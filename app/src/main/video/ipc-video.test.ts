@@ -22,16 +22,19 @@ const mockImage = {
   source: null
 }
 
-const getVideoFrames = vi.fn(() => null as import('../db').StoredFrame[] | null)
+const getVideoFrames = vi.fn(() => null as import('../db-video-frames').StoredFrame[] | null)
 const saveVideoFrames = vi.fn()
 const setFrameCounts = vi.fn()
 
 vi.mock('../db', () => ({
   getImage: vi.fn(() => mockImage),
   getImageTags: vi.fn(() => []),
+  setFrameCounts: (...args: unknown[]) => setFrameCounts(...args),
+}))
+
+vi.mock('../db-video-frames', () => ({
   getVideoFrames: () => getVideoFrames(),
   saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
-  setFrameCounts: (...args: unknown[]) => setFrameCounts(...args),
 }))
 
 vi.mock('../system/paths', () => ({
@@ -63,7 +66,7 @@ vi.mock('fs/promises', () => ({
 
 import { registerVideoHandlers, buildClipFrames, frameQualityOf } from './ipc-video'
 import { FRAME_QUALITY } from '../../shared/api.video'
-import type { StoredFrame } from '../db'
+import type { StoredFrame } from '../db-video-frames'
 import { unlink } from 'fs/promises'
 
 describe('buildClipFrames（コマ送りに渡す並びと、コマごとの確からしさ）', () => {

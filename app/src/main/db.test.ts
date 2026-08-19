@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildImageFilter, restoredFrameCounts } from './db'
+import { buildImageFilter } from './db'
+import { restoredFrameCounts } from './db-video-frames'
 
 // buildImageFilter は WHERE 句文字列と params 配列を組み立てる純粋関数。listImages/countImages
 // が実際に発行する SQL の条件分岐・カーソルページングの tie-break をここで直接固定する。

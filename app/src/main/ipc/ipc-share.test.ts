@@ -39,6 +39,9 @@ const decodeFramesMock = vi.fn((data: string) => {
 
 vi.mock('../db', () => ({
   listImagesForExport: () => listImagesForExportMock(),
+}))
+
+vi.mock('../db-video-frames', () => ({
   getVideoFrames: (id: number) => getVideoFramesMock(id),
   restoreVideoFrames: (...args: unknown[]) => restoreVideoFramesMock(...args),
   encodeFrames: (frames: Parameters<typeof encodeFramesMock>[0]) => encodeFramesMock(frames),

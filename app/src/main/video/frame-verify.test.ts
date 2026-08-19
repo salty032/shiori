@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
 import { findFrameDivergence, signaturesDiffer, verifyFrameTable } from './frame-verify'
-import type { StoredFrame } from '../db'
+import type { StoredFrame } from '../db-video-frames'
 
 const GRID = 32 * 32
 

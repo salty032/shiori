@@ -20,7 +20,7 @@
 //
 // 後者を「たぶん直前のコマだろう」と埋めることはしない。研究用途では、黙って間違った
 // コマ打ちを出すことが最悪の結果になる。特定できないものは特定できないと出す。
-import type { FrameVerify, StoredFrame } from '../db'
+import type { FrameVerify, StoredFrame } from '../db-video-frames'
 
 // 「絵が変わった」と判定するしきい値。
 //

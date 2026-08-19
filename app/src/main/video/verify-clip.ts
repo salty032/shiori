@@ -8,7 +8,8 @@
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
 import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
-import { dropVideoFrames, saveVideoFrames, setAmbiguousFrames, setFrameCounts, type StoredFrame } from '../db'
+import { setAmbiguousFrames, setFrameCounts } from '../db'
+import { dropVideoFrames, saveVideoFrames, type StoredFrame } from '../db-video-frames'
 import { countReportDrops } from './frame-feed'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'

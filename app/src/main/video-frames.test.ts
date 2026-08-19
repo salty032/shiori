@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 // 実 DB を張るテストは書けない。ここでは DB アクセスから切り離した直列化だけを検証する。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { encodeFrames, decodeFrames, type StoredFrame } from './db'
+import { encodeFrames, decodeFrames, type StoredFrame } from './db-video-frames'
 
 const frames: StoredFrame[] = [
   { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
