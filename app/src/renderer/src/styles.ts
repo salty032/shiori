@@ -202,9 +202,9 @@ export const s: Record<string, CSSProperties> = {
   // 太り、今度は絵が枠の内側に沈んで見えた。**太さを変えた時点で負け。**
   // (3) 枠の外にもう 1 本淡い輪を足して視認性を稼いだ。二重の輪は本来キーボードの
   // フォーカス表示の手法で、一覧の選択に使うものではない（フォーカス枠と役割が被る）。
-  thumbSelected: { border: '2px solid var(--accent)', background: 'rgba(var(--accent-rgb), 0.28)' },
-  // 染めた地の上では題名が沈むので、選択中だけ文字を明るくする。
-  thumbLabelSelected: { color: 'var(--text-bright)' },
+  thumbSelected: { border: '2px solid rgba(var(--accent-rgb), 0.72)', background: 'rgba(var(--accent-rgb), 0.18)' },
+  // 染めた地の上でも読めるよう選択中は一段だけ明るくする。
+  thumbLabelSelected: { color: 'var(--text-primary)' },
   // 新着 NEW（ウィンドウ表示後の数秒だけ）。選択（インディゴ）と区別できる緑系アクセント。
   thumbNew: { border: '2px solid rgba(var(--success-rgb), 0.9)', boxShadow: '0 0 0 2px rgba(var(--success-rgb), 0.3)', animation: 'shioriNewPulse 1.6s ease-in-out infinite' },
   // NEW表示が外れる瞬間（リング/グローをふわっとフェードアウト）
