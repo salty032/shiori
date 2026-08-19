@@ -12,13 +12,14 @@
     "test": "vitest run",
     "verify": "npm run typecheck && npm test",
     "icons": "node scripts/build-icons.mjs",
+    "third-party-licenses": "node scripts/build-third-party-licenses.mjs",
     "build": "npm run icons && npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
     "ext:limits": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/build-extension-limits.mjs",
     "ext:lint": "npx --yes web-ext@10 lint --source-dir=../extension",
     "ext:sign": "npx --yes web-ext@10 sign --source-dir=../extension --artifacts-dir=../web-ext-artifacts --channel=unlisted",
-    "package": "npm run icons && npm run verify && electron-vite build && electron-builder --win --x64",
-    "release": "npm run icons && npm run verify && electron-vite build && electron-builder --win --x64 --publish always",
+    "package": "npm run icons && npm run third-party-licenses && npm run verify && electron-vite build && electron-builder --win --x64",
+    "release": "npm run icons && npm run third-party-licenses && npm run verify && electron-vite build && electron-builder --win --x64 --publish always",
     "demo-manifest": "node scripts/build-demo-manifest.mjs",
     "web:dev": "npm run demo-manifest && vite --config vite.web.config.ts",
     "web:build": "npm run demo-manifest && vite build --config vite.web.config.ts",
@@ -69,6 +70,10 @@
       {
         "from": "../NOTICE.md",
         "to": "NOTICE.md"
+      },
+      {
+        "from": "generated/THIRD-PARTY-LICENSES.txt",
+        "to": "THIRD-PARTY-LICENSES.txt"
       }
     ],
     "icon": "build/icon.ico",
