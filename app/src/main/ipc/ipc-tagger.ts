@@ -1,7 +1,11 @@
 // WD Tagger 関連の IPC ハンドラ（モデル DL・手動タグ CRUD・一括再タグ付け）。
 import { handleTrusted, sendToRenderer } from '../system/windows'
 import { ensureModel, runTagger, isModelDownloaded, deleteModel, cancelModelDownload } from '../capture/tagger'
-import { addTag, getImageTags, removeImageTag, addTagsBulk, listImagesForRetag, getImageTagsBulk, addTagBulk, removeTagBulk, removeTagFromAllImages, deleteAllAiTags } from '../db'
+import { listImagesForRetag } from '../db'
+import {
+  addTag, getImageTags, removeImageTag, addTagsBulk, getImageTagsBulk,
+  addTagBulk, removeTagBulk, removeTagFromAllImages, deleteAllAiTags
+} from '../db-tags'
 import { optionalPositiveInteger, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from './ipc-validation'
 import { resolveRealCapturePath } from '../system/paths'
 import { CH } from '../../shared/api'

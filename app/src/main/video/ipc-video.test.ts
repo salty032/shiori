@@ -28,8 +28,11 @@ const setFrameCounts = vi.fn()
 
 vi.mock('../db', () => ({
   getImage: vi.fn(() => mockImage),
-  getImageTags: vi.fn(() => []),
   setFrameCounts: (...args: unknown[]) => setFrameCounts(...args),
+}))
+
+vi.mock('../db-tags', () => ({
+  getImageTags: vi.fn(() => []),
 }))
 
 vi.mock('../db-video-frames', () => ({

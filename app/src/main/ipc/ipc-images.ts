@@ -4,11 +4,12 @@ import { access, stat, copyFile, unlink } from 'fs/promises'
 import { basename, extname } from 'path'
 import { getMainWindow, handleTrusted, sendToRenderer } from '../system/windows'
 import {
-  listImages, countImages, listImagesAll, listSites, listAllTags,
+  listImages, countImages, listImagesAll, listSites,
   getImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
   listImagesMissingThumb, listImagesForThumbCheck, setThumbPath,
   getTimesheet, saveTimesheet
 } from '../db'
+import { listAllTags } from '../db-tags'
 import { decodeTimesheet, encodeTimesheet } from '../../shared/timesheet'
 import {
   MAX_EXPORT_IDS,

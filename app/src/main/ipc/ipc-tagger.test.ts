@@ -11,11 +11,14 @@ vi.mock('../system/windows', () => ({
 
 const addTag = vi.fn()
 vi.mock('../db', () => ({
+  listImagesForRetag: vi.fn(() => [])
+}))
+
+vi.mock('../db-tags', () => ({
   addTag: (...args: unknown[]) => addTag(...args),
   getImageTags: vi.fn(() => []),
   removeImageTag: vi.fn(),
   addTagsBulk: vi.fn(),
-  listImagesForRetag: vi.fn(() => []),
   getImageTagsBulk: vi.fn(() => []),
   addTagBulk: vi.fn(),
   removeTagBulk: vi.fn(),
