@@ -1,8 +1,6 @@
-import { app, dialog, globalShortcut, protocol, Menu, shell, session } from 'electron'
-import { extname, join } from 'path'
-import { stat } from 'fs/promises'
-import { createReadStream, mkdirSync, statSync } from 'fs'
-import { Readable } from 'stream'
+import { app, dialog, globalShortcut, Menu, shell, session } from 'electron'
+import { join } from 'path'
+import { mkdirSync, statSync } from 'fs'
 import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, getActivePort } from './browser/ws-server'
 import { WS_PORTS } from '../shared/wire-limits'
 import {
@@ -21,6 +19,7 @@ import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
 import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
 import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
 import { resolveRealCapturePath, thumbPathFor, captureDir } from './system/paths'
+import { registerCapfileScheme, registerCapfileProtocol } from './system/capfile-protocol'
 import { collectStorageUsage } from './system/storage'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
 import { createImageThumb } from './capture/image-thumb'
@@ -200,10 +199,8 @@ export function bootstrap(features: MainFeature[] = []): void {
     showMainWindow()
   })
 
-  // app.whenReady() より前に登録する必要がある
-  protocol.registerSchemesAsPrivileged([
-    { scheme: 'capfile', privileges: { secure: true, standard: true, supportFetchAPI: true } }
-  ])
+  // capfile:// のスキーム宣言は app.whenReady() より前に済ませる必要がある
+  registerCapfileScheme()
 
   const CAPTURE_TIMECODE_TIMEOUT_MS = 900
   const CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS = 1500
@@ -231,88 +228,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
     session.defaultSession.setPermissionCheckHandler(() => false)
 
-    protocol.handle('capfile', async (request) => {
-      const url = new URL(request.url)
-      let filePath: string | null = null
-      const idParam = url.searchParams.get('id')
-      if (idParam) {
-        const id = parseInt(idParam, 10)
-        if (Number.isInteger(id) && id > 0) {
-          const image = getImage(id)
-          if (image) {
-            const kind = url.searchParams.get('kind')
-            const raw = kind === 'thumb' ? (image.thumb_path ?? image.filepath) : image.filepath
-            filePath = await resolveRealCapturePath(raw)
-          }
-        }
-      }
-      if (!filePath) return new Response('Forbidden', { status: 403 })
-
-      let size: number
-      try {
-        const info = await stat(filePath)
-        if (!info.isFile()) return new Response('Not found', { status: 404 })
-        size = info.size
-      } catch {
-        return new Response('Not found', { status: 404 })
-      }
-
-      // 動画(webm)を含む capfile プロトコル。
-      const EXT_CONTENT_TYPE: Record<string, string> = {
-        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.webp': 'image/webp', '.gif': 'image/gif',
-        '.webm': 'video/webm', '.mp4': 'video/mp4'
-      }
-      const contentType = EXT_CONTENT_TYPE[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
-
-      // 動画の <video> シークで Range リクエストが飛んでくるため 206/416 に対応する
-      // （画像に対して送られても無害）。
-      const rangeHeader = request.headers.get('Range')
-      if (rangeHeader) {
-        const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
-        if (match && (match[1] || match[2])) {
-          let start: number
-          let end: number
-          if (!match[1]) {
-            // サフィックス Range（bytes=-N、RFC 9110） 末尾 N バイトを返す
-            const suffixLength = parseInt(match[2], 10)
-            start = Number.isFinite(suffixLength) && suffixLength > 0 ? Math.max(0, size - suffixLength) : 0
-            end = size - 1
-          } else {
-            start = parseInt(match[1], 10)
-            end = match[2] ? parseInt(match[2], 10) : size - 1
-          }
-          if (!Number.isFinite(start) || start < 0) start = 0
-          if (!Number.isFinite(end) || end >= size) end = size - 1
-          if (start > end || start >= size) {
-            return new Response('Range Not Satisfiable', {
-              status: 416,
-              headers: { 'Content-Range': `bytes */${size}` }
-            })
-          }
-          const stream = createReadStream(filePath, { start, end })
-          return new Response(Readable.toWeb(stream) as unknown as ReadableStream, {
-            status: 206,
-            headers: {
-              'Content-Type': contentType,
-              'Content-Length': String(end - start + 1),
-              'Content-Range': `bytes ${start}-${end}/${size}`,
-              'Accept-Ranges': 'bytes'
-            }
-          })
-        }
-      }
-
-      const stream = createReadStream(filePath)
-      return new Response(Readable.toWeb(stream) as unknown as ReadableStream, {
-        status: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': String(size),
-          'Accept-Ranges': 'bytes'
-        }
-      })
-    })
+    registerCapfileProtocol()
 
     checkExtensionUpdate()
     // OS通知（checkExtensionUpdate）は起動直後の1回しか出ず見逃しやすいため、以後は
