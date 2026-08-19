@@ -464,12 +464,15 @@ export default function Sidebar({
       )}
 
       <div style={s.sidebarUtilitySection}>
-        <button className="shiori-hover-tint" style={{ ...s.sidebarSetupBtn, ...(setupCompleted === 3 ? {} : s.sidebarSetupBtnTodo) }} onClick={onShowSetup}>
-          <span style={{ ...s.sidebarSetupMark, ...(setupCompleted === 3 ? s.sidebarSetupMarkDone : {}) }}>
-            {setupCompleted === 3 ? '✓' : setupCompleted}
-          </span>
-          <span>{t(setupCompleted === 3 ? 'sidebar.setupGuide' : 'sidebar.setupProgress', { completed: setupCompleted })}</span>
-        </button>
+        {/* 3 つ終わるまでは大きいボタンで出す（やることが残っている合図）。終わったら
+            消して、下のリンク行へテキストとして移す。**完全に消しはしない**——設定を
+            やり直したいときや、あとから読み返したいときの入口が無くなる。 */}
+        {setupCompleted < 3 && (
+          <button className="shiori-hover-tint" style={{ ...s.sidebarSetupBtn, ...s.sidebarSetupBtnTodo }} onClick={onShowSetup}>
+            <span style={s.sidebarSetupMark}>{setupCompleted}</span>
+            <span>{t('sidebar.setupProgress', { completed: setupCompleted })}</span>
+          </button>
+        )}
         <div style={s.sidebarControls}>
           <div style={s.thumbSizeControl} title={t('sidebar.thumbnailSize')}>
             {/* 選択中ハイライト（背面）。選択先のセグメントへスライドする。settings.json の
@@ -514,6 +517,12 @@ export default function Sidebar({
             **文面が無いバージョンでは「変更点」を出さない**——押しても空のモーダルが開く
             だけで、「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
         <div style={s.sidebarLinks}>
+          {setupCompleted === 3 && (
+            <>
+              <button style={s.sidebarLink} onClick={onShowSetup}>{t('sidebar.setupLink')}</button>
+              <span style={s.sidebarLinkSep}>・</span>
+            </>
+          )}
           {notes && notes.length > 0 && (
             <>
               <button style={s.sidebarLink} onClick={() => onShowWhatsNew(appVersion!, notes)}>{t('help.whatsNew')}</button>

@@ -368,7 +368,7 @@ export const ja = {
   'sidebar.sizeLarge': '大',
   'sidebar.viewGrid': 'グリッド',
   'sidebar.viewTimeline': 'タイムライン',
-  'sidebar.setupGuide': '使い方・セットアップ',
+  'sidebar.setupLink': '使い方',
   'sidebar.setupProgress': 'セットアップ {completed}/3',
 
   // ── ホットキー / クリップ設定 ──

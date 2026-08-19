@@ -352,7 +352,7 @@ export const en: Record<keyof typeof ja, string> = {
   'sidebar.sizeLarge': 'L',
   'sidebar.viewGrid': 'Grid',
   'sidebar.viewTimeline': 'Timeline',
-  'sidebar.setupGuide': 'Guide and setup',
+  'sidebar.setupLink': 'How to use',
   'sidebar.setupProgress': 'Setup {completed}/3',
 
   // ── Hotkey / clip settings ──

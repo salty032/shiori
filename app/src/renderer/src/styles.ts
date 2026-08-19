@@ -322,24 +322,29 @@ export const s: Record<string, CSSProperties> = {
   // サイドバー下部（セットアップ・サイズ・表示切替・設定）は毎日押すものではないのに、
   // 面と枠を持っていて上のスマートフォルダやタグ一覧より目立っていた。地と枠を外す。
   // セットアップだけは未完了のときに面を持たせる（済んだら普通のリンクまで落ちる）。
-  // 下部の 3 つは**枠を描く**。以前は枠も地も透明で、押せるものが宙に浮いていた。
-  // 上のタグ一覧はチップに枠があるので、ここだけ枠が無いと作りが違って見える。
-  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'rgba(var(--surface-rgb), 0.42)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 600, textAlign: 'left' as const },
+  // 下部の 3 つは**枠だけ描く。地は塗らない。** 枠も地も透明だと押せるものが宙に浮くが、
+  // 地まで塗ると、帯の上に明るい箱が 3 つ乗って面の数が増える（ライトでは白地に白い箱で、
+  // 押せる場所と押せない場所の差だけが目立つ）。枠 1 本で「押せる」は伝わる。
+  //
+  // **線の濃さは default と strong の中間。** この帯は --bg-inset で一段沈めてあるため、
+  // --border-default（ライトで #dcdcdc）だと地の #dfdfdf との差が 3 段しかなく見えない。
+  // かといって --border-strong まで上げると、3 つ並んだ枠が主張して帯が騒がしくなる。
+  // --border-rgb を 0.8 で置いて、地との差を 10 段前後にしてある。
+  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid rgba(var(--border-rgb), 0.8)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 600, textAlign: 'left' as const },
   sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: 700 },
   sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: 900 },
-  // 完了したら色を落とす。**済んだことは目を引かなくていい。** 下部の帯には表示の切替が
-  // 2 つあり、そちらは選択中がアクセント色で光る。そこへ緑の ✓ が加わると、狭い帯の中で
-  // 3 色が競って何を見ればいいのか分からなくなっていた。色が残るのは「まだ途中」の
-  // 数字のほうだけにする。
-  sidebarSetupMarkDone: { background: 'rgba(var(--text-rgb), 0.07)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' },
-  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'rgba(var(--surface-rgb), 0.42)', border: '1px solid var(--border-default)', borderRadius: radius.md, padding: 2 },
+  sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
+  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid rgba(var(--border-rgb), 0.8)', borderRadius: radius.md, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
-  gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'rgba(var(--surface-rgb), 0.42)', border: '1px solid var(--border-default)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
+  gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid rgba(var(--border-rgb), 0.8)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
   // 設定ボタンの下に置く小さなリンク列（変更点・不具合報告）。常に見えることが目的なので
   // 隠さないが、毎回押すものではないので文字サイズと色で視線の重さを下げる。
-  sidebarLinks: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: space.x4, paddingTop: 6 },
-  sidebarLink: { padding: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: font.xs, fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' },
+  // **リンクは単語の途中で折らない。** 幅 192px にリンクが 2〜3 個並ぶので、放っておくと
+  // 「不具合・要望を報／告」のように行の途中で切れる。1 個ずつを塊として扱い、入らなければ
+  // 塊ごと次の行へ送る（rowGap を入れて 2 行になっても読めるようにしてある）。
+  sidebarLinks: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'center', columnGap: space.x4, rowGap: space.x2, paddingTop: 6 },
+  sidebarLink: { padding: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: font.xs, fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' as const },
   sidebarLinkSep: { color: 'var(--text-muted)', fontSize: font.xs },
   sidebarXBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   // 通知と進捗タスクを同じ下中央スタックにまとめる。完了通知と進行中タスクが
