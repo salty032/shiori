@@ -555,3 +555,53 @@ describe('サムネからの他アプリへのドラッグ', () => {
     expect(result.current.selectedIds).toEqual(new Set([1, 3]))
   })
 })
+
+
+describe('一覧を押したときの入力欄のフォーカス', () => {
+  // サムネの mousedown は範囲選択とドラッグのために既定動作を止めている。既定動作には
+  // 「押した先へフォーカスを移す」も含まれるので、止めたままだとメモ欄・検索欄に
+  // フォーカスが残ったまま別の画像を選べてしまう。次の打鍵は移動やタグ付けのつもりでも
+  // 入力欄へ入り、メモなら**別の画像のメモとして自動保存まで走る**（画面には何も出ない）。
+  function setupGrid() {
+    const gridRef = { current: document.createElement('div') }
+    const scrollRef = { current: document.createElement('div') }
+    return setup({ images: makeImages(6), gridLayout: makeGridLayout({ gridRef, scrollRef }) })
+  }
+
+  function focusedTextarea(): HTMLTextAreaElement {
+    const el = document.createElement('textarea')
+    document.body.appendChild(el)
+    el.focus()
+    expect(document.activeElement).toBe(el)
+    return el
+  }
+
+  function mouseDown(result: ReturnType<typeof setupGrid>['result'], target: HTMLElement): void {
+    act(() => result.current.handleGridMouseDown({
+      button: 0, clientX: 0, clientY: 0, target,
+      shiftKey: false, ctrlKey: false, metaKey: false,
+      preventDefault: () => {},
+    } as unknown as React.MouseEvent<HTMLDivElement>))
+  }
+
+  it('サムネを押したらメモ欄からフォーカスが外れる', () => {
+    const { result } = setupGrid()
+    const memo = focusedTextarea()
+    const thumb = document.createElement('div')
+    thumb.setAttribute('data-img-id', '2')
+    document.body.appendChild(thumb)
+
+    mouseDown(result, thumb)
+
+    expect(document.activeElement).not.toBe(memo)
+  })
+
+  it('一覧の余白を押した場合も外れる', () => {
+    const { result } = setupGrid()
+    const memo = focusedTextarea()
+
+    mouseDown(result, document.createElement('div'))
+
+    expect(document.activeElement).not.toBe(memo)
+  })
+})

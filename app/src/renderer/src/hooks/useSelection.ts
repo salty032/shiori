@@ -800,6 +800,21 @@ export function useSelection({
     }
   }, [])
 
+  // 一覧を押したときに、メモ欄・検索欄などへ残っているフォーカスを外す。
+  //
+  // このハンドラは範囲選択とドラッグのために mousedown の既定動作を止めている。既定動作には
+  // 「押した先へフォーカスを移す」も含まれるので、止めたままだと**別の画像を選んでも
+  // 入力欄にフォーカスが残る**。次の打鍵は移動やタグ付けのつもりでも入力欄へ入り、メモなら
+  // 別の画像のメモとして自動保存まで走る。**画面には何も出ないので、後から気づけない。**
+  //
+  // 外すのはここ（選択が変わる前・押した瞬間）でなければならない。選択が変わった後に外すと、
+  // blur に紐づく保存が「前の画像の文字」を「今の画像」へ書きに行く。
+  function releaseTextInputFocus(): void {
+    const active = document.activeElement as HTMLElement | null
+    if (!active) return
+    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable) active.blur()
+  }
+
   function handleGridMouseDown(e: React.MouseEvent<HTMLDivElement>): void {
     if (e.button !== 0) return
     if (!isInSelectionArea(e.clientX, e.clientY, e.target)) return
@@ -812,12 +827,14 @@ export function useSelection({
     if (!thumbEl) {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'SELECT' || tag === 'TEXTAREA') return
+      releaseTextInputFocus()
       e.preventDefault()
       if (!rubberCtrl.current) clearSelection()
       rubberStartedFromThumb.current = false
       dragThumbId.current = null
       return
     }
+    releaseTextInputFocus()
     e.preventDefault()
     const id = Number(thumbEl.dataset.imgId)
     const idx = latestRef.current.images.findIndex((img) => img.id === id)
