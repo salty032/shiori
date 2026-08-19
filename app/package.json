@@ -63,7 +63,6 @@
       {
         "from": "../extension",
         "to": "extension",
-        "//": "ドットファイルは配らない。web-ext sign が置く .amo-upload-uuid はgitignore対象で差分に出ないまま同梱され、利用者の %APPDATA%\\Shiori\\extension にも展開されていた。拡張の実体（.js/.png）は明示列挙せず素通しにする——列挙にすると、新しく足したスクリプトが黙って配られず、間違いが画面に出ない。",
         "filter": [
           "**/*",
           "!**/.*"

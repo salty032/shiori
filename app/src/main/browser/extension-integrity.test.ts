@@ -84,7 +84,14 @@ describe('manifest.json が指す先が実在するか', () => {
   // まるごと同梱するため、迷子のファイル（作業中に置いた PNG、エディタの残骸）が
   // そのまま利用者の %APPDATA%\Shiori\extension へ配られる。manifest に載っていない
   // ので Chrome は読まず、**どこにも間違いが出ないまま配布物だけが太る**。
-  // ドットファイルは package.json の extraResources.filter が落とすので対象外。
+  // ドットファイルは package.json の extraResources.filter が落とすので対象外
+  // （web-ext sign が置く .amo-upload-uuid が、gitignore 対象で差分に出ないまま
+  // インストーラへ入り、利用者の %APPDATA%\Shiori\extension にも展開されていた）。
+  // .js/.png の側は列挙せず素通しにしてある。列挙すると、新しく足したスクリプトが
+  // 黙って配られなくなり、**間違いが画面に出ない**。列挙の代わりがこのテスト。
+  //
+  // なお package.json の build 設定に説明を書き足そうとして "//" キーを入れたところ、
+  // electron-builder がスキーマ検証で弾いてビルドごと失敗した。**あそこに註釈は置けない。**
   it('manifest が指していないファイルが置き去りになっていない', () => {
     const referenced = new Set<string>([
       'manifest.json',
