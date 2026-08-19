@@ -4,10 +4,10 @@ import type { DismissToast, ShowToast, UpdateToast } from './useToast'
 import type { RemovedImagesSnapshot } from '../stores/imageStore'
 import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterStore'
 import { buildImageQuery } from '../stores/imageQuery'
-import { useExportStore } from '../stores/exportStore'
 import { useLatestRef } from './useLatestRef'
 import { usePendingDeletion } from './usePendingDeletion'
-import { t, tp, currentLocale } from '../i18n'
+import { useExportSelected } from './useExportSelected'
+import { t, currentLocale } from '../i18n'
 
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
@@ -683,35 +683,10 @@ export function useSelection({
   }
 
   // ids を明示すれば selectedIds を無視してその画像だけ書き出す。ビューア表示中に
-  // DetailPanel の「エクスポート」を押した場合は、グリッド選択ではなくビューアの
-  // 現在画像を対象にするため呼び出し元（App.tsx）から渡す（P1）。
-  async function exportSelected(ids: number[] = [...selectedIds]): Promise<void> {
-    // export:progress チャンネル・中止ボタンは images/share の1系統しかないため、共有書き出しが
-    // 進行中に選択エクスポートを始めると進捗・中止が混線する（B-6）。片方が完了するまで待たせる。
-    if (useExportStore.getState().exportKind !== null) {
-      showToast(t('toast.exportBusy'), 'warning')
-      return
-    }
-    useExportStore.getState().startExport('images')
-    try {
-      const result = await window.api.exportImages(ids)
-      if (result.canceled) {
-        // count がある = 中止ボタンでの途中キャンセル。ない = フォルダ選択自体のキャンセル（無言）。
-        if (result.count != null) showToast(tp('toast.exportStopped', result.count), 'warning')
-      } else if (result.count != null) {
-        // U-2: エクスポートID上限（MAX_EXPORT_IDS）到達を明示する
-        const truncatedMsg = result.truncated ? t('toast.exportTruncatedSuffix') : ''
-        showToast(tp('toast.exported', result.count) + truncatedMsg, result.truncated ? 'warning' : 'success')
-      }
-    } catch (err) {
-      console.error('[export] failed', err)
-      showToast(t('toast.exportFailed'), 'error')
-    } finally {
-      // 通常は onExportProgress 側（current>=total）でクリアされるが、途中キャンセル・
-      // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
-      useExportStore.getState().clearExport()
-    }
-  }
+  // 書き出しは選択の仕組みとは独立している（排他と結果の通知だけ）。
+  // DetailPanel の「エクスポート」はビューアの現在画像を対象にするため、
+  // 呼び出し元（App.tsx）が ids を渡す（P1）。
+  const exportSelected = useExportSelected({ getDefaultIds: () => [...selectedIds], showToast })
 
   return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, openIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce, selfDragRef }
 }
