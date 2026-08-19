@@ -28,6 +28,7 @@ import { useExportStore } from './stores/exportStore'
 import { useTimeline } from './hooks/useTimeline'
 import { useSelection } from './hooks/useSelection'
 import { useFileDrop } from './hooks/useFileDrop'
+import { useActiveTask } from './hooks/useActiveTask'
 import { useTagger } from './hooks/useTagger'
 import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
@@ -41,10 +42,6 @@ import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, s
 const COL_GAP = 6
 const ROW_GAP = 10
 const LABEL_HEIGHT = 20
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value))
-}
 
 export default function App() {
   const { t, tp } = useT()
@@ -275,15 +272,12 @@ export default function App() {
   // クリアすると、sendToRenderer の逐次送信と invoke の返信は別経路で配信されるため、
   // 進捗イベントが invoke の解決より後に届いて表示が最後の値のまま残ることがある
   // （実機ログで確認済み）。呼び出し元の finally でのクリアは保険として残す。
-  const exportProgress = useExportStore((st) => st.exportProgress)
-  const exportKind = useExportStore((st) => st.exportKind)
   useEffect(() => window.api.onExportProgress((p) =>
     useExportStore.getState().setExportProgress(p.current >= p.total ? null : p)
   ), [])
 
   // 共有インポートの進捗も他の進捗（モデルDL・retag・export）と同じ下部の帯に出す（UX-3）。
   // ここで購読しておくことで、設定モーダルを閉じても進捗・中止ボタンが見える状態を保つ。
-  const shareImportProgress = useExportStore((st) => st.shareImportProgress)
   useEffect(() => window.api.onShareImportProgress((p) =>
     useExportStore.getState().setShareImportProgress(p.current >= p.total ? null : p)
   ), [])
@@ -507,44 +501,13 @@ export default function App() {
     return items
   }, [ctxMenu, single, activeImages, selection, toast])
 
-  const activeTask = useMemo(() => {
-    if (tagger.taggerProgress !== null) {
-      return {
-        label: t('task.modelDownloading'),
-        detail: `${Math.round(tagger.taggerProgress * 100)}%`,
-        progress: clamp01(tagger.taggerProgress),
-        onCancel: tagger.handleTaggerCancelDownload,
-      }
-    }
-    if (tagger.retagProgress) {
-      const { current, total } = tagger.retagProgress
-      return {
-        label: t('task.retagging'),
-        detail: `${current}/${total}`,
-        progress: total > 0 ? clamp01(current / total) : 0,
-        onCancel: tagger.handleTaggerRetagCancel,
-      }
-    }
-    if (shareImportProgress) {
-      const { current, total } = shareImportProgress
-      return {
-        label: t('task.libraryImporting'),
-        detail: `${current}/${total}`,
-        progress: total > 0 ? clamp01(current / total) : 0,
-        onCancel: () => window.api.shareImportCancel(),
-      }
-    }
-    if (!exportProgress) return null
-
-    const { current, total } = exportProgress
-    return {
-      // W-4: share 起点の進捗は SettingsModal の「エクスポート中...」と表示を揃える
-      label: t(exportKind === 'share' ? 'task.libraryExporting' : 'task.exporting'),
-      detail: `${current}/${total}`,
-      progress: total > 0 ? clamp01(current / total) : 0,
-      onCancel: exportKind === 'share' ? () => window.api.shareExportCancel() : () => window.api.imagesExportCancel(),
-    }
-  }, [tagger.handleTaggerCancelDownload, tagger.handleTaggerRetagCancel, tagger.retagProgress, tagger.taggerProgress, shareImportProgress, exportProgress, exportKind])
+  // 進捗バーに出す「今動いているタスク」の選択（モデル取得 → AIタグ付け → 取り込み → 書き出し）。
+  const activeTask = useActiveTask({
+    taggerProgress: tagger.taggerProgress,
+    onCancelDownload: tagger.handleTaggerCancelDownload,
+    retagProgress: tagger.retagProgress,
+    onCancelRetag: tagger.handleTaggerRetagCancel,
+  })
 
   return (
     // ファイルのドロップ受け口はウィンドウ全体。サイドバーや詳細パネルの上に落としても
