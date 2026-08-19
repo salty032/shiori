@@ -44,7 +44,7 @@ export const ja = {
   // ウィンドウは出来ているが、その後の準備（ホットキー・ブラウザ連携・トレイ等）で
   // 止まった場合。使える部分が残っているので終了はさせず、何が欠けているかだけ伝える。
   'error.startupPartial':
-    '起動の準備が最後まで終わりませんでした。\n\n' +
+    '起動の準備を完了できませんでした。\n\n' +
     '画面は開いていますが、キャプチャのホットキーやブラウザとの連携など、一部が動かない\n' +
     '可能性があります。Shiori を再起動してください。\n\n' +
     '原因: {detail}',
@@ -54,13 +54,13 @@ export const ja = {
   // 初期値で動いていることだけでなく、上書きの危険まで書く。
   'notice.settingsUnreadable':
     '設定ファイルを読み込めなかったため、デフォルト設定で起動しました。\n' +
-    '設定ファイル自体は残っています。この状態で設定を変更すると上書きされます。',
+    '元の設定ファイルは残っていますが、この状態で設定を変更すると新しい内容で上書きされます。',
   // 壊れた DB を退避から戻せるとき／戻せないとき。タグ・メモ・タイムシートの打鍵は
   // この 1 ファイルにしか無いので、何が失われたのかを必ず数えられる形で出す。
   'dialog.dbRestore.title': 'データベースの復元',
   'dialog.dbRestore.message': 'データベースが壊れています',
   'dialog.dbRestore.detail':
-    '{date} のバックアップから戻せます。戻したあと、Shiori を起動し直します。\n\n' +
+    '{date} のバックアップから復元できます。復元後、Shiori を再起動します。\n\n' +
     '{date} より後に付けたタグ・メモ・タイムシートは失われます。壊れたファイルは消さずに\n' +
     'backups フォルダへ残すので、後から中身を取り出すこともできます。\n\n' +
     '画像と動画そのものは別のファイルなので、どちらを選んでも消えません。',
@@ -76,25 +76,25 @@ export const ja = {
     'ディスクの空きとウイルス対策ソフトを確認してから、もう一度起動してください。\n\n' +
     '{detail}',
   'notice.dbRestored':
-    'データベースが壊れていたため、{date} のバックアップから戻しました。それより後に付けたタグ・メモ・タイムシートは含まれていません。',
+    'データベースが壊れていたため、{date} のバックアップから復元しました。それより後に追加したタグ・メモ・タイムシートは含まれていません。',
   'notice.dbBackupFailed':
-    'データベースをバックアップできませんでした。今回の起動時に更新された内容は、以前の状態に戻せない可能性があります。ディスクの空き容量を確認してください。',
+    'データベースをバックアップできませんでした。次に問題が発生した場合、最後に成功したバックアップ以降の変更を復元できない可能性があります。ディスクの空き容量を確認してください。',
   // 画面上の設定は変わっているがファイルには書けていない状態。黙っていると、次に起動した
   // ときだけ設定が巻き戻って原因が分からなくなる。
   'notice.settingsPersistFailed':
     '設定をファイルに保存できませんでした。この変更は Shiori を終了すると失われます。ウイルス対策ソフトやディスクの空き容量を確認してください。',
   // 候補ポートを全部試して駄目だったときだけ出る。1つ塞がっただけなら黙って隣へ移る。
-  'notice.portInUse': 'ブラウザ拡張と接続できません。ポート {ports} がすべて他のアプリに使われているか、Windows に予約されています。PC を再起動すると直ることがあります。',
+  'notice.portInUse': 'ブラウザ拡張と接続できません。ポート {ports} は、すべて他のアプリが使用しているか、Windows によって予約されています。PC を再起動すると解消することがあります。',
   'notice.updated': 'Shiori を v{version} に更新しました',
   // アプリの更新に付いてきた拡張は、ブラウザ側で読み込み直すまで古いまま動く。
   // ブラウザ名も URL も出さない（Chrome / Edge / Vivaldi / Brave / Firefox で
   // 開く場所が違い、決め打ちすると存在しない画面を案内することになる）。
   'notice.extensionUpdated':
-    'ブラウザ拡張を {from} → {to} に更新しました。ブラウザの拡張機能ページで読み込み直すまで、古いまま動きます。',
+    'ブラウザ拡張を {from} → {to} に更新しました。ブラウザの拡張機能ページで再読み込みするまで、更新前のバージョンが動作します。',
 
   // ── キャプチャ ────────────────────────────────────────────────
   'notice.captureTargetNotFound':
-    'キャプチャ対象を検出できませんでした。対応サイトの動画ページを開き、Chrome 拡張機能が有効か確認してください。',
+    'キャプチャ対象を検出できませんでした。対応サイトの動画ページを開き、ブラウザ拡張が有効になっているか確認してください。',
   'notice.captureBlackScreen':
     '映像が真っ黒に写っています。ブラウザの設定でハードウェアアクセラレーションをオフにしてください。',
   'notice.captureSaveFailed': 'キャプチャの保存に失敗しました',
@@ -110,18 +110,18 @@ export const ja = {
   'notice.videoRegionNotFound': '動画の表示領域を特定できませんでした。ページを再読み込みして、もう一度お試しください。',
   'notice.recordingEmpty': '録画データが空でした。短すぎる録画は保存されません。',
   'notice.screenCapturePermission':
-    '画面録画の権限がありません。Chrome のハードウェアアクセラレーションをオフにして、もう一度お試しください。',
+    '画面録画の権限がありません。ブラウザのハードウェアアクセラレーションをオフにして、もう一度お試しください。',
   'notice.recordingError': '録画エラー: {message}',
   'notice.recordingDataInvalid': '録画データが不正なため保存できませんでした。',
   'notice.clipSaveFailed': 'クリップの保存に失敗しました',
   'notice.clipSaved': 'クリップを保存しました（{duration}）',
   'notice.clipSavedWithMissed': 'クリップを保存しました（{duration}・{count}コマ未取得）',
   'notice.videoNotDetected':
-    '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome 拡張機能が有効か確認してください。',
+    '動画を検出できませんでした。対応サイトの動画ページを開き、ブラウザ拡張が有効になっているか確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',
   'notice.recordingSourceNotFound': '録画する画面が見つかりませんでした',
   'notice.recordingDisplayUncertain':
-    'どの画面を録るか特定できませんでした。別のモニターが録れている可能性があります。',
+    '録画対象の画面を特定できませんでした。別のモニターが録画されている可能性があります。',
   'notice.recordingTimeout': '録画処理がタイムアウトしました。もう一度お試しください。',
 
   // ── データ書き出し / 読み込み ─────────────────────────────────
@@ -269,10 +269,10 @@ export const ja = {
   'viewer.frameNeedsReview': '要確認',
   'viewer.frameLoading': 'コマ表を読み込み中',
   'viewer.frameEstimated': 'コマ位置不明（{fps}fps 換算）',
-  'viewer.frameSourceHint': '素材の実際のコマ単位で進みます。絵が変わらない箇所では、素材でも同じ絵が続いています。',
-  'viewer.frameReusedHint': 'このコマ専用の絵は撮れておらず、直前のコマの絵を表示しています（未検証）。ここで絵が変わらないことをコマ打ちの根拠にしないでください。',
-  'viewer.frameReusedSameHint': 'このコマ専用の絵は撮れていませんが、前後の絵が同一と確認済みです。コマ打ちの数え方には影響しません。',
-  'viewer.frameNeedsReviewHint': 'このコマ専用の絵が無く、前後で絵が変わっています。どのコマで変わったかは特定できません。',
+  'viewer.frameSourceHint': '元の動画のコマ単位で進みます。映像が変わらない箇所では、元の動画でも同じ映像が続いています。',
+  'viewer.frameReusedHint': 'このコマの映像は個別に取り込めなかったため、直前のコマの映像を表示しています（未検証）。ここで映像が変わらないことを、コマ打ちの根拠にはできません。',
+  'viewer.frameReusedSameHint': 'このコマの映像は個別に取り込めませんでしたが、前後の映像が同一であることを確認済みです。コマ打ちの数え方には影響しません。',
+  'viewer.frameNeedsReviewHint': 'このコマの映像は個別に取り込めず、前後の映像も異なります。映像がどのコマで変わったかは特定できません。',
   'viewer.frameFileHint': 'ファイルに記録されたフレームを順に表示します。取り込んだ動画では、これが素材のコマそのものです。',
   'viewer.frameFileCaptureHint': '素材のコマ表がないため、ファイルに記録されたフレームを順に表示します。画面キャプチャの取得間隔に基づくため、素材のコマとは一致しません。',
   'viewer.frameLoadingHint': 'コマ表を読み込んでいます。読み込みが終わるまでコマ送りは保留され、まとめて反映されます。',
@@ -298,14 +298,14 @@ export const ja = {
   'timesheet.count': '{marks} 枚 / {total} コマ',
   'timesheet.copy': 'コピー',
   'timesheet.copied': 'コピーしました',
-  'timesheet.copyHint': 'タイムシートのソフトへ貼り付けられる形でコピーします（{sec} 秒 {frames} コマ）',
+  'timesheet.copyHint': 'タイムシートソフトに貼り付けられる形式でコピーします（{sec} 秒 {frames} コマ）',
   // 表の見出し。紙のタイムシートの欄名に合わせる。
   'timesheet.colSec': '秒',
   'timesheet.colFrame': 'コマ',
   'timesheet.colCell': 'セル',
   'timesheet.colMemo': 'メモ',
-  'shortcuts.viewerTimesheet': 'タイムシートを開いている間：動画番号を打つ / 確定して次のコマへ',
-  'shortcuts.viewerTimesheetSymbols': '同：○（中割り）/ ●（逆シート）/ ×（カラ）。テンキーの / - * でも同じ',
+  'shortcuts.viewerTimesheet': 'タイムシート表示中：動画番号を入力 / 確定して次のコマへ',
+  'shortcuts.viewerTimesheetSymbols': 'タイムシート表示中：○（中割り）/ ●（逆シート）/ ×（カラ）。テンキーの / - * でも入力できます',
 
   // ── What's New ──
   'whatsNew.title': 'Shiori v{version} の変更点',
@@ -332,7 +332,7 @@ export const ja = {
   'sort.random': 'ランダム',
 
   // ── 検索 ──
-  'search.placeholder': 'タイトルやメモを検索  / でフォーカス',
+  'search.placeholder': 'タイトルやメモを検索（/ でフォーカス）',
   'search.focusHint': '/ で検索にフォーカス',
   'search.clear': '検索をクリア',
   'search.noSuggestions': '候補がありません',
@@ -365,7 +365,7 @@ export const ja = {
   'sidebar.aiTagSuffix': '（AIタグ）',
   'sidebar.tagDeleteHint': '（右クリック / Shift+F10 でタグ自体を削除）',
   'sidebar.collapseTags': '折りたたむ',
-  'sidebar.showHiddenTags': '+{count}（{min}枚未満）表示',
+  'sidebar.showHiddenTags': '+{count}件（{min}枚未満）を表示',
   'sidebar.deleteTagEverywhere': 'タグ「{tag}」を全画像から削除',
   'sidebar.thumbnailSize': 'サムネイルサイズ',
   'sidebar.sizeSmall': '小',
@@ -417,8 +417,8 @@ export const ja = {
   'detail.uncapturedFrames': '{count}コマ未取得',
   'detail.ambiguousFrames': '{count}コマ要確認',
   'detail.ambiguousFramesHint':
-    '専用の絵が無いコマが{missed}個あり、うち{ambiguous}個は前後で絵が変わっています。' +
-    'その区間のどのコマで変わったかは特定できないため、コマ打ちを数えるときは確認してください。',
+    '映像を個別に取り込めなかったコマが{missed}個あり、そのうち{ambiguous}個は前後の映像が異なります。' +
+    'その区間では映像がどのコマで変わったかを特定できないため、コマ打ちを数える際は確認してください。',
   'detail.memo': 'メモ',
   'detail.memoUnsaved': '未保存',
   'detail.memoSaving': '保存中...',
@@ -540,13 +540,13 @@ export const ja = {
   'settings.extPortBlocked': 'ポートを確保できません',
   // 拡張の入れ直しでもページの再読み込みでも直らない状態。原因がアプリの外（OS のポート予約）に
   // あることと、実際に効く手（PC の再起動）を先に伝える。
-  'settings.extPortBlockedHint': '通信に使えるポートが 1 つも空いていないため、ブラウザ拡張と接続できません。拡張の入れ直しやページの再読み込みでは直りません。Windows が起動時にポートを予約していることが多く、PC を再起動すると直ることがあります。',
+  'settings.extPortBlockedHint': '通信に使えるポートが空いていないため、ブラウザ拡張と接続できません。拡張の再インストールやページの再読み込みでは解消しません。Windows が起動時にポートを予約している場合は、PC を再起動すると解消することがあります。',
   'settings.services': '対応サービス',
   'settings.hotkey': 'ホットキー',
   'settings.captureHotkey': 'キャプチャホットキー',
   'settings.frameStep': 'コマ送り (, / .)',
   'settings.autoDetect': '自動検出',
-  'settings.fpsHint': '自動検出がオン：動画から計測 / オフ：固定 fps（アニメ ≈ 24、実写 ≈ 30）',
+  'settings.fpsHint': '自動検出オン：動画から計測 / オフ：固定 fps（アニメは約24、実写は約30）',
   'settings.notifications': '通知',
   'settings.notifyOnCapture': 'キャプチャ完了時に通知する',
   'settings.autoTagging': '自動タグ付け (WD Tagger)',
@@ -579,7 +579,7 @@ export const ja = {
   'settings.exporting': 'エクスポート中...',
   'settings.exportLibrary': 'ライブラリをエクスポート...',
   'settings.import': 'インポート',
-  'settings.importHint': '画像とメタデータをライブラリに追加します。既存のキャプチャとは区別され、取得日時にはインポートした時刻が使われます。同じフォルダを再度インポートすると重複するため、ご注意ください。',
+  'settings.importHint': '画像とメタデータをライブラリに追加します。取り込んだ画像は既存のキャプチャと区別され、取得日時にはインポートした時刻が使われます。同じフォルダを再度インポートすると重複します。',
   'settings.importErrorSuffix': '（エラー{count}件）',
   'settings.importFolderSuffix': '、スマートフォルダ{count}件',
   'settings.importedCount.one': '{count}枚をインポートしました',
@@ -610,6 +610,6 @@ export const ja = {
   // 素材を 1 件も置いていないときの第一画面。デスクトップ版の初回案内（拡張機能フォルダを
   // 開く → 対応サイトで動画を開く → ホットキー）はデモでは全部空振りするので差し替える。
   'demo.emptyTitle': 'このデモには、まだ素材が置かれていません',
-  'demo.emptyHint': 'Shiori は、配信中のアニメを研究用途で記録するデスクトップアプリです。これはその画面をブラウザで触れるようにしたデモで、表示・検索・タグ編集は実際に動きます。ただしこのデモに配信画面のキャプチャを置くことはできないため、ライブラリが空のままになっています。',
+  'demo.emptyHint': 'Shiori は、配信中のアニメを研究用途で記録するデスクトップアプリです。このデモでは実際の画面をブラウザで操作でき、表示・検索・タグ編集を試せます。配信画面のキャプチャはデモに掲載できないため、現在ライブラリは空です。',
   'demo.emptyRepo': 'GitHub でプロジェクトを見る',
 } as const

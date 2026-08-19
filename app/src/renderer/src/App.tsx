@@ -528,7 +528,6 @@ export default function App() {
           onAddSearchTag={addSearchTag}
           settingsActive={settings.showSettings}
           onToggleSettings={() => settings.setShowSettings((v) => !v)}
-          onShowWhatsNew={(version, notes) => setWhatsNew({ version, notes })}
           setupCompleted={completedSetupSteps(setupGuide)}
           onShowSetup={() => setShowSetupGuide(true)}
           thumbnailSize={settings.settings.thumbnailSize}
@@ -730,6 +729,7 @@ export default function App() {
 
         {settings.showSettings && (
           <SettingsModal
+            onShowWhatsNew={(version, notes) => setWhatsNew({ version, notes })}
             settings={settings.settings}
             startup={settings.startup}
             taggerReady={tagger.taggerReady}

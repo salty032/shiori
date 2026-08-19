@@ -100,7 +100,10 @@ export const color = {
 // ConfirmDialog/WhatsNewModal/SettingsModal で重複していた overlay/panel の基本形を集約。
 // スクリム濃度・zIndex・panel のサイズは各モーダルでスプレッド上書きする前提（C-1）。
 export const modal: Record<string, CSSProperties> = {
-  overlay: { position: 'fixed' as const, inset: 0, zIndex: 7000, background: 'rgba(var(--scrim-rgb), 0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  // overscrollBehavior は全モーダル共通で contain。前面に何か出している間、ホイールが
+  // 背後の一覧やサイドバーへ渡って裏が動くのを止める（設定・変更点・確認ダイアログの
+  // どれでも同じことが起きるので、器の側で 1 回だけ決める）。
+  overlay: { position: 'fixed' as const, inset: 0, zIndex: 7000, overscrollBehavior: 'contain' as const, background: 'rgba(var(--scrim-rgb), 0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
   panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: 'var(--bg-modal)', border: '1px solid var(--border-default)', borderRadius: radius.lg, boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
 }
 
@@ -353,7 +356,9 @@ export const s: Record<string, CSSProperties> = {
   // 塊ごと次の行へ送る（rowGap を入れて 2 行になっても読めるようにしてある）。
   sidebarLinks: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'center', columnGap: space.x4, rowGap: space.x2, paddingTop: 6 },
   sidebarLink: { padding: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: font.xs, fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' as const },
-  sidebarLinkSep: { color: 'var(--text-muted)', fontSize: font.xs },
+  // リンクの区切り。**文字ではなく細い縦線。** 「・」を使うと「不具合・要望を報告」の
+  // 中の「・」と同じ形になり、2 つのリンクが 3 つに見える。
+  sidebarLinkSep: { width: 1, height: 10, background: 'rgba(var(--hairline-rgb), 0.6)' },
   sidebarXBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   // 通知と進捗タスクを同じ下中央スタックにまとめる。完了通知と進行中タスクが
   // 別デザインで重なる状態を避けつつ、視線移動が少ない位置に出す。

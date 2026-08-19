@@ -6,8 +6,6 @@ import { s, font, control } from '../styles'
 import { FolderIcon, GridIcon, HelpCircleIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
 import ContextMenu from './ContextMenu'
 import ShortcutsFlyout from './ShortcutsFlyout'
-import { useSettingsStore } from '../stores/settingsStore'
-import { releaseNotesFor } from '../../../shared/releaseNotes'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_DEFAULT_WIDTH, panelLimits } from '../layout'
@@ -58,8 +56,6 @@ type Props = {
   onAddSearchTag: (tag: string) => void
   settingsActive: boolean
   onToggleSettings: () => void
-  /** 「?」のフライアウトから変更点モーダルを開く（サイドバー自身は中身を持たない） */
-  onShowWhatsNew: (version: string, notes: string[]) => void
   setupCompleted: number
   onShowSetup: () => void
   thumbnailSize: number
@@ -90,13 +86,12 @@ const SMART_FOLDER_DRAG_THRESHOLD_PX = 6
 // タグの「+N 表示」折りたたみだけはサイドバー固有の表示状態なので内部に持つ。
 export default function Sidebar({
   count, filters, smartFolders,
-  searchTags, onRemoveSearchTag, onAddSearchTag, settingsActive, onToggleSettings, onShowWhatsNew,
+  searchTags, onRemoveSearchTag, onAddSearchTag, settingsActive, onToggleSettings,
   setupCompleted, onShowSetup,
   thumbnailSize, onThumbnailSize, viewMode, onViewMode,
   onDeleteSmartFolder, onReorderSmartFolders, onDeleteTag,
 }: Props) {
   const { t, tp } = useT()
-  const lang = useSettingsStore((st) => st.settings.language)
   const nearestThumbSize = THUMB_SIZES.reduce(
     (best, cur) => Math.abs(cur.size - thumbnailSize) < Math.abs(best.size - thumbnailSize) ? cur : best,
     THUMB_SIZES[0],
@@ -108,9 +103,6 @@ export default function Sidebar({
   useEffect(() => {
     window.api.getAppVersion().then(setAppVersion).catch(() => {})
   }, [])
-  // 変更点の文面は shared にあるので main へ問い合わせずに引ける（更新直後の自動表示は
-  // bootstrap.ts が push する。**同じ 1 本の RELEASE_NOTES を見ていること**）。
-  const notes = appVersion ? releaseNotesFor(appVersion, lang) : undefined
   const [dragFolderId, setDragFolderId] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [tagCtxMenu, setTagCtxMenu] = useState<{ x: number; y: number; tag: string; keyboard?: boolean } | null>(null)
@@ -511,22 +503,20 @@ export default function Sidebar({
             <HelpCircleIcon size={16} />
           </button>
         </div>
-        {/* 変更点とフィードバック。**常に見える場所に置く**——設定の 4 つ目のタブの末尾や、
-            ショートカット一覧（「?」はキー操作の話をする場所）に混ぜると、探しに行く動機の
-            ある人しか辿り着けない。設定ボタンの下に小さく置いて、視線の重さだけ下げる。
-            **文面が無いバージョンでは「変更点」を出さない**——押しても空のモーダルが開く
-            だけで、「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
+        {/* 使い方と報告。**この 2 つだけ常に見える場所に置く**——どちらも「困った時に
+            すぐ押したい」もので、探させると届かない。
+            **「変更点」はここに置かない。** 3 つ並べると幅に入らず 2 行へ折り返し、下端が
+            ギザギザになっていた。更新直後は勝手に出るのでここは読み返し用でしかなく、
+            版・クレジットと同じ性格なので設定の「情報」タブへ移した。
+            **「?」にも混ぜない。** あれは名前どおりショートカットを出す場所で、名前と
+            中身が食い違う入れ物は、押す前に何が入っているか読めなくなる。 */}
         <div style={s.sidebarLinks}>
           {setupCompleted === 3 && (
             <>
               <button style={s.sidebarLink} onClick={onShowSetup}>{t('sidebar.setupLink')}</button>
-              <span style={s.sidebarLinkSep}>・</span>
-            </>
-          )}
-          {notes && notes.length > 0 && (
-            <>
-              <button style={s.sidebarLink} onClick={() => onShowWhatsNew(appVersion!, notes)}>{t('help.whatsNew')}</button>
-              <span style={s.sidebarLinkSep}>・</span>
+              {/* 区切りは文字ではなく縦線。「・」だと「不具合・要望を報告」の中の「・」と
+                  見分けが付かず、2 つのリンクが 3 つに見えていた。 */}
+              <span style={s.sidebarLinkSep} />
             </>
           )}
           <button style={s.sidebarLink} onClick={() => window.api.openUrl(feedbackUrl(appVersion))} title={t('help.feedbackHint')}>

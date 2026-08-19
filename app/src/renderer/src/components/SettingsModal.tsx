@@ -9,6 +9,7 @@ import { useExportStore } from '../stores/exportStore'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getSettingsSlots } from '../features/registry'
 import { useT } from '../i18n'
+import { releaseNotesFor } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
 
 type Props = {
@@ -33,6 +34,8 @@ type Props = {
   onTaggerRetagAll: () => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  /** 「情報」タブから変更点モーダルを開く（設定画面自身は中身を持たない） */
+  onShowWhatsNew: (version: string, notes: string[]) => void
 }
 
 const CLOSE_MS = 110
@@ -95,6 +98,9 @@ export default function SettingsModal(p: Props) {
   useEffect(() => {
     window.api.getAppVersion().then(setAppVersion).catch(() => {})
   }, [])
+  // 変更点の文面は shared にあるので main へ問い合わせずに引ける（更新直後の自動表示は
+  // bootstrap.ts が push する。**同じ 1 本の RELEASE_NOTES を見ていること**）。
+  const notes = appVersion ? releaseNotesFor(appVersion, p.settings.language) : undefined
   // 拡張と繋がるポート。候補を全部確保できなかったときは null で、この場合は拡張を入れ直しても
   // ページを再読み込みしても直らない（原因がアプリの外にある）。未取得の undefined と区別する。
   const [wsPort, setWsPort] = useState<number | null | undefined>(undefined)
@@ -196,6 +202,25 @@ export default function SettingsModal(p: Props) {
 
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef, true)
+
+  // 設定を開いている間、パネルの外で回したホイールは黙って捨てる。
+  //
+  // 幕（overlay）を敷いているのにカーソルを裏へ置いて回すと、背後の一覧が動いていた。
+  // overscroll-behavior はスクロールする箱にしか効かず、幕そのものはスクロールしないので
+  // ここには届かない。**どの箱が動いたかを突き止めて塞ぐのではなく、「パネルの外では
+  // 何も動かない」という結果の側で決める**——背後には一覧・サイドバー・右パネルと
+  // スクロールする箱が3つあり、1つずつ塞ぐと次に足した箱で同じことが起きる。
+  //
+  // capture かつ passive: false で登録する。React が付けるホイールは passive なので、
+  // onWheel prop 側では preventDefault が効かない（Viewer.tsx と同じ理由）。
+  useEffect(() => {
+    const block = (e: WheelEvent): void => {
+      if (panelRef.current?.contains(e.target as Node)) return
+      e.preventDefault()
+    }
+    document.addEventListener('wheel', block, { passive: false, capture: true })
+    return () => document.removeEventListener('wheel', block, { capture: true })
+  }, [])
 
   return (
     <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={closeSettings}>
@@ -618,12 +643,22 @@ export default function SettingsModal(p: Props) {
                 {/* バージョンとクレジットは操作対象ではないので、右側にボタンを置く actionRow は
                     使わず見出し＋説明だけにする。以前は他と同じ「左に見出し・右にボタン」の
                     カードに入っていて、右半分が空いたまま操作できそうな見た目になっていた。 */}
-                {/* 変更点とフィードバックの導線はここには置かない。**サイドバー下部の「?」の
-                    フライアウト**（ShortcutsFlyout）に集めてある——設定のデータタブは 4 つ目の
-                    タブの末尾で、探して辿り着く場所ではなかった。 */}
                 <div style={{ ...s.group, ...s.groupFirst }}>
                   <div style={s.section}>{t('settings.version')}</div>
-                  <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
+                  <div style={s.actionRow}>
+                    <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
+                    {/* 変更点はここに置く。版と同じ「このアプリ自体の話」で、性格が揃う。
+                        以前はサイドバー下部に常時リンクを出していたが、使い方・報告と 3 つ
+                        並ぶと幅に入らず 2 行へ折り返していた。更新直後は勝手に出るので、
+                        ここは読み返し用でしかない。
+                        **文面が無いバージョンでは出さない**——押しても空のモーダルが開く
+                        だけで、「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
+                    {appVersion && notes && notes.length > 0 && (
+                      <button style={s.sizeBtn} onClick={() => p.onShowWhatsNew(appVersion, notes)}>
+                        {t('help.whatsNew')}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* Icons8 の無料ライセンスはアプリ内のクレジット表示とリンクを条件にしている。
                     他のサードパーティ表記も同じ場所にまとめ、詳細は NOTICE.md に委ねる。 */}
@@ -673,7 +708,9 @@ export const s: Record<string, React.CSSProperties> = {
   sidebar: { width: 124, padding: '8px 10px', gap: space.x2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
   tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: radius.md, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
   tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: 700 },
-  tabContent: { overflowY: 'auto' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
+  // overscrollBehavior: タブの中身を端まで送ったあと、続きのホイールが背後の一覧へ
+  // 渡って**設定を開いたまま裏がスクロールしていた**。contain で連鎖を止める。
+  tabContent: { overflowY: 'auto' as const, overscrollBehavior: 'contain' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
   title: { fontSize: font.xxl, fontWeight: 800, color: 'var(--text-bright)' },
   close: { ...btnBase, width: 32, padding: 0, background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', color: 'var(--text-secondary)' },
   // 区切り線は 2 つ目以降の group にだけ出す。1 つ目に出すとヘッダーの下線と重なって
