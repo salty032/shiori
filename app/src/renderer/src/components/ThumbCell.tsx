@@ -72,7 +72,7 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
         {durationLabel && <div style={{ ...s.thumbVideoDuration, top: inset.y, right: inset.x }}>{durationLabel}</div>}
         {showNew && <div style={{ ...(isNew ? s.thumbNewBadge : s.thumbNewBadgeExit), top: inset.y, left: inset.x }}>NEW</div>}
       </div>
-      <div style={s.thumbLabel} title={titleLabel || undefined}>
+      <div style={{ ...s.thumbLabel, ...(selected ? s.thumbLabelSelected : {}) }} title={titleLabel || undefined}>
         {highlight
           ? splitHighlight(titleLabel, highlight).map((seg, i) => seg.match
             ? <mark key={i} style={s.thumbLabelHighlight}>{seg.text}</mark>

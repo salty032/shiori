@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useT } from '../i18n'
-import { font } from '../styles'
+import { font, radius } from '../styles'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
@@ -212,7 +212,7 @@ const st: Record<string, React.CSSProperties> = {
     flexShrink: 0, color: c.headText,
   },
   copyBtn: {
-    padding: '4px 10px', background: '#fff', border: `1px solid ${c.frame}`, borderRadius: 4,
+    padding: '4px 10px', background: '#fff', border: `1px solid ${c.frame}`, borderRadius: radius.md,
     color: c.ink, fontSize: font.xs, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
   },
   closeBtn: {

@@ -3,7 +3,7 @@ import { mediaUrl } from '../utils'
 import { findFrameIdx, frameSeekTarget } from '../frameTable'
 import { getClipFramesResolver } from '../features/registry'
 import { useT, type Translate, type MessageKey } from '../i18n'
-import { font } from '../styles'
+import { font, radius } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 import {
@@ -82,7 +82,7 @@ const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; color: s
 const frameReadoutStyle: React.CSSProperties = {
   position: 'absolute', left: 10, bottom: VC_OVERLAY_HEIGHT + 2, zIndex: 3,
   pointerEvents: 'auto', cursor: 'help',
-  padding: '2px 7px', borderRadius: 4, background: 'rgba(6,8,12,0.72)',
+  padding: '2px 7px', borderRadius: radius.md, background: 'rgba(6,8,12,0.72)',
   fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', letterSpacing: 0,
   whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.9)',
   transition: 'opacity 0.15s ease',
@@ -173,6 +173,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     frameIdxRef.current = null
     selfSeekRef.current = false
     pendingStepsRef.current = 0
+    setFrameEnd(null)
     if (!preloadFrameTable) { setReadoutKind('off'); return }
     const resolve = getClipFramesResolver()
     // 解決役が未登録（video 機能ごと落とした構成）。コマの位置は分からないので fps 換算になる。
@@ -184,6 +185,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const settle = (frames: ClipFrames | null): void => {
       if (canceled) return
       framesRef.current = frames
+      setFrameEnd(frames && frames.pts.length > 0 ? frames.pts[frames.pts.length - 1] : null)
       setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
       onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
       const pending = pendingStepsRef.current
@@ -356,6 +358,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   }
 
   const [vcDuration, setVcDuration] = useState(0)
+  // 最後のコマの時刻（コマ表が取れているときだけ）。シークバーの右端に使う。
+  const [frameEnd, setFrameEnd] = useState<number | null>(null)
   const [vcVolume, setVcVolume] = useState(1)
   const [vcMuted, setVcMuted] = useState(false)
   const [vcLoop, setVcLoop] = useState(lastLoop)
@@ -390,7 +394,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     if (!v) return
     if (framePlay) { setFramePlay(false); return }
     if (!v.paused) { v.pause(); return }
-    if (speed === null) { v.play(); return }
+    if (speed === null) {
+      // 終端で止まっているところで押すのがいちばん普通の流れ（コマ再生側も同じ扱い）。
+      // play() だけでもブラウザが先頭へ戻すが、それだとシークバーとコマ表示は
+      // 戻ったことを知らないまま一瞬右端に残る。
+      if (v.ended) { v.currentTime = 0; updateVcTime(0) }
+      v.play()
+      return
+    }
     setFramePlay(true)
   }
   togglePlaybackRef.current = togglePlayback
@@ -405,9 +416,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     else { v.pause(); setFramePlay(true) }
   }
 
+  // シークバーの右端に当たる時刻。**コマ表があるうちは最後のコマの時刻**にする。
+  //
+  // duration を右端にすると、最後のコマ（例：109/109）に居ても右端との間に 1 コマ分の
+  // 隙間が残り、「コマは最後まで来ているのにバーは終わっていない」状態になる。
+  // その隙間は最後のコマが映り続けている時間で、そこへ飛んでも絵は変わらない——
+  // つまりバーの上で意味のある範囲は最初のコマから最後のコマまでしかない。
+  // 表が無いとき（詳細パネル・解析失敗）だけ従来どおり duration を右端にする。
+  //
+  // 代償：右端を掴んだときの飛び先が duration ではなく最後のコマになる。見える絵は同じだが、
+  // 時刻ラベル（本物の currentTime / duration を出す）とはコンマ以下がズレる。
+  const seekEndRef = useRef(0)
+  seekEndRef.current = frameEnd ?? vcDuration
+
+  function seekRatio(t: number): number {
+    const end = seekEndRef.current
+    if (!(end > 0)) return 0
+    return Math.max(0, Math.min(1, t / end))
+  }
+
   function updateVcTime(t: number): void {
     vcTimeRef.current = t
-    const pct = `${(t / (vcDuration || 1)) * 100}%`
+    const pct = `${seekRatio(t) * 100}%`
     if (seekFillRef.current) seekFillRef.current.style.width = pct
     if (seekThumbRef.current) seekThumbRef.current.style.left = `calc(${pct} - 6px)`
     if (vcTimeLabelRef.current) vcTimeLabelRef.current.textContent = `${fmtDur(t)} / ${fmtDur(vcDuration)}`
@@ -575,7 +605,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const update = (clientX: number) => {
       const rect = el.getBoundingClientRect()
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-      const t = pct * (vcDuration || 0)
+      const t = pct * (seekEndRef.current || 0)
       updateVcTime(t)
       if (videoRef.current) videoRef.current.currentTime = t
     }
@@ -623,7 +653,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           // シークバー操作など、コマ送り以外で位置が動いたときに添字を引き直す。
           onSeeked={syncFrameIdx}
           onLoadedData={syncFrameIdx}
-          onEnded={() => { setPlaying(false); updateVcTime(0); if (videoRef.current) videoRef.current.currentTime = 0 }}
+          // 再生し終えたら**終端に残す**。以前はここで頭出しに戻していたため、
+          // 最後まで見た瞬間にバーが左端へ飛び、コマ表示も 1 コマ目に戻っていた
+          // （コマ再生で終わったときは最後のコマに留まるので、同じ「終わった」でも
+          // 見え方が食い違っていた）。もう一度押したときの頭出しは togglePlayback が行う。
+          onEnded={() => { setPlaying(false); updateVcTime(videoRef.current?.currentTime ?? seekEndRef.current) }}
           onTimeUpdate={() => updateVcTime(videoRef.current?.currentTime ?? 0)}
           onDurationChange={() => setVcDuration(videoRef.current?.duration ?? 0)}
           onVolumeChange={() => {
@@ -662,8 +696,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           </button>
           <div style={vcSeekTrackStyle} onPointerDown={handleSeekPointerDown}>
             <div style={vcSeekBarStyle} />
-            <div ref={seekFillRef} style={{ ...vcSeekFillStyle, width: `${(vcTimeRef.current / (vcDuration || 1)) * 100}%` }} />
-            <div ref={seekThumbRef} style={{ ...vcSeekThumbStyle, left: `calc(${(vcTimeRef.current / (vcDuration || 1)) * 100}% - 6px)` }} />
+            <div ref={seekFillRef} style={{ ...vcSeekFillStyle, width: `${seekRatio(vcTimeRef.current) * 100}%` }} />
+            <div ref={seekThumbRef} style={{ ...vcSeekThumbStyle, left: `calc(${seekRatio(vcTimeRef.current) * 100}% - 6px)` }} />
           </div>
           <span ref={vcTimeLabelRef} style={vcTimeLabelStyle}>{fmtDur(vcTimeRef.current)} / {fmtDur(vcDuration)}</span>
           {showRateLoop && <SpeedControl speed={speed} onPick={pickSpeed} />}

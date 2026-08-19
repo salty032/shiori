@@ -500,6 +500,7 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.tab.capture': 'Capture',
   'settings.tab.tag': 'Tags',
   'settings.tab.data': 'Data',
+  'settings.tab.about': 'About',
   'settings.appearance': 'Appearance',
   'settings.theme': 'Theme',
   'settings.theme.system': 'System',

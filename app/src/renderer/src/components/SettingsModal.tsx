@@ -38,12 +38,13 @@ type Props = {
 const CLOSE_MS = 110
 
 // M-4: 表示ラベルと状態識別子を分離する（ラベル文言の変更が型・状態キーの変更を兼ねないように）。
-type TabId = 'general' | 'capture' | 'tag' | 'data'
+type TabId = 'general' | 'capture' | 'tag' | 'data' | 'about'
 const TABS: { id: TabId; labelKey: MessageKey }[] = [
   { id: 'general', labelKey: 'settings.tab.general' },
   { id: 'capture', labelKey: 'settings.tab.capture' },
   { id: 'tag', labelKey: 'settings.tab.tag' },
   { id: 'data', labelKey: 'settings.tab.data' },
+  { id: 'about', labelKey: 'settings.tab.about' },
 ]
 
 export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
@@ -209,7 +210,8 @@ export default function SettingsModal(p: Props) {
             {TABS.map((tab) => (
               <button
                 key={tab.id}
-                className="shiori-menu-item"
+                className={activeTab === tab.id ? undefined : 'shiori-menu-item'}
+                data-current={activeTab === tab.id ? 'true' : undefined}
                 style={{ ...s.tabBtn, ...(activeTab === tab.id ? s.tabBtnActive : {}) }}
                 onClick={() => setActiveTab(tab.id)}
               >
@@ -229,7 +231,7 @@ export default function SettingsModal(p: Props) {
                       {([['system', t('settings.theme.system')], ['dark', t('settings.theme.dark')], ['light', t('settings.theme.light')]] as const).map(([value, label]) => {
                         const active = p.settings.theme === value
                         return (
-                          <button key={value} onClick={() => p.onUpdateTheme(value)}
+                          <button key={value} onClick={() => p.onUpdateTheme(value)} data-current={active ? 'true' : undefined}
                             style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
                             {label}
                           </button>
@@ -243,7 +245,7 @@ export default function SettingsModal(p: Props) {
                       {([['ja', '日本語'], ['en', 'English']] as const).map(([value, label]) => {
                         const active = p.settings.language === value
                         return (
-                          <button key={value} onClick={() => p.onUpdateLanguage(value)}
+                          <button key={value} onClick={() => p.onUpdateLanguage(value)} data-current={active ? 'true' : undefined}
                             style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
                             {label}
                           </button>
@@ -354,7 +356,7 @@ export default function SettingsModal(p: Props) {
                         {[24, 30, 60].map((fps) => {
                           const active = p.settings.frameFps === fps
                           return (
-                            <button key={fps} onClick={() => p.onUpdateFrameFps(fps)}
+                            <button key={fps} onClick={() => p.onUpdateFrameFps(fps)} data-current={active ? 'true' : undefined}
                               style={{ ...s.sizeBtn, background: active ? 'rgba(var(--accent-rgb), 0.16)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border-default)' }}>
                               {fps}
                             </button>
@@ -608,13 +610,18 @@ export default function SettingsModal(p: Props) {
                   </div>
                   {repairStatus && <div style={{ ...s.statusLine, ...(repairStatus.error ? s.statusLineError : s.statusLineOk) }}>{repairStatus.text}</div>}
                 </div>
+              </>
+            )}
+
+            {activeTab === 'about' && (
+              <>
                 {/* バージョンとクレジットは操作対象ではないので、右側にボタンを置く actionRow は
                     使わず見出し＋説明だけにする。以前は他と同じ「左に見出し・右にボタン」の
                     カードに入っていて、右半分が空いたまま操作できそうな見た目になっていた。 */}
                 {/* 変更点とフィードバックの導線はここには置かない。**サイドバー下部の「?」の
                     フライアウト**（ShortcutsFlyout）に集めてある——設定のデータタブは 4 つ目の
                     タブの末尾で、探して辿り着く場所ではなかった。 */}
-                <div style={s.group}>
+                <div style={{ ...s.group, ...s.groupFirst }}>
                   <div style={s.section}>{t('settings.version')}</div>
                   <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
                 </div>
@@ -664,13 +671,17 @@ export const s: Record<string, React.CSSProperties> = {
   panel: { ...modal.panel, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
   sidebar: { width: 124, padding: '8px 10px', gap: 2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
-  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
+  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: 600, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: radius.md, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
   tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: 700 },
   tabContent: { overflowY: 'auto' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
   title: { fontSize: font.xxl, fontWeight: 800, color: 'var(--text-bright)' },
   close: { ...btnBase, width: 32, padding: 0, background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', color: 'var(--text-secondary)' },
   // 区切り線は 2 つ目以降の group にだけ出す。1 つ目に出すとヘッダーの下線と重なって
   // 二重線に見えるため、各タブの先頭 group には groupFirst を重ねること。
+  // **タブごとに構造を変えない。** どのタブも「group を縦に並べるだけ」の 1 段で揃える。
+  // 一度データタブだけカテゴリの段を足したが、他のタブは中身が 2〜4 つしかなく、同じ形に
+  // すると子が 1 つだけのカテゴリができる。優先度の問題（バージョン・クレジットが
+  // ライブラリへの操作と同列に並んでいた）は、それらを情報タブへ分けたことで解いている。
   group: { borderTop: '1px solid var(--border-default)', padding: '22px 0', display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 620 },
   groupFirst: { borderTop: 'none' },
   section: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
@@ -708,8 +719,8 @@ export const s: Record<string, React.CSSProperties> = {
   deleteBtn: { ...btnBase, background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, color: color.danger },
   cancelBtn: { ...btnBase, background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' },
   progressWrap: { display: 'flex', alignItems: 'center', gap: 8 },
-  progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', background: 'var(--accent)', borderRadius: 4, transition: 'width 0.3s' },
+  progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: radius.md, overflow: 'hidden' },
+  progressFill: { height: '100%', background: 'var(--accent)', borderRadius: radius.md, transition: 'width 0.3s' },
   progressLabel: { color: 'var(--text-secondary)', fontSize: font.sm, width: 36, textAlign: 'right' as const },
   statusLine: { fontSize: font.sm, fontWeight: 700 },
   statusLineOk: { color: 'var(--success)' },

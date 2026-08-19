@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
 import { cleanTitle, computeGridLayout, formatTime, thumbSrc } from '../utils'
-import { font, badgeInset, s as appStyles } from '../styles'
+import { font, badgeInset, s as appStyles, radius } from '../styles'
 import { currentLocale, useT } from '../i18n'
 
 // サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
@@ -263,12 +263,12 @@ const s: Record<string, React.CSSProperties> = {
   headingCount: { fontSize: font.sm, color: 'var(--text-secondary)', flexShrink: 0 },
   loadedCount: { marginLeft: 'auto', fontSize: font.sm, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
   grid: { display: 'grid', gap: CELL_GAP, width: '100%' },
-  thumb: { position: 'relative', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxSizing: 'border-box', borderRadius: 4, overflow: 'hidden', cursor: 'pointer', width: '100%', contain: 'layout paint', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
+  thumb: { position: 'relative', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxSizing: 'border-box', borderRadius: radius.md, overflow: 'hidden', cursor: 'pointer', width: '100%', contain: 'layout paint', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
   thumbImg: { width: '100%', objectFit: 'cover', display: 'block' },
   // サムネ上への時刻バッジは、写真のような雑多な背景に載っても読めるよう常に黒地・白文字に固定する
   // （テーマ非依存。フィルムストリップの視認性を優先し、あえて周辺UIと色を揃えない）。
-  timeBadge: { position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
+  timeBadge: { position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: radius.md, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   empty: { color: 'var(--text-secondary)', textAlign: 'center', width: '100%', minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   loadMoreWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0 28px' },
-  loadMoreButton: { border: '1px solid var(--border-default)', borderRadius: 4, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 700, padding: '9px 18px', cursor: 'pointer' },
+  loadMoreButton: { border: '1px solid var(--border-default)', borderRadius: radius.md, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 700, padding: '9px 18px', cursor: 'pointer' },
 }

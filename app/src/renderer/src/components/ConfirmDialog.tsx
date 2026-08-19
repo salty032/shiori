@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { font, color, modal } from '../styles'
+import { font, color, modal, radius } from '../styles'
 import { XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useT } from '../i18n'
@@ -106,11 +106,11 @@ const s: Record<string, React.CSSProperties> = {
   panel: modal.panel,
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 18px 12px', borderBottom: '1px solid var(--border-default)' },
   title: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.xl, fontWeight: 800, lineHeight: 1.35 },
-  closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
+  closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   body: { padding: '16px 18px 18px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.65, whiteSpace: 'pre-wrap' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
-  cancelBtn: { height: 34, padding: '0 14px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
-  confirmBtn: { height: 34, padding: '0 14px', border: '1px solid', borderRadius: 4, cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  cancelBtn: { height: 34, padding: '0 14px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  confirmBtn: { height: 34, padding: '0 14px', border: '1px solid', borderRadius: radius.md, cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
   confirmPrimary: { background: 'rgba(var(--accent-rgb), 0.16)', borderColor: 'rgba(var(--accent-rgb), 0.48)', color: 'var(--accent-text)' },
   confirmDanger: { background: 'rgba(var(--danger-rgb), 0.12)', borderColor: color.dangerBorder, color: color.danger },
 }

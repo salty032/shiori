@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageRow, ImageTagSource, Settings } from '../types'
 import { cleanTitle, siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
-import { font, color, s as commonStyles } from '../styles'
+import { font, color, s as commonStyles, radius } from '../styles'
 import TagEditor from './TagEditor'
 import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
@@ -596,7 +596,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
 }
 
 const s: Record<string, React.CSSProperties> = {
-  panel: { background: 'var(--bg-page)', borderLeft: '1px solid var(--border-default)', flexShrink: 0, display: 'flex', flexDirection: 'column', position: 'relative' as const },
+  panel: { background: 'var(--bg-page)', flexShrink: 0, display: 'flex', flexDirection: 'column', position: 'relative' as const },
   // 当たり判定は 8px。ただし**外へは出さない**（サイドバー側とは違う）。このパネルの左隣は
   // 一覧のスクロールバー（10px）で、外へ張り出すとバーのつまみが掴めなくなる。
   resizeHandle: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 8, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
@@ -611,12 +611,12 @@ const s: Record<string, React.CSSProperties> = {
   emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },
   // シークバーが映像内のオーバーレイになったので、動画と画像は外形が完全に一致する。
   // 以前ここにあった marginBottom: VC_BAR_HEIGHT（バー分の辻褄合わせ）は不要になった。
-  img: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'block', flexShrink: 0 },
+  img: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: radius.md, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'block', flexShrink: 0 },
   // aspectRatio は img と同じく「枠を持つ外側のボックス」に持たせること。以前は内側の
   // videoEl 側に持たせていたため、img が w×9/16（border-box＝枠込みで16:9）なのに対し
   // 動画は (w-2)×9/16＋枠2px となり、外形の高さが約1px ずれてタイトル以降の位置も
   // 画像と揃わなかった。videoEl は height:100% で外形に従わせる。
-  videoWrap: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: 4, aspectRatio: '16 / 9', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', overflow: 'hidden', display: 'block', flexShrink: 0 },
+  videoWrap: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: radius.md, aspectRatio: '16 / 9', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', overflow: 'hidden', display: 'block', flexShrink: 0 },
   videoEl: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
   meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
   titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
@@ -634,7 +634,7 @@ const s: Record<string, React.CSSProperties> = {
   // 短いタイトルでも常に3行分の領域を確保し、画像によって下の要素の位置がズレないようにする
   titleValue: { flex: 1, minWidth: 0, fontSize: font.base, color: 'var(--text-primary)', lineHeight: 1.45, minHeight: 'calc(1.45em * 3)', fontWeight: 700, wordBreak: 'break-word', cursor: 'pointer', userSelect: 'text' as const },
   titleValueClamped: { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' },
-  titleEditBtn: { flexShrink: 0, width: 28, height: 28, padding: 0, background: 'rgba(var(--surface-rgb), 0.55)', border: '1px solid transparent', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
+  titleEditBtn: { flexShrink: 0, width: 28, height: 28, padding: 0, background: 'rgba(var(--surface-rgb), 0.55)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
   titleInput: { width: 'calc(100% - 34px)', minHeight: 'calc(1.45em * 3 + 9px)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-default)', color: 'var(--text-primary)', padding: '0 0 8px', fontSize: font.base, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-word', lineHeight: 1.45, fontFamily: 'inherit' },
   metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid rgba(var(--border-rgb), 0.72)', display: 'flex', flexDirection: 'column' as const, gap: 8 },
   subtleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 },
@@ -650,11 +650,11 @@ const s: Record<string, React.CSSProperties> = {
   // 「一部にのみ付いている」= coverage:some を表す修飾。由来色(緑/藍)の上に重ね、色相は保ったまま
   // 破線＋減光で「まだ全部には付いていない」を示す。
   tagChipPartialMod: { borderStyle: 'dashed' as const, opacity: 0.66 },
-  memoInput: { width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-primary)', padding: '10px 12px', fontSize: font.base, outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, fontFamily: 'inherit', lineHeight: 1.5 },
+  memoInput: { width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '10px 12px', fontSize: font.base, outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, fontFamily: 'inherit', lineHeight: 1.5 },
   multi: { padding: 16, display: 'flex', flexDirection: 'column', gap: 12 },
   multiHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   multiCount: { color: 'var(--text-secondary)', fontSize: font.lg },
   multiClearBtn: { flexShrink: 0, padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 700 },
-  showInFolderBtn: { width: '100%', height: 34, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
-  deleteActionBtn: { width: '100%', height: 34, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: 4, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  showInFolderBtn: { width: '100%', height: 34, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  deleteActionBtn: { width: '100%', height: 34, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: radius.md, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
 }

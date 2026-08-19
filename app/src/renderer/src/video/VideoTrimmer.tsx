@@ -680,7 +680,7 @@ const s: Record<string, React.CSSProperties> = {
   // 子なので、ドラッグで left% が動けば一緒に動く（追加の ref を持たなくてよい）。
   timelineWrap: { padding: '26px 16px 0', flexShrink: 0 },
   timeline: { position: 'relative', height: 52, background: 'var(--bg-inset-strong)', border: '1px solid var(--border-default)', cursor: 'crosshair', borderRadius: radius.md },
-  timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 4 },
+  timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: radius.md },
   // 範囲外は「暗くする」だけでなく彩度も落とす。選択範囲だけが色を保つので、
   // どこを切り出すのかがサムネイルの色の有無で一目で分かる。
   timelineDim: { position: 'absolute', top: 0, bottom: 0, background: 'rgba(var(--scrim-rgb), 0.62)', backdropFilter: 'grayscale(1) brightness(0.72)', WebkitBackdropFilter: 'grayscale(1) brightness(0.72)', pointerEvents: 'none' } as React.CSSProperties,

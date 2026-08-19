@@ -12,9 +12,15 @@
 
    **地と文字を両端まで振り切らない。** ダークは「ほぼ黒地にほぼ白文字」、ライトは
    「純白地に黒文字」で、長時間見ていると目が痛い。両端を内側へ寄せてある
-   （ダーク地 #202020 / 文字 #cdcdcd、ライト地 #f2f2f2 / 文字 #3a3a3a）。
-   枠線も面より目立たない位置まで弱めてある。**ここを「見やすくしよう」として
-   両端へ戻すと元の眩しさに戻る。**
+   （ダーク地 #232323 / 文字 #cdcdcd、ライト地 #f4f4f4 / 文字 #3a3a3a）。
+   **ここを「見やすくしよう」として両端へ戻すと元の眩しさに戻る。**
+
+   **面の段差は線ではなく明るさで作る。** サイドバー・本体・詳細パネルは全部同じ濃さで、
+   境目を 1px の線で描いていた。線の本数だけ画面が細かく見えるうえ、線を弱めると
+   境目そのものが消えてしまう（線が段差の唯一の手掛かりだったため）。
+   いまは沈む面（well=サイドバー、page=詳細パネル）と浮く面（content=本体、surface=カード・
+   メニュー・トースト）で 12〜13 段の差を付けてあり、境界線は引いていない。
+   **段差を縮めたくなったら線を足すのではなく、この差を戻すこと。**
 
    アクセントは彩度を落とした藍。**赤系（アイコンの栞の色）にはしない**——アクセントは
    選択枠・フォーカスリング・進捗バーに使われ、--danger の削除ボタンと隣り合って出るため、
@@ -24,12 +30,18 @@
    ビューア・タイムシート・サムネの余白は画像を見る面なので元からテーマ非依存で、
    ここを変えても素材の見え方は変わらない。 */
 :root {
-  --bg-page: #1b1b1b;
-  --bg-content: #202020;
-  --bg-well: #171717;
-  --bg-surface: #262626;
-  --bg-surface-hover: #2e2e2e;
-  --surface-rgb: 38, 38, 38;
+  --bg-page: #161616;
+  --bg-content: #232323;
+  --bg-well: #161616;
+  --bg-surface: #2c2c2c;
+  --bg-surface-hover: #363636;
+  /* モーダルの地。**他の面との差ではなく、暗幕の上での明るさそのもので決める。**
+     モーダルが出ている間、後ろは 78〜88% の暗幕で覆われて #0b0b0b 前後まで潰れる
+     （サイドバーと本体の明暗差も消える）。「本体より一段明るく」のような相対の理由は、
+     開いている間は誰にも見えない差でしかない。決め手は「ほぼ真っ黒の中に置かれた広い面が
+     眩しくないか」だけで、この値は実機で見ながら下げて決めた。**動かすときも実機で見ること。** */
+  --bg-modal: #252525;
+  --surface-rgb: 44, 44, 44;
   --scrim-rgb: 8, 8, 8;
   /* サイドバー下部のユーティリティ帯など「一段沈んだ」領域。ダークは暗く沈め、
      ライトでは濃いグレー帯として浮かないようごく薄いグレーにする。 */
@@ -63,19 +75,19 @@
   --danger-border: #713039;
   --danger-rgb: 255, 111, 122;
 
-  --scrollbar-track: #1b1b1b;
   --scrollbar-thumb: #3a3a3a;
   --scrollbar-thumb-hover: #4e4e4e;
   --hover-brightness: 1.13;
 }
 
 :root[data-theme='light'] {
-  --bg-page: #ececec;
-  --bg-content: #f2f2f2;
-  --bg-well: #e4e4e4;
-  --bg-surface: #f9f9f9;
-  --bg-surface-hover: #efefef;
-  --surface-rgb: 249, 249, 249;
+  --bg-page: #e8e8e8;
+  --bg-content: #f4f4f4;
+  --bg-well: #e8e8e8;
+  --bg-surface: #fbfbfb;
+  --bg-surface-hover: #f1f1f1;
+  --bg-modal: #f6f6f6;
+  --surface-rgb: 251, 251, 251;
   --scrim-rgb: 45, 45, 45;
   --bg-inset: rgba(45, 45, 45, 0.045);
   --bg-inset-strong: rgba(45, 45, 45, 0.07);
@@ -105,31 +117,42 @@
   --danger-border: #f3c4cb;
   --danger-rgb: 214, 42, 63;
 
-  --scrollbar-track: #e4e4e4;
   --scrollbar-thumb: #cbcbcb;
   --scrollbar-thumb-hover: #b2b2b2;
   --hover-brightness: 0.95;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* **溝は塗らない。** 以前は全部のスクロールバーに同じ色（--scrollbar-track）を敷いていた。
+   サイドバー・本体・詳細パネルが同じ濃さだった頃は問題なかったが、面ごとに明るさを
+   変えてからは、溝だけが3つとも同じ色で並び「このバーはどの領域のものか」が読めなくなった。
+   透明にすると溝は乗っている面の色をそのまま映すので、帰属は自動的に合う。
+   （--scrollbar-thumb だけは面をまたいで同じで良い。動く部品は同じ見た目のほうが分かる） */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
+/* 以下の ::-webkit-* は scrollbar-color 未対応のブラウザ（Web デモを Safari 18.2 未満で
+   開いた場合など）向けの控え。Chromium は scrollbar-color が指定されているとこちらを
+   無視するので、Electron 本体では効いていない。**両方を同じ見た目に保つこと。** */
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
+  background: transparent;
 }
+/* border を透明にして background-clip で塗り分ける（面の色を知らずに溝を空けるため）。
+   border に地の色を置くと、また面ごとに正しい色を選ぶ必要が出てくる。 */
 *::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border: 2px solid var(--scrollbar-track);
+  border: 2px solid transparent;
+  background-clip: padding-box;
   border-radius: 999px;
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
 }
 /* Windows での日本語と英数字の組み合わせを固定する。system-ui だけだと、環境によって
    英数字が Segoe UI・日本語が別の書体という組み合わせが変わり、字面の重さが揃わない。
@@ -167,11 +190,36 @@ textarea::placeholder { color: var(--text-muted); }
 button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
 
 /* メニュー/サジェスト項目（透明背景でボタンの brightness hover が効かないもの）用の共通ホバー。
-   キーボード選択中のハイライトと同系色にして、マウス操作とキー操作の見た目を揃える。 */
-/* 各項目は React 側で background をインライン style（none/transparent 等）に
+   キーボード選択中のハイライト（ContextMenu の itemHighlighted）と同じ値にして、
+   マウス操作とキー操作の見た目を揃える。
+   **文字色を薄く重ねる形にすること（明るい色を重ねる形にしない）。** ホバーは地を文字色の
+   方向へ寄せて出すもので、向きはテーマによって反転する——ほぼ黒の地はこれ以上暗くできず、
+   ほぼ白の地はこれ以上明るくできないので、差を出せる方向が片方しかない。
+   以前はカードの色（--surface-rgb）を 50% 重ねていた。これはテーマで向きが変わらないため、
+   ライトでは薄いグレーのレールの上にほぼ白を置くことになり、設定のタブだけが浮いていた
+   （他の 2 つの仕組み——全ボタン共通の --hover-brightness と .shiori-hover-tint——は
+   どちらも正しく反転している）。ダークでは逆に、メニューの地そのものと同じ色を重ねる形に
+   なっていて、右クリックメニューのホバーが実質見えていなかった。
+   各項目は React 側で background をインライン style（none/transparent 等）に
    明示指定しているため、通常優先度の hover では上書きできない。!important で強制する。 */
-.shiori-menu-item:hover { background: rgba(var(--surface-rgb), 0.5) !important; }
+.shiori-menu-item:hover { background: rgba(var(--text-rgb), 0.08) !important; }
 .shiori-menu-item-danger:hover { background: rgba(var(--danger-rgb), 0.12) !important; }
+/* **押しても何も起きないものは、ホバーで反応させない。** すでに選ばれている選択肢
+   （設定のタブ、テーマ・言語・コマ送り fps の選択、サムネイルの大きさ、グリッド/タイムライン
+   切替、再生速度）は、もう一度押しても状態が変わらない。それでも反応を返すと「押せます」と
+   言っていることになり、押しても何も起きない。反応する＝押すと変わる／反応しない＝今ここ、
+   で読めるように揃える。
+   対象外は「押すと変わるもの」——タグチップ・スマートフォルダ・AND/OR・設定ボタンは
+   もう一度押すと外れるトグルで、並び順メニューの項目は押せばメニューが閉じる。
+   選択中の項目には共通ホバー（.shiori-menu-item）のクラス自体を付けない。ここで背景を
+   打ち消そうとすると !important がインラインの選択色まで消してしまうため。
+   cursor は各コンポーネントがインライン style で pointer を指定しているので !important が要る。
+   filter の行は上の全ボタン共通ホバー（--hover-brightness）と詳細度が同じなので、
+   **必ずその後ろに置くこと**（並び順で勝っている）。
+   目印に data-selected は使えない（ProductTour が「選択中のサムネイル」を指すのに
+   全画面から [data-selected="true"] を拾っているため）。 */
+button[data-current='true'] { cursor: default !important; }
+button[data-current='true']:hover { filter: none; }
 
 .shiori-tag-list {
   scrollbar-width: thin;
@@ -185,7 +233,8 @@ button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
 }
 .shiori-tag-list::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border: 1px solid var(--bg-page);
+  border: 1px solid transparent;
+  background-clip: padding-box;
   border-radius: 999px;
 }
 
@@ -212,7 +261,7 @@ button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
    ContextMenu は再オープン動線があるため出現のみ使う（本体側のコメント参照）。 */
 @keyframes shioriPopoverIn  { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes shioriPopoverOut { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-4px) } }
-@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 3px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 4px rgba(84,214,168,0.55) } }
+@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 2px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 3px rgba(84,214,168,0.55) } }
 /* NEW バッジが消える際のフェードアウト */
 @keyframes shioriNewBadgeOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.78) } }
 /* in-app トーストの出現/消滅。中央寄せは親(toastStack)側の transform で行うため、

@@ -156,9 +156,11 @@ describe('永続化を諦めたときの通知', () => {
     const { saveSettings, flushSettings, loadSettings } = await freshSettings()
 
     writeFile.mockImplementation(fatal)
-    saveSettings({ theme: 'light', thumbnailSize: 180 })
+    // 180 のような旧 S/M/L の値を使うと normalizeSettings の読み替えに巻き込まれ、
+    // 「書けなかった」ではなく読み替えで落ちるテストになる。無関係な値を使う。
+    saveSettings({ theme: 'light', thumbnailSize: 200 })
     await flushSettings()
 
-    expect(loadSettings().thumbnailSize).toBe(180)
+    expect(loadSettings().thumbnailSize).toBe(200)
   })
 })

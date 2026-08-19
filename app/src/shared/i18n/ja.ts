@@ -516,6 +516,7 @@ export const ja = {
   'settings.tab.capture': 'キャプチャ',
   'settings.tab.tag': 'タグ',
   'settings.tab.data': 'データ',
+  'settings.tab.about': '情報',
   'settings.appearance': '外観',
   'settings.theme': 'テーマ',
   'settings.theme.system': 'システム',

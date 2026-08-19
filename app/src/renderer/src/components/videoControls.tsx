@@ -3,7 +3,7 @@
 // shiori-vc-styles 注入・再生/ミュートアイコン）を 1 箇所に集約し、片方だけ直して
 // 挙動が食い違う温床を無くす。挙動は両コンポーネントの従来実装と同一。
 import { useEffect, useRef, useState } from 'react'
-import { font } from '../styles'
+import { font, radius } from '../styles'
 import { useT } from '../i18n'
 
 // 音量ポップアップのスライドイン/アウト用 keyframes を一度だけ注入する。
@@ -31,11 +31,15 @@ export const vcBtnStyle: React.CSSProperties = {
 // VideoTrimmer は映像下端に absolute で重ねる（不透明スラブのまま）。VideoPlayer は
 // 下の vcBarOverlayStyle を重ねてホバー時だけ出るオーバーレイにする。
 // VideoPlayer と VideoTrimmer の両方から参照する単一定義（片方だけ直す食い違いを防ぐ、V-20/U-7 と同方針）。
+// 地は #12151c（青みの強い黒）だった。アプリの地は中立のグレーに寄せてあるので、
+// ここだけ青く沈んで別のアプリの部品に見えていた。映像（黒）の直下に置く帯なので
+// テーマでは反転させず、暗いまま中立色にする。
+// 境目の 1px 線も外す（面の段差は線ではなく明るさで作る、が全体の方針）。
 export const VC_BAR_HEIGHT = 30
 export const vcBarStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center',
   gap: 6, padding: '0 8px', height: VC_BAR_HEIGHT, boxSizing: 'border-box',
-  background: '#12151c', borderTop: '1px solid rgba(255,255,255,0.08)'
+  background: '#1a1a1a'
 }
 
 // VideoPlayer 用: バーを映像の「外・下」に積むのをやめ、映像下端に重ねる版。
@@ -78,16 +82,19 @@ export const vcSeekTrackStyle: React.CSSProperties = {
 // 下に落とす影で映像から浮かせる。薄いスクリムでも溝の輪郭が残るのはこの影のおかげ。
 export const vcSeekBarStyle: React.CSSProperties = {
   position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
-  height: 6, background: 'rgba(255,255,255,0.46)', borderRadius: 4, pointerEvents: 'none',
+  height: 6, background: 'rgba(255,255,255,0.46)', borderRadius: radius.md, pointerEvents: 'none',
   boxShadow: '0 1px 3px rgba(0,0,0,0.55)'
 }
 export const vcSeekFillStyle: React.CSSProperties = {
   position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-  height: 6, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 4, pointerEvents: 'none'
+  height: 6, background: 'rgba(var(--accent-rgb), 1)', borderRadius: radius.md, pointerEvents: 'none'
 }
+// つまみは映像の上に出るので白で固定する。--accent-text はライトテーマで濃紺になり、
+// アクセント色のフィルの上に暗い点が乗って、どこを掴んでいるのか分からなくなっていた。
+// 影は溝（vcSeekBarStyle）と同じものを使い、映像から浮かせる。
 export const vcSeekThumbStyle: React.CSSProperties = {
   position: 'absolute', top: '50%', marginTop: -6, width: 12, height: 12, borderRadius: 999,
-  background: 'var(--accent-text)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none'
+  background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.6)', pointerEvents: 'none'
 }
 
 export function PlayPauseIcon({ playing }: { playing: boolean }): React.JSX.Element {
@@ -231,6 +238,8 @@ export function SpeedControl({ speed, onPick }: {
           {/* 等速とコマ送りは種類が違う（時間軸を持つ再生か、コマを 1 つずつ送るか）。
               5 つを同列に並べるとその違いが読み取れないので、見出しで切る。 */}
           <button
+            data-current={speed === null ? 'true' : undefined}
+            className={speed === null ? undefined : 'shiori-menu-item'}
             style={{ ...s.vcStepItem, ...(speed === null ? s.vcStepItemActive : {}) }}
             onClick={() => onPick(null)}
           >
@@ -244,6 +253,8 @@ export function SpeedControl({ speed, onPick }: {
           {PLAYBACK_SPEEDS.filter((sp) => sp !== null).map((sp) => (
             <button
               key={String(sp)}
+              data-current={sp === speed ? 'true' : undefined}
+              className={sp === speed ? undefined : 'shiori-menu-item'}
               style={{ ...s.vcStepItem, ...(sp === speed ? s.vcStepItemActive : {}) }}
               onClick={() => onPick(sp)}
             >
@@ -295,15 +306,21 @@ const s: Record<string, React.CSSProperties> = {
   // コマ再生が走っていることは一目で分かる必要がある（映像は止まったまま少しずつ動くので、
   // 手で送っているのか自動なのかが画面から区別できないと迷う）。
   vcStepBtnActive: { color: 'var(--accent-text)' },
-  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: 4, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcStepItem: { background: 'none', border: 'none', borderRadius: 4, color: 'rgba(255,255,255,0.82)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
+  // 速さ・音量のポップアップは映像の外へ浮く「メニュー」なので、右クリックメニュー
+  // （ContextMenu の menu）とまったく同じ地・枠・角丸・影にする。以前は #171a23 の地に
+  // #2b3243 の枠という、ここだけの青灰だった（アプリ本体は中立のグレー）。
+  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },
+  vcStepItem: { background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
   vcStepItemActive: { background: 'rgba(var(--accent-rgb), 0.22)', color: 'var(--accent-text)' },
   // 選択肢ではなく見出しなので、押せる行と同じ明るさにしない（押せるものと見分けが付かなくなる）。
-  vcStepGroup: { display: 'flex', alignItems: 'center', gap: 5, padding: '4px 4px 2px', color: 'rgba(255,255,255,0.5)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
-  vcStepRule: { flex: 1, height: 1, background: 'rgba(255,255,255,0.16)' },
+  vcStepGroup: { display: 'flex', alignItems: 'center', gap: 5, padding: '4px 4px 2px', color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
+  vcStepRule: { flex: 1, height: 1, background: 'rgba(var(--text-rgb), 0.14)' },
   vcLoopActive: { color: 'var(--accent-text)' },
-  vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: '#171a23', border: '1px solid #2b3243', borderRadius: 4, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(0,0,0,0.42)' },
-  vcVolTrack: { position: 'relative', width: 6, height: 60, background: '#272c3a', borderRadius: 4, cursor: 'pointer', flexShrink: 0 },
-  vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: 4 },
-  vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: 999, background: 'var(--accent-text)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
+  vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },
+  // ポップアップの中はアプリの面なので、溝も映像用の半透明ホワイトではなくアプリの溝に合わせる。
+  vcVolTrack: { position: 'relative', width: 6, height: 60, background: 'var(--bg-inset-strong)', borderRadius: radius.md, cursor: 'pointer', flexShrink: 0 },
+  vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: radius.md },
+  // 映像ではなくアプリの面に乗る点なので、こちらは白ではなくアクセントの実色にする
+  // （--accent-text は文字用で、ライトの面に置くと塗り潰しの点としては沈む）。
+  vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
 }
