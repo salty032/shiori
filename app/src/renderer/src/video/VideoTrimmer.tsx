@@ -679,7 +679,9 @@ const s: Record<string, React.CSSProperties> = {
   // タイムラインの上に IN/OUT のフラグを出す余白。フラグはハンドル(handleTab)の
   // 子なので、ドラッグで left% が動けば一緒に動く（追加の ref を持たなくてよい）。
   timelineWrap: { padding: '26px 16px 0', flexShrink: 0 },
-  timeline: { position: 'relative', height: 52, background: 'var(--bg-inset-strong)', border: '1px solid var(--border-default)', cursor: 'crosshair', borderRadius: radius.md },
+  // 地はモーダル（--bg-page）の上なので --bg-inset 側。--bg-inset-strong はカードの上に
+  // 置く溝用で、沈む面の上ではその深さが出ない（global.css の --bg-inset 参照）。
+  timeline: { position: 'relative', height: 52, background: 'var(--bg-inset)', border: '1px solid var(--border-default)', cursor: 'crosshair', borderRadius: radius.md },
   timelineStrip: { position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: radius.md },
   // 範囲外は「暗くする」だけでなく彩度も落とす。選択範囲だけが色を保つので、
   // どこを切り出すのかがサムネイルの色の有無で一目で分かる。

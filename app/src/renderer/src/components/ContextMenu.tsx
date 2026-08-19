@@ -108,6 +108,9 @@ const s: Record<string, React.CSSProperties> = {
   menu: { position: 'fixed' as const, width: 'max-content' as const, minWidth: 84, maxWidth: 280, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '4px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', zIndex: 4000, transformOrigin: 'top', animation: 'shioriPopoverIn 0.1s ease-out' },
   item: { display: 'block', width: '100%', boxSizing: 'border-box' as const, padding: '6px 10px', background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', fontSize: font.base, fontWeight: 700, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
   danger: { color: color.danger },
-  itemHighlighted: { background: 'rgba(var(--text-rgb), 0.08)' },
+  // キー選択中のハイライト。**マウスのホバーと必ず同じ値にすること**（global.css の
+  // .shiori-menu-item:hover と共通の --hover-tint を使う。ここだけ定数で書くと、テーマを
+  // 切り替えたときにキー操作とマウス操作で反応の強さが違って見える）。
+  itemHighlighted: { background: 'rgba(var(--text-rgb), var(--hover-tint))' },
   separator: { height: 1, margin: '5px 4px', background: 'rgba(var(--text-rgb), 0.08)' },
 }

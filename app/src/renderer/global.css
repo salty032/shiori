@@ -12,126 +12,204 @@
 
    **地と文字を両端まで振り切らない。** ダークは「ほぼ黒地にほぼ白文字」、ライトは
    「純白地に黒文字」で、長時間見ていると目が痛い。両端を内側へ寄せてある
-   （ダーク地 #232323 / 文字 #cdcdcd、ライト地 #f4f4f4 / 文字 #3a3a3a）。
+   （ダーク地 #191919 / 文字 #c3c3c3、ライト地 #f0f0f0 / 文字 #3a3a3a）。
+   **どちらへ寄せるかだけ逆で、地と文字の離れ方は両テーマで同じ。** ライトだけ
+   文字が地から 15% 近く手前で止まっていて、本文も題名も補助文もそろって薄かった。
    **ここを「見やすくしよう」として両端へ戻すと元の眩しさに戻る。**
+
+   **ダークの地は「明るくしない」ほうに寄せる。** 一度、地を #161616〜#2c2c2c の
+   中間グレーだけで組んでいた。眩しくはないが、画面全体が同じ濃さの灰色で埋まって
+   「安っぽい・物足りない」と言われた（灰色は 3 段とも近すぎて、面の前後も枠線も見えない）。
+   いまは地をひと通り沈めてある（沈む面 #0f0f0f / 本体 #191919 / カード #232323）。
+   文字は据え置きに近いので、地が下がったぶんだけ文字と枠線が浮いて見える。
+   **暗い＝見えない、ではない。**見えなくなるのは地どうしの差であって、
+   ここを持ち上げるとまた全部が同じ灰色に戻る。
 
    **面の段差は線ではなく明るさで作る。** サイドバー・本体・詳細パネルは全部同じ濃さで、
    境目を 1px の線で描いていた。線の本数だけ画面が細かく見えるうえ、線を弱めると
    境目そのものが消えてしまう（線が段差の唯一の手掛かりだったため）。
    いまは沈む面（well=サイドバー、page=詳細パネル）と浮く面（content=本体、surface=カード・
-   メニュー・トースト）で 12〜13 段の差を付けてあり、境界線は引いていない。
+   メニュー・トースト）に明るさの差を付けてあり、境界線は引いていない。
    **段差を縮めたくなったら線を足すのではなく、この差を戻すこと。**
+
+   **段差は「何段違うか」ではなく「見てどれだけ違うか」で両テーマを合わせる。**
+   同じ 10 段でも、暗いところでは大きく・明るいところではほとんど見えない。段数で揃えると
+   必ずライトだけ弱くなる。実際ライトは、本体の上に乗るカードの浮き上がりがダークの半分しか
+   なく（+7 段では足りなかった）、カードの枠線もダークより薄かったため、サムネイルや
+   メニューが本体に沈んで「面が 1 つしか無い」ように見えていた。
+   いま両テーマは、地→本体→カードの各段差と枠線 2 段の濃さが、見た目でほぼ同じ幅になる
+   ように取ってある。**片方だけ動かさないこと。**
+   なおカードを白へ寄せずに本体を少し下げて差を作っている——ライトのカードを純白まで
+   上げると、一覧はカードで埋まるので画面のほぼ全面が白になり、上の「両端まで振り切らない」
+   に反する。
 
    アクセントは彩度を落とした藍。**赤系（アイコンの栞の色）にはしない**——アクセントは
    選択枠・フォーカスリング・進捗バーに使われ、--danger の削除ボタンと隣り合って出るため、
    色相が近いと「選択枠と削除ボタン」が見分けにくくなる。
-   意味の色（success/warning/danger）は元の値のまま触っていない。
+   **意味の色（success/warning/danger/tag）も、アクセントと同じ土俵に載せる。**
+   長いあいだ「元の値のまま」で置いてあり、ダークだけが浮いていた——4 色とも本文より
+   明るく、しかも色ごとにバラバラ（緑が一番強く赤が一番弱い、幅は 1.34 倍）で、
+   ライトでは 4 色が本文のすぐ下にきれいに揃っていた（幅 1.10 倍）のと対照的だった。
+   とくにダークの赤は彩度 100%（#ff7f89）で、画面で一番強い色が削除ボタンだった。
+
+   いまは 3 つの規則で両テーマから同じ手順で出す：
+     1. **色相は両テーマ共通**（赤352 / 黄37 / 緑158 / 藍206）。
+     2. **明るさは「サムネの題名（--text-label）のすぐ下」に揃える。** 意味の色は
+        目印であって本文ではないので、本文より前に出ない位置に置く。
+     3. **彩度は暗い側だけ低く抑える。** 同じ彩度でも、暗い地の上の明るい色は
+        光って見え、明るい地の上の暗い色は落ち着いて見える。ライトの黄（彩度 77%）を
+        そのままダークへ持ってくると、蛍光オレンジになって失敗した。ダークは
+        既に受け入れられていた水準（タグ 48% / アクセント 41%）を上限にしてある。
+   **数値を揃えるのではなく、見た強さを揃える。**片方だけ動かさないこと。
+
+   なお `--*-rgb` は薄く敷く用（alpha 0.08〜0.45）。主色と同じ明るさで彩度だけ上げてある——
+   1 割程度しか乗らないので、彩度を足さないと敷いた面がただの灰色になる。
+
+   サムネイルに重なる NEW バッジの緑だけはここに含まれない（絵の上に乗るので
+   ビューアと同じくテーマ非依存。styles.ts の thumbNewBadge 参照）。
 
    ビューア・タイムシート・サムネの余白は画像を見る面なので元からテーマ非依存で、
    ここを変えても素材の見え方は変わらない。 */
 :root {
-  --bg-page: #161616;
-  --bg-content: #232323;
-  --bg-well: #161616;
-  --bg-surface: #2c2c2c;
-  --bg-surface-hover: #363636;
+  --bg-page: #0f0f0f;
+  --bg-content: #191919;
+  --bg-well: #0f0f0f;
+  --bg-surface: #232323;
+  --bg-surface-hover: #2f2f2f;
   /* モーダルの地。**他の面との差ではなく、暗幕の上での明るさそのもので決める。**
      モーダルが出ている間、後ろは 78〜88% の暗幕で覆われて #0b0b0b 前後まで潰れる
      （サイドバーと本体の明暗差も消える）。「本体より一段明るく」のような相対の理由は、
      開いている間は誰にも見えない差でしかない。決め手は「ほぼ真っ黒の中に置かれた広い面が
-     眩しくないか」だけで、この値は実機で見ながら下げて決めた。**動かすときも実機で見ること。** */
-  --bg-modal: #252525;
-  --surface-rgb: 44, 44, 44;
-  --scrim-rgb: 8, 8, 8;
-  /* サイドバー下部のユーティリティ帯など「一段沈んだ」領域。ダークは暗く沈め、
-     ライトでは濃いグレー帯として浮かないようごく薄いグレーにする。 */
-  --bg-inset: rgba(8, 8, 8, 0.32);
-  --bg-inset-strong: rgba(8, 8, 8, 0.4);
+     眩しくないか」だけで、この値は実機で見ながら下げて決めた。**動かすときも実機で見ること。**
+     （地を沈めたときに一緒に下げてある。暗幕の下は元から真っ黒に近いので、
+     ここだけ据え置くとモーダルだけが白い板に見える） */
+  --bg-modal: #1e1e1e;
+  --surface-rgb: 35, 35, 35;
+  --scrim-rgb: 5, 5, 5;
+  /* 「一段沈んだ」領域。**重ねる色ではなく、乗る地ごとにトークンを分ける。**
+     alpha で重ねる方式は、同じ値でも乗る地が違えば沈む量が変わる。1 つのトークンを
+     明るさの違う面で使い回すと、必ずどちらかがズレる。役割＝乗る地で分けてある：
+       --bg-inset        沈む面（page / well）の上に置くもの
+                         ＝サイドバー下部の帯、トリマーの境界カード、トリマーのタイムライン
+       --bg-inset-strong カード（surface）の上に置く溝 ＝音量スライダーの軌道
+     どちらも両テーマで同じ沈み量になるよう解いてある（帯 1.08 倍 / 溝 1.20 倍）。
+     **使う場所を増やすときは、乗る地がどちらかを確かめること。**
 
-  --text-primary: #cdcdcd;
-  --text-bright: #e9e9e9;
-  --text-secondary: #949494;
-  --text-muted: #7e7e7e;
-  /* サムネイルの題名。本文（--text-primary）よりわずかに落とす。絵が主役なので本文と
-     同じ強さだと一覧が文字だらけに見えるが、--text-secondary まで落とすと読めない。 */
-  --text-label: #ababab;
+     **ダークの帯は床すれすれ。** 地が #0f0f0f なので、真っ黒まで落としても 1.10 倍しか
+     沈められない（1.08 倍で既に #030303）。**ここを「もっと沈めたい」と思ったら、
+     沈める側ではなく地のほうを上げるしかない。** 以前は rgba(8,8,8,0.32) を重ねていて、
+     地を沈めたあとは「黒の上に薄い黒」で帯が完全に消えていた。
+     トリマーのタイムラインを溝ではなく帯側に移してあるのはこのため——沈む面の上では
+     「溝」の深さは物理的に出せない。深さの残りは 1px の枠が受け持っている。 */
+  --bg-inset: rgba(0, 0, 0, 0.84);
+  --bg-inset-strong: rgba(0, 0, 0, 0.51);
+
+  --text-primary: #c3c3c3;
+  --text-bright: #e5e5e5;
+  --text-secondary: #848484;
+  --text-muted: #757575;
+  /* サムネイルの題名。本文（--text-primary）より一段落とす。絵が主役なので本文と
+     同じ強さだと一覧が文字だらけに見えるが、--text-secondary まで落とすと読めない。
+
+     **本文より下の段は、本文からの落ち方を両テーマで揃える。** 濃さを直接合わせるのでは
+     なく「本文の何割か」で合わせること。ダークだけこの段が本文に寄っていて（本文の 0.70、
+     ライトは 0.57）、サムネイルが画面を埋めるぶん題名だけが主張して見えた。
+     いまは label / secondary / muted の 3 段とも、本文に対する割合がライトと同じ
+     （0.57 / 0.47 / 0.38）。**片方だけ動かさないこと。** */
+  --text-label: #939393;
   --text-rgb: 255, 255, 255;
 
-  --border-default: #2f2f2f;
-  --border-strong: #3d3d3d;
-  --border-rgb: 58, 58, 58;
+  --border-default: #313131;
+  --border-strong: #414141;
+  --border-rgb: 62, 62, 62;
   /* 入力欄・検索バーなど、translucent surface の上でもう少し視認性が要る境界線用
      （--border-rgb より明るい中間トーン）。 */
-  --hairline-rgb: 92, 92, 92;
+  /* **枠に alpha を掛けない。役割ごとに実体の色を持つ。**
+     rgba(--border-rgb, 0.8) のように薄めると、枠は乗っている地に向かって混ざる。
+     混ざる向きはテーマで反転する——ダークでは暗い地に沈んで少し弱まるだけだが、
+     ライトでは明るい地に溶けて消える。実際サイドバー下部の帯の枠は
+     ダーク 1.62 倍 / ライト 1.08 倍で、ライトでは見えていなかった。
+       --border-inset  沈んだ帯（--bg-inset）の上に置く枠。default と strong の中間。
+       --border-soft   区切り線。default より弱い（一覧の見出しの下、詳細パネルの仕切り）。
+     どちらも両テーマで同じ濃さに解いてある（帯 1.50 倍 / 区切り 1.20 倍）。 */
+  --border-inset: #2d2d2d;
+  --border-soft: #282828;
+  --hairline-rgb: 96, 96, 96;
 
   --accent: #7fa3c0;
   --accent-text: #9dbdd6;
   --accent-rgb: 92, 130, 160;
 
-  --success: #54d6a8;
-  --success-rgb: 34, 197, 145;
+  --success: #2b956f;
+  --success-rgb: 31, 161, 114;
   /* タグの「手動で付けた」を表す緑。--success をそのまま使うと、タグは画面に何十個も
-     並ぶので彩度の高い緑が一面に散って文字がビビッドに見えた。--success 自体は
-     完了トースト等の一瞬出るものに合わせた彩度なので触らず、常時並ぶタグ用に彩度だけ
-     落としたものを別に持つ（枠と地は --success-rgb を薄めて使うので十分おとなしい）。
-     **落としすぎるとくすんで緑に見えなくなる。** --success と、一度振り切った灰緑
-     （ダーク #9dc9b5 / ライト #3f6f5c）の中間で止めてある。 */
-  --tag-manual: #78cfae;
+     並ぶので彩度の高い緑が一面に散って文字がビビッドに見えた。常時並ぶタグ用に、
+     --success と同じ色相・同じくらいの明るさで**彩度だけ落としたもの**を別に持つ。
+     **落としすぎるとくすんで緑に見えなくなる。** 一度振り切った灰緑
+     （ダーク #9dc9b5 / ライト #3f6f5c）まで行くと緑に見えなかった。
+     ライトとダークで「success との彩度の差」を同じだけ取ってある。 */
+  --tag-manual: #379975;
 
-  --warning: #d2ad62;
-  --warning-rgb: 210, 173, 98;
+  --warning: #b38334;
+  --warning-rgb: 193, 134, 38;
 
-  --danger: #ff7f89;
+  --danger: #d46675;
   --danger-border: #713039;
-  --danger-rgb: 255, 111, 122;
+  --danger-rgb: 224, 90, 108;
 
-  --scrollbar-thumb: #3a3a3a;
-  --scrollbar-thumb-hover: #4e4e4e;
-  --hover-brightness: 1.13;
+  --scrollbar-thumb: #383838;
+  --scrollbar-thumb-hover: #4c4c4c;
+  --hover-brightness: 1.336;
+  --hover-tint: 0.053;
+  --hover-tint-danger: 0.132;
 }
 
 :root[data-theme='light'] {
-  --bg-page: #e8e8e8;
-  --bg-content: #f4f4f4;
-  --bg-well: #e8e8e8;
-  --bg-surface: #fbfbfb;
-  --bg-surface-hover: #f1f1f1;
+  --bg-page: #e6e6e6;
+  --bg-content: #f0f0f0;
+  --bg-well: #e6e6e6;
+  --bg-surface: #fdfdfd;
+  --bg-surface-hover: #ebebeb;
   --bg-modal: #f6f6f6;
-  --surface-rgb: 251, 251, 251;
+  --surface-rgb: 253, 253, 253;
   --scrim-rgb: 45, 45, 45;
-  --bg-inset: rgba(45, 45, 45, 0.045);
-  --bg-inset-strong: rgba(45, 45, 45, 0.07);
+  --bg-inset: rgba(45, 45, 45, 0.044);
+  --bg-inset-strong: rgba(45, 45, 45, 0.099);
 
   --text-primary: #3a3a3a;
-  --text-bright: #1e1e1e;
+  --text-bright: #222222;
   --text-secondary: #6b6b6b;
-  --text-muted: #7a7a7a;
+  --text-muted: #797979;
   --text-label: #5e5e5e;
   --text-rgb: 58, 58, 58;
 
-  --border-default: #dcdcdc;
-  --border-strong: #c9c9c9;
-  --border-rgb: 210, 210, 210;
-  --hairline-rgb: 176, 176, 176;
+  --border-default: #d4d4d4;
+  --border-strong: #bfbfbf;
+  --border-rgb: 212, 212, 212;
+  --border-inset: #b6b6b6;
+  --border-soft: #dcdcdc;
+  --hairline-rgb: 151, 151, 151;
 
   --accent: #2f5471;
   --accent-text: #2b4e69;
   --accent-rgb: 47, 84, 113;
 
-  --success: #167a56;
-  --success-rgb: 22, 163, 113;
-  --tag-manual: #2a7459;
+  --success: #167955;
+  --success-rgb: 13, 130, 87;
+  --tag-manual: #2a7458;
 
-  --warning: #8a5b12;
-  --warning-rgb: 158, 111, 30;
+  --warning: #885b12;
+  --warning-rgb: 145, 93, 9;
 
-  --danger: #c22a3e;
+  --danger: #c22a3f;
   --danger-border: #f3c4cb;
-  --danger-rgb: 214, 42, 63;
+  --danger-rgb: 208, 28, 53;
 
   --scrollbar-thumb: #cbcbcb;
   --scrollbar-thumb-hover: #b2b2b2;
-  --hover-brightness: 0.95;
+  --hover-brightness: 0.93;
+  --hover-tint: 0.091;
+  --hover-tint-danger: 0.097;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -169,15 +247,25 @@
 /* Windows での日本語と英数字の組み合わせを固定する。system-ui だけだと、環境によって
    英数字が Segoe UI・日本語が別の書体という組み合わせが変わり、字面の重さが揃わない。
 
-   **英数字だけ、太字のときに 1 段細い面（Semibold）を使う。**
+   **英数字は太らせない。太さの段を持たせず、常に Regular で描く。**
    日本語は游ゴシック UI、英数字は Segoe。游ゴシックは線が細い設計なので、同じ
    font-weight を指定しても Segoe のほうが常に濃く、「英語だけ太字に見える」状態だった。
    太さの数値は日本語と英数字の両方に同時にかかるので、数値では詰められない。
    日本語側を太い書体（BIZ UD）に替える案も試したが、今度は日本語が太すぎた。
-   そこで unicode-range で英数字の範囲だけ別ファミリーに切り出し、600 以上を要求されたら
-   Bold ではなく Semibold を返す。**画面の指定（fontWeight: 700/800）は一切変えない。**
+   そこで unicode-range で英数字の範囲だけ別ファミリーに切り出してある。
 
-   代償：Windows 以外（Web デモ）では ShioriLatin のどの local() も見つからず、
+   最初は「Bold ではなく Semibold を返す」で 1 段だけ落としたが、それでもまだ英字が
+   強かった。**Regular(400) と Semibold(600) の間に段は無い**（Windows に入っている
+   Segoe UI は Light / Semilight / Regular / Semibold / Bold / Black で、500 が無い）。
+   下げるなら Regular まで落とすしかないので、そうしてある。
+   **画面の指定（fontWeight: 700/800）は一切変えない。**
+
+   代償：英数字だけの語（作品名・タグ・サイト名・アプリ名）は、太字を指定した場所でも
+   周りの日本語より細く出る。以前と逆向きのズレだが、こちらのほうが目立たない——
+   太いほうへのズレは「その語だけ強調されている」ように読めてしまうため。
+   もう一度太らせたくなったら、この 2 つ目の @font-face を Semibold に戻す。
+
+   代償その2：Windows 以外（Web デモ）では ShioriLatin のどの local() も見つからず、
    英数字も日本語と同じ system-ui で描かれる。重さの差は元から出ないので実害はない。
    unicode-range に無い文字（全角英数・記号・矢印）は日本語側の書体が描く。 */
 @font-face {
@@ -188,7 +276,7 @@
 }
 @font-face {
   font-family: 'ShioriLatin';
-  src: local('Segoe UI Variable Text Semibold'), local('Segoe UI Semibold');
+  src: local('Segoe UI Variable Text'), local('Segoe UI');
   font-weight: 600 900;
   unicode-range: U+0000-024F, U+2000-206F, U+20A0-20CF, U+2100-214F;
 }
@@ -227,7 +315,19 @@ button, input, select { line-height: 1.2; }
   outline-offset: 1px;
 }
 /* ライトはボタン濃色地に white ではなく黒寄りテキストのため、hover は明るくすると
-   逆にコントラストが落ちる。ダーク(明るくする)/ライト(暗くする)で係数を反転する。 */
+   逆にコントラストが落ちる。ダーク(明るくする)/ライト(暗くする)で係数を反転する。
+   **ダークの係数は地の暗さと一緒に上げる。** brightness は掛け算なので、地が暗いほど
+   同じ係数で動く幅が小さくなる。1.13 のままだと #232323 のカードが 4 段しか明るくならず、
+   ホバーしても何も起きていないように見えた。
+
+   **ホバーの強さは 1 つ。**この係数のほかに、面を差し替えるもの（--bg-surface-hover）、
+   文字色を薄く重ねるもの（--hover-tint、メニュー項目とサイドバー）、削除項目だけ赤を
+   重ねるもの（--hover-tint-danger）があり、4 つとも同じ強さ（カードの上で 1.17 倍）に
+   なるようテーマごとに解いてある。以前は 4 つがバラバラで（ダーク 1.13〜1.27、
+   ライト 1.11〜1.22）、同じ「触った」の反応が場所ごとに違う強さで返っていた。
+   **どれか 1 つを動かすときは 4 つとも動かすこと。**
+   重ねる側の alpha をテーマ共通の定数で書かない——ダークは白を、ライトは黒に近い文字色を
+   重ねるので、同じ alpha では同じ強さにならない（ダーク 0.053 / ライト 0.091）。 */
 button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
 
 /* メニュー/サジェスト項目（透明背景でボタンの brightness hover が効かないもの）用の共通ホバー。
@@ -243,8 +343,8 @@ button:not(:disabled):hover { filter: brightness(var(--hover-brightness)); }
    なっていて、右クリックメニューのホバーが実質見えていなかった。
    各項目は React 側で background をインライン style（none/transparent 等）に
    明示指定しているため、通常優先度の hover では上書きできない。!important で強制する。 */
-.shiori-menu-item:hover { background: rgba(var(--text-rgb), 0.08) !important; }
-.shiori-menu-item-danger:hover { background: rgba(var(--danger-rgb), 0.12) !important; }
+.shiori-menu-item:hover { background: rgba(var(--text-rgb), var(--hover-tint)) !important; }
+.shiori-menu-item-danger:hover { background: rgba(var(--danger-rgb), var(--hover-tint-danger)) !important; }
 /* **押しても何も起きないものは、ホバーで反応させない。** すでに選ばれている選択肢
    （設定のタブ、テーマ・言語・コマ送り fps の選択、サムネイルの大きさ、グリッド/タイムライン
    切替、再生速度）は、もう一度押しても状態が変わらない。それでも反応を返すと「押せます」と
@@ -287,7 +387,7 @@ button[data-current='true']:hover { filter: none; }
   transition: box-shadow 0.12s ease;
 }
 .shiori-hover-tint:hover:not(:disabled) {
-  box-shadow: inset 0 0 0 999px rgba(var(--text-rgb), 0.08);
+  box-shadow: inset 0 0 0 999px rgba(var(--text-rgb), var(--hover-tint));
 }
 
 /* アプリ全体のアニメーション定義はここに一元化する（各コンポーネントで個別注入しない）。
@@ -302,7 +402,7 @@ button[data-current='true']:hover { filter: none; }
    ContextMenu は再オープン動線があるため出現のみ使う（本体側のコメント参照）。 */
 @keyframes shioriPopoverIn  { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes shioriPopoverOut { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-4px) } }
-@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 2px rgba(84,214,168,0.3) } 50% { box-shadow: 0 0 0 3px rgba(84,214,168,0.55) } }
+@keyframes shioriNewPulse  { 0%, 100% { box-shadow: 0 0 0 2px rgba(var(--success-rgb),0.3) } 50% { box-shadow: 0 0 0 3px rgba(var(--success-rgb),0.55) } }
 /* NEW バッジが消える際のフェードアウト */
 @keyframes shioriNewBadgeOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.78) } }
 /* in-app トーストの出現/消滅。中央寄せは親(toastStack)側の transform で行うため、

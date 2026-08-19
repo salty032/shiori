@@ -636,7 +636,7 @@ const s: Record<string, React.CSSProperties> = {
   titleValueClamped: { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' },
   titleEditBtn: { flexShrink: 0, width: control.md, height: control.md, padding: 0, background: 'rgba(var(--surface-rgb), 0.55)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
   titleInput: { width: 'calc(100% - 34px)', minHeight: 'calc(1.45em * 3 + 9px)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-default)', color: 'var(--text-primary)', padding: '0 0 8px', fontSize: font.base, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-word', lineHeight: 1.45, fontFamily: 'inherit' },
-  metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid rgba(var(--border-rgb), 0.72)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
+  metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   subtleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, minWidth: 0 },
   subtleLabel: { color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 600 },
   subtleValue: { color: 'var(--text-muted)', fontSize: font.sm, userSelect: 'text' as const, textAlign: 'right' as const, lineHeight: 1.35 },

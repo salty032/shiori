@@ -143,7 +143,7 @@ export const s: Record<string, CSSProperties> = {
   // 「枠の外側は受け付けない」ように見えてしまうが、実際はそこも受け付ける）。
   dropOverlay: { position: 'absolute' as const, inset: 0, zIndex: 400, pointerEvents: 'none' as const, background: 'rgba(var(--accent-rgb), 0.12)', border: '2px dashed rgba(var(--accent-rgb), 0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   dropOverlayText: { fontSize: font.lg, fontWeight: 800, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: radius.md },
-  stickyHeader: { position: 'sticky' as const, top: 0, zIndex: 200, background: 'var(--bg-content)', borderBottom: '1px solid rgba(var(--border-rgb), 0.62)', margin: '0 -20px', padding: '12px 20px 9px', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
+  stickyHeader: { position: 'sticky' as const, top: 0, zIndex: 200, background: 'var(--bg-content)', borderBottom: '1px solid var(--border-soft)', margin: '0 -20px', padding: '12px 20px 9px', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   searchBar: { display: 'flex', alignItems: 'center', gap: space.x8 },
   searchInputWrap: { position: 'relative' as const, flex: '1 1 360px', display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: space.x4, minWidth: 260, minHeight: control.lg, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid rgba(var(--hairline-rgb), 0.72)', borderRadius: radius.md, padding: '3px 24px 3px 8px', boxShadow: 'inset 0 1px 0 rgba(var(--text-rgb), 0.035)' },
   searchInputInner: { flex: '1 1 100px', position: 'relative' as const, display: 'flex', alignItems: 'center', height: control.sm, minWidth: 100 },
@@ -234,8 +234,9 @@ export const s: Record<string, CSSProperties> = {
   // 画面から分からず、黙って欠けた状態になる。一番小さいセル（横120px）では文字が折り返す。
   thumbFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' as const, background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
   thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 700, textAlign: 'center' as const, lineHeight: 1.35 },
-  // 題名は本文よりわずかに落とす（--text-label）。以前は --text-secondary で、サムネイルを
-  // 大きくしてからは薄すぎて読めなかった。逆に本文と同じ濃さまで上げると明るすぎる。
+  // 題名は本文より一段落とす（--text-label）。以前は --text-secondary で、サムネイルを
+  // 大きくしてからは薄すぎて読めなかった。逆に本文と同じ濃さまで上げると明るすぎる
+  // （ダークで一度そこまで寄って、題名だけが主張して見えた。global.css の --text-label 参照）。
   // 選択中はさらに一段明るくするので（thumbLabelSelected）、濃さの段は 2 つ残る。
   thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-label)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: radius.sm, padding: '0 1px' },
@@ -273,7 +274,13 @@ export const s: Record<string, CSSProperties> = {
   smartFolderDeleteBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, lineHeight: 1 },
   smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.46)', color: 'var(--accent-text)' },
     // セクションどうしの間。8px まで詰めたら上の見出し（Shiori ◯枚）と地続きに見えた。
-  siteGroup: { display: 'flex', flexDirection: 'column' as const, gap: space.x2, marginTop: space.x16 },
+  // サイドバーのセクション（スマートフォルダ・タグ）の中身の並び。
+  // **枠のある箱を縦に並べるところなので、素の一覧の行間より広く取る。** 2px だった頃は
+  // スマートフォルダが 1 つの大きな箱に横線が入っているように見え、どこからどこまでが
+  // 1 つのフォルダか読めなかった（箱と箱の間より、箱の中の上下の余白のほうが広かった）。
+  // 見出しと中身の間もこの値が効くが、見出しは自前の marginBottom を持っているので
+  // 足して 10px 前後になり、小見出しとその中身の間隔（x12）の手前に収まる。
+  siteGroup: { display: 'flex', flexDirection: 'column' as const, gap: space.x6, marginTop: space.x16 },
     // **lineHeight を 1 にする。** 見出しの文字と右端のボタンは大きさが違うので、
   // 上下中央で揃える（呼び出し側が alignItems: center を付けている）。ただし游ゴシックは
   // 上下の余白が非対称で、既定の行送りのままだと行の箱の中で文字が上寄りに座る。
@@ -318,7 +325,7 @@ export const s: Record<string, CSSProperties> = {
   tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
   addTagChip: { height: control.lg, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer', lineHeight: 1 },
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
-  sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid rgba(var(--border-rgb), 0.85)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
+  sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid var(--border-inset)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   // サイドバー下部（セットアップ・サイズ・表示切替・設定）は毎日押すものではないのに、
   // 面と枠を持っていて上のスマートフォルダやタグ一覧より目立っていた。地と枠を外す。
   // セットアップだけは未完了のときに面を持たせる（済んだら普通のリンクまで落ちる）。
@@ -326,17 +333,18 @@ export const s: Record<string, CSSProperties> = {
   // 地まで塗ると、帯の上に明るい箱が 3 つ乗って面の数が増える（ライトでは白地に白い箱で、
   // 押せる場所と押せない場所の差だけが目立つ）。枠 1 本で「押せる」は伝わる。
   //
-  // **線の濃さは default と strong の中間。** この帯は --bg-inset で一段沈めてあるため、
-  // --border-default（ライトで #dcdcdc）だと地の #dfdfdf との差が 3 段しかなく見えない。
-  // かといって --border-strong まで上げると、3 つ並んだ枠が主張して帯が騒がしくなる。
-  // --border-rgb を 0.8 で置いて、地との差を 10 段前後にしてある。
-  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid rgba(var(--border-rgb), 0.8)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 600, textAlign: 'left' as const },
+  // **線の濃さは default と strong の中間（--border-inset）。** この帯は --bg-inset で
+  // 一段沈めてあるため、--border-default をそのまま置くと沈んだ地との差が足りず、
+  // --border-strong まで上げると 3 つ並んだ枠が主張して帯が騒がしくなる。
+  // 以前は --border-rgb を 0.8 で薄めて中間を作っていたが、薄めた枠は乗っている地に
+  // 混ざるので、ライトでは明るい地に溶けて消えていた（global.css の --border-inset 参照）。
+  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 600, textAlign: 'left' as const },
   sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: 700 },
   sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: 900 },
   sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
-  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid rgba(var(--border-rgb), 0.8)', borderRadius: radius.md, padding: 2 },
+  sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
-  gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid rgba(var(--border-rgb), 0.8)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
+  gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
   // 設定ボタンの下に置く小さなリンク列（変更点・不具合報告）。常に見えることが目的なので
   // 隠さないが、毎回押すものではないので文字サイズと色で視線の重さを下げる。

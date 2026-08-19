@@ -705,7 +705,7 @@ export const s: Record<string, React.CSSProperties> = {
   toggleKnobOn: { background: 'var(--accent-text)' },
   statusBadge: { display: 'inline-flex', alignItems: 'center', height: 22, padding: '0 8px', borderRadius: 999, fontSize: font.xs, fontWeight: 800, border: '1px solid', whiteSpace: 'nowrap' as const },
   statusOk: { color: 'var(--success)', background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.35)' },
-  statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'rgba(var(--border-rgb), 0.6)' },
+  statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'var(--border-soft)' },
   statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
   inputRow: { display: 'flex', gap: space.x8 },
   input: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
