@@ -204,6 +204,24 @@ async function occupyPorts(ports: readonly number[]): Promise<Array<() => Promis
   return closers
 }
 
+// 実際に listen できる最初の候補を返す。**開発機では候補が本当に埋まっている**
+// （インストール版が 39821、npm run dev の版が 41821 を握る）ので、「先頭を塞げば
+// 2 番目に来る」と決め打ちすると、アプリを起動したまま verify しただけで落ちる。
+async function firstFreePort(ports: readonly number[]): Promise<number | null> {
+  for (const port of ports) {
+    const probe = createServer()
+    const free = await new Promise<boolean>((resolve) => {
+      probe.once('error', () => resolve(false))
+      probe.listen(port, '127.0.0.1', () => resolve(true))
+    })
+    if (free) {
+      await new Promise<void>((resolve) => probe.close(() => resolve()))
+      return port
+    }
+  }
+  return null
+}
+
 describe('ポート候補のフォールバック', () => {
   beforeEach(() => _resetWsStateForTest())
 
@@ -211,12 +229,14 @@ describe('ポート候補のフォールバック', () => {
   // 固定 1 ポートだと利用者側で突然「未接続」になる。塞がっていたら黙って次へ移る。
   it('先頭が塞がっていれば次の候補で listen し、利用者には何も出さない', async () => {
     const closers = await occupyPorts([WS_PORTS[0]])
+    const expected = await firstFreePort(WS_PORTS.slice(1))
+    expect(expected).not.toBeNull()
     let notified = false
     onPortInUse(() => { notified = true })
     try {
       startWsServer({ allowedExtensionIds: [] })
       await vi.waitFor(() => expect(getActivePort()).not.toBeNull())
-      expect(getActivePort()).toBe(WS_PORTS[1])
+      expect(getActivePort()).toBe(expected)
       // 自動で回避できたのに警告を出すと、直っているのに不安にさせる。
       expect(notified).toBe(false)
     } finally {
