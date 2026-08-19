@@ -27,6 +27,7 @@ import { useImageStore } from './stores/imageStore'
 import { useExportStore } from './stores/exportStore'
 import { useTimeline } from './hooks/useTimeline'
 import { useSelection } from './hooks/useSelection'
+import { useFileDrop } from './hooks/useFileDrop'
 import { useTagger } from './hooks/useTagger'
 import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
@@ -171,54 +172,6 @@ export default function App() {
   // タイムラインはタイトル変更で再グルーピングされる）。
   const patchImage = useImageStore((s) => s.patchImage)
 
-  const handleFileDrop = async (e: React.DragEvent): Promise<void> => {
-    e.preventDefault()
-    dragCounterRef.current = 0
-    setFileDragging(false)
-    // ビューアを開いている間は取り込まない（下の handleDragEnter の注記を参照）。
-    if (viewerIdx !== null) return
-    const paths = Array.from(e.dataTransfer.files)
-      .map((f) => window.api.getPathForFile(f))
-      .filter(Boolean)
-    if (paths.length === 0) return
-    const result = await window.api.importFiles(paths)
-    if (result.count > 0) {
-      filters.refreshSites()
-      // B11/U-2: 200件上限で打ち切られた場合、超過分が黙って捨てられたことを明示する
-      // CODE-REVIEW-v1.0.4 B-1: 一部失敗があった場合も成功一色にせず件数を明示する
-      const truncatedMsg = result.truncated ? t('toast.importTruncatedSuffix') : ''
-      const failedMsg = result.errors.length > 0 ? t('toast.importFailedSuffix', { count: result.errors.length }) : ''
-      const isPartial = result.truncated || result.errors.length > 0
-      toast.showToast(tp('toast.imported', result.count) + truncatedMsg + failedMsg, isPartial ? 'warning' : 'success')
-    } else if (result.errors.length > 0) {
-      toast.showToast(t('toast.importAllFailed', { count: result.errors.length }), 'warning')
-    }
-  }
-
-  // ドロップ可能領域の視覚フィードバック（S7-15）。dragenter/leave はネストで多発するため
-  // カウンタ方式で管理し、アプリ内 D&D（将来追加時）に誤反応しないよう Files 型のみ見る。
-  const [fileDragging, setFileDragging] = useState(false)
-  const dragCounterRef = useRef(0)
-
-  function handleDragEnter(e: React.DragEvent): void {
-    if (!e.dataTransfer.types.includes('Files')) return
-    // 自分が始めた画像ドラッグが戻ってきただけ。取り込みは main 側で弾かれる（何も起きない）ので、
-    // 「ドロップで取り込む」枠を出すと嘘になる。
-    if (selection.selfDragRef.current) return
-    // ビューアを開いている間は取り込みの導線を出さない。ビューアは「この1本を見る」画面で、
-    // ライブラリへの追加はそこでやることではない。映像の上に取り込み枠が被ると、
-    // 今見ているクリップに対する操作だと誤解させる。
-    if (viewerIdx !== null) return
-    dragCounterRef.current += 1
-    setFileDragging(true)
-  }
-
-  function handleDragLeave(e: React.DragEvent): void {
-    if (!e.dataTransfer.types.includes('Files')) return
-    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
-    if (dragCounterRef.current === 0) setFileDragging(false)
-  }
-
   const { columns, cellWidth, cellHeight } = computeGridLayout(containerWidth, settings.settings.thumbnailSize, COL_GAP)
   const rowHeight = cellHeight + LABEL_HEIGHT + ROW_GAP
   const rowCount = Math.ceil(imageList.images.length / columns)
@@ -263,6 +216,15 @@ export default function App() {
     gridActiveRef,
     onLibraryChanged,
   })
+
+  // ファイルのドロップ取り込み（枠の出し入れと取り込み後の通知）。
+  const { fileDragging, handleFileDrop, handleDragEnter, handleDragLeave } = useFileDrop({
+    viewerIdx,
+    selfDragRef: selection.selfDragRef,
+    onImported: () => filters.refreshSites(),
+    showToast: toast.showToast,
+  })
+
 
   const startProductTour = useCallback((): void => {
     setShowSetupGuide(false)
