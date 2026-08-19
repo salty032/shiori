@@ -14,8 +14,8 @@ import { SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_DEFAULT_WIDTH, panelLimit
 
 // 不具合・要望の報告フォーム（Tally）。**URL に載せてよいのは版と実行環境だけ**——ライブラリ
 // 由来の文字列（タイトルには作品名が入る）は絶対に混ぜない。**送信経路はアプリに持たせず**、
-// フォームを開くところで止める（全ローカル完結・外部接続はモデル取得と更新確認だけ、という
-// 説明を崩さない）。GitHub Issues から移したのは、報告にアカウントを要求しないため。
+// フォームを開くところで止める。README のプライバシー欄には、Tally を開く際に版と
+// 実行環境を渡すことを明記する。GitHub Issues から移したのは、報告にアカウントを要求しないため。
 const FEEDBACK_FORM_URL = 'https://tally.so/r/QK9X8G'
 
 // UA を丸ごと渡さない。切り分けに要るのは OS と Electron の版だけで、残り（WebKit や

@@ -167,6 +167,8 @@ AI tagging of your captures.
 - Your captures, clips, metadata, and tags are all stored **locally**
 - There is no feature that uploads your captures, clips, or metadata to any external server
 - Shiori connects to HuggingFace when downloading the model, and to GitHub Releases when checking for and downloading updates
+- If you click "Report a problem or request," Shiori opens Tally in your default browser and passes
+  the Shiori version, OS type, and Electron version to the form. It does not pass titles, watch URLs, or images
 - On video pages where it is active, the browser extension reads the title, playback position, window position, and URL, and sends them only to the local Shiori app on your own machine (`ws://127.0.0.1`, port 39821; if that port is taken it moves on to 41821, 43821, or 45821)
 
 ---
