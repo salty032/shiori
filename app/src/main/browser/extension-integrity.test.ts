@@ -79,4 +79,37 @@ describe('manifest.json が指す先が実在するか', () => {
     // tabs 権限は URL・title・favIconUrl 等の読み取りまで許すため要求しない。
     expect(manifest.permissions ?? []).not.toContain('tabs')
   })
+
+  // manifest → 実体 の逆向き。extension/ に置いたファイルは electron-builder が
+  // まるごと同梱するため、迷子のファイル（作業中に置いた PNG、エディタの残骸）が
+  // そのまま利用者の %APPDATA%\Shiori\extension へ配られる。manifest に載っていない
+  // ので Chrome は読まず、**どこにも間違いが出ないまま配布物だけが太る**。
+  // ドットファイルは package.json の extraResources.filter が落とすので対象外。
+  it('manifest が指していないファイルが置き去りになっていない', () => {
+    const referenced = new Set<string>([
+      'manifest.json',
+      ...[manifest.background?.service_worker, ...(manifest.background?.scripts ?? [])]
+        .filter((f): f is string => !!f),
+      ...(manifest.content_scripts ?? []).flatMap((entry) => entry.js),
+      ...Object.values(manifest.icons ?? {}),
+    ])
+    const strays = readdirSync(EXTENSION_DIR)
+      .filter((name) => !name.startsWith('.') && !referenced.has(name))
+    expect(strays, `manifest.json に載っていない: ${strays.join(', ')}`).toEqual([])
+  })
+})
+
+// 拡張の更新は「バンドル版 > インストール済み版」のときだけコピーされる
+// （extension-updater.ts の checkExtensionUpdate）。アプリだけ版を上げて拡張の
+// manifest を据え置くと、**既存ユーザーの拡張は永久に古いまま**になる。しかも
+// 一度その版で配ると、同じ版で中身だけ直しても届かない（版を1つ捨てるしかない）。
+// アプリ側は画面もインストーラ名も新しくなるので、取り違えに気づく手がかりが無い。
+describe('拡張とアプリの版', () => {
+  it('extension/manifest.json の version が package.json と一致する', () => {
+    const appVersion = (JSON.parse(
+      readFileSync(join(__dirname, '../../../package.json'), 'utf-8')
+    ) as { version: string }).version
+    const extVersion = (JSON.parse(manifestJson) as { version?: string }).version
+    expect(extVersion).toBe(appVersion)
+  })
 })
