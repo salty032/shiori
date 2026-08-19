@@ -247,6 +247,10 @@ export function initDb(): void {
   // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
   // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_frames INTEGER')
+  // 取り込んだ素材の、送り主が記録していた取得時間。captured_at は取り込んだ時刻に
+  // そろえてしまう（他人の素材が自分のキャプチャと日付順で混ざるのを避けるため）ので、
+  // 元の時刻を捨てないためにここへ退避する。NULL は自分で撮った素材。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN original_captured_at INTEGER')
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_host ON images(host)')
   // カーソルページング・ホスト絞り込み・エクスポートで使う複合インデックス
   db.exec('CREATE INDEX IF NOT EXISTS idx_images_cat       ON images(captured_at, id)')
@@ -424,6 +428,7 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"id"',
   '"filepath"',
   '"captured_at"',
+  '"original_captured_at"',
   '"title"',
   '"current_time"',
   '"url"',
@@ -448,10 +453,15 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   const source = params.source ?? 'capture'
   const searchText = buildSearchText(params.title, params.memo)
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source, search_text)
-     VALUES (@filepath, @captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
+    `INSERT INTO images (filepath, captured_at, original_captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source, search_text)
+     VALUES (@filepath, @captured_at, @original_captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
   )
-  const result = stmt.run({ ...params, current_time: normalizeCurrentTime(params.current_time), host, source, search_text: searchText })
+  const result = stmt.run({
+    ...params,
+    current_time: normalizeCurrentTime(params.current_time),
+    original_captured_at: params.original_captured_at ?? null,
+    host, source, search_text: searchText
+  })
   return Number(result.lastInsertRowid)
 }
 

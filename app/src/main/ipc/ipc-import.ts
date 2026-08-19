@@ -178,10 +178,12 @@ export function registerImportHandlers(): void {
 
         const uid = randomUUID()
         const ts = Date.now()
-        // 元ファイルの更新日時を撮影日時として扱う（下の insertImage と揃える）ので、
-        // 格納先サブフォルダもそれに合わせる。今日インポートした昔のファイルが
-        // 全部「今月」フォルダに積み上がるのを防ぐ。
-        const capturedAt = Math.floor(srcStat.mtimeMs) || ts
+        // 取得時間は取り込んだ時刻にそろえる。元ファイルの更新日時をそのまま使っていた頃は、
+        // 他人からもらった画像が自分のキャプチャと日付順で混ざり、一覧のどこに何が増えたのか
+        // 分からなかった。元の更新日時は捨てず original_captured_at に持ち、詳細パネルに出す。
+        // 格納先サブフォルダも取り込んだ時刻に合わせる（一覧の並びと同じ月に入る）。
+        const originalCapturedAt = Math.floor(srcStat.mtimeMs) || null
+        const capturedAt = ts
         const dir = await ensureCaptureSubDir(capturedAt)
         const destFile = join(dir, `cap_${ts}_${uid}${ext}`)
 
@@ -228,6 +230,7 @@ export function registerImportHandlers(): void {
           insert: {
             filepath: destFile,
             captured_at: capturedAt,
+            original_captured_at: originalCapturedAt,
             title,
             current_time: null,
             url: null,

@@ -145,14 +145,22 @@ describe('parseShareEntry', () => {
     })
   })
 
-  it('captured_at が妥当な範囲外なら now にフォールバック', () => {
-    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: -5 }), NOW)).toMatchObject({ capturedAt: NOW })
-    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: 8640000000000000 }), NOW)).toMatchObject({ capturedAt: NOW })
+  // 取得時間は常に取り込み時刻。送り主の値は originalCapturedAt にだけ入る。
+  // ここが崩れると、他人の素材が自分のキャプチャと日付順で混ざる。
+  it('captured_at は送り主の値によらず取り込み時刻になる', () => {
+    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: 1600000000000 }), NOW)).toMatchObject({ capturedAt: NOW })
     expect(parseShareEntry(JSON.stringify({ file: 'a.png' }), NOW)).toMatchObject({ capturedAt: NOW })
   })
 
-  it('captured_at が妥当な範囲内ならそのまま使う', () => {
-    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: 1600000000000 }), NOW)).toMatchObject({ capturedAt: 1600000000000 })
+  it('captured_at が妥当な範囲内なら元の取得時間として残す', () => {
+    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: 1600000000000 }), NOW))
+      .toMatchObject({ originalCapturedAt: 1600000000000 })
+  })
+
+  it('captured_at が妥当な範囲外・欠落なら元の取得時間は不明として捨てる', () => {
+    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: -5 }), NOW)).toMatchObject({ originalCapturedAt: null })
+    expect(parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: 8640000000000000 }), NOW)).toMatchObject({ originalCapturedAt: null })
+    expect(parseShareEntry(JSON.stringify({ file: 'a.png' }), NOW)).toMatchObject({ originalCapturedAt: null })
   })
 
   it('thumb が basename と一致しパストラバーサルでなければ採用する', () => {

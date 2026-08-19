@@ -416,6 +416,9 @@ export const ja = {
   'detail.memoPlaceholder': 'メモを入力...',
   'detail.site': 'サイト',
   'detail.capturedAt': '取得日時',
+  // 取り込んだ素材の、送り主が記録していた日時。取得日時は取り込んだ時刻にそろうため、
+  // これを出さないと自分で撮ったものと見分けが付かない。
+  'detail.originalCapturedAt': '元の取得日時',
   'detail.emptyTitle': '画像を選択',
   'detail.emptyHint1': 'クリックで選択・ダブルクリックで拡大',
   'detail.emptyHint2': 'タグをクリックで絞り込み',
@@ -567,7 +570,7 @@ export const ja = {
   'settings.exporting': 'エクスポート中...',
   'settings.exportLibrary': 'ライブラリをエクスポート...',
   'settings.import': 'インポート',
-  'settings.importHint': '画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。同じフォルダを再度インポートすると重複して追加されるのでご注意ください。',
+  'settings.importHint': '画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。取得日時は取り込んだ時刻になり、元の日時は詳細の「元の取得日時」に残ります。同じフォルダを再度インポートすると重複して追加されるのでご注意ください。',
   'settings.importErrorSuffix': '（エラー{count}件）',
   'settings.importFolderSuffix': '、スマートフォルダ{count}件',
   'settings.importedCount.one': '{count}枚をインポートしました',

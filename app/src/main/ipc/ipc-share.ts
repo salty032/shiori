@@ -114,6 +114,9 @@ export function registerShareHandlers(): void {
           title: item.title,
           tags: item.manualTags,
           memo: item.memo,
+          // 書き出すのは自分で撮った素材だけ（listImagesForExport が source='capture' に絞る）
+          // なので、ここの captured_at は常に自分が撮った時刻。取り込んだ素材の
+          // original_captured_at がここへ回ることは無い。
           captured_at: item.captured_at,
           ...(item.width != null ? { width: item.width } : {}),
           ...(item.height != null ? { height: item.height } : {}),
@@ -278,6 +281,7 @@ export function registerShareHandlers(): void {
             insert: {
               filepath: destFile,
               captured_at: parsed.capturedAt,
+              original_captured_at: parsed.originalCapturedAt,
               title: parsed.title,
               current_time: parsed.currentTime,
               url: parsed.url ? safeExternalUrl(parsed.url) : null,

@@ -16,6 +16,10 @@ export type ImageRow = {
   id: number
   filepath: string
   captured_at: number
+  // 取り込んだ素材で、送り主が記録していた取得時間。
+  // captured_at は取り込んだ時刻にそろえる（自分のキャプチャと日付順で混ざらないように）ので、
+  // 元がいつ撮られたものかはここにしか残らない。null は自分で撮った素材（＝captured_at が元の時刻）。
+  original_captured_at?: number | null
   title: string | null
   current_time: number | null
   url: string | null

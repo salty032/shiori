@@ -23,7 +23,7 @@ export interface SqlRunner {
 // **images に列を足したり、テーブル・インデックスを増やしたら必ずここを上げる。**
 // 上げ忘れると、作りを変える前の退避が取られないまま移行が走る。上げ忘れても画面には
 // 何も起きないので、気づけるのは戻したくなった後になる。
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** 残す退避の世代数。メタデータだけなので 1 世代は小さいが、無制限に貯めても意味が無い */
 export const BACKUP_KEEP = 3

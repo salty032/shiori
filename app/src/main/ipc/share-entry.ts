@@ -10,9 +10,14 @@ import { MAX_MEMO_LENGTH } from '../../shared/constants'
 export const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 export const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 
-// 手編集・破損した metadata.jsonl の captured_at で異常値（負値・極端な未来値等）を受け入れると、
-// ensureCaptureSubDir が "NaN-NaN" 等の壊れたフォルダ名を作ったり、一覧の並び順が恒久的に
-// 壊れたりする。妥当な epoch 範囲（0〜2100年）にクランプし、範囲外は取り込み時刻にフォールバックする。
+// 取り込んだ素材の captured_at は取り込み時刻にそろえ、metadata.jsonl の値は
+// original_captured_at として別に持つ（詳細パネルに「元の取得時間」として出す）。
+// そろえないと、他人からもらった素材が自分のキャプチャと日付順で混ざり、一覧のどこに
+// 何が増えたのか分からなくなる。
+//
+// 元の値は手編集・破損で異常値（負値・極端な未来値等）が入りうるので、妥当な epoch 範囲
+// （0〜2100年）から外れたものは「元は不明」として捨てる。並び順に使う captured_at は
+// もう metadata.jsonl 由来ではないため、壊れた値でフォルダ名や並びが壊れることは無い。
 const MAX_REASONABLE_CAPTURED_AT = new Date(2100, 0, 1).getTime()
 export function isValidCapturedAt(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < MAX_REASONABLE_CAPTURED_AT
@@ -65,7 +70,11 @@ interface ParsedShareEntry {
   ext: string
   thumbFile: string | null
   thumbExt: string | null
+  // 取り込み時刻。captured_at はこれにそろえる（他人の素材が自分のキャプチャと日付順で
+  // 混ざらないように）。
   capturedAt: number
+  // metadata.jsonl に入っていた送り主側の取得時間。壊れた値・そもそも無い行では null。
+  originalCapturedAt: number | null
   title: string | null
   currentTime: number | null
   url: string | null
@@ -133,7 +142,8 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     ext,
     thumbFile,
     thumbExt,
-    capturedAt: isValidCapturedAt(entry.captured_at) ? entry.captured_at : now,
+    capturedAt: now,
+    originalCapturedAt: isValidCapturedAt(entry.captured_at) ? entry.captured_at : null,
     title: typeof entry.title === 'string' ? entry.title.slice(0, MAX_TEXT_LENGTH) || null : null,
     currentTime: typeof entry.current_time === 'number' && Number.isFinite(entry.current_time) ? entry.current_time : null,
     url: typeof entry.url === 'string' ? entry.url : null,
