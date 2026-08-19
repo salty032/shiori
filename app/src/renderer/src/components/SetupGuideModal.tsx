@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ExtensionTimecode } from '../types'
 import type { SetupGuideState } from '../setupGuideState'
-import { font, modal, radius } from '../styles'
+import { font, modal, radius, space, control } from '../styles'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useT } from '../i18n'
 import { XIcon } from './Icon'
@@ -133,30 +133,30 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
 const s: Record<string, React.CSSProperties> = {
   overlay: modal.overlay,
   panel: { ...modal.panel, width: 620, maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' },
-  header: { flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 20px 14px', borderBottom: '1px solid var(--border-default)' },
+  header: { flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, padding: '18px 20px 14px', borderBottom: '1px solid var(--border-default)' },
   title: { color: 'var(--text-bright)', fontSize: font.xl, fontWeight: 800, lineHeight: 1.35 },
   subtitle: { marginTop: 3, color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 700 },
-  closeBtn: { flexShrink: 0, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
-  content: { minHeight: 0, overflowY: 'auto', padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: 10 },
+  closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
+  content: { minHeight: 0, overflowY: 'auto', padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: space.x8 },
   intro: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.65, marginBottom: 2 },
-  step: { display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: radius.md },
+  step: { display: 'flex', alignItems: 'flex-start', gap: space.x12, padding: 14, background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: radius.md },
   stepDone: { borderColor: 'rgba(var(--success-rgb), 0.42)', background: 'rgba(var(--success-rgb), 0.045)' },
-  stepNumber: { flexShrink: 0, width: 25, height: 25, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: font.sm, fontWeight: 900 },
+  stepNumber: { flexShrink: 0, width: control.sm, height: control.sm, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: font.sm, fontWeight: 900 },
   stepNumberDone: { background: 'rgba(var(--success-rgb), 0.16)', borderColor: 'rgba(var(--success-rgb), 0.5)', color: 'var(--success)' },
   stepContent: { minWidth: 0, flex: 1 },
   stepTitle: { color: 'var(--text-primary)', fontSize: font.base, fontWeight: 800, lineHeight: 1.45 },
   stepBody: { marginTop: 4, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.55 },
   stepDetail: { marginTop: 4, color: 'var(--text-muted)', fontSize: font.sm, lineHeight: 1.55, whiteSpace: 'pre-line' },
   stepAction: { marginTop: 10 },
-  actionRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  primaryBtn: { height: 34, padding: '0 13px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.44)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
-  confirmLabel: { display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer' },
-  status: { display: 'inline-flex', alignItems: 'center', minHeight: 26, padding: '0 9px', borderRadius: 999, background: 'rgba(var(--surface-rgb), 0.75)', border: '1px solid var(--border-default)', color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 800 },
+  actionRow: { display: 'flex', alignItems: 'center', gap: space.x8, flexWrap: 'wrap' },
+  primaryBtn: { height: control.lg, padding: '0 13px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.44)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  confirmLabel: { display: 'inline-flex', alignItems: 'center', gap: space.x8, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer' },
+  status: { display: 'inline-flex', alignItems: 'center', minHeight: control.sm, padding: '0 9px', borderRadius: 999, background: 'rgba(var(--surface-rgb), 0.75)', border: '1px solid var(--border-default)', color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 800 },
   statusLive: { background: 'rgba(var(--success-rgb), 0.13)', borderColor: 'rgba(var(--success-rgb), 0.44)', color: 'var(--success)' },
   statusDone: { background: 'rgba(var(--success-rgb), 0.08)', borderColor: 'rgba(var(--success-rgb), 0.3)', color: 'var(--success)' },
-  footer: { flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 20px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
+  footer: { flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, padding: '12px 20px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
   tourBtn: { padding: 0, background: 'transparent', border: 'none', color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textDecoration: 'underline' },
   tourBtnDisabled: { color: 'var(--text-muted)', cursor: 'not-allowed', textDecoration: 'none' },
   tourHint: { marginTop: 3, color: 'var(--text-muted)', fontSize: font.xs },
-  closeAction: { flexShrink: 0, height: 34, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  closeAction: { flexShrink: 0, height: control.lg, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
 }

@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { buildTimeline, cleanTitle, computeGridLayout, createSoftScroller } from './utils'
-import { s, color } from './styles'
+import { s, color, space, THUMB_CHROME } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import WhatsNewModal from './components/WhatsNewModal'
@@ -41,9 +41,9 @@ import { useT } from './i18n'
 import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, saveSetupGuideState, type SetupGuideState } from './setupGuideState'
 
 // サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
-const COL_GAP = 6
-const ROW_GAP = 10
-const LABEL_HEIGHT = 20
+// タイル同士の隙間。上下と左右で同じにする（違うと格子が歪んで見える）。
+const COL_GAP = space.x4
+const ROW_GAP = space.x4
 
 export default function App() {
   const { t, tp } = useT()
@@ -171,7 +171,9 @@ export default function App() {
   const patchImage = useImageStore((s) => s.patchImage)
 
   const { columns, cellWidth, cellHeight } = computeGridLayout(containerWidth, settings.settings.thumbnailSize, COL_GAP)
-  const rowHeight = cellHeight + LABEL_HEIGHT + ROW_GAP
+  // 行の高さ＝タイルの実寸（絵＋題名＋枠）＋隙間。**題名と枠の値は styles.ts から取る。**
+  // ここに自前の数値を持つと、あちらを変えたときに黙ってずれて隙間が消える。
+  const rowHeight = cellHeight + THUMB_CHROME + ROW_GAP
   const rowCount = Math.ceil(imageList.images.length / columns)
   // タイムラインのキーボードナビゲーション用の列数は、TimelineView の実描画と同じ
   // gap(CELL_GAP)を使わないと、見た目の列数とナビゲーションの列数が静かにズレるため、
@@ -505,7 +507,7 @@ export default function App() {
 
       {settings.updateVersion && !updateBannerDismissed && (
         <div style={s.updateBanner}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: space.x12 }}>
             <span>{t('update.ready', { version: settings.updateVersion ?? '' })}</span>
             <button style={s.updateBtn} onClick={() => settings.quitAndInstallUpdate()}>{t('update.restart')}</button>
           </div>

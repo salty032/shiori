@@ -7,10 +7,10 @@ import { useTrimStore } from './trimStore'
 import VideoTrimmerModal from './VideoTrimmerModal'
 import ClipHotkeySettings from './ClipHotkeySettings'
 import { t } from '../i18n'
-import { radius } from '../styles'
+import { radius, control } from '../styles'
 
 const panelBtnStyle: React.CSSProperties = {
-  width: '100%', height: 34, padding: '0 12px', background: 'rgba(35,190,183,0.1)',
+  width: '100%', height: control.lg, padding: '0 12px', background: 'rgba(35,190,183,0.1)',
   border: '1px solid rgba(35,190,183,0.38)', borderRadius: radius.md, color: '#5ee2dc',
   cursor: 'pointer', fontSize: 12, fontWeight: 800,
 }

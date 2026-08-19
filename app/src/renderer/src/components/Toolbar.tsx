@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import type { Filters } from '../hooks/useFilters'
-import { s } from '../styles'
+import { s, space } from '../styles'
 import { serviceLabel } from '../services'
 import { XIcon, ChevronDownIcon } from './Icon'
 import { useSearchHistoryStore } from '../stores/searchHistoryStore'
@@ -287,7 +287,9 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   }, [filters.search, filters.sites, filters.tagFilters, searchTags])
 
   return (
-    <div ref={ref} style={s.stickyHeader}>
+    // data-sticky-header: 矩形選択の当たり判定から外すための目印（useSelection の
+    // isInSelectionArea が見る）。ここは検索欄のある帯で、押しても選択は動かさない。
+    <div ref={ref} data-sticky-header="true" style={s.stickyHeader}>
       <div style={s.searchBar}>
         <div ref={searchWrapRef} className="shiori-search-input-wrap" style={s.searchInputWrap}>
           {searching ? (
@@ -474,7 +476,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
           )}
         </div>
         <div ref={sortMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
-          <button style={{ ...s.sortBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => setSortMenuOpen((v) => !v)}>
+          <button style={{ ...s.sortBtn, display: 'inline-flex', alignItems: 'center', gap: space.x4 }} onClick={() => setSortMenuOpen((v) => !v)}>
             {t(SORT_LABEL_KEYS[filters.sortOrder]!)} <ChevronDownIcon size={10} />
           </button>
           {sortMenuOpen && (

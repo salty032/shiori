@@ -290,17 +290,29 @@ export function useSelection({
     return rect ? { x: clientX - rect.left, y: clientY - rect.top } : null
   }
 
+  // 矩形選択を始めてよい場所か。**検索欄のすぐ下で誤って始まらないこと**が要点。
+  //
+  // 1. 検索欄のある固定ヘッダーの中からは始めない。ヘッダーは一覧と同じスクロール要素の
+  //    中に sticky で乗っているため、下へスクロールすると一覧の上端は画面の外まで上がる。
+  //    上端の座標だけで見ていると、その状態では**ヘッダーの余白を押したつもりでも
+  //    一覧を押したことになり**、検索欄を狙って少し外しただけで選択が全部消えて矩形選択が
+  //    始まっていた。座標ではなく「ヘッダーの中か」で弾く（スクロール量に依らない）。
+  // 2. 上端は常に一覧そのものの上端にする。以前はスクロール要素の地を直接押したときだけ
+  //    スクロール要素の上端まで許していたが、そこはヘッダーと一覧の間の隙間——
+  //    やはり検索欄のすぐ下——で、押すと選択が消えて矩形選択が始まる帯になっていた。
+  //
+  // 代償：ヘッダーの余白とその下の隙間を押しても選択は解除されなくなる。解除は一覧側
+  // （サムネイルの無いところ）を押したときだけになる。
   function isInSelectionArea(clientX: number, clientY: number, target: EventTarget | null): boolean {
     const rootRect = selectionRoot()?.getBoundingClientRect()
     const scrollRect = latestLayoutRef.current.scrollRef.current?.getBoundingClientRect()
     if (!rootRect || !scrollRect) return false
     const targetEl = target instanceof HTMLElement ? target : null
-    const startsFromScrollBackground = targetEl === latestLayoutRef.current.scrollRef.current
-    const top = startsFromScrollBackground ? scrollRect.top : rootRect.top
+    if (targetEl?.closest('[data-sticky-header]')) return false
     return (
       clientX >= scrollRect.left &&
       clientX <= scrollRect.right &&
-      clientY >= top &&
+      clientY >= rootRect.top &&
       clientY <= scrollRect.bottom
     )
   }

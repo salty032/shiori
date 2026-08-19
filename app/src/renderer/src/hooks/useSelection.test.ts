@@ -478,6 +478,50 @@ describe('ビューアの表示対象（id 指定）', () => {
   })
 })
 
+describe('矩形選択を始めてよい場所', () => {
+  // 検索欄のある固定ヘッダーは一覧と同じスクロール要素の中にあり、下へスクロールすると
+  // 一覧の上端は画面の外へ出る。座標だけで判定すると、その状態ではヘッダーを押しても
+  // 「一覧を押した」ことになり、検索欄を狙って外しただけで選択が全部消えていた。
+  function setupArea() {
+    const gridRef = { current: document.createElement('div') }
+    const scrollRef = { current: document.createElement('div') }
+    return setup({ images: makeImages(6), gridLayout: makeGridLayout({ gridRef, scrollRef }) })
+  }
+
+  function mouseDownOn(result: ReturnType<typeof setupArea>['result'], target: HTMLElement): void {
+    act(() => result.current.handleGridMouseDown({
+      button: 0, clientX: 0, clientY: 0, target,
+      shiftKey: false, ctrlKey: false, metaKey: false,
+      preventDefault: () => {},
+    } as unknown as React.MouseEvent<HTMLDivElement>))
+  }
+
+  it('固定ヘッダーの中を押しても選択は解除されない', () => {
+    const { result } = setupArea()
+    const header = document.createElement('div')
+    header.setAttribute('data-sticky-header', 'true')
+    const inner = document.createElement('div')
+    header.appendChild(inner)
+    document.body.appendChild(header)
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOn(result, inner)
+
+    expect(result.current.selectedIds).toEqual(new Set([1, 2, 3]))
+  })
+
+  it('一覧の地を押したときは従来どおり解除される', () => {
+    const { result } = setupArea()
+    const background = document.createElement('div')
+    document.body.appendChild(background)
+    act(() => result.current.setSelectedIds(new Set([1, 2, 3])))
+
+    mouseDownOn(result, background)
+
+    expect(result.current.selectedIds).toEqual(new Set())
+  })
+})
+
 describe('サムネからの他アプリへのドラッグ', () => {
   // handleGridMouseDown は選択領域の判定に gridRef/scrollRef の矩形を使う。jsdom の
   // getBoundingClientRect は全て 0 を返すため、座標 0 で押せば領域内と判定される。

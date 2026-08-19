@@ -8,7 +8,7 @@ import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 import {
   useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, SpeedControl, LoopButton, type PlaybackSpeed,
-  vcBarStyle, vcBarOverlayStyle, VC_OVERLAY_HEIGHT, vcSeekTrackStyle, vcSeekBarStyle, vcSeekFillStyle, vcSeekThumbStyle
+  vcBarStyle, vcBarOverlayStyle, VC_OVERLAY_HEIGHT, vcSeekTrackStyle, vcSeekBarStyle, vcSeekFillStyle, vcSeekThumbStyle, VC_SEEK_THUMB
 } from './videoControls'
 
 export type VideoPlayerHandle = {
@@ -435,12 +435,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     return Math.max(0, Math.min(1, t / end))
   }
 
+  // つまみは溝の内側（左端から 100% - つまみ幅 まで）を動く。フィルの右端はつまみの
+  // 中心に合わせるので、同じだけ内側に詰めてから半径を足す。こうすると両端でも
+  // つまみが溝からはみ出さず、右隣の時刻ラベルにも重ならない。
+  const thumbLeft = (ratio: number): string => `calc(${ratio} * (100% - ${VC_SEEK_THUMB}px))`
+  const fillWidth = (ratio: number): string => `calc(${ratio} * (100% - ${VC_SEEK_THUMB}px) + ${VC_SEEK_THUMB / 2}px)`
+
   function updateVcTime(t: number): void {
     vcTimeRef.current = t
-    const pct = `${seekRatio(t) * 100}%`
-    if (seekFillRef.current) seekFillRef.current.style.width = pct
-    if (seekThumbRef.current) seekThumbRef.current.style.left = `calc(${pct} - 6px)`
-    if (vcTimeLabelRef.current) vcTimeLabelRef.current.textContent = `${fmtDur(t)} / ${fmtDur(vcDuration)}`
+    const ratio = seekRatio(t)
+    if (seekFillRef.current) seekFillRef.current.style.width = fillWidth(ratio)
+    if (seekThumbRef.current) seekThumbRef.current.style.left = thumbLeft(ratio)
+    // 秒が変わったときだけ書く。毎フレーム textContent に代入すると、変化していなくても
+    // ラベルの再レイアウトが走る（滑らかにするため下の効果で毎描画呼ぶようになった）。
+    const label = `${fmtDur(t)} / ${fmtDur(vcDuration)}`
+    if (vcTimeLabelRef.current && vcTimeLabelRef.current.textContent !== label) vcTimeLabelRef.current.textContent = label
   }
 
   useEffect(() => {
@@ -564,10 +573,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     // moveFrames / goToFrame は ref しか読まないので、依存に並べる必要はない。
   }, [framePlay, speed, id])
 
-  // 再生中はシークバー・時刻を実フレームに追従させる。timeupdate は仕様上 4Hz 程度でしか
-  // 発火しないため、これだけだとヘッドが飛び飛びに動く。コマを追う用途では現在位置の
-  // ズレがそのまま誤読につながるので、対応環境では rVFC でフレームごとに更新する
-  // （timeupdate のハンドラは非対応環境の受け皿として残す）。
+  // 再生中のシークバーは**コマの届く間隔ではなく再生の時計に追従させる**。
+  //
+  // 以前は下の rVFC（コマが 1 枚描かれるたびに呼ばれる）で位置を書いていた。録画クリップの
+  // ファイルのコマ数は画面キャプチャの供給レートの産物で、10〜20 コマ/秒まで落ちることが
+  // ある。その回数しか動かないので、バーが目に見えてカタカタ進んでいた。
+  // currentTime は描画のたびに連続して進むので、rAF で読めば画面の更新間隔で滑らかに動く。
+  // **コマ番号の追従は滑らかさの問題ではない**ので、実フレームの時刻を持つ rVFC に残す。
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !playing) return
+    let handle = 0
+    const tick = (): void => {
+      updateVcTime(v.currentTime)
+      handle = requestAnimationFrame(tick)
+    }
+    handle = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(handle)
+    // vcDuration は updateVcTime が割合と時刻ラベルに使うため、確定したら張り直す。
+  }, [playing, vcDuration])
+
+  // 再生中のコマ番号（実フレーム）の追従。timeupdate は仕様上 4Hz 程度でしか発火せず、
+  // コマを追う用途では現在位置のズレがそのまま誤読につながるので、対応環境では
+  // rVFC でフレームごとに引き直す（timeupdate のハンドラは非対応環境の受け皿として残す）。
   useEffect(() => {
     const v = videoRef.current
     if (!v || !playing) return
@@ -588,13 +616,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // （そもそも再生中は隠している。下の JSX を参照）。
       const pts = framesRef.current?.pts
       if (pts && pts.length > 0) frameIdxRef.current = findFrameIdx(pts, meta.mediaTime)
-      updateVcTime(meta.mediaTime)
       handle = rv.requestVideoFrameCallback!(tick)
     }
     handle = rv.requestVideoFrameCallback(tick)
     return () => { alive = false; rv.cancelVideoFrameCallback?.(handle) }
-    // vcDuration は updateVcTime が割合の計算に使うため、確定したら張り直す。
-  }, [playing, vcDuration])
+  }, [playing])
 
   useVcStyles()
 
@@ -604,7 +630,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const el = e.currentTarget
     const update = (clientX: number) => {
       const rect = el.getBoundingClientRect()
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+      // つまみの可動域（両端をつまみの半径だけ詰めた範囲）で割合を出す。溝の幅で割ると、
+      // 端に近いほどつまみが指から半径ぶんずれていく。
+      const span = Math.max(1, rect.width - VC_SEEK_THUMB)
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left - VC_SEEK_THUMB / 2) / span))
       const t = pct * (seekEndRef.current || 0)
       updateVcTime(t)
       if (videoRef.current) videoRef.current.currentTime = t
@@ -696,8 +725,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           </button>
           <div style={vcSeekTrackStyle} onPointerDown={handleSeekPointerDown}>
             <div style={vcSeekBarStyle} />
-            <div ref={seekFillRef} style={{ ...vcSeekFillStyle, width: `${seekRatio(vcTimeRef.current) * 100}%` }} />
-            <div ref={seekThumbRef} style={{ ...vcSeekThumbStyle, left: `calc(${seekRatio(vcTimeRef.current) * 100}% - 6px)` }} />
+            <div ref={seekFillRef} style={{ ...vcSeekFillStyle, width: fillWidth(seekRatio(vcTimeRef.current)) }} />
+            <div ref={seekThumbRef} style={{ ...vcSeekThumbStyle, left: thumbLeft(seekRatio(vcTimeRef.current)) }} />
           </div>
           <span ref={vcTimeLabelRef} style={vcTimeLabelStyle}>{fmtDur(vcTimeRef.current)} / {fmtDur(vcDuration)}</span>
           {showRateLoop && <SpeedControl speed={speed} onPick={pickSpeed} />}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { buildAccelerator } from '../utils'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
-import { font, color } from '../styles'
+import { font, color, space } from '../styles'
 import { s, ToggleSwitch } from '../components/SettingsModal'
 import { useSettingsStore } from '../stores/settingsStore'
 import { videoApi } from './api'
@@ -69,7 +69,7 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
       <div style={s.row}>
         <span style={s.label}>{t('clip.hotkeyLabel')}</span>
         {capturing ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
             <div style={s.hotkeyCapture}>
               {capturedAccel || t('hotkey.pressKeys')}
             </div>
@@ -87,7 +87,7 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
             <button style={s.sizeBtn} onClick={() => { setCapturing(false); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.cancel')}</button>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
             <span style={s.hotkeyBadge}>{settings.clipHotkey}</span>
             <button style={s.sizeBtn} onClick={() => { setCapturing(true); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.change')}</button>
           </div>

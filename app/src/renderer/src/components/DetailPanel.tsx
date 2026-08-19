@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageRow, ImageTagSource, Settings } from '../types'
 import { cleanTitle, siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
-import { font, color, s as commonStyles, radius } from '../styles'
+import { font, color, s as commonStyles, radius, space, control } from '../styles'
 import TagEditor from './TagEditor'
 import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
@@ -604,11 +604,11 @@ const s: Record<string, React.CSSProperties> = {
   // 画像(短い→バー無し)と動画(バー分長い→スクロールバー出現)で calc(100%-20px) の基準が
   // ズレて右端が合わなくなる。gutter を常に確保して幅を一定にし、画像/動画を厳密に揃える。
   panelContent: { flex: 1, overflowY: 'auto' as const, scrollbarGutter: 'stable' as const },
-  searchTile: { padding: '8px 16px 16px', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: 16 },
-  actions: { padding: '16px 12px', borderTop: '1px solid var(--border-default)', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: 10, flexShrink: 0 },
-  empty: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, padding: '0 20px', textAlign: 'center' as const },
+  searchTile: { padding: '8px 16px 16px', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: space.x16 },
+  actions: { padding: '16px 12px', borderTop: '1px solid var(--border-default)', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: space.x8, flexShrink: 0 },
+  empty: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '100%', gap: space.x8, padding: '0 20px', textAlign: 'center' as const },
   emptyTitle: { color: 'var(--text-secondary)', fontSize: font.base, fontWeight: 700 },
-  emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: 5, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },
+  emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: space.x4, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },
   // シークバーが映像内のオーバーレイになったので、動画と画像は外形が完全に一致する。
   // 以前ここにあった marginBottom: VC_BAR_HEIGHT（バー分の辻褄合わせ）は不要になった。
   img: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: radius.md, aspectRatio: '16 / 9', objectFit: 'contain' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'block', flexShrink: 0 },
@@ -618,43 +618,43 @@ const s: Record<string, React.CSSProperties> = {
   // 画像と揃わなかった。videoEl は height:100% で外形に従わせる。
   videoWrap: { width: 'calc(100% - 20px)', margin: '10px 10px 0', borderRadius: radius.md, aspectRatio: '16 / 9', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', overflow: 'hidden', display: 'block', flexShrink: 0 },
   videoEl: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
-  meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 },
-  titleRow: { display: 'flex', flexDirection: 'column', gap: 5 },
-  titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid var(--border-default)', paddingBottom: 8 },
+  meta: { padding: '14px 16px 8px', display: 'flex', flexDirection: 'column', gap: space.x8 },
+  titleRow: { display: 'flex', flexDirection: 'column', gap: space.x4 },
+  titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: space.x4, borderBottom: '1px solid var(--border-default)', paddingBottom: 8 },
   // 動画時刻・長さ・フレームレートを並べる箱。列間（項目の分離）は広めに、行間は
   // タイトなままにする（rowGap を columnGap と同じにすると動画時刻の段だけ縦に間延びして見える）。
   metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 32, rowGap: 8, alignItems: 'start', padding: '2px 0 3px' },
   // 値は右端に揃える（tabular-nums と合わせて桁が縦に揃う）。左寄せでラベルに隣接させると
   // 値の開始位置がラベルの文字数に左右され、項目ごとに揃わなくなる。
   // ペアの分離は距離ではなく metaHalf の列間で取ること。
-  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
-  row: { display: 'flex', flexDirection: 'column', gap: 5 },
+  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8 },
+  row: { display: 'flex', flexDirection: 'column', gap: space.x4 },
   label: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
   value: { fontSize: font.base, color: 'var(--text-bright)', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
   // 短いタイトルでも常に3行分の領域を確保し、画像によって下の要素の位置がズレないようにする
   titleValue: { flex: 1, minWidth: 0, fontSize: font.base, color: 'var(--text-primary)', lineHeight: 1.45, minHeight: 'calc(1.45em * 3)', fontWeight: 700, wordBreak: 'break-word', cursor: 'pointer', userSelect: 'text' as const },
   titleValueClamped: { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' },
-  titleEditBtn: { flexShrink: 0, width: 28, height: 28, padding: 0, background: 'rgba(var(--surface-rgb), 0.55)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
+  titleEditBtn: { flexShrink: 0, width: control.md, height: control.md, padding: 0, background: 'rgba(var(--surface-rgb), 0.55)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
   titleInput: { width: 'calc(100% - 34px)', minHeight: 'calc(1.45em * 3 + 9px)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-default)', color: 'var(--text-primary)', padding: '0 0 8px', fontSize: font.base, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-word', lineHeight: 1.45, fontFamily: 'inherit' },
-  metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid rgba(var(--border-rgb), 0.72)', display: 'flex', flexDirection: 'column' as const, gap: 8 },
-  subtleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 },
+  metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid rgba(var(--border-rgb), 0.72)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
+  subtleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, minWidth: 0 },
   subtleLabel: { color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 600 },
   subtleValue: { color: 'var(--text-muted)', fontSize: font.sm, userSelect: 'text' as const, textAlign: 'right' as const, lineHeight: 1.35 },
-  subtleUrlBadge: { minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 600, cursor: 'pointer', textAlign: 'right' as const, lineHeight: 1.35 },
-  memoLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 16 },
+  subtleUrlBadge: { minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 600, cursor: 'pointer', textAlign: 'right' as const, lineHeight: 1.35 },
+  memoLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, minHeight: 16 },
   memoStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 700, lineHeight: 1 },
   memoStatusError: { color: color.danger },
-  tagSection: { display: 'flex', flexDirection: 'column', gap: 8 },
+  tagSection: { display: 'flex', flexDirection: 'column', gap: space.x8 },
   tagLabel: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
-  tagList: { display: 'flex', flexWrap: 'wrap', gap: 7, minHeight: 4 },
+  tagList: { display: 'flex', flexWrap: 'wrap', gap: space.x8, minHeight: 4 },
   // 「一部にのみ付いている」= coverage:some を表す修飾。由来色(緑/藍)の上に重ね、色相は保ったまま
   // 破線＋減光で「まだ全部には付いていない」を示す。
   tagChipPartialMod: { borderStyle: 'dashed' as const, opacity: 0.66 },
   memoInput: { width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '10px 12px', fontSize: font.base, outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, fontFamily: 'inherit', lineHeight: 1.5 },
-  multi: { padding: 16, display: 'flex', flexDirection: 'column', gap: 12 },
-  multiHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  multi: { padding: 16, display: 'flex', flexDirection: 'column', gap: space.x12 },
+  multiHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8 },
   multiCount: { color: 'var(--text-secondary)', fontSize: font.lg },
   multiClearBtn: { flexShrink: 0, padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 700 },
-  showInFolderBtn: { width: '100%', height: 34, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
-  deleteActionBtn: { width: '100%', height: 34, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: radius.md, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  showInFolderBtn: { width: '100%', height: control.lg, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  deleteActionBtn: { width: '100%', height: control.lg, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: radius.md, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
 }

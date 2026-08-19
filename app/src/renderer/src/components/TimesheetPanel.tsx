@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useT } from '../i18n'
-import { font, radius } from '../styles'
+import { font, radius, space } from '../styles'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
@@ -117,13 +117,13 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
     <aside style={{ ...st.panel, width }} data-timesheet data-keep-selection>
       <div style={st.resizeHandle} onPointerDown={handleResizeStart} />
       <div style={st.head}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 }}>
           <span style={{ fontWeight: 800, fontSize: font.sm }}>{t('timesheet.title')}</span>
           <span style={{ color: c.counterInk, fontSize: font.xs }}>
             {t('timesheet.count', { marks: String(marks.length), total: String(total) })}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
           <button
             style={st.copyBtn}
             onClick={sheet.copy}
@@ -207,7 +207,7 @@ const st: Record<string, React.CSSProperties> = {
   // 詳細パネルと同じ。左隣のスクロールバーを潰さないよう外へは出さない。
   resizeHandle: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 8, cursor: 'col-resize', zIndex: 10, userSelect: 'none' },
   head: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8,
     padding: '8px 10px', background: c.headBand, borderBottom: `1px solid ${c.frame}`,
     flexShrink: 0, color: c.headText,
   },

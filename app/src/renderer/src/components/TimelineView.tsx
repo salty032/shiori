@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
 import { cleanTitle, computeGridLayout, createSoftScroller, formatTime, thumbSrc } from '../utils'
-import { font, badgeInset, s as appStyles, radius } from '../styles'
+import { font, badgeInset, s as appStyles, radius, space } from '../styles'
 import { currentLocale, useT } from '../i18n'
 
 // サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
@@ -256,7 +256,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
 
 export default memo(TimelineView)
 
-const headingBase: React.CSSProperties = { height: HEADER_HEIGHT, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-content)' }
+const headingBase: React.CSSProperties = { height: HEADER_HEIGHT, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: space.x8, background: 'var(--bg-content)' }
 
 const s: Record<string, React.CSSProperties> = {
   // 画面最上部に固定表示する「現在のグループ名」。親が position:sticky なので

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-import { font, radius } from '../styles'
+import { font, radius, space, control } from '../styles'
 import { useT, type MessageKey } from '../i18n'
 
 export type ProductTourStep = 0 | 1 | 2 | 3 | 4 | 5
@@ -85,8 +85,8 @@ const s: Record<string, React.CSSProperties> = {
   progress: { color: '#8e9ab2', fontSize: font.xs, fontWeight: 800 },
   title: { marginTop: 4, color: '#f7f9ff', fontSize: font.base, fontWeight: 900 },
   body: { marginTop: 5, color: '#b7c0d2', fontSize: font.sm, lineHeight: 1.55 },
-  actions: { minHeight: 25, marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 },
+  actions: { minHeight: control.sm, marginTop: 10, display: 'flex', alignItems: 'center', gap: space.x12 },
   exit: { padding: 0, background: 'transparent', border: 'none', color: '#8e9ab2', cursor: 'pointer', fontSize: font.xs, textDecoration: 'underline' },
   waiting: { marginLeft: 'auto', color: '#8e9ab2', fontSize: font.xs, fontWeight: 700 },
-  next: { marginLeft: 'auto', height: 28, padding: '0 10px', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.14)', borderRadius: radius.md, color: '#eef2ff', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
+  next: { marginLeft: 'auto', height: control.md, padding: '0 10px', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.14)', borderRadius: radius.md, color: '#eef2ff', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
 }

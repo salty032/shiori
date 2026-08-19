@@ -3,7 +3,7 @@
 // shiori-vc-styles 注入・再生/ミュートアイコン）を 1 箇所に集約し、片方だけ直して
 // 挙動が食い違う温床を無くす。挙動は両コンポーネントの従来実装と同一。
 import { useEffect, useRef, useState } from 'react'
-import { font, radius } from '../styles'
+import { font, radius, space, control } from '../styles'
 import { useT } from '../i18n'
 
 // 音量ポップアップのスライドイン/アウト用 keyframes を一度だけ注入する。
@@ -38,7 +38,7 @@ export const vcBtnStyle: React.CSSProperties = {
 export const VC_BAR_HEIGHT = 30
 export const vcBarStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center',
-  gap: 6, padding: '0 8px', height: VC_BAR_HEIGHT, boxSizing: 'border-box',
+  gap: space.x4, padding: '0 8px', height: VC_BAR_HEIGHT, boxSizing: 'border-box',
   background: '#1a1a1a'
 }
 
@@ -75,7 +75,7 @@ export const vcBarOverlayStyle: React.CSSProperties = {
 // なっていたことになる。バーの内容高は 30px なので、24 までは他のコントロールの縦位置を
 // 動かさずに広げられる。
 export const vcSeekTrackStyle: React.CSSProperties = {
-  position: 'relative', flex: 1, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center'
+  position: 'relative', flex: 1, height: control.sm, cursor: 'pointer', display: 'flex', alignItems: 'center'
 }
 // 空トラックも映像に重なるため、暗色スラブ前提の #272c3a ではなく半透明ホワイトにする
 // （どんな映像の上でも溝として認識できる）。0.26 では明るい映像に溶けるので上げたうえで、
@@ -92,9 +92,14 @@ export const vcSeekFillStyle: React.CSSProperties = {
 // つまみは映像の上に出るので白で固定する。--accent-text はライトテーマで濃紺になり、
 // アクセント色のフィルの上に暗い点が乗って、どこを掴んでいるのか分からなくなっていた。
 // 影は溝（vcSeekBarStyle）と同じものを使い、映像から浮かせる。
+//
+// **つまみは溝の内側に収める。** 以前は中心を位置に合わせていた（left が 位置 - 半径）ため、
+// 端では半分が溝の外へはみ出し、右端では隣の時刻ラベルに重なっていた。
+// 位置は VideoPlayer 側で left: 割合 × (100% - VC_SEEK_THUMB) として置く。
+export const VC_SEEK_THUMB = 12
 export const vcSeekThumbStyle: React.CSSProperties = {
-  position: 'absolute', top: '50%', marginTop: -6, width: 12, height: 12, borderRadius: 999,
-  background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.6)', pointerEvents: 'none'
+  position: 'absolute', top: '50%', marginTop: -VC_SEEK_THUMB / 2, width: VC_SEEK_THUMB, height: VC_SEEK_THUMB,
+  borderRadius: 999, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.6)', pointerEvents: 'none'
 }
 
 export function PlayPauseIcon({ playing }: { playing: boolean }): React.JSX.Element {
@@ -302,18 +307,18 @@ export const vcTimeLabelStyle: React.CSSProperties = {
 const s: Record<string, React.CSSProperties> = {
   // 秒数は桁が変わる（1秒 ↔ 0.25秒）ので固定幅にしないと、選び直すたびにバーの他の
   // コントロールが左右に動く。
-  vcStepBtn: { minWidth: 92, gap: 4, fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0, whiteSpace: 'nowrap' },
+  vcStepBtn: { minWidth: 92, gap: space.x4, fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0, whiteSpace: 'nowrap' },
   // コマ再生が走っていることは一目で分かる必要がある（映像は止まったまま少しずつ動くので、
   // 手で送っているのか自動なのかが画面から区別できないと迷う）。
   vcStepBtnActive: { color: 'var(--accent-text)' },
   // 速さ・音量のポップアップは映像の外へ浮く「メニュー」なので、右クリックメニュー
   // （ContextMenu の menu）とまったく同じ地・枠・角丸・影にする。以前は #171a23 の地に
   // #2b3243 の枠という、ここだけの青灰だった（アプリ本体は中立のグレー）。
-  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },
+  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, display: 'flex', flexDirection: 'column', gap: space.x2, zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },
   vcStepItem: { background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
   vcStepItemActive: { background: 'rgba(var(--accent-rgb), 0.22)', color: 'var(--accent-text)' },
   // 選択肢ではなく見出しなので、押せる行と同じ明るさにしない（押せるものと見分けが付かなくなる）。
-  vcStepGroup: { display: 'flex', alignItems: 'center', gap: 5, padding: '4px 4px 2px', color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
+  vcStepGroup: { display: 'flex', alignItems: 'center', gap: space.x4, padding: '4px 4px 2px', color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
   vcStepRule: { flex: 1, height: 1, background: 'rgba(var(--text-rgb), 0.14)' },
   vcLoopActive: { color: 'var(--accent-text)' },
   vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },

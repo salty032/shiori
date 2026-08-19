@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
-import { font, color, radius } from '../styles'
+import { font, color, radius, space, control } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
 import { FRAME_EPS, findFrameIdx } from '../frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -669,9 +669,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
 const s: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(var(--scrim-rgb), 0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000 },
   modal: { background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: radius.md, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '10px 16px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x12, padding: '10px 16px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 },
   fileTitle: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.lg, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0, minWidth: 28, minHeight: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0, minWidth: 28, minHeight: control.md, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   videoWrap: { position: 'relative', flexShrink: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#000' },
   // 190 → 260: タイムライン上の IN/OUT フラグ用の余白と、カード化した IN/OUT 行の
   // 分だけ映像以外の高さが増えたぶんを反映する（ここがズレると縦スクロールが出る）。
@@ -696,11 +696,11 @@ const s: Record<string, React.CSSProperties> = {
   handleFlagOut: { background: 'var(--danger)', color: 'var(--bg-page)' },
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
   playhead: { position: 'absolute', top: -3, bottom: -3, width: 2, background: '#fff', transform: 'translateX(-50%)', pointerEvents: 'none', boxShadow: '0 0 0 1px rgba(0,0,0,0.55)' },
-  controls: { padding: '12px 16px 8px', display: 'flex', flexDirection: 'column', gap: 9, flexShrink: 0 },
-  boundaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 10 },
+  controls: { padding: '12px 16px 8px', display: 'flex', flexDirection: 'column', gap: space.x8, flexShrink: 0 },
+  boundaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: space.x8 },
   // 列: バッジ / 時刻 / コマ番号 / コマ送り(右寄せ) / 設定ボタン(固定幅)。
   // 2 枚のカードで同一なので左右で必ず揃う。
-  boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 40px 1fr auto', alignItems: 'center', gap: 8, minWidth: 0, padding: '8px 10px', background: 'var(--bg-inset)', border: '1px solid var(--border-default)', borderRadius: radius.md },
+  boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 40px 1fr auto', alignItems: 'center', gap: space.x8, minWidth: 0, padding: '8px 10px', background: 'var(--bg-inset)', border: '1px solid var(--border-default)', borderRadius: radius.md },
   boundaryCardIn: { borderLeft: '3px solid rgba(var(--success-rgb), 0.75)' },
   boundaryCardOut: { borderLeft: '3px solid rgba(var(--danger-rgb), 0.75)' },
   badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textAlign: 'center' as const },
@@ -710,24 +710,24 @@ const s: Record<string, React.CSSProperties> = {
   frameNum: { fontSize: font.xs, fontWeight: 700, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' as const },
   // コマ送りは 2 つの独立したボタンではなく、枠を共有するセグメントにする
   // （個別のピルが並ぶと右端が揃わずガタついて見えた）。
-  stepper: { justifySelf: 'end', display: 'inline-flex', alignItems: 'stretch', height: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, overflow: 'hidden' },
+  stepper: { justifySelf: 'end', display: 'inline-flex', alignItems: 'stretch', height: control.md, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, overflow: 'hidden' },
   stepBtn: { width: 46, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, fontVariantNumeric: 'tabular-nums' as const, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   stepBtnRight: { borderLeft: '1px solid var(--border-strong)' },
-  setBtn: { boxSizing: 'border-box' as const, width: 108, height: 28, padding: 0, borderRadius: radius.md, cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  setBtn: { boxSizing: 'border-box' as const, width: 108, height: control.md, padding: 0, borderRadius: radius.md, cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   setBtnIn: { background: 'rgba(var(--success-rgb), 0.14)', border: '1px solid rgba(var(--success-rgb), 0.45)', color: 'var(--success)' },
   setBtnOut: { background: 'rgba(var(--danger-rgb), 0.14)', border: '1px solid rgba(var(--danger-rgb), 0.45)', color: 'var(--danger)' },
-  infoRow: { display: 'flex', alignItems: 'center', gap: 12, minHeight: 18 },
+  infoRow: { display: 'flex', alignItems: 'center', gap: space.x12, minHeight: 18 },
   duration: { color: 'var(--text-primary)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
   ptsStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontStyle: 'italic' },
   ptsWarn: { color: 'var(--warning)', fontSize: font.xs, fontStyle: 'italic' },
   errorMsg: { color: color.danger, fontSize: font.sm },
   shortcutHint: { color: 'var(--text-muted)', fontSize: font.xs, letterSpacing: 0.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
-  footer: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, padding: '10px 16px', borderTop: '1px solid var(--border-default)', flexShrink: 0 },
+  footer: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: space.x8, padding: '10px 16px', borderTop: '1px solid var(--border-default)', flexShrink: 0 },
   // フッターの 2 ボタンは ConfirmDialog と同じ組み合わせにする。以前この保存ボタンだけが
   // var(--accent) のベタ塗り＋白文字で、明るい藤色に白を載せるためコントラストが約 2:1 しか
   // 出ず濁って見えていた（かつアプリ内で唯一の見た目でもあった）。ティント地＋アクセント文字なら
   // 地に対して文字が十分明るく、ライト/ダークどちらでも成立する。
-  cancelBtn: { boxSizing: 'border-box' as const, height: 34, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
-  trimBtn: { boxSizing: 'border-box' as const, height: 34, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  cancelBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  trimBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
   trimDisabled: { opacity: 0.4, cursor: 'not-allowed' },
 }

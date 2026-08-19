@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SmartFolder } from '../types'
 import type { Filters } from '../hooks/useFilters'
 import type { ViewMode } from './Toolbar'
-import { s, font } from '../styles'
+import { s, font, control } from '../styles'
 import { FolderIcon, GridIcon, HelpCircleIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
 import ContextMenu from './ContextMenu'
 import ShortcutsFlyout from './ShortcutsFlyout'
@@ -297,7 +297,7 @@ export default function Sidebar({
         </div>
 
         <div style={s.siteGroup}>
-          <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 }}>
+          <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: control.md }}>
             <span>{t('sidebar.smartFolders')}</span>
             {!filters.creatingFolder && (
               <button
@@ -379,7 +379,7 @@ export default function Sidebar({
 
         {filters.allTags.length > 0 && (
           <div style={s.siteGroup}>
-            <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 }}>
+            <div style={{ ...s.siteGroupLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: control.md }}>
               <span>{t('tag.sectionTitle')}</span>
               <div style={s.tagLabelActions}>
                 {/* タグクリックは searchTags（検索欄の tag:xxx）に書き込まれ、tagFilters は

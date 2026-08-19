@@ -16,7 +16,7 @@ export const ja = {
   'dialog.updateBusy.title': '更新の確認',
   'dialog.updateBusy.message': '{tasks}が進行中です',
   'dialog.updateBusy.detail': '更新するとアプリが再起動し、進行中の処理は中断されます。',
-  'dialog.updateBusy.proceed': '中止して更新',
+  'dialog.updateBusy.proceed': '処理を中止して更新',
   'dialog.updateBusy.cancel': 'キャンセル',
   'dialog.exportFolder': 'エクスポート先フォルダを選択',
   'dialog.importFolder': 'インポートするフォルダを選択',
@@ -33,7 +33,7 @@ export const ja = {
   // ── 起動時の致命的エラー ──────────────────────────────────────
   'error.dbOpen':
     'データベースを開けなかったため起動できませんでした。\n\n' +
-    '他のプロセスがファイルをロックしていないか確認するか、PCを再起動してから再度お試しください。',
+    '他のプロセスがファイルをロックしていないか確認するか、PC を再起動してからもう一度お試しください。',
   // 起動処理が途中で止まったとき。console にしか出さないと、使う人からは「ウィンドウが
   // 出ない」「トレイに居るのに何もできない」としか見えず、原因を確かめる手段が無くなる。
   // {detail} には例外の1行目だけを入れる（スタックは console 側に残す）。
@@ -64,7 +64,7 @@ export const ja = {
     '{date} より後に付けたタグ・メモ・タイムシートは失われます。壊れたファイルは消さずに\n' +
     'backups フォルダへ残すので、後から中身を取り出すこともできます。\n\n' +
     '画像と動画そのものは別のファイルなので、どちらを選んでも消えません。',
-  'dialog.dbRestore.restore': 'バックアップから戻す',
+  'dialog.dbRestore.restore': 'バックアップから復元する',
   'dialog.dbRestore.quit': '終了する',
   'error.dbCorruptNoBackup':
     'データベースが壊れており、戻せるバックアップがありませんでした。\n\n' +
@@ -78,20 +78,20 @@ export const ja = {
   'notice.dbRestored':
     'データベースが壊れていたため、{date} のバックアップから戻しました。それより後に付けたタグ・メモ・タイムシートは含まれていません。',
   'notice.dbBackupFailed':
-    'データベースのバックアップを取れませんでした。この起動でデータベースを更新したため、前の状態には戻せません。ディスクの空きを確認してください。',
+    'データベースをバックアップできませんでした。今回の起動時に更新された内容は、以前の状態に戻せない可能性があります。ディスクの空き容量を確認してください。',
   // 画面上の設定は変わっているがファイルには書けていない状態。黙っていると、次に起動した
   // ときだけ設定が巻き戻って原因が分からなくなる。
   'notice.settingsPersistFailed':
     '設定をファイルに保存できませんでした。この変更は Shiori を終了すると失われます。ウイルス対策ソフトやディスクの空き容量を確認してください。',
   // 候補ポートを全部試して駄目だったときだけ出る。1つ塞がっただけなら黙って隣へ移る。
-  'notice.portInUse': 'ブラウザ拡張と接続できません。ポート {ports} がすべて他のアプリに使われているか、Windows に予約されています。PCを再起動すると直ることがあります。',
+  'notice.portInUse': 'ブラウザ拡張と接続できません。ポート {ports} がすべて他のアプリに使われているか、Windows に予約されています。PC を再起動すると直ることがあります。',
   'notice.updated': 'Shiori を v{version} に更新しました',
 
   // ── キャプチャ ────────────────────────────────────────────────
   'notice.captureTargetNotFound':
     'キャプチャ対象を検出できませんでした。対応サイトの動画ページを開き、Chrome 拡張機能が有効か確認してください。',
   'notice.captureBlackScreen':
-    '映像が真っ黒に写っています。ブラウザの設定でハードウェアアクセラレーションをOFFにしてください。',
+    '映像が真っ黒に写っています。ブラウザの設定でハードウェアアクセラレーションをオフにしてください。',
   'notice.captureSaveFailed': 'キャプチャの保存に失敗しました',
   'notice.captureSaved': 'キャプチャを保存しました',
   'error.captureFailed': 'キャプチャに失敗しました。もう一度お試しください。',
@@ -102,19 +102,19 @@ export const ja = {
 
   // ── 録画 / クリップ ───────────────────────────────────────────
   'notice.recordingNoAudio': '音声なしで録画しています（音声デバイスの初期化に失敗しました）。',
-  'notice.videoRegionNotFound': '動画領域を特定できませんでした。ページを再読み込みして再試行してください。',
+  'notice.videoRegionNotFound': '動画の表示領域を特定できませんでした。ページを再読み込みして、もう一度お試しください。',
   'notice.recordingEmpty': '録画データが空でした。短すぎる録画は保存されません。',
   'notice.screenCapturePermission':
-    '画面録画の権限がありません。Chromeのハードウェアアクセラレーションをオフにして再試行してください。',
+    '画面録画の権限がありません。Chrome のハードウェアアクセラレーションをオフにして、もう一度お試しください。',
   'notice.recordingError': '録画エラー: {message}',
   'notice.recordingDataInvalid': '録画データが不正なため保存できませんでした。',
   'notice.clipSaveFailed': 'クリップの保存に失敗しました',
   'notice.clipSaved': 'クリップを保存しました（{duration}）',
   'notice.clipSavedWithMissed': 'クリップを保存しました（{duration}・{count}コマ未取得）',
   'notice.videoNotDetected':
-    '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome拡張機能が有効か確認してください。',
+    '動画を検出できませんでした。対応サイトの動画ページを開き、Chrome 拡張機能が有効か確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',
-  'notice.recordingSourceNotFound': '録画ソースが見つかりませんでした',
+  'notice.recordingSourceNotFound': '録画する画面が見つかりませんでした',
   'notice.recordingDisplayUncertain':
     'どの画面を録るか特定できませんでした。別のモニターが録れている可能性があります。',
   'notice.recordingTimeout': '録画処理がタイムアウトしました。もう一度お試しください。',
@@ -227,7 +227,7 @@ export const ja = {
   'action.export': 'エクスポート',
   'action.clear': '解除',
   'action.stop': '中止',
-  'action.showInFolder': 'Explorerで開く',
+  'action.showInFolder': 'エクスプローラーで表示',
   'state.working': '処理中...',
   'state.loading': '読み込み中...',
 
@@ -251,9 +251,9 @@ export const ja = {
 
   // ── ビューア ──
   'viewer.endHint': 'End は読み込み済みの最後へ移動します',
-  'viewer.close': '閉じる (Esc)',
-  'viewer.prev': '前へ (←)',
-  'viewer.next': '次へ (→)',
+  'viewer.close': '閉じる（Esc）',
+  'viewer.prev': '前へ（←）',
+  'viewer.next': '次へ（→）',
   // コマ送りの読み出し（VideoPlayer のコマ表示）。
   // 「絵が変わらない」こと自体が測定結果なので、番号だけでなく、そのコマをどう読んでよいか
   // （専用の絵があるのか・流用なのか）まで出す。docs/ANIME-FRAMES.md 参照。
@@ -264,14 +264,14 @@ export const ja = {
   'viewer.frameNeedsReview': '要確認',
   'viewer.frameLoading': 'コマ表を読み込み中',
   'viewer.frameEstimated': 'コマ位置不明（{fps}fps 換算）',
-  'viewer.frameSourceHint': '素材の実コマ単位で送っています。絵が変わらないのは、素材がその絵を保持していたということです。',
+  'viewer.frameSourceHint': '素材の実際のコマ単位で進みます。絵が変わらない箇所では、素材でも同じ絵が続いています。',
   'viewer.frameReusedHint': 'このコマ専用の絵は撮れておらず、直前のコマの絵を表示しています（未検証）。ここで絵が変わらないことをコマ打ちの根拠にしないでください。',
   'viewer.frameReusedSameHint': 'このコマ専用の絵は撮れていませんが、前後の絵が同一と確認済みです。コマ打ちの数え方には影響しません。',
   'viewer.frameNeedsReviewHint': 'このコマ専用の絵が無く、前後で絵が変わっています。どのコマで変わったかは特定できません。',
-  'viewer.frameFileHint': 'ファイルに記録されたフレームを順に送っています。取り込んだ動画なので、これが素材のコマそのものです。',
-  'viewer.frameFileCaptureHint': '素材のコマ表がないため、ファイルに記録されたフレームを順に送っています。これは画面キャプチャの取得レートによるもので、素材のコマとは一致しません。',
+  'viewer.frameFileHint': 'ファイルに記録されたフレームを順に表示します。取り込んだ動画では、これが素材のコマそのものです。',
+  'viewer.frameFileCaptureHint': '素材のコマ表がないため、ファイルに記録されたフレームを順に表示します。画面キャプチャの取得間隔に基づくため、素材のコマとは一致しません。',
   'viewer.frameLoadingHint': 'コマ表を読み込んでいます。読み込みが終わるまでコマ送りは保留され、まとめて反映されます。',
-  'viewer.frameEstimatedHint': 'このクリップのフレーム位置を取得できませんでした。fps から換算した刻みで送っているため、素材のコマとは一致しません。',
+  'viewer.frameEstimatedHint': 'このクリップのフレーム位置を取得できませんでした。fps から換算した間隔で進むため、素材のコマとは一致しません。',
 
   // コマ再生（自動でコマを送る）。速さは「1 コマを何秒見せるか」で持つ——画面で体験して
   // いるのがその値なので、コマ/秒 のような換算の要る単位にしない。
@@ -283,7 +283,7 @@ export const ja = {
   'viewer.frameHoldGroup': '1コマの表示時間',
   'viewer.speedNormal': '等速',
   'viewer.speedNormalHint': 'そのままの速さで再生します。',
-  'viewer.framePlayHint': '再生すると、素材のコマを 1 つずつ、1 コマ {sec} 秒ずつ見せて送ります。',
+  'viewer.framePlayHint': '素材を 1 コマずつ、各コマを {sec} 秒間表示して再生します。',
 
   // ── タイムシート ──
   // 手打ちのタイムシート（docs/TIMESHEET.md）。撮り逃し 0 のクリップでしか出ないので、
@@ -383,22 +383,22 @@ export const ja = {
   'video.trim': 'トリミング',
   // ブラウザ側 , / . の読み取り表示。拡張は文言を持たないので settings で配る
   'video.stepBlocked': 'これ以上進めません',
-  'video.stepDropped': '押しすぎ（{count}回ぶん捨てました）',
-  'trim.selection': '選択範囲: {seconds}s',
-  'trim.seekHint': 'クリックでシーク',
-  'trim.setIn': 'ここをIN',
-  'trim.setOut': 'ここをOUT',
+  'video.stepDropped': '入力が速すぎたため、{count}回分を省略しました',
+  'trim.selection': '選択範囲：{seconds} 秒',
+  'trim.seekHint': 'クリックした位置へ移動',
+  'trim.setIn': 'ここを開始位置に設定',
+  'trim.setOut': 'ここを終了位置に設定',
   'trim.analyzing': 'フレーム解析中...',
-  'trim.analyzeFailed': 'フレーム解析失敗（フレーム精度低下）',
-  'trim.shortcutHint': ', . コマ送り · I/O 設定 · Space 再生/停止',
-  'trim.error': 'エラー: {message}',
+  'trim.analyzeFailed': 'フレームを解析できませんでした（コマ位置の精度が下がります）',
+  'trim.shortcutHint': ', / . コマ送り · I / O 範囲設定 · Space 再生 / 一時停止',
+  'trim.error': 'エラー：{message}',
   'trim.working': 'トリミング中...',
   'trim.save': 'トリミングして保存',
   'trim.discardTitle': 'トリミングを中止',
-  'trim.discardMessage': 'IN/OUT の変更内容は保存されません。閉じますか？',
+  'trim.discardMessage': '開始位置と終了位置の変更は保存されません。閉じますか？',
 
   // ── 詳細パネル ──
-  'detail.titleHint': 'クリックで展開 / ダブルクリックまたはF2で編集',
+  'detail.titleHint': 'クリックで展開 / ダブルクリックまたは F2 で編集',
   'detail.editTitle': 'タイトルを編集',
   'detail.timecode': '動画時刻',
   'detail.duration': '長さ',
@@ -406,9 +406,9 @@ export const ja = {
   'detail.resolution': '解像度',
   'detail.unreportedFrames': '{count}コマ未通知',
   'detail.unreportedFramesHint':
-    '素材にあるはずの約{expected}コマのうち、{count}コマは配信ページから通知が届いていません。' +
-    'その区間はコマ表に入っておらず、撮れた割合の分母にも入っていません。' +
-    'コマ送りはこのクリップの全域では素材のコマと対応していません。',
+    '素材にあると見込まれる約{expected}コマのうち、{count}コマは配信ページから情報を受信できませんでした。' +
+    'その区間はコマ表にも、取得率の計算にも含まれていません。' +
+    'このため、このクリップではコマ送りが素材のコマと一致しない箇所があります。',
   'detail.uncapturedFrames': '{count}コマ未取得',
   'detail.ambiguousFrames': '{count}コマ要確認',
   'detail.ambiguousFramesHint':
@@ -425,7 +425,7 @@ export const ja = {
   'detail.emptyTitle': '画像を選択',
   'detail.emptyHint1': 'クリックで選択・ダブルクリックで拡大',
   'detail.emptyHint2': 'タグをクリックで絞り込み',
-  'detail.emptyHint3': 'T キーで選択中にタグ追加',
+  'detail.emptyHint3': 'T キーで選択中の画像にタグを追加',
   'detail.selectedCount.one': '{count}枚選択中',
   'detail.selectedCount.other': '{count}枚選択中',
   'detail.bulkTags': 'タグ（一括編集）',
@@ -468,7 +468,7 @@ export const ja = {
   // ── セットアップガイド ──
   'setup.title': 'Shiori のセットアップ',
   'setup.progress': '{completed} / {total} 完了',
-  'setup.intro': 'ストアからのインストールは不要です。付属の拡張機能をブラウザに一度読み込めば使えます。',
+  'setup.intro': 'ストアからインストールする必要はありません。付属の拡張機能をブラウザに一度読み込めば使えます。',
   'setup.browserTitle': 'ブラウザの映像設定を変更する',
   'setup.browserBody': 'ハードウェアアクセラレーションをオフにして、ブラウザを再起動します。有効なままだと映像部分が黒く保存されます。',
   'setup.browserDetail': 'Chrome: 設定 → システム\nEdge: 設定 → システムとパフォーマンス\n「ハードウェア アクセラレーションが使用可能な場合は使用する」をオフ',
@@ -497,7 +497,7 @@ export const ja = {
   'tour.openTitle': '選んだ画像をダブルクリックしてください',
   'tour.openBody': 'ビューアが開き、矢印キーで前後の画像へ移動できます。',
   'tour.viewerTitle': 'ビューアを閉じて一覧へ戻ります',
-  'tour.viewerBody': '右上の×をクリックしてください。Escキーでも閉じられます。',
+  'tour.viewerBody': '右上の × をクリックしてください。Esc キーでも閉じられます。',
   'tour.viewerWaiting': '× または Esc で続行',
   'tour.memoTitle': '右側のメモ欄をクリックしてください',
   'tour.memoBody': 'ここに調べたことを残せます。今回は入力せず、クリックするだけで次へ進みます。',
@@ -535,29 +535,29 @@ export const ja = {
   'settings.extPortBlocked': 'ポートを確保できません',
   // 拡張の入れ直しでもページの再読み込みでも直らない状態。原因がアプリの外（OS のポート予約）に
   // あることと、実際に効く手（PC の再起動）を先に伝える。
-  'settings.extPortBlockedHint': '通信に使えるポートが1つも空いていないため、ブラウザ拡張と接続できません。拡張の入れ直しやページの再読み込みでは直りません。Windows が起動時にポートを予約していることが多く、PCを再起動すると直ることがあります。',
+  'settings.extPortBlockedHint': '通信に使えるポートが 1 つも空いていないため、ブラウザ拡張と接続できません。拡張の入れ直しやページの再読み込みでは直りません。Windows が起動時にポートを予約していることが多く、PC を再起動すると直ることがあります。',
   'settings.services': '対応サービス',
   'settings.hotkey': 'ホットキー',
   'settings.captureHotkey': 'キャプチャホットキー',
   'settings.frameStep': 'コマ送り (, / .)',
   'settings.autoDetect': '自動検出',
-  'settings.fpsHint': '自動検出ON: 動画から計測。OFF: 固定fps（アニメ ≈ 24、実写 ≈ 30）',
+  'settings.fpsHint': '自動検出がオン：動画から計測 / オフ：固定 fps（アニメ ≈ 24、実写 ≈ 30）',
   'settings.notifications': '通知',
   'settings.notifyOnCapture': 'キャプチャ完了時に通知する',
   'settings.autoTagging': '自動タグ付け (WD Tagger)',
   'settings.autoTaggingHint': 'キャプチャ時にアニメ特化のAIがタグ候補を自動生成します。初回はモデルファイル（約600MB）のダウンロードが必要です。',
   'settings.taggerReady': '準備完了',
   'settings.deleteModel': 'モデルを削除',
-  'settings.retagHint': 'タグが未付与の既存画像をまとめて処理します。',
+  'settings.retagHint': 'AIタグが付いていない既存画像をまとめて処理します。',
   'settings.retagButton': '既存画像にタグ付け...',
-  'settings.modelSaveHint': 'モデルを保存すると、以後のキャプチャで自動タグ付けを使えます。',
+  'settings.modelSaveHint': 'モデルをダウンロードすると、以後のキャプチャで自動タグ付けを使えます。',
   'settings.downloadModel': 'モデルをダウンロード',
   'settings.sidebarDisplay': 'サイドバー表示',
   'settings.showAiTags': 'AIタグもサイドバーに表示する',
-  'settings.showAiTagsHint': 'OFFの間は手動で付けたタグのみを表示します。ONにするとAIタグも表示されますが、手動タグを優先して上位に並べます。',
+  'settings.showAiTagsHint': 'オフの間は手動で付けたタグのみを表示します。オンにするとAIタグも表示されますが、手動タグを優先して上位に並べます。',
   'settings.storage': '保存場所',
   'settings.openCapturesFolder': 'フォルダを開く',
-  'settings.storageHint': '撮ったものはすべてこの中にあります。保存先の変更はできません。',
+  'settings.storageHint': 'キャプチャと録画はすべてこのフォルダに保存されます。保存先は変更できません。',
   'settings.usage': '使用量',
   'settings.usageCalculating': '計算中...',
   'settings.usageFailed': '使用量を取得できませんでした',
@@ -567,14 +567,14 @@ export const ja = {
   'settings.usageDatabase': 'データベース',
   'settings.usageModel': 'AIモデル',
   'settings.usageModelAbsent': '未取得',
-  'settings.exportHint': 'キャプチャ、タグ、メモ、録画のコマ精度情報、スマートフォルダをフォルダへ保存します。（ローカル取り込み分は含まれません）',
+  'settings.exportHint': 'キャプチャ、タグ、メモ、録画のコマ精度情報、スマートフォルダをフォルダへ保存します（ローカルから取り込んだ画像は含まれません）。',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',
   'settings.exportFailed': 'エクスポートに失敗しました',
   'settings.exporting': 'エクスポート中...',
   'settings.exportLibrary': 'ライブラリをエクスポート...',
   'settings.import': 'インポート',
-  'settings.importHint': '画像とメタデータをライブラリに追加します。既存のキャプチャとは区別されます。取得日時は取り込んだ時刻になります。同じフォルダを再度インポートすると重複して追加されるのでご注意ください。',
+  'settings.importHint': '画像とメタデータをライブラリに追加します。既存のキャプチャとは区別され、取得日時にはインポートした時刻が使われます。同じフォルダを再度インポートすると重複するため、ご注意ください。',
   'settings.importErrorSuffix': '（エラー{count}件）',
   'settings.importFolderSuffix': '、スマートフォルダ{count}件',
   'settings.importedCount.one': '{count}枚をインポートしました',

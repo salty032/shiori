@@ -196,6 +196,13 @@ body { background: var(--bg-page); color: var(--text-primary); font-family: 'Shi
 input::placeholder,
 textarea::placeholder { color: var(--text-muted); }
 
+/* **押せる部品の行の高さを詰める。** 游ゴシック UI は既定の行送りが広く（13px の文字で
+   22px 前後）、1 行しか入らないボタンやチップでもその高さが確保される。styles.ts の
+   minHeight を 24 まで下げても実際は 28px 以上になり、「高さの数字を下げたのに詰まらない」
+   状態になっていた。**日本語を含む画面では、控えめな行送りを明示しないと効かない。**
+   複数行になる説明文（hint 等）は div/p 側で個別に指定しているのでここには影響しない。 */
+button, input, select { line-height: 1.2; }
+
 /* キーボード操作時のフォーカス位置を常に視認できるようにする共通リング。
    マウス/タッチでのフォーカス（:focus だが :focus-visible ではない）には出さない。
    input/textarea 等は個別に outline:'none' をインラインで指定しているため、

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageTag } from '../types'
-import { s, font, color } from '../styles'
+import { s, font, color, space, control } from '../styles'
 import { normalizeTag, tagSuggestions } from '../utils'
 import ContextMenu from './ContextMenu'
 import TagSuggestInput from './TagSuggestInput'
@@ -136,10 +136,10 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
 // タグチップ／追加ボタンは DetailPanel 一括編集と共通のため styles.ts の共通 s へ集約済み（C-2）。
 // ここに残すのはこのコンポーネント固有のレイアウト・AIタグ配色のみ。
 const styles: Record<string, React.CSSProperties> = {
-  tagSection: { display: 'flex', flexDirection: 'column', gap: 8 },
+  tagSection: { display: 'flex', flexDirection: 'column', gap: space.x8 },
   tagLabel: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
   tagLegend: { fontSize: font.xs, color: 'var(--text-secondary)', fontWeight: 400, letterSpacing: 0 },
-  tagList: { display: 'flex', flexWrap: 'wrap', gap: 7, minHeight: 4, maxHeight: TAG_LIST_COLLAPSED_MAX_HEIGHT, overflowY: 'auto' as const, overflowX: 'hidden' as const },
-  tagControlRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, minHeight: 28 },
+  tagList: { display: 'flex', flexWrap: 'wrap', gap: space.x8, minHeight: 4, maxHeight: TAG_LIST_COLLAPSED_MAX_HEIGHT, overflowY: 'auto' as const, overflowX: 'hidden' as const },
+  tagControlRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x8, minHeight: control.md },
   tagError: { color: color.danger, fontSize: font.sm },
 }
