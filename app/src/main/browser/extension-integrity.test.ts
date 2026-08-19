@@ -20,6 +20,7 @@ const EXTENSION_DIR = join(__dirname, '../../../../extension')
 type Manifest = {
   background?: { service_worker?: string; scripts?: string[] }
   content_scripts?: Array<{ js: string[] }>
+  permissions?: string[]
   icons?: Record<string, string>
 }
 
@@ -71,5 +72,11 @@ describe('manifest.json が指す先が実在するか', () => {
     for (const file of Object.values(manifest.icons ?? {})) {
       expect(existsSync(join(EXTENSION_DIR, file)), `${file} が無い`).toBe(true)
     }
+  })
+
+  it('使っていない tabs 権限を要求しない', () => {
+    // tabs.query で active/windowId とタブ ID を得るだけなら権限は不要。
+    // tabs 権限は URL・title・favIconUrl 等の読み取りまで許すため要求しない。
+    expect(manifest.permissions ?? []).not.toContain('tabs')
   })
 })
