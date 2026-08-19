@@ -13,10 +13,10 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { BUILD } from './ffmpeg-build.mjs'
 
 const execFileAsync = promisify(execFile)
 
-const BUILD = 'ffmpeg-n6.1.2-192-g78690eba61-win64-lgpl-6.1'
 const ZIP_URL = `https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2025-07-31-14-15/${BUILD}.zip`
 const ZIP_SHA256 = 'e39d723adf6c4895eb4462a24e4ea8d729adb17578a399442ccf87149ca47aa7'
 const EXE_SHA256 = '8a317ab4a3c645e20bc99585edc3e98f6e117d609aa0450b6a9342fa4e752947'

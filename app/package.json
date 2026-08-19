@@ -25,6 +25,7 @@
     "web:build": "npm run demo-manifest && vite build --config vite.web.config.ts",
     "web:preview": "vite preview --config vite.web.config.ts",
     "fetch-ffmpeg": "node scripts/fetch-ffmpeg.mjs",
+    "ffmpeg-source": "node scripts/fetch-ffmpeg-source.mjs",
     "postinstall": "node scripts/fetch-ffmpeg.mjs && electron-rebuild -f -w better-sqlite3 -w onnxruntime-node"
   },
   "build": {

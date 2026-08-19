@@ -44,3 +44,18 @@ jobs:
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 同梱する ffmpeg は LGPL v3 なので、バイナリを配るなら対応するソースも渡せる
+      # 状態にしておく必要がある。NOTICE.md には「各リリースに添付しています」と
+      # 書いてあるため、**添付を忘れた時点で表記が嘘になる**。手で上げる前提だと
+      # 必ず抜けるので、インストーラを上げた直後に同じ Release へ添付する。
+      # 落とすのは同梱バイナリのビルド名に埋まっているコミットちょうど
+      # （app/scripts/ffmpeg-build.mjs が原本）。
+      - name: Attach FFmpeg source (LGPL)
+        shell: pwsh
+        run: |
+          node scripts/fetch-ffmpeg-source.mjs
+          $archive = Get-ChildItem dist/ffmpeg-*-source.tar.gz | Select-Object -First 1
+          gh release upload "$env:GITHUB_REF_NAME" $archive.FullName --repo "$env:GITHUB_REPOSITORY" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
