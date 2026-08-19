@@ -1,14 +1,13 @@
-import { app, dialog, globalShortcut, Menu, shell, session } from 'electron'
+import { app, dialog, globalShortcut, Menu, session } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
-import { stopWsServer, broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse, getActivePort } from './browser/ws-server'
+import { stopWsServer, broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse } from './browser/ws-server'
 import { WS_PORTS } from '../shared/wire-limits'
 import {
   registerHotkey, changeHotkey, onCaptureDone,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, SilentCaptureAbort
 } from './capture/capture'
-import { getImage, countImages } from './db'
 import { databasePath, consumeDbBackupFailure } from './db-schema'
 import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
@@ -19,15 +18,14 @@ import { startExtensionBridge, browserStepLabels } from './browser/extension-bri
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
 import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
 import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
-import { resolveRealCapturePath, thumbPathFor, captureDir } from './system/paths'
+import { thumbPathFor } from './system/paths'
 import { registerCapfileScheme, registerCapfileProtocol } from './system/capfile-protocol'
-import { collectStorageUsage } from './system/storage'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
 import { createImageThumb } from './capture/image-thumb'
 import {
   getMainWindow, setQuitting,
   sendToRenderer, sendNotice, showMainWindow, isMainWindowFocused,
-  handleTrusted, safeExternalUrl,
+  handleTrusted,
   createWindow
 } from './system/windows'
 import { createTray, rebuildTrayMenu } from './system/tray'
@@ -38,7 +36,7 @@ import { registerDragHandlers, cleanupDragTempDir } from './ipc/ipc-drag'
 import { registerTaggerHandlers } from './ipc/ipc-tagger'
 import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
-import { optionalPositiveInteger } from './ipc/ipc-validation'
+import { registerShellHandlers } from './ipc/ipc-shell'
 import { sendBrowserNotice } from './browser/browser-notice'
 import { decideVersionNotice } from './system/version-notice'
 import { releaseNotesFor } from '../shared/releaseNotes'
@@ -178,39 +176,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     registerImportHandlers()
     for (const feature of features) feature.registerIpc?.()
 
-    handleTrusted(CH.shellOpenUrl, (_event, url: string) => {
-      const safeUrl = safeExternalUrl(url)
-      if (safeUrl) return shell.openExternal(safeUrl)
-    })
-    handleTrusted(CH.shellShowInFolder, async (_event, id: number) => {
-      const imageId = optionalPositiveInteger(id)
-      if (!imageId) return
-      const image = getImage(imageId)
-      if (!image) return
-      const safePath = await resolveRealCapturePath(image.filepath)
-      if (safePath) shell.showItemInFolder(safePath)
-    })
-    handleTrusted(CH.shellShowExtensionFolder, () => {
-      shell.showItemInFolder(join(installedExtensionPath(), 'manifest.json'))
-    })
-    handleTrusted(CH.shellShowCapturesFolder, async () => {
-      // 1枚も撮っていないと captures 自体が無く openPath は黙って失敗する。作ってから開く。
-      const dir = captureDir()
-      mkdirSync(dir, { recursive: true })
-      // showItemInFolder は「親を開いて対象を選択」なので、フォルダ自体を開くには openPath を使う。
-      await shell.openPath(dir)
-    })
-
-    handleTrusted(CH.wsGetPort, () => getActivePort())
-
-    handleTrusted(CH.storageGetInfo, async () => {
-      const usage = await collectStorageUsage()
-      return {
-        ...usage,
-        imageCount: countImages({ mediaType: 'image' }),
-        videoCount: countImages({ mediaType: 'video' }),
-      }
-    })
+    registerShellHandlers()
 
     handleTrusted(CH.settingsGet, () => loadSettings())
     handleTrusted(CH.settingsSet, (_event, patch: Partial<Settings>) => {
