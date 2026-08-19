@@ -515,14 +515,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 <span style={s.subtleLabel}>{t('detail.capturedAt')}</span>
                 <span style={s.subtleValue}>{new Date(single.captured_at).toLocaleString(locale)}</span>
               </div>
-              {/* 取り込んだ素材だけ。上の取得時間は取り込んだ時刻なので、元がいつのものかは
-                  ここにしか出ない。出さないと「自分が撮った時刻」と区別が付かない。 */}
-              {single.original_captured_at != null && (
-                <div style={s.subtleRow}>
-                  <span style={s.subtleLabel}>{t('detail.originalCapturedAt')}</span>
-                  <span style={s.subtleValue}>{new Date(single.original_captured_at).toLocaleString(locale)}</span>
-                </div>
-              )}
             </div>
           </div>
           </div>
