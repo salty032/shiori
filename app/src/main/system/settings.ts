@@ -114,42 +114,80 @@ export function normalizeSettings(value: unknown): Settings {
 }
 
 let _settingsCache: Settings | null = null
-// 破損検知を呼び出し側（bootstrap）へ伝える一回限りのフラグ。loadSettings 自体は
-// windows.ts に依存させたくない（sendNotice は mainWindow 生成前だと無言で消える）ため、
-// 実際の通知はウィンドウ準備後に consumeCorruptSettingsNotice() で拾わせる。
-let _corruptOnLoad = false
 
-export function consumeCorruptSettingsNotice(): boolean {
-  const v = _corruptOnLoad
-  _corruptOnLoad = false
+// 読み込みに失敗する理由は 2 種類あり、**取るべき行動が正反対**なので混ぜてはいけない。
+//   * 'corrupt'    — 中身が JSON として読めない。放っておくと次の設定変更で上書きされて
+//                    復旧不能になるので、退避（.corrupt-<時刻>）してから初期値で立ち上げる。
+//   * 'unreadable' — ファイルは在るが読めなかった。Windows ではウイルス対策・検索インデクサ・
+//                    別ハンドルが settings.json を一瞬掴むことがあり、EPERM/EBUSY/EACCES が
+//                    間欠的に出る。**これを破損として退避すると、掴まれていた瞬間に起動した
+//                    だけで設定が初期値に戻る。** ファイルには一切触らず、リトライで吸収する
+//                    （書き込み側 persistToDisk と同じ考え方）。それでも読めなければ、
+//                    初期値で動いていることと上書きの危険を画面に出す。
+export type SettingsLoadProblem = 'corrupt' | 'unreadable'
+
+// 検知を呼び出し側（bootstrap）へ伝える一回限りのフラグ。loadSettings 自体は windows.ts に
+// 依存させたくない（sendNotice は mainWindow 生成前だと無言で消える）ため、実際の通知は
+// ウィンドウ準備後に consumeSettingsLoadProblem() で拾わせる。
+let _loadProblem: SettingsLoadProblem | null = null
+
+export function consumeSettingsLoadProblem(): SettingsLoadProblem | null {
+  const v = _loadProblem
+  _loadProblem = null
   return v
+}
+
+// ロックが外れるのを待つだけなので、非同期にする意味が無い（loadSettings は同期で、
+// 呼び出し側は起動処理）。最悪でも 80+160+240=480ms で抜ける。
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+const TRANSIENT_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
+
+function readSettingsText(path: string): string {
+  const MAX_ATTEMPTS = 4
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return readFileSync(path, 'utf-8')
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (attempt >= MAX_ATTEMPTS || !TRANSIENT_CODES.has(code ?? '')) throw err
+      sleepSync(80 * attempt)  // 80,160,240ms のバックオフ
+    }
+  }
 }
 
 export function loadSettings(): Settings {
   if (_settingsCache) return _settingsCache
   try {
-    if (existsSync(settingsPath())) {
-      const parsed = JSON.parse(readFileSync(settingsPath(), 'utf-8'))
-      _settingsCache = normalizeSettings({ ...DEFAULTS, ...parsed })
-      return _settingsCache
+    const path = settingsPath()
+    if (existsSync(path)) {
+      // 読めた後の JSON.parse だけが「破損」。ここを分けないと、読めなかっただけの
+      // ファイルまで退避されて初期値に戻る。
+      const text = readSettingsText(path)
+      try {
+        _settingsCache = normalizeSettings({ ...DEFAULTS, ...JSON.parse(text) })
+        return _settingsCache
+      } catch (parseErr) {
+        console.warn('[settings] settings.json is corrupt, preserving it:', parseErr)
+        try {
+          renameSync(path, `${path}.corrupt-${Date.now()}`)
+        } catch (renameErr) {
+          console.warn('[settings] failed to preserve corrupt settings.json:', renameErr)
+        }
+        _loadProblem = 'corrupt'
+      }
     }
   } catch (err) {
-    console.warn('[settings] load failed, using defaults:', err)
-    // 破損したファイルは無言でデフォルト初期化すると、次の設定変更で上書き保存され
-    // 復旧不能になる。退避してから通知フラグを立てる（中身の復旧は手動でも可能にする）。
-    try {
-      if (existsSync(settingsPath())) {
-        renameSync(settingsPath(), `${settingsPath()}.corrupt-${Date.now()}`)
-      }
-    } catch (renameErr) {
-      console.warn('[settings] failed to preserve corrupt settings.json:', renameErr)
-    }
-    _corruptOnLoad = true
+    // リトライしても読めなかった（ロック・権限）。ファイルは残っているので触らない。
+    console.warn('[settings] could not read settings.json, leaving it untouched:', err)
+    _loadProblem = 'unreadable'
   }
   // ここに来るのは「settings.json が無い（＝新規インストール）」か「読み込みに失敗した」かの
-  // どちらか。前者だけ OS ロケールから表示言語を決める。後者（_corruptOnLoad）は設定を持っていた
-  // ユーザーなので、破損をきっかけに表示言語まで変わらないよう DEFAULTS の 'ja' を維持する。
-  _settingsCache = { ...DEFAULTS, language: _corruptOnLoad ? DEFAULTS.language : osDefaultLang() }
+  // どちらか。前者だけ OS ロケールから表示言語を決める。後者は設定を持っていたユーザーなので、
+  // 破損や読み取り失敗をきっかけに表示言語まで変わらないよう DEFAULTS の 'ja' を維持する。
+  _settingsCache = { ...DEFAULTS, language: _loadProblem ? DEFAULTS.language : osDefaultLang() }
   return _settingsCache
 }
 

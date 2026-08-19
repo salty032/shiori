@@ -5,7 +5,7 @@
 // 画面から見えない。並べ替えるときは「止めたくなる可能性が高い方を上」で判断すること。
 import { useMemo } from 'react'
 import { useExportStore } from '../stores/exportStore'
-import { t } from '../i18n'
+import { useT } from '../i18n'
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
@@ -21,6 +21,10 @@ export interface UseActiveTaskOptions {
 }
 
 export function useActiveTask({ taggerProgress, onCancelDownload, retagProgress, onCancelRetag }: UseActiveTaskOptions) {
+  // ここで作るのは「画面に出したまま残る」文字列なので、購読する useT を使う（トーストのように
+  // その場で投げて終わりなら t でよい）。進捗が動いている間は t でも次のティックで新しい言語に
+  // なるが、モデル取得が止まっている間などは古い言語のまま残る。
+  const { t } = useT()
   // 書き出し・共有取り込みの進捗はストアから直接読む（App を経由させる意味が無い）。
   const exportProgress = useExportStore((st) => st.exportProgress)
   const exportKind = useExportStore((st) => st.exportKind)
@@ -63,7 +67,7 @@ export function useActiveTask({ taggerProgress, onCancelDownload, retagProgress,
       progress: total > 0 ? clamp01(current / total) : 0,
       onCancel: exportKind === 'share' ? () => window.api.shareExportCancel() : () => window.api.imagesExportCancel(),
     }
-  }, [onCancelDownload, onCancelRetag, retagProgress, taggerProgress, shareImportProgress, exportProgress, exportKind])
+  }, [t, onCancelDownload, onCancelRetag, retagProgress, taggerProgress, shareImportProgress, exportProgress, exportKind])
 
   return activeTask
 }

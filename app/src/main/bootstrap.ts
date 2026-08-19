@@ -11,7 +11,7 @@ import {
 import { databasePath, consumeDbBackupFailure } from './db-schema'
 import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
-import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, onSettingsPersistFailed, type Settings } from './system/settings'
+import { loadSettings, saveSettings, flushSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, type Settings } from './system/settings'
 import { activeTaskLabels } from './system/busy'
 import { checkExtensionUpdate, installedExtensionPath } from './browser/extension-updater'
 import { startExtensionBridge, browserStepLabels } from './browser/extension-bridge'
@@ -321,8 +321,12 @@ export function bootstrap(features: MainFeature[] = []): void {
       sweepOrphanFilesIfDue().catch((err) => console.warn('[sweep] failed', err))
     }, 30_000)
     for (const feature of features) await feature.onReady?.()
-    if (consumeCorruptSettingsNotice()) {
-      sendNoticeWhenRendererReady('error', t('notice.settingsCorrupt'))
+    const settingsProblem = consumeSettingsLoadProblem()
+    if (settingsProblem) {
+      // 「壊れていた」と「読めなかった」で、この後ユーザーが取るべき行動が違う。
+      // 前者は諦めて設定し直す、後者は**設定を変えずに原因を取り除けば元の設定が戻る**。
+      sendNoticeWhenRendererReady('error',
+        t(settingsProblem === 'corrupt' ? 'notice.settingsCorrupt' : 'notice.settingsUnreadable'))
     }
     // 戻したこと・退避が取れなかったことは、起動直後のダイアログだけだと読み飛ばされる。
     // 何が含まれていないのかを、画面にも残す。復元の直後は起動し直しているので、

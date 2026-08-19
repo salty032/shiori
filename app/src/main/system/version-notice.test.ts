@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// 文面の言語を固定する（理由は busy.test.ts と同じ）。
+vi.mock('./settings', () => ({ loadSettings: () => ({ language: 'ja' }) }))
+
 import { decideVersionNotice } from './version-notice'
 
 describe('decideVersionNotice', () => {

@@ -25,8 +25,19 @@ export interface SqlRunner {
 // 何も起きないので、気づけるのは戻したくなった後になる。
 export const SCHEMA_VERSION = 2
 
-/** 残す退避の世代数。メタデータだけなので 1 世代は小さいが、無制限に貯めても意味が無い */
-export const BACKUP_KEEP = 3
+/**
+ * 残す退避の世代数。日次で 1 世代取るので、実質「何日前まで戻れるか」になる。
+ * 壊れたことにすぐ気づけるとは限らない（タイムシートの一部だけ欠けている、など）ので
+ * 1 週間分残す。中身はメタデータだけ、しかも VACUUM INTO で詰めた 1 ファイルなので、
+ * 7 世代あっても素材 1 本ぶんにも満たない。
+ */
+export const BACKUP_KEEP = 7
+
+/**
+ * 日々の退避を取る間隔。起動のたびに取ると、1 日に何度も開き直す使い方では世代が
+ * 数時間ぶんに縮み、「何日前まで戻れるか」が使い方次第で変わってしまう。
+ */
+export const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 /** userData 直下に置く退避用フォルダ名 */
 export const BACKUP_DIR_NAME = 'backups'
@@ -111,6 +122,25 @@ export function listBackups(dbPath: string): string[] {
     .filter((name) => name.startsWith(prefix) && name.endsWith('.db') && !name.includes(`-${BROKEN_MARK}-`))
     .map((name) => join(dir, name))
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
+}
+
+/**
+ * 日々の退避を取る頃合いか。退避が 1 つも無ければ取る。
+ *
+ * **これは「壊れていないこと」を判断しない。** 呼ぶ側が quick_check を通した後で呼ぶこと。
+ * 壊れた中身を世代へ流し込むと、数日で健全な世代が押し出されて全滅し、退避があること自体が
+ * 意味を失う。終了時ではなく起動時に取っているのはこのためで、起動時なら integrityProblem を
+ * 通った直後という「健全だと確かめた場所」がある。
+ */
+export function backupIsDue(dbPath: string, now: Date, intervalMs = BACKUP_INTERVAL_MS): boolean {
+  const [newest] = listBackups(dbPath)
+  if (!newest) return true
+  try {
+    return now.getTime() - statSync(newest).mtimeMs >= intervalMs
+  } catch {
+    // 直前の readdir から stat までの間に消えた等。取れるなら取る側に倒す。
+    return true
+  }
 }
 
 /** 世代数を超えた古い退避を消し、消したパスを返す */

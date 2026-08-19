@@ -54,6 +54,9 @@ export const en: Record<keyof typeof ja, string> = {
     'not work. Please restart Shiori.\n\n' +
     'Cause: {detail}',
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
+  'notice.settingsUnreadable':
+    'Shiori could not read your settings file, so it started with default settings.\n' +
+    'The file itself is still there. Changing any setting now will overwrite it.',
   'dialog.dbRestore.title': 'Restore the database',
   'dialog.dbRestore.message': 'Your database is damaged',
   'dialog.dbRestore.detail':

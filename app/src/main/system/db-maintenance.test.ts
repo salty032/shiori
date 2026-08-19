@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
+  BACKUP_INTERVAL_MS,
   DatabaseCorruptError,
   backupDatabase,
   backupDirFor,
+  backupIsDue,
   backupTimestamp,
   integrityProblem,
   isDatabaseDamaged,
@@ -222,5 +224,32 @@ describe('退避のファイル名', () => {
     const newer = backupTimestamp(new Date(2026, 7, 18, 20, 30, 0))
     expect(older).toBe('20260809-030405')
     expect(newer > older).toBe(true)
+  })
+})
+
+describe('日々の退避を取る頃合い', () => {
+  it('退避が 1 つも無ければ取る（スキーマを一度も変えていない DB がここに来る）', () => {
+    expect(backupIsDue(dbPath, new Date())).toBe(true)
+  })
+
+  it('直近の退避から間隔が空いていなければ取らない', () => {
+    backupDatabase(runnerFor(db), dbPath, new Date())
+    expect(backupIsDue(dbPath, new Date())).toBe(false)
+  })
+
+  it('間隔を過ぎたら取る', () => {
+    const dest = backupDatabase(runnerFor(db), dbPath, new Date())
+    const old = new Date(Date.now() - 2 * BACKUP_INTERVAL_MS)
+    utimesSync(dest, old, old)
+    expect(backupIsDue(dbPath, new Date())).toBe(true)
+  })
+
+  it('壊れた DB の退避は「今日ぶんは取ってある」と数えない', () => {
+    // broken を数えてしまうと、破損した日から健全な世代が 1 つも増えないまま日が過ぎる。
+    db.close()
+    setAsideBrokenDatabase(dbPath, new Date())
+    expect(backupIsDue(dbPath, new Date())).toBe(true)
+
+    db = new DatabaseSync(dbPath)  // afterEach 用に開き直す
   })
 })

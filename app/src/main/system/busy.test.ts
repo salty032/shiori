@@ -1,4 +1,9 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
+
+// 表示言語を明示して固定する。モックしないと loadSettings が Electron の app.getPath を
+// 呼んで落ち、「設定破損」のフォールバックで日本語になる——つまり、このテストが確かめて
+// いるのがラベルなのか破損時の挙動なのか分からなくなる（実ファイルを触る経路も通る）。
+vi.mock('./settings', () => ({ loadSettings: () => ({ language: 'ja' }) }))
 
 import { beginTask, endTask, hasActiveTasks, activeTaskLabels, resetTasksForTest } from './busy'
 

@@ -6,7 +6,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { buildSearchText, SEARCH_NORMALIZE_VERSION } from '../shared/normalize'
 import {
-  DatabaseCorruptError, SCHEMA_VERSION, backupDatabase, integrityProblem,
+  DatabaseCorruptError, SCHEMA_VERSION, backupDatabase, backupIsDue, integrityProblem,
   pruneBackups, readSchemaVersion, writeSchemaVersion, type SqlRunner
 } from './system/db-maintenance'
 import { prepare, setDatabase } from './db-core'
@@ -89,11 +89,17 @@ export function initDb(): void {
     throw new DatabaseCorruptError(problem)
   }
 
-  // 作りを変える前に 1 世代退避する。以降の CREATE / ALTER が途中で落ちても戻せるように。
-  // 毎起動ではなく、記録済みの版がアプリより古いときだけ（＝実際に作りが変わるときだけ）。
+  // 退避を取る理由は 2 つある。
+  //   1. **作りを変える前**。以降の CREATE / ALTER が途中で落ちても戻せるように。
+  //   2. **日々の使用中**。1 の条件だけだと、スキーマが安定している間は何か月も退避が
+  //      取られない。タグ・メモ・タイムシートは手で積んだもので撮り直しが効かないのに、
+  //      戻せる先が「最後にスキーマを変えた日」になってしまう。1 日 1 世代取る。
+  //
+  // どちらも上の integrityProblem を通った後にしか来ない。**この順序が肝心**で、
+  // 壊れた中身を世代へ流し込むと数日で健全な世代が押し出され、退避が全滅する。
   const storedVersion = readSchemaVersion(runner)
   const schemaWillChange = storedVersion < SCHEMA_VERSION
-  if (schemaWillChange && !isNewDatabase) {
+  if (!isNewDatabase && (schemaWillChange || backupIsDue(dbPath, new Date()))) {
     try {
       backupDatabase(runner, dbPath, new Date())
       pruneBackups(dbPath)
