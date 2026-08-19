@@ -427,7 +427,8 @@ export default function App() {
   // 手打ちのタイムシート。**ビューアではなくここが持つ**——表は詳細パネルと入れ替わりで
   // 同じ場所に出るため（打っている間はタグやメモより表を見ている）。
   // 対象はビューアで開いているクリップだけ。一覧で選んだだけの状態では打たせない。
-  const timesheet = useTimesheet(viewerIdx !== null && single?.media_type === 'video' ? single.id : null)
+  const timesheetTarget = viewerIdx !== null && single?.media_type === 'video' ? single : null
+  const timesheet = useTimesheet(timesheetTarget?.id ?? null, timesheetTarget?.fps ?? null)
 
   const tagRefreshKey = tagger.taggerDoneKey + manualTagVersion
   const handleTagsChanged = useCallback((): void => {
@@ -776,8 +777,8 @@ export default function App() {
 
         {/* タイムシートは詳細パネルと**入れ替わる**（並べない）。同時に出すと表が細くなり、
             1 秒 24 マスの目盛りを追うという本題がやりにくい。 */}
-        {timesheet.visible && single ? (
-          <TimesheetPanel sheet={timesheet} fps={single.fps ?? settings.settings.frameFps} />
+        {timesheet.visible && single?.fps != null ? (
+          <TimesheetPanel sheet={timesheet} fps={single.fps} />
         ) : (viewerIdx === null || !detailPanelHiddenInViewer) && (
         <DetailPanel
           selectedIds={selection.selectedIds}
@@ -864,4 +865,3 @@ export default function App() {
     </div>
   )
 }
-

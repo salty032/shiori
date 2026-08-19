@@ -65,9 +65,13 @@ export function buildToeiClipboard(marks: readonly TimesheetMark[], total: numbe
 // 作らせると、後から見て信用してよいか分からない記録が残る。しかも書き出し先（東映の
 // クリップボード形式）には「このコマは怪しい」を書く欄が無いので、渡した先では区別が消える。
 //
-// この 1 つの条件で、表そのものが無いクリップ（取り込み動画・対応が崩れて表を捨てたもの）と
+// 素材 fps も確定していなければ出さない。表の秒区切りとコピー先に必要な尺を設定 fps で
+// 代用すると、素材と違うタイムシートを正しいものとして残せてしまうため。
+//
+// この条件で、表そのものが無いクリップ（取り込み動画・対応が崩れて表を捨てたもの）と
 // 60fps 素材（供給不足で原理的に撮り逃す）も自動的に外れる。
-export function canBuildTimesheet(frames: ClipFrames | null | undefined): boolean {
+export function canBuildTimesheet(frames: ClipFrames | null | undefined, fps: number | null | undefined): boolean {
+  if (typeof fps !== 'number' || !Number.isFinite(fps) || fps <= 0) return false
   if (!frames || !frames.sourceBased || frames.pts.length === 0) return false
   // quality は sourceBased のときだけ pts と同じ長さで入る。欠けている＝コマごとの
   // 確からしさが分からないということなので、その時点で出さない。

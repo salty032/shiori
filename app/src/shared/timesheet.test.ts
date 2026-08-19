@@ -156,37 +156,45 @@ describe('buildToeiClipboard', () => {
 describe('canBuildTimesheet', () => {
   // ここが緩むと「保証できないものを保証できる顔で渡す」に直結する。
   it('素材のコマ単位で、全コマ撮れているクリップでだけ出す', () => {
-    expect(canBuildTimesheet(clip(captured(100)))).toBe(true)
+    expect(canBuildTimesheet(clip(captured(100)), 24)).toBe(true)
+  })
+
+  it('素材 fps が未確定なら、全コマ撮れていても出さない', () => {
+    const frames = clip(captured(100))
+    expect(canBuildTimesheet(frames, null)).toBe(false)
+    expect(canBuildTimesheet(frames, undefined)).toBe(false)
+    expect(canBuildTimesheet(frames, 0)).toBe(false)
+    expect(canBuildTimesheet(frames, Number.NaN)).toBe(false)
   })
 
   it('撮り逃しが 1 コマでもあれば出さない', () => {
     const q = captured(100)
     q[42] = FRAME_QUALITY.reused
-    expect(canBuildTimesheet(clip(q))).toBe(false)
+    expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
   it('流用でも「前後の絵が同一と検証済み」を例外にしない（撮れてはいない）', () => {
     const q = captured(100)
     q[7] = FRAME_QUALITY.reusedSame
-    expect(canBuildTimesheet(clip(q))).toBe(false)
+    expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
   it('要確認のコマがあれば当然出さない', () => {
     const q = captured(100)
     q[7] = FRAME_QUALITY.reusedChanged
-    expect(canBuildTimesheet(clip(q))).toBe(false)
+    expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
   it('表が無い・素材のコマ単位でないクリップでは出さない', () => {
-    expect(canBuildTimesheet(null)).toBe(false)
-    expect(canBuildTimesheet(undefined)).toBe(false)
-    expect(canBuildTimesheet(clip([], true))).toBe(false)
-    expect(canBuildTimesheet(clip(captured(100), false))).toBe(false)
+    expect(canBuildTimesheet(null, 24)).toBe(false)
+    expect(canBuildTimesheet(undefined, 24)).toBe(false)
+    expect(canBuildTimesheet(clip([], true), 24)).toBe(false)
+    expect(canBuildTimesheet(clip(captured(100), false), 24)).toBe(false)
   })
 
   it('コマごとの確からしさが欠けていたら出さない（分からない＝保証できない）', () => {
-    expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: [] })).toBe(false)
-    expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: captured(2) })).toBe(false)
+    expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: [] }, 24)).toBe(false)
+    expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: captured(2) }, 24)).toBe(false)
   })
 })
 

@@ -37,7 +37,7 @@ export type TimesheetPlayer = {
   goToFrame: (idx: number) => void
 }
 
-export function useTimesheet(imageId: number | null) {
+export function useTimesheet(imageId: number | null, fps: number | null) {
   const [clipFrames, setClipFrames] = useState<ClipFrames | null>(null)
   const [current, setCurrent] = useState(0)
   const [marks, setMarks] = useState<TimesheetMark[]>([])
@@ -49,7 +49,7 @@ export function useTimesheet(imageId: number | null) {
   // ビューアに預けてもらったこの参照から届く。
   const playerRef = useRef<TimesheetPlayer | null>(null)
 
-  const ready = canBuildTimesheet(clipFrames)
+  const ready = canBuildTimesheet(clipFrames, fps)
   const visible = ready && open
   const total = clipFrames?.pts.length ?? 0
 
