@@ -16,7 +16,7 @@ import Sidebar from './components/Sidebar'
 import Toolbar, { type ViewMode } from './components/Toolbar'
 import ThumbCell from './components/ThumbCell'
 import TimelineView, { CELL_GAP as TIMELINE_CELL_GAP, type TimelineViewHandle } from './components/TimelineView'
-import ContextMenu, { type MenuItem } from './components/ContextMenu'
+import ContextMenu from './components/ContextMenu'
 import { XIcon } from './components/Icon'
 import { useToast } from './hooks/useToast'
 import { useSettings } from './hooks/useSettings'
@@ -30,12 +30,13 @@ import { useSelection } from './hooks/useSelection'
 import { useFileDrop } from './hooks/useFileDrop'
 import { useActiveTask } from './hooks/useActiveTask'
 import { useProductTour } from './hooks/useProductTour'
+import { useContextMenuItems } from './hooks/useContextMenuItems'
 import { useTagger } from './hooks/useTagger'
 import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
 import { useGlobalKeys } from './hooks/useGlobalKeys'
 import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
-import { getExtraContextMenuItems, getModals, isDemoMode } from './features/registry'
+import { getModals, isDemoMode } from './features/registry'
 import { useT } from './i18n'
 import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, saveSetupGuideState, type SetupGuideState } from './setupGuideState'
 
@@ -452,29 +453,13 @@ export default function App() {
     taggerDelete: tagger.handleTaggerDelete,
   })
 
-  // 選択状態に応じてメニュー項目を組み立てる。単一選択時のみトリミング/Explorer を出す。
-  const ctxMenuItems = useMemo<MenuItem[]>(() => {
-    if (!ctxMenu) return []
-    const items: MenuItem[] = []
-    if (single && single.media_type !== 'video') {
-      items.push({
-        label: t('action.copy'),
-        onClick: () => {
-          window.api.clipboardCopyImage(single.id).then(
-            (ok) => toast.showToast(ok ? t('toast.copiedToClipboard') : t('toast.copyFailed'), ok ? 'success' : 'warning'),
-            (err) => { console.error('[copy] clipboard write failed', err); toast.showToast(t('toast.copyFailed'), 'warning') },
-          )
-        },
-      })
-    }
-    if (single) {
-      items.push({ label: t('action.showInFolder'), onClick: () => window.api.showInFolder(single.id) })
-    }
-    if (single) items.push(...getExtraContextMenuItems(single))
-    items.push({ label: t('action.export'), onClick: () => selection.exportSelected() })
-    items.push({ label: t('action.delete'), onClick: () => selection.deleteSelected(), danger: true })
-    return items
-  }, [ctxMenu, single, activeImages, selection, toast])
+  const ctxMenuItems = useContextMenuItems({
+    open: ctxMenu !== null,
+    single,
+    onExport: () => selection.exportSelected(),
+    onDelete: () => selection.deleteSelected(),
+    showToast: toast.showToast,
+  })
 
   // 進捗バーに出す「今動いているタスク」の選択（モデル取得 → AIタグ付け → 取り込み → 書き出し）。
   const activeTask = useActiveTask({
