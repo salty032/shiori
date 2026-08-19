@@ -71,7 +71,16 @@ type Props = {
   onDeleteTag: (tag: string) => void
 }
 
-const THUMB_SIZES: number[] = [120, 160, 220]
+// S/M/L の実寸（グリッドの最小セル幅 px）。ラベルと数値をここに1本化する
+// （以前はボタン側に [['S',120],...] を別に持っており、片方だけ直すと
+//   ハイライト位置と実際のサイズが黙ってズレる）。
+// 数値は「全画面でも見える」を優先して 120/160/220 から引き上げてある。
+// 1920幅の全画面（サイドバー210）で S=10列 / M=7列 / L=5列 になる並び。
+const THUMB_SIZES = [
+  { label: 'S', size: 150, titleKey: 'sidebar.sizeSmall' },
+  { label: 'M', size: 230, titleKey: 'sidebar.sizeMedium' },
+  { label: 'L', size: 320, titleKey: 'sidebar.sizeLarge' },
+] as const
 
 const SMART_FOLDER_LONG_PRESS_MS = 350
 const SMART_FOLDER_DRAG_THRESHOLD_PX = 6
@@ -89,9 +98,9 @@ export default function Sidebar({
   const { t, tp } = useT()
   const lang = useSettingsStore((st) => st.settings.language)
   const nearestThumbSize = THUMB_SIZES.reduce(
-    (best, size) => Math.abs(size - thumbnailSize) < Math.abs(best - thumbnailSize) ? size : best,
+    (best, cur) => Math.abs(cur.size - thumbnailSize) < Math.abs(best.size - thumbnailSize) ? cur : best,
     THUMB_SIZES[0],
-  )
+  ).size
   const [showAllTags, setShowAllTags] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const shortcutsBtnRef = useRef<HTMLButtonElement>(null)
@@ -467,12 +476,13 @@ export default function Sidebar({
                 thumbnailSize は 80-360 を許容するが UI は3択のみなので、旧値・手編集で
                 ちょうど一致しない値が入っていても最も近いボタンをアクティブに見せる
                 （でないと indexOf===-1 でどのボタンもハイライトされなくなる）。 */}
-            <div style={{ ...s.segSlider, width: 34, transform: `translateX(${THUMB_SIZES.indexOf(nearestThumbSize) * 34}px)` }} />
-            {([['S', 120], ['M', 160], ['L', 220]] as const).map(([label, size]) => (
+            <div style={{ ...s.segSlider, width: 34, transform: `translateX(${THUMB_SIZES.findIndex((v) => v.size === nearestThumbSize) * 34}px)` }} />
+            {THUMB_SIZES.map(({ label, size, titleKey }) => (
               <button key={size}
+                data-current={nearestThumbSize === size ? 'true' : undefined}
                 style={{ ...s.thumbSizeBtn, ...(nearestThumbSize === size ? s.segActive : {}) }}
                 onClick={() => onThumbnailSize(size)}
-                title={t(label === 'S' ? 'sidebar.sizeSmall' : label === 'M' ? 'sidebar.sizeMedium' : 'sidebar.sizeLarge')}>{label}</button>
+                title={t(titleKey)}>{label}</button>
             ))}
           </div>
           <div style={s.controlDivider} />
@@ -481,6 +491,7 @@ export default function Sidebar({
             {([['grid', <GridIcon key="i" />, t('sidebar.viewGrid')], ['timeline', <ListIcon key="i" />, t('sidebar.viewTimeline')]] as const).map(([mode, icon, label]) => (
               <button key={mode}
                 data-tour={mode === 'timeline' ? 'timeline-toggle' : undefined}
+                data-current={viewMode === mode ? 'true' : undefined}
                 style={{ ...s.viewToggleBtn, ...(viewMode === mode ? s.segActive : {}) }}
                 onClick={() => onViewMode(mode)} title={label}>{icon}</button>
             ))}

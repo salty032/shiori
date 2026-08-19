@@ -5,7 +5,9 @@ import type { Settings } from './types'
 // ここでは空配列にしておく。
 export const SETTINGS_DEFAULTS: Settings = {
   titleStrip: [],
-  thumbnailSize: 160,
+  // グリッドの最小セル幅。Sidebar の THUMB_SIZES の M と同じ値にしておく
+  // （既定で開いたときに S/M/L のどれも選ばれていない見た目になるのを避ける）。
+  thumbnailSize: 230,
   frameFps: 24,
   frameFpsAuto: true,
   smartFolders: [],

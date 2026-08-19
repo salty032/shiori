@@ -8,7 +8,7 @@ const DEFAULT_EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 
 const DEFAULTS = {
   titleStrip: [],
-  thumbnailSize: 160,
+  thumbnailSize: 230,
   frameFps: 24,
   frameFpsAuto: true,
   smartFolders: [],
@@ -47,9 +47,18 @@ describe('normalizeSettings', () => {
     it('有効値: 200', () => expect(normalizeSettings({ thumbnailSize: 200 }).thumbnailSize).toBe(200))
     it('下限 80 未満 → 80', () => expect(normalizeSettings({ thumbnailSize: 10 }).thumbnailSize).toBe(80))
     it('上限 360 超 → 360', () => expect(normalizeSettings({ thumbnailSize: 9999 }).thumbnailSize).toBe(360))
-    it('NaN → デフォルト 160', () => expect(normalizeSettings({ thumbnailSize: NaN }).thumbnailSize).toBe(160))
-    it('Infinity → デフォルト 160', () => expect(normalizeSettings({ thumbnailSize: Infinity }).thumbnailSize).toBe(160))
+    it('NaN → デフォルト 230', () => expect(normalizeSettings({ thumbnailSize: NaN }).thumbnailSize).toBe(230))
+    it('Infinity → デフォルト 230', () => expect(normalizeSettings({ thumbnailSize: Infinity }).thumbnailSize).toBe(230))
     it('浮動小数点は切り捨て: 180.9 → 180', () => expect(normalizeSettings({ thumbnailSize: 180.9 }).thumbnailSize).toBe(180))
+    // 旧 S/M/L からの読み替え。既存ユーザーが更新後も前の大きさのままにならないこと。
+    it('旧S 120 → 新S 150', () => expect(normalizeSettings({ thumbnailSize: 120 }).thumbnailSize).toBe(150))
+    it('旧M 160 → 新M 230', () => expect(normalizeSettings({ thumbnailSize: 160 }).thumbnailSize).toBe(230))
+    it('旧L 220 → 新L 320', () => expect(normalizeSettings({ thumbnailSize: 220 }).thumbnailSize).toBe(320))
+    it('表に無い値は読み替えない: 200', () => expect(normalizeSettings({ thumbnailSize: 200 }).thumbnailSize).toBe(200))
+    // 現行の3値が読み替え表のキーに入っていると、起動のたびに隣の段へ移ってしまう。
+    it('現行S 150 はそのまま', () => expect(normalizeSettings({ thumbnailSize: 150 }).thumbnailSize).toBe(150))
+    it('現行M 230 はそのまま', () => expect(normalizeSettings({ thumbnailSize: 230 }).thumbnailSize).toBe(230))
+    it('現行L 320 はそのまま', () => expect(normalizeSettings({ thumbnailSize: 320 }).thumbnailSize).toBe(320))
   })
 
   describe('clipMaxSeconds', () => {

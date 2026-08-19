@@ -88,12 +88,29 @@ function extensionIdList(value: unknown): string[] {
     .slice(0, MAX_STRINGS)
 }
 
+// 旧 S/M/L（120/160/220）は全画面だと小さすぎたため 150/230/320 へ引き上げた。
+// 既存の settings.json をそのまま読むと、更新しても画面が前のままになり
+// 「サイズを変えていない人には何も起きていない」ように見えるので、旧値だけを
+// 新しい同じ段（S→S, M→M, L→L）へ読み替える。180/260/360 は一度だけ入れた
+// 引き上げ幅で、そのまま保存された設定が残っている可能性があるため一緒に拾う。
+// キーに現行の3値（150/230/320）を入れてはいけない。読み込みのたびに
+// 隣の段へ移り、選んだ大きさが起動ごとに変わる。
+// 代償：表のいずれかの値をたまたま手で書いていた場合も読み替えられる。
+const LEGACY_THUMB_SIZES: Record<number, number> = {
+  120: 150, 160: 230, 220: 320,
+  180: 150, 260: 230, 360: 320,
+}
+function migrateThumbnailSize(value: unknown): unknown {
+  if (typeof value !== 'number') return value
+  return LEGACY_THUMB_SIZES[value] ?? value
+}
+
 export function normalizeSettings(value: unknown): Settings {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const allowedIds = extensionIdList(data.allowedExtensionIds)
   return {
     titleStrip: stringList(data.titleStrip),
-    thumbnailSize: boundedNumber(data.thumbnailSize, DEFAULTS.thumbnailSize, 80, 360),
+    thumbnailSize: boundedNumber(migrateThumbnailSize(data.thumbnailSize), DEFAULTS.thumbnailSize, 80, 360),
     frameFps: boundedNumber(data.frameFps, DEFAULTS.frameFps, 1, 60),
     frameFpsAuto: data.frameFpsAuto !== false,
     smartFolders: smartFolders(data.smartFolders),
