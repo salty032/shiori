@@ -1,6 +1,6 @@
 import { app, dialog } from 'electron'
 import { statSync } from 'fs'
-import { initDb, databasePath } from '../db'
+import { initDb, databasePath } from '../db-schema'
 import {
   isDatabaseDamaged, listBackups, restoreDatabase, setAsideBrokenDatabase, writeRestoreMarker
 } from './db-maintenance'

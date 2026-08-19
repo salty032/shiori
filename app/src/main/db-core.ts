@@ -1,8 +1,9 @@
 import type Database from 'better-sqlite3'
 
-// db.ts から分けたクエリ群（db-video-frames.ts など）が接続を共有するための内部モジュール。
+// スキーマ（db-schema.ts）とクエリ（db.ts / db-tags.ts / db-video-frames.ts）で接続を
+// 共有するための内部モジュール。
 // **ここを外から import してよいのは src/main/db*.ts だけ。** 接続そのものを配ると
-// 呼び出し側が勝手にスキーマを触れてしまい、db.ts の initDb を通さない経路ができる。
+// 呼び出し側が勝手にスキーマを触れてしまい、db-schema.ts の initDb を通さない経路ができる。
 let db: Database.Database | undefined
 
 // SQL文字列をキーとしてコンパイル済みステートメントをキャッシュする。

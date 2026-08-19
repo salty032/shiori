@@ -8,7 +8,8 @@ import {
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, shouldSuppressBrowserTargetUpdate, SilentCaptureAbort
 } from './capture/capture'
-import { getImage, countImages, databasePath, consumeDbBackupFailure } from './db'
+import { getImage, countImages } from './db'
+import { databasePath, consumeDbBackupFailure } from './db-schema'
 import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
 import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, onSettingsPersistFailed, type Settings } from './system/settings'

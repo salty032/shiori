@@ -30,3 +30,10 @@ export function normalizeSearchText(s: string): string {
 // かったりするのは、この機能がまさに潰そうとしている「説明の付かない検索結果」そのもの。
 // db.ts の initDb がこの数字の変化を見て search_text を全行作り直す。
 export const SEARCH_NORMALIZE_VERSION = 1
+
+// search_text 列の中身。title/memo それぞれを正規化して1列にまとめる（アプリは列を
+// 指定した検索をしていないため分ける意味が無い）。挿入・タイトル/メモ更新の3経路から
+// 呼ぶ（詳細は docs/SPEC.md 5章）。
+export function buildSearchText(title: string | null | undefined, memo: string | null | undefined): string {
+  return `${normalizeSearchText(title ?? '')}\n${normalizeSearchText(memo ?? '')}`
+}
