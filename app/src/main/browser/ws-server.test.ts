@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { createServer } from 'http'
-import { parseExtensionMessage, isAllowedHttpOrigin, isAllowedWsOrigin, _resetWsStateForTest, onPortInUse, startWsServer, stopWsServer, getActivePort, WS_PORTS } from './ws-server'
+import { parseExtensionMessage, isAllowedHttpOrigin, isAllowedWsOrigin, _resetWsStateForTest, onPortInUse, startWsServer, stopWsServer, getActivePort } from './ws-server'
+import { WS_PORTS } from '../../shared/wire-limits'
 
 // 有効な timecode メッセージの最小構成
 const VALID_TIMECODE = {

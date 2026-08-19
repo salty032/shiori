@@ -3,7 +3,8 @@ import { extname, join } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream, mkdirSync, statSync } from 'fs'
 import { Readable } from 'stream'
-import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, getActivePort, WS_PORTS } from './browser/ws-server'
+import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, getActivePort } from './browser/ws-server'
+import { WS_PORTS } from '../shared/wire-limits'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,

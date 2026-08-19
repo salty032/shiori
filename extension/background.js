@@ -1,13 +1,14 @@
 // 平文 ws:// のまま繋ぐ。Firefox の MV3 既定 CSP は upgrade-insecure-requests を含むため、
 // manifest.json の content_security_policy.extension_pages でそれを外した CSP を明示している。
 // この指定を消すと Firefox だけ wss:// に格上げされ、TLS 非対応のローカルサーバーに繋がらなくなる。
-// 接続先ポートの候補。**app 側 src/main/browser/ws-server.ts の WS_PORTS と同じ並びで
-// あること**（extension-parity.test.ts が両者を突き合わせる）。アプリは先頭から順に
-// listen を試し、こちらは先頭から順に接続を試すので、どのポートに落ち着いても合流する。
-//
-// 複数ある理由は app 側のコメントに書いたとおりで、Windows の Hyper-V / WSL2 /
-// Docker Desktop が起動ごとにポートをブロック単位で予約してしまうため。
+// ==== ここから自動生成: ports ====
+// 以下は app/src/shared/wire-limits.ts が原本。**手で書き換えない**（verify が落とす）。
+// 直すときは wire-limits.ts を変えてから app/ で `npm run ext:limits` を実行する。
+// 接続先ポートの候補。アプリは先頭から順に listen を試し、こちらは先頭から順に
+// 接続を試すので、どのポートに落ち着いても合流する。複数ある理由は、Windows の
+// Hyper-V / WSL2 / Docker Desktop が起動ごとにポートをブロック単位で予約するため。
 const WS_PORTS = [39821, 41821, 43821, 45821]
+// ==== ここまで自動生成: ports ====
 let portIndex = 0
 let ws = null
 let reconnectTimer = null
@@ -17,7 +18,10 @@ const RECONNECT_DELAY_MAX = 30000
 // 候補から候補へ移るときの待ち。ローカルの接続拒否は即座に返るので短くてよい。
 // ここに指数バックオフをかけると、開いているポートに辿り着くまで分単位かかる。
 const RECONNECT_DELAY_NEXT_PORT = 300
-const MAX_WS_MESSAGE_BYTES = 16 * 1024
+// ==== ここから自動生成: limits ====
+// 以下は app/src/shared/wire-limits.ts が原本。**手で書き換えない**（verify が落とす）。
+// 直すときは wire-limits.ts を変えてから app/ で `npm run ext:limits` を実行する。
+const MAX_WS_MESSAGE_BYTES = 16384
 const MAX_TITLE_LENGTH = 500
 const MAX_URL_LENGTH = 2048
 const MAX_REQUEST_ID_LENGTH = 80
@@ -30,22 +34,23 @@ const MIN_SCREEN_SIZE = 1
 const MAX_SCREEN_SIZE = 20000
 const MIN_DEVICE_PIXEL_RATIO = 0.25
 const MAX_DEVICE_PIXEL_RATIO = 8
-// 素材のコマ間隔（ミリ秒）の許容範囲。content.js の startFrameTracker が実測値を採用する
-// 条件（10〜120fps）および ws-server.ts の同名定数と揃える。
+// 素材のコマ間隔（ミリ秒）の許容範囲。content.js の startFrameTracker が実測値を
+// 採用する条件（10〜120fps）と同じ。
 const MIN_SOURCE_FRAME_MS = 8.333333333333334
 const MAX_SOURCE_FRAME_MS = 100
 // コマ通知の displayAt（epoch ミリ秒）の妥当上限。西暦 2100 年相当。
 // 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま main 側の
 // 時刻計算に入ると、コマの対応付けが黙って狂うため入口で落とす。
 const MAX_EPOCH_MS = 4102444800000
-// プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理のマージンを
-// 十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。
+// プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理の
+// マージンを十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。
 const MAX_UI_HOLD_MS = 120000
 // shared/hotkey.ts の NAMED_KEYS と対になる、captureKey として許容する名前付きメインキー。
 const NAMED_CAPTURE_KEYS = new Set([
   'Space', 'Tab', 'Enter', 'Return', 'Escape', 'Backspace', 'Delete', 'Insert',
   'Home', 'End', 'PageUp', 'PageDown', 'Up', 'Down', 'Left', 'Right'
 ])
+// ==== ここまで自動生成: limits ====
 function isValidCaptureKey(k) {
   return /^[A-Za-z0-9]$/.test(k) || /^F([1-9]|1[0-9]|2[0-4])$/.test(k) || NAMED_CAPTURE_KEYS.has(k)
 }

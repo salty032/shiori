@@ -117,13 +117,17 @@ function startFrameTracker(video) {
 // 素材の提示タイミングに近いため優先する。performance.timeOrigin を足して epoch 基準に
 // 直すことで、別プロセスである main 側の時計と比較できるようにする。
 let reportingFrames = false
+// ==== ここから自動生成: frame-watchdog ====
+// 以下は app/src/shared/wire-limits.ts が原本。**手で書き換えない**（verify が落とす）。
+// 直すときは wire-limits.ts を変えてから app/ で `npm run ext:limits` を実行する。
 // 録画中だけ回す復帰用のウォッチドッグ間隔（ミリ秒）。
 //
-// rVFC ループは <video> が差し替わる（広告挿入・画質切替）と自分で止まる。復帰は
-// タイムコードの定期送信（TIMECODE_POLL_MS = 5000）の中の observeVideo 頼みだったので、
+// rVFC ループは <video> が差し替わる（広告挿入・画質切替）と自分で止まる。復帰が
+// タイムコードの定期送信（TIMECODE_POLL_MS）の中の observeVideo 頼みだと、
 // **最大 5 秒コマ通知が途切れる**——30 秒クリップなら 1/6 が対応不明になる。録画中だけは
 // 短い間隔で生存を確かめる（startFrameTracker は冪等なので、回っていれば何もしない）。
 const FRAME_WATCHDOG_MS = 500
+// ==== ここまで自動生成: frame-watchdog ====
 let frameWatchdog = null
 function startFrameReporting() {
   reportingFrames = true
@@ -490,13 +494,20 @@ const DEFAULT_POST_CAPTURE_RESTORE_DELAY_MS = 2400
 // この既定のままだと撮影中に UI が戻ってしまう。録画側は pre-capture の holdMs で
 // 必要な長さを明示してくる（app/src/main/video/recording.ts）。
 const HIDDEN_UI_WATCHDOG_MS = 8000
-// holdMs の上限（background.js の MAX_UI_HOLD_MS と揃える）
+// ==== ここから自動生成: limits ====
+// 以下は app/src/shared/wire-limits.ts が原本。**手で書き換えない**（verify が落とす）。
+// 直すときは wire-limits.ts を変えてから app/ で `npm run ext:limits` を実行する。
+// pre-capture で受け取る holdMs の上限（ms）。
 const MAX_UI_HOLD_MS = 120000
 const MAX_TITLE_LENGTH = 500
 const MAX_URL_LENGTH = 2048
 const MAX_REQUEST_ID_LENGTH = 80
 const MAX_NOTICE_MESSAGE_LENGTH = 240
+// アプリから配られるコマ送りの文言の上限（ja.ts が原本）。
+const MAX_STEP_LABEL_LENGTH = 120
+// タイムコードの定期送信の間隔（ms）。
 const TIMECODE_POLL_MS = 5000
+// ==== ここまで自動生成: limits ====
 const MIN_FORCED_SEND_INTERVAL_MS = 250
 let lastPayloadKey = ''
 let lastSentAt = 0
@@ -975,7 +986,6 @@ function scheduleRestorePlayerUI(immediate) {
 //
 // **撮影中は出さない。** キャプチャ範囲に入るので、出せば録画に焼き込まれる。
 const STEP_READOUT_MS = 1200        // 最後の更新から消えるまで
-const MAX_STEP_LABEL_LENGTH = 120   // アプリから配られる文言の上限（ja.ts が原本）
 let stepLabels = { blocked: '', dropped: '' }
 let stepReadoutTimer = null
 

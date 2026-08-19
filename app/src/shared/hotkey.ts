@@ -42,9 +42,9 @@ const NAMED_KEYS = new Map<string, string>([
 
 const DISALLOWED_KEYS = new Set(['Plus', '+'])
 
-// extension/background.js の NAMED_CAPTURE_KEYS（バンドラ無しのためコピー実装）と対になる
-// 正規化後キー名の集合。片側だけキーを増減すると静かに食い違うため、ws-server.test.ts の
-// パリティテストがここと background.js のテキストを比較して検知する（M-1）。
+// 正規化後キー名の集合。**extension/background.js の NAMED_CAPTURE_KEYS はここから生成する**
+// （`npm run ext:limits`。拡張はバンドラ無しで配るため import できない）。ここでキーを
+// 増減したら生成し直すこと。生成し忘れは extension-parity.test.ts が落とす。
 export const NAMED_CAPTURE_KEY_VALUES = new Set(NAMED_KEYS.values())
 
 function normalizeMainKey(value: string): string | null {

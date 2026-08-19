@@ -2,62 +2,60 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import {
-  MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
-  MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MAX_EPOCH_MS,
-  MIN_SCREEN_SIZE, MAX_SCREEN_SIZE, MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO,
-  MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS, WS_PORTS,
-} from './ws-server'
+  WS_PORTS, MAX_UI_HOLD_MS, FRAME_WATCHDOG_MS, TIMECODE_POLL_MS,
+  renderExtensionBlocks, readGeneratedBlock,
+} from '../../shared/wire-limits'
 import { NAMED_CAPTURE_KEY_VALUES } from '../../shared/hotkey'
 import { backgroundJs, contentJs, keyGuardJs, manifestJson } from './extension-source'
 
-// extension/background.js・content.js はバンドラ無しで配布されるため、app 側（ws-server.ts /
-// shared/hotkey.ts）と同じ検証定数・キー集合をコピー実装として持っている（M-1）。
-// 片側だけ値を変えて食い違うことを防ぐため、テキストとして読み込んで正規表現で値を
-// 抽出し、app 側の export 値と一致することを assert する（ビルド無しでドリフト検知）。
-// 読み込み自体は extension-source.ts（3 本のテストで共通）。
+// extension/background.js・content.js はバンドラ無しで配布されるため、app 側の定数を
+// import できない。以前は同じ数値を手で書き写し、このテストが拡張のソースを正規表現で
+// 切り出して突き合わせていた（L-1 の指摘）。今は shared/wire-limits.ts が唯一の原本で、
+// 拡張の const 行は `npm run ext:limits` が目印の内側へ生成する。
+//
+// **ここで見るのは 2 つだけ** — 生成し直し忘れと、目印の内側の手書き換え。どちらも
+// 起きても画面には何も出ない（拡張は黙って古い値で動き続ける）ので、ここで落とす。
+describe('拡張の定数は wire-limits.ts からの生成物（L-1）', () => {
+  const sources: Record<string, string> = { 'background.js': backgroundJs, 'content.js': contentJs }
+  for (const block of renderExtensionBlocks(NAMED_CAPTURE_KEY_VALUES)) {
+    it(`extension/${block.file} の「${block.id}」が生成結果と一致する（ずれていたら npm run ext:limits）`, () => {
+      expect(readGeneratedBlock(sources[block.file], block.id)).toBe(block.text)
+    })
+  }
+})
 
-function extractConst(source: string, name: string): number {
-  const m = source.match(new RegExp(`const\\s+${name}\\s*=\\s*([^;\\n]+)`))
-  if (!m) throw new Error(`constant not found in extension source: ${name}`)
-  // 定数式は `16 * 1024` 等の単純な算術リテラルのみ（自プロジェクトのソースを読むだけで
-  // 外部入力は含まないため Function での評価は許容する）。
-  // eslint-disable-next-line no-new-func
-  return Function(`"use strict"; return (${m[1]});`)() as number
-}
-
-function extractNumberArray(source: string, name: string): number[] {
-  const m = source.match(new RegExp(`const\\s+${name}\\s*=\\s*\\[([^\\]]*)\\]`))
-  if (!m) throw new Error(`array not found in extension source: ${name}`)
-  // eslint-disable-next-line no-new-func
-  return Function(`"use strict"; return [${m[1]}];`)() as number[]
-}
-
-function extractSet(source: string, name: string): Set<string> {
-  const m = source.match(new RegExp(`const\\s+${name}\\s*=\\s*new Set\\(\\[([\\s\\S]*?)\\]\\)`))
-  if (!m) throw new Error(`set not found in extension source: ${name}`)
-  // eslint-disable-next-line no-new-func
-  const items = Function(`"use strict"; return [${m[1]}];`)() as string[]
-  return new Set(items)
-}
-
-describe('extension との定数パリティ（M-1）', () => {
-  it('background.js の WS メッセージ検証上限が ws-server.ts と一致する', () => {
-    expect(extractConst(backgroundJs, 'MAX_WS_MESSAGE_BYTES')).toBe(MAX_WS_PAYLOAD_BYTES)
-    expect(extractConst(backgroundJs, 'MAX_TITLE_LENGTH')).toBe(MAX_TITLE_LENGTH)
-    expect(extractConst(backgroundJs, 'MAX_URL_LENGTH')).toBe(MAX_URL_LENGTH)
-    expect(extractConst(backgroundJs, 'MAX_REQUEST_ID_LENGTH')).toBe(MAX_REQUEST_ID_LENGTH)
-    expect(extractConst(backgroundJs, 'MAX_TIMECODE_SECONDS')).toBe(MAX_TIMECODE_SECONDS)
-    expect(extractConst(backgroundJs, 'MIN_SCREEN_COORD')).toBe(MIN_SCREEN_COORD)
-    expect(extractConst(backgroundJs, 'MAX_SCREEN_COORD')).toBe(MAX_SCREEN_COORD)
-    expect(extractConst(backgroundJs, 'MIN_SCREEN_SIZE')).toBe(MIN_SCREEN_SIZE)
-    expect(extractConst(backgroundJs, 'MAX_SCREEN_SIZE')).toBe(MAX_SCREEN_SIZE)
-    expect(extractConst(backgroundJs, 'MIN_DEVICE_PIXEL_RATIO')).toBe(MIN_DEVICE_PIXEL_RATIO)
-    expect(extractConst(backgroundJs, 'MAX_DEVICE_PIXEL_RATIO')).toBe(MAX_DEVICE_PIXEL_RATIO)
-    expect(extractConst(backgroundJs, 'MAX_EPOCH_MS')).toBe(MAX_EPOCH_MS)
-    expect(extractConst(backgroundJs, 'MIN_SOURCE_FRAME_MS')).toBe(MIN_SOURCE_FRAME_MS)
-    expect(extractConst(backgroundJs, 'MAX_SOURCE_FRAME_MS')).toBe(MAX_SOURCE_FRAME_MS)
+// 値そのものの妥当性は原本（TypeScript 側）だけ見れば足りる。拡張へ写った値が同じことは
+// 上のブロック比較が保証している。
+describe('原本の値が満たすべき条件', () => {
+  it('ポート候補の先頭は従来のポートのまま（更新直後に既存利用者が候補探しをしないため）', () => {
+    expect(WS_PORTS[0]).toBe(39821)
   })
 
+  it('候補どうしが十分に離れている（予約はブロック単位で来るため隣は同時に潰れる）', () => {
+    for (let i = 1; i < WS_PORTS.length; i++) {
+      expect(WS_PORTS[i] - WS_PORTS[i - 1]).toBeGreaterThanOrEqual(1000)
+    }
+    // Windows の既定の動的ポート範囲（49152-65535）より下に置き、OS の自動割り当てと
+    // 衝突しないようにする。
+    for (const port of WS_PORTS) expect(port).toBeLessThan(49152)
+  })
+
+  it('UI 非表示の上限がクリップ最長（30秒）＋停止マージンを十分に上回る', () => {
+    // 上限がクリップ長を下回ると、録画中に強制復元が走ってプレーヤー UI が写り込む。
+    expect(MAX_UI_HOLD_MS).toBeGreaterThan((30 + 10) * 1000)
+  })
+
+  it('録画中の復帰確認はタイムコードの定期送信より十分に短い間隔で回る', () => {
+    // rVFC ループは <video> の差し替えで止まる。復帰が定期送信頼みだと、30 秒クリップの
+    // 1/6 でコマ通知が途切れたままになる。
+    expect(FRAME_WATCHDOG_MS).toBeLessThan(TIMECODE_POLL_MS / 4)
+    expect(FRAME_WATCHDOG_MS).toBeGreaterThanOrEqual(100)   // 無駄に回さない下限
+  })
+})
+
+// ここから下は値ではなく**受け渡しの経路**。生成では固定できないので、拡張のソースを
+// 読んで「途中の段で落ちていないか」を見る。
+describe('extension との受け渡しの経路', () => {
   // 素材のコマ間隔は content.js が測り、background.js が中継し、ws-server.ts が受ける。
   // **background.js の normalizePortMessage は項目を1つずつ書き写して作り直す**ので、
   // そこに書き足し忘れると content.js が送っていても消える。実際にそれで「ビットレートが
@@ -78,56 +76,6 @@ describe('extension との定数パリティ（M-1）', () => {
       expect(src).toMatch(/blocked: label\(msg\.stepLabels\?\.blocked\)/)
       expect(src).toMatch(/dropped: label\(msg\.stepLabels\?\.dropped\)/)
     }
-    expect(extractConst(contentJs, 'MAX_STEP_LABEL_LENGTH')).toBe(extractConst(backgroundJs, 'MAX_STEP_LABEL_LENGTH'))
-  })
-
-  // アプリは WS_PORTS の先頭から listen を試し、拡張は先頭から接続を試す。**同じ並びで
-  // あることだけが両者の合流条件**で、片側に候補を足しただけだと、そのポートに落ち着いた
-  // ときに拡張が永久に見つけられない（画面には「未接続」としか出ない）。
-  it('background.js の WS_PORTS が ws-server.ts と同じ並びで一致する', () => {
-    expect(extractNumberArray(backgroundJs, 'WS_PORTS')).toEqual([...WS_PORTS])
-  })
-
-  it('先頭は従来のポートのまま（更新直後に既存利用者が候補探しをしないため）', () => {
-    expect(WS_PORTS[0]).toBe(39821)
-  })
-
-  it('候補どうしが十分に離れている（予約はブロック単位で来るため隣は同時に潰れる）', () => {
-    for (let i = 1; i < WS_PORTS.length; i++) {
-      expect(WS_PORTS[i] - WS_PORTS[i - 1]).toBeGreaterThanOrEqual(1000)
-    }
-    // Windows の既定の動的ポート範囲（49152-65535）より下に置き、OS の自動割り当てと
-    // 衝突しないようにする。
-    for (const port of WS_PORTS) expect(port).toBeLessThan(49152)
-  })
-
-  it('background.js の NAMED_CAPTURE_KEYS が shared/hotkey.ts の正規化後キー名と一致する', () => {
-    expect(extractSet(backgroundJs, 'NAMED_CAPTURE_KEYS')).toEqual(NAMED_CAPTURE_KEY_VALUES)
-  })
-
-  it('content.js が独自に持つ検証上限（capture:done 送信前の自衛用）も ws-server.ts と一致する', () => {
-    // content.js は background.js 経由で ws-server に届く前段のメッセージ組み立て側。
-    // ここだけ値がズレると、抑止されるはずの長い title/url が background.js 側の
-    // チェックまで素通りしてしまう（三重実装の3本目・M-1）。
-    expect(extractConst(contentJs, 'MAX_TITLE_LENGTH')).toBe(MAX_TITLE_LENGTH)
-    expect(extractConst(contentJs, 'MAX_URL_LENGTH')).toBe(MAX_URL_LENGTH)
-    expect(extractConst(contentJs, 'MAX_REQUEST_ID_LENGTH')).toBe(MAX_REQUEST_ID_LENGTH)
-  })
-
-  it('background.js と content.js の MAX_NOTICE_MESSAGE_LENGTH が一致する（app側に対応定数は無い拡張内独自値）', () => {
-    expect(extractConst(contentJs, 'MAX_NOTICE_MESSAGE_LENGTH'))
-      .toBe(extractConst(backgroundJs, 'MAX_NOTICE_MESSAGE_LENGTH'))
-  })
-
-  it('background.js と content.js の MAX_UI_HOLD_MS が一致する（pre-capture の holdMs 上限）', () => {
-    expect(extractConst(contentJs, 'MAX_UI_HOLD_MS'))
-      .toBe(extractConst(backgroundJs, 'MAX_UI_HOLD_MS'))
-  })
-
-  it('UI 非表示の上限がクリップ最長（30秒）＋停止マージンを十分に上回る', () => {
-    // 上限がクリップ長を下回ると、録画中に強制復元が走ってプレーヤー UI が写り込む。
-    const maxHoldMs = extractConst(contentJs, 'MAX_UI_HOLD_MS')
-    expect(maxHoldMs).toBeGreaterThan((30 + 10) * 1000)
   })
 })
 
@@ -172,15 +120,6 @@ return restoreDelayFor`)() as (host: string, immediate: boolean) => number
 })
 
 describe('コマ通知が途切れる経路（content.js の rVFC ループ）', () => {
-  it('録画中の復帰確認はタイムコードの定期送信より十分に短い間隔で回る', () => {
-    // rVFC ループは <video> の差し替えで止まる。復帰が定期送信（5秒）頼みだと、
-    // 30 秒クリップの 1/6 でコマ通知が途切れたままになる。
-    const watchdogMs = extractConst(contentJs, 'FRAME_WATCHDOG_MS')
-    const pollMs = extractConst(contentJs, 'TIMECODE_POLL_MS')
-    expect(watchdogMs).toBeLessThan(pollMs / 4)
-    expect(watchdogMs).toBeGreaterThanOrEqual(100)   // 無駄に回さない下限
-  })
-
   it('録画中にトラッカーが止まったら main へ知らせる', () => {
     // 途切れた区間のコマは表に入らず、撮り逃しの枚数にも割合にも現れない。
     // 黙って通すと「最も精度が良く見えるクリップの後半が対応していない」形になる。

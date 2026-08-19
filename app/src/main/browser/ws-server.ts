@@ -1,22 +1,14 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
-
-// 拡張との接続に使うポートの候補。**extension/background.js の WS_PORTS と同じ並びで
-// あること**（extension-parity.test.ts が検知する）。アプリは先頭から順に listen を試し、
-// 拡張は先頭から順に接続を試す。同じ並びを両側が持つので、どこに落ち着いても設定は要らない。
-//
-// なぜ 1 つでは足りないか — Windows は Hyper-V / WSL2 / Docker Desktop が有効だと、
-// 起動のたびに TCP ポートを**ブロック単位でまとめて予約**する
-// （netsh int ipv4 show excludedportrange protocol=tcp で見える）。予約範囲は再起動ごとに
-// 変わるため、固定 1 ポートだと「昨日まで動いていたのに今日は繋がらない」が利用者側で
-// 突然起きる。利用者に心当たりは無く、拡張を入れ直しても直らない。
-//
-// 候補の選び方 — 予約は連続ブロックで来るので、隣（39822 など）は同じブロックに巻き込まれる。
-// 2000 ずつ離す。全部 Windows の既定の動的ポート範囲（49152-65535）より下に置き、
-// そちらの自動割り当てとは衝突しないようにする。
-// 先頭は必ず 39821 のまま（既存の利用者が今そこで繋がっているため、並べ替えると
-// 更新直後の 1 回だけ全員が候補探しをすることになる）。
-export const WS_PORTS = [39821, 41821, 43821, 45821] as const
+// 拡張と同じでなければならない値（ポート候補・受信メッセージの上限）の原本は
+// shared/wire-limits.ts。拡張はバンドラ無しで配るため import できないので、あちらの値から
+// extension/*.js の const 行を `npm run ext:limits` が生成する。ここで書き換えないこと。
+import {
+  WS_PORTS, MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
+  MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MIN_SCREEN_SIZE, MAX_SCREEN_SIZE,
+  MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
+  MAX_EPOCH_MS,
+} from '../../shared/wire-limits'
 
 // 実際に listen できたポート。どれも確保できなければ null のまま。
 let activePort: number | null = null
@@ -25,29 +17,6 @@ export function getActivePort(): number | null {
 }
 
 const HOST = '127.0.0.1'
-// extension/background.js（バンドラ無しのため import 不可）にも同じ値のコピーがある。
-// 片側だけ変えると静かに食い違うため、ws-server.test.ts のパリティテストが
-// このモジュールの export 値と background.js のテキストを比較して検知する（M-1）。
-export const MAX_TITLE_LENGTH = 500
-export const MAX_URL_LENGTH = 2048
-export const MAX_WS_PAYLOAD_BYTES = 16 * 1024
-export const MAX_REQUEST_ID_LENGTH = 80
-export const MAX_TIMECODE_SECONDS = 10_000_000
-export const MIN_SCREEN_COORD = -100_000
-export const MAX_SCREEN_COORD = 100_000
-export const MIN_SCREEN_SIZE = 1
-export const MAX_SCREEN_SIZE = 20_000
-export const MIN_DEVICE_PIXEL_RATIO = 0.25
-export const MAX_DEVICE_PIXEL_RATIO = 8
-// 素材のコマ間隔（ミリ秒）の許容範囲。拡張側が実測値を採用する条件（10〜120fps。
-// content.js の startFrameTracker）と揃えてある。範囲外なら null にして「測れていない」
-// 扱いにする——**壊れた値でビットレートを決めるくらいなら、従来どおりの固定値でよい。**
-export const MIN_SOURCE_FRAME_MS = 1000 / 120
-export const MAX_SOURCE_FRAME_MS = 1000 / 10
-// コマ通知の displayAt（epoch ミリ秒）の妥当上限。西暦 2100 年相当。
-// 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま時刻計算に入ると、
-// コマの対応付けが黙って狂うため入口で落とす。
-export const MAX_EPOCH_MS = 4_102_444_800_000
 
 type VideoRect = { left: number; top: number; width: number; height: number }
 
