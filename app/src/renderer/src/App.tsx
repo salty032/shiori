@@ -6,7 +6,7 @@ import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import WhatsNewModal from './components/WhatsNewModal'
 import SetupGuideModal from './components/SetupGuideModal'
-import ProductTour, { type ProductTourStep } from './components/ProductTour'
+import ProductTour from './components/ProductTour'
 import DetailPanel from './components/DetailPanel'
 import TimesheetPanel from './components/TimesheetPanel'
 import Viewer from './components/Viewer'
@@ -29,6 +29,7 @@ import { useTimeline } from './hooks/useTimeline'
 import { useSelection } from './hooks/useSelection'
 import { useFileDrop } from './hooks/useFileDrop'
 import { useActiveTask } from './hooks/useActiveTask'
+import { useProductTour } from './hooks/useProductTour'
 import { useTagger } from './hooks/useTagger'
 import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
@@ -66,7 +67,6 @@ export default function App() {
   const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string[] } | null>(null)
   const [setupGuide, setSetupGuide] = useState<SetupGuideState>(loadSetupGuideState)
   const [showSetupGuide, setShowSetupGuide] = useState(false)
-  const [productTourStep, setProductTourStep] = useState<ProductTourStep | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const mainRef = useRef<HTMLDivElement>(null)
@@ -223,29 +223,23 @@ export default function App() {
   })
 
 
-  const startProductTour = useCallback((): void => {
-    setShowSetupGuide(false)
-    updateSetupGuide({ tutorialSeen: true })
-    filters.clearAllFilters()
-    setViewerId(null)
-    setViewMode('grid')
-    selection.clearSelection()
-    setProductTourStep(0)
-  }, [filters.clearAllFilters, selection.clearSelection, updateSetupGuide])
-
-  // 初めて自分でキャプチャできた直後が、実画面の使い方を試す最も自然なタイミング。
-  // 既存ライブラリの読込ではなく newIds に入ったキャプチャだけを対象にし、提案は端末で1度に限る。
-  useEffect(() => {
-    if (!imageList.images.some((image) => image.source === 'capture' && newIds.has(image.id))) return
-    const key = 'shiori-product-tour-offered-v1'
-    try {
-      if (localStorage.getItem(key)) return
-      localStorage.setItem(key, '1')
-    } catch {
-      // 保存できない環境でも提案自体は妨げない。
-    }
-    toast.showToast(t('tour.offer'), 'info', 10_000, { label: t('tour.offerAction'), onClick: startProductTour })
-  }, [imageList.images, newIds, startProductTour, t, toast.showToast])
+  // 実操作ガイド（Product Tour）の進行。開始時のリセットだけはここで組み立てて渡す。
+  const { productTourStep, startProductTour, advanceProductTour, exitProductTour } = useProductTour({
+    images: imageList.images,
+    newIds,
+    selectedCount: selection.selectedIds.size,
+    viewerIdx,
+    viewMode,
+    showToast: toast.showToast,
+    resetForTour: () => {
+      setShowSetupGuide(false)
+      updateSetupGuide({ tutorialSeen: true })
+      filters.clearAllFilters()
+      setViewerId(null)
+      setViewMode('grid')
+      selection.clearSelection()
+    },
+  })
 
   useEffect(() => {
     if (selection.selectedIds.size === 0) return
@@ -333,25 +327,6 @@ export default function App() {
     onLibraryChanged,
     showToast: toast.showToast,
   })
-
-  // 実操作ガイドは説明の「次へ」では進めない。選択・ビューア開閉・表示切替という
-  // アプリ側の実状態が変わったときだけ次の操作へ進む。
-  useEffect(() => {
-    if (productTourStep === 0 && selection.selectedIds.size > 0) setProductTourStep(1)
-    if (productTourStep === 1 && viewerIdx !== null) setProductTourStep(2)
-    if (productTourStep === 2 && viewerIdx === null) setProductTourStep(3)
-    if (productTourStep === 4 && viewMode === 'timeline') setProductTourStep(5)
-  }, [productTourStep, selection.selectedIds.size, viewerIdx, viewMode])
-
-  const advanceProductTour = useCallback((): void => {
-    if (productTourStep === null) return
-    if (productTourStep >= 5) {
-      setProductTourStep(null)
-      toast.showToast(t('tour.completed'), 'success')
-      return
-    }
-    setProductTourStep((productTourStep + 1) as ProductTourStep)
-  }, [productTourStep, t, toast.showToast])
 
   // メインプロセスからの通知 → トースト
   useEffect(() => {
@@ -882,7 +857,7 @@ export default function App() {
       )}
 
       {productTourStep !== null && (
-        <ProductTour step={productTourStep} onAdvance={advanceProductTour} onExit={() => setProductTourStep(null)} />
+        <ProductTour step={productTourStep} onAdvance={advanceProductTour} onExit={exitProductTour} />
       )}
 
       {getModals().map((Modal, i) => <Modal key={i} />)}
