@@ -1,12 +1,12 @@
 import { app, dialog, globalShortcut, Menu, shell, session } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
-import { startWsServer, stopWsServer, onExtensionMessage, broadcastMessage, onWsClientConnect, setAllowedExtensionIds, onPortInUse, getActivePort } from './browser/ws-server'
+import { stopWsServer, broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse, getActivePort } from './browser/ws-server'
 import { WS_PORTS } from '../shared/wire-limits'
 import {
-  registerHotkey, changeHotkey, onCaptureDone, setBrowserWindowPos, setVideoRect, setBrowserFullscreen,
+  registerHotkey, changeHotkey, onCaptureDone,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
-  runPreCaptureGuards, shouldSuppressBrowserTargetUpdate, SilentCaptureAbort
+  runPreCaptureGuards, SilentCaptureAbort
 } from './capture/capture'
 import { getImage, countImages } from './db'
 import { databasePath, consumeDbBackupFailure } from './db-schema'
@@ -14,8 +14,8 @@ import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
 import { loadSettings, saveSettings, flushSettings, consumeCorruptSettingsNotice, onSettingsPersistFailed, type Settings } from './system/settings'
 import { activeTaskLabels } from './system/busy'
-import { checkExtensionUpdate, installedExtensionPath, bundledExtPath, readVersion } from './browser/extension-updater'
-import { compareVersions } from './system/version'
+import { checkExtensionUpdate, installedExtensionPath } from './browser/extension-updater'
+import { startExtensionBridge, browserStepLabels } from './browser/extension-bridge'
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
 import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
 import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
@@ -32,10 +32,7 @@ import {
 } from './system/windows'
 import { createTray, rebuildTrayMenu } from './system/tray'
 import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './system/startup'
-import {
-  getLastTimecode, getLastTimecodeAt, setLastTimecode,
-  getLastFocusedTimecodeAt, markFocusedTimecodeNow
-} from './browser/timecode'
+import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from './browser/timecode'
 import { registerImageHandlers, backfillThumbnails } from './ipc/ipc-images'
 import { registerDragHandlers, cleanupDragTempDir } from './ipc/ipc-drag'
 import { registerTaggerHandlers } from './ipc/ipc-tagger'
@@ -92,10 +89,6 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
 
 // ブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
 // settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
-function browserStepLabels(): { blocked: string; dropped: string } {
-  return { blocked: t('video.stepBlocked'), dropped: t('video.stepDropped') }
-}
-
 export function bootstrap(features: MainFeature[] = []): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
@@ -164,10 +157,6 @@ export function bootstrap(features: MainFeature[] = []): void {
     registerCapfileProtocol()
 
     checkExtensionUpdate()
-    // OS通知（checkExtensionUpdate）は起動直後の1回しか出ず見逃しやすいため、以後は
-    // 拡張から届く timecode の version と比較し続け、設定画面に「再読み込みが必要」の
-    // バッジを出せるようにする（UX-9）。
-    const bundledExtVersion = readVersion(bundledExtPath())
     // DB が開けないと以降の初期化（トレイ・ウィンドウ生成含む）が全て道連れになり、
     // UI が一切無いままロックだけ保持したプロセスが残ってしまう。壊れているなら
     // 退避からの復元を出し、断られたか復元もできなければ、気付ける形で即座に終了する。
@@ -179,32 +168,8 @@ export function bootstrap(features: MainFeature[] = []): void {
     // ファイル削除に失敗して DB から切り離された実ファイルの回収。ユーザーには見えず
     // 自分で消す手段もないので、アプリ側で黙って片付ける（非致命・バックグラウンド）。
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
-    const wsSettings = loadSettings()
-    onWsClientConnect((send) => {
-      const s = loadSettings()
-      send({ type: 'settings', frameFps: s.frameFps ?? 24, frameFpsAuto: s.frameFpsAuto !== false, captureKey: captureHotkeyMainKey(s.captureHotkey), stepLabels: browserStepLabels() })
-    })
-    // listen 開始前に接続コールバックを登録し、起動直後の接続にも必ず設定を返す。
-    startWsServer({ allowedExtensionIds: wsSettings.allowedExtensionIds })
-
-    onExtensionMessage((msg) => {
-      if (msg.type === 'timecode') {
-        if (msg.focused) markFocusedTimecodeNow()
-        // フォーカス中のタブを優先。フォーカスタイムコードが30秒以上届いていない場合は
-        const accept = msg.focused || Date.now() - getLastFocusedTimecodeAt() > 30_000
-        if (accept) {
-          setLastTimecode({ title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null })
-        }
-        if (!shouldSuppressBrowserTargetUpdate() && accept) {
-          setBrowserWindowPos(msg.windowLeft, msg.windowTop, msg.windowWidth, msg.windowHeight, msg.innerWidth, msg.innerHeight)
-          setVideoRect(msg.videoRect)
-          setBrowserFullscreen(msg.fullscreen)
-        }
-        // バンドル版の方が新しければ「拡張の再読み込みが必要」（UX-9）。
-        const versionMismatch = !!bundledExtVersion && !!msg.version && compareVersions(bundledExtVersion, msg.version) > 0
-        sendToRenderer(CH.extensionTimecode, { ...msg, versionMismatch })
-      }
-    })
+    // 拡張との WebSocket と、そこから届く再生時刻・ウィンドウ位置の受け口。
+    startExtensionBridge()
 
     registerImageHandlers()
     registerDragHandlers()
