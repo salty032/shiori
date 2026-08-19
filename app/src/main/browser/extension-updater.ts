@@ -2,6 +2,7 @@ import { app, Notification } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs'
 import { compareVersions } from '../system/version'
+import { t } from '../system/i18n'
 
 export function bundledExtPath(): string {
   return app.isPackaged
@@ -84,7 +85,7 @@ export function checkExtensionUpdate(): void {
       if (installedVersion) {
         new Notification({
           title: 'Shiori',
-          body: `拡張機能が ${installedVersion} → ${bundledVersion} に更新されました。Chrome の chrome://extensions で再読み込みを押してください。`
+          body: t('notice.extensionUpdated', { from: installedVersion, to: bundledVersion })
         }).show()
       }
     }

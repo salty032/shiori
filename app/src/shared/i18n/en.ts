@@ -84,6 +84,8 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.portInUse':
     'Shiori cannot connect to the browser extension. Ports {ports} are all taken by other apps or reserved by Windows. Restarting your PC often clears this.',
   'notice.updated': 'Shiori updated to v{version}',
+  'notice.extensionUpdated':
+    'The browser extension was updated from {from} to {to}. It keeps running the old version until you reload it on your browser’s extensions page.',
 
   // ── Capture ──────────────────────────────────────────────────
   'notice.captureTargetNotFound':
