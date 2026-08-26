@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 // 実 DB を張るテストは書けない。ここでは DB アクセスから切り離した直列化だけを検証する。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { encodeFrames, decodeFrames, type StoredFrame } from './db-video-frames'
+import { encodeFrames, decodeFrames, encodeUnusable, readUnusableReason, type StoredFrame } from './db-video-frames'
 
 const frames: StoredFrame[] = [
   { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
@@ -84,5 +84,33 @@ describe('フレーム表の直列化', () => {
   it('captured は 1 以外を全て false として扱う', () => {
     expect(decodeFrames('[[0,0,0]]')![0].captured).toBe(false)
     expect(decodeFrames('[[0,0,1]]')![0].captured).toBe(true)
+  })
+})
+
+// 検証で「使ってはいけない」と決めた表の扱い（markVideoFramesUnusable）。
+// 以前は行ごと DELETE していたが、判定の方が誤っていたときに遡って救えないため残す形にした。
+// **残したうえで、絶対に使われないことが要る。** その保証がこの 3 本。
+describe('使えないと判定した表', () => {
+  const frames: StoredFrame[] = [
+    { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
+    { mediaTime: 0.042, frameIndex: 2, captured: false, verified: 'same' }
+  ]
+
+  it('印を付けた行は、読み出すと「表が無い」と同じ null になる', () => {
+    // 呼ぶ側は 1 行も変えずに従来のフレーム走査へ落ちる。ここが null でなくなると、
+    // 対応が 1 コマずれた表で黙ってコマ送りが動くことになる。
+    expect(decodeFrames(encodeUnusable(encodeFrames(frames), 'correspondence-break'))).toBeNull()
+  })
+
+  it('印を付けても、表の中身はそのまま残っている', () => {
+    // 後から判定を直したときに救えること。消していた頃はここが失われていた。
+    const marked = encodeUnusable(encodeFrames(frames), 'correspondence-break')
+    expect(decodeFrames(JSON.stringify(JSON.parse(marked).frames))).toEqual(frames)
+    expect(readUnusableReason(marked)).toBe('correspondence-break')
+  })
+
+  it('通常の表と壊れた行には印が付いていない', () => {
+    expect(readUnusableReason(encodeFrames(frames))).toBeNull()
+    expect(readUnusableReason('{')).toBeNull()
   })
 })

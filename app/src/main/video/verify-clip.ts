@@ -9,7 +9,7 @@
 import { getFrameSignatures } from './ffmpeg'
 import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
 import { setAmbiguousFrames, setFrameCounts } from '../db'
-import { dropVideoFrames, saveVideoFrames, type StoredFrame } from '../db-video-frames'
+import { markVideoFramesUnusable, saveVideoFrames, type StoredFrame } from '../db-video-frames'
 import { countReportDrops } from './frame-feed'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
@@ -80,16 +80,16 @@ export async function verifyClipFrames(
           `[frame-verify] image ${imageId}: frame correspondence breaks at index ${divergeAt}` +
           ` (supplied ${drawnAt.length}, file has ${signatures.length}).` +
           ` head shift [${head}]ms | around break [${around}]ms | tail [${tail}]ms.` +
-          ' Dropping the frame table (frame stepping falls back to raw file frames).'
+          ' Keeping the frame table but marking it unusable (frame stepping falls back to raw file frames).'
         )
-        dropVideoFrames(imageId)
+        markVideoFramesUnusable(imageId, 'correspondence-break')
         notifyVerified(imageId, null, null, null, null)
         return
       }
       // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
       const kept = frames.filter((f) => f.frameIndex < signatures.length)
       if (kept.length === 0) {
-        dropVideoFrames(imageId)
+        markVideoFramesUnusable(imageId, 'no-frame-within-file')
         notifyVerified(imageId, null, null, null, null)
         return
       }

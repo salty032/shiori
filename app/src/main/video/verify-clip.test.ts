@@ -14,14 +14,14 @@ vi.mock('./ffmpeg', () => ({
 const sendToRenderer = vi.fn()
 vi.mock('../system/windows', () => ({ sendToRenderer: (...args: unknown[]) => sendToRenderer(...args) }))
 
-const dropVideoFrames = vi.fn()
+const markVideoFramesUnusable = vi.fn()
 vi.mock('../db', () => ({
   setAmbiguousFrames: vi.fn(),
   setFrameCounts: vi.fn()
 }))
 
 vi.mock('../db-video-frames', () => ({
-  dropVideoFrames: (...args: unknown[]) => dropVideoFrames(...args),
+  markVideoFramesUnusable: (...args: unknown[]) => markVideoFramesUnusable(...args),
   saveVideoFrames: vi.fn()
 }))
 
@@ -45,7 +45,7 @@ function verifiedPayload(): VerifiedPayload | null {
 describe('verifyClipFrames（検証結果を画面へ反映する通知）', () => {
   beforeEach(() => {
     sendToRenderer.mockClear()
-    dropVideoFrames.mockClear()
+    markVideoFramesUnusable.mockClear()
   })
 
   it('撮り逃したコマを検証したら、確定した枚数を飛ばす', () => {
@@ -84,7 +84,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.04, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(9, 'clip.webm', table, drawnAt).then(() => {
-      expect(dropVideoFrames).toHaveBeenCalledWith(9)
+      expect(markVideoFramesUnusable).toHaveBeenCalledWith(9, 'correspondence-break')
       expect(verifiedPayload()).toEqual({ id: 9, uncaptured: null, ambiguous: null, total: null, unreported: null })
     })
   })

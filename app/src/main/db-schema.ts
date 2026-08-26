@@ -153,7 +153,7 @@ export function initDb(): void {
     -- （1 クリップで数百組になりうる JSON なので images を舐めるクエリに載せない）。
     --
     -- **video_frames とは別に持つ。** 表は解析でいつでも作り直せるが、こちらは人が 1 コマずつ
-    -- 見て打った手作業で、作り直しが利かない。表を捨てる（dropVideoFrames）ときも道連れにしない。
+    -- 見て打った手作業で、作り直しが利かない。表を使わないと決めた（markVideoFramesUnusable）ときも道連れにしない。
     CREATE TABLE IF NOT EXISTS timesheets (
       image_id INTEGER PRIMARY KEY,
       data     TEXT NOT NULL,

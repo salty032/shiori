@@ -41,6 +41,35 @@ export function encodeFrames(frames: StoredFrame[]): string {
   return JSON.stringify(frames.map((f) => [f.mediaTime, f.frameIndex, f.captured ? 1 : 0, VERIFY_CODE[f.verified ?? 'unknown']]))
 }
 
+// 「検証の結果、使ってはいけないと決めた表」の印。**表そのものは中に丸ごと残す**
+// （markVideoFramesUnusable のコメント参照。判定を直したときに遡って救うため）。
+//
+// 印の付いた行は decodeFrames が null を返す。配列でない形は元から null なので、
+// 読み出し側は 1 行も変えずに「表が無い」と同じ扱いになる。**この性質に頼っているので、
+// decodeFrames の入口で配列かどうかを見るのをやめてはいけない**（video-frames.test.ts が固定）。
+interface UnusableRow {
+  unusable: string
+  frames: unknown
+}
+
+export function encodeUnusable(data: string, reason: string): string {
+  const row: UnusableRow = { unusable: reason, frames: JSON.parse(data) }
+  return JSON.stringify(row)
+}
+
+// 印が付いていればその理由、付いていなければ null（＝通常の表・壊れた行）。
+export function readUnusableReason(data: string): string | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const reason = (parsed as { unusable?: unknown }).unusable
+  return typeof reason === 'string' && reason.length > 0 ? reason : null
+}
+
 // 壊れた行・想定外の形は null（＝表が無い）として扱い、従来のフレーム走査へ退避させる。
 // 半端に解釈してコマ送りが不可解に狂うより、精度を諦めて動く方がよい。
 export function decodeFrames(data: string): StoredFrame[] | null {
@@ -104,15 +133,32 @@ export function restoreVideoFrames(
   })()
 }
 
-// フレーム表を破棄し、「コマ精度の情報が無い」状態（列は NULL）へ戻す。
+// フレーム表を「使ってはいけない」状態にする。
 //
 // 表の frameIndex がファイル内の実フレームと対応していないと分かったときに使う。
 // 半端に残すとコマ送りが黙って別のコマの絵を出すため、精度を諦めて従来のフレーム走査へ
-// 退避させる方がよい（decodeFrames が壊れた行を null で返すのと同じ判断）。
-// 枚数（uncaptured_frames / ambiguous_frames）も表と一緒に無効化する — 表が信用できない以上、
+// 退避させる（decodeFrames が壊れた行を null で返すのと同じ判断）。
+// 枚数（uncaptured_frames / ambiguous_frames）も一緒に無効化する — 表が信用できない以上、
 // そこから数えた「N コマ要確認」も根拠を失っているため。
-export function dropVideoFrames(id: number): void {
-  prepare('DELETE FROM video_frames WHERE image_id = ?').run(id)
+//
+// **以前は行ごと DELETE していた。表そのものを残す形に変えた。**
+// 判定（verify-clip.ts の findFrameDivergence）は、しきい値も窓の枚数も実測から決めた
+// 経験則で、実機を踏むたびに調整が入る。消してしまうと、その調整で「あれは誤判定だった」と
+// 分かっても遡って直せない。実際 2026-08-26 に誤判定で 231 コマ・撮り逃し 0 の表を 2 本
+// 失っている（image 245 / 246）。しかも誤判定に気づけるのは、使う人が「なぜ黄色いのか」と
+// 言い出したときだけで、こちらからは永久に見えない。
+//
+// **消すことで得ていた「疑わしい表は絶対に使われない」保証は、印を data の中へ埋めることで
+// 保つ。** 列で持つと読み出し口が増えたときに見落とせるが、ここに埋めておけば decodeFrames が
+// 必ず null を返すので、呼ぶ側からは行が無いのと区別が付かない。
+export function markVideoFramesUnusable(id: number, reason: string): void {
+  const row = prepare('SELECT data FROM video_frames WHERE image_id = ?').get(id) as { data: string } | undefined
+  if (row) {
+    // 既に印が付いていれば二重に包まない（最初に捨てた理由の方を残す）。
+    if (readUnusableReason(row.data) === null) {
+      prepare('UPDATE video_frames SET data = ? WHERE image_id = ?').run(encodeUnusable(row.data, reason), id)
+    }
+  }
   prepare('UPDATE images SET uncaptured_frames = NULL, ambiguous_frames = NULL, source_frames = NULL, unreported_frames = NULL WHERE id = ?').run(id)
 }
 
@@ -120,6 +166,12 @@ export function getVideoFrames(imageId: number): StoredFrame[] | null {
   const row = prepare('SELECT data FROM video_frames WHERE image_id = ?').get(imageId) as { data: string } | undefined
   if (!row) return null
   const frames = decodeFrames(row.data)
-  if (!frames) console.warn('[db] video_frames row is unusable, falling back to raw frame order', { imageId })
+  // 印が付いているのは「検証の結果、使わないと決めた」表。壊れた行と同じ扱い（従来の
+  // フレーム走査へ退避）だが、原因が違うのでログを分ける — 前者は想定内、後者は不具合。
+  if (!frames) {
+    const reason = readUnusableReason(row.data)
+    if (reason) console.log('[db] video_frames kept but marked unusable, falling back to raw frame order', { imageId, reason })
+    else console.warn('[db] video_frames row is unusable, falling back to raw frame order', { imageId })
+  }
   return frames
 }
