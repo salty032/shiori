@@ -20,6 +20,24 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.3.0': {
+    ja: [
+      '録画したクリップを mp4 で書き出せるようになりました。設定 > データ > 動画の変換 で「mp4」を選ぶと、書き出すときに H.264 へ変換します（既定はこれまでどおり webm です）。画質はわずかに落ちますが、コマの位置と枚数は変わりません。効くのは選んだクリップの書き出しだけで、ライブラリはそのままです。変換できなかったクリップは元の形式のまま書き出し、その本数を画面に表示します。',
+      '録画の先頭でコマが欠けにくくなりました。Alt+D を押したあと、記録は準備が整ってから始まります。待っている間は映像の中央に「録画の準備中」と表示され、この表示が消えた時点が記録の開始です（待つのは最長 2 秒です）。',
+      'コマ送りの注記を作り直しました。絵が撮れていないコマは「未取得」、コマ自体が届いていない箇所は「8 コマ抜け」、録画全体としてコマ送りが当てにならないものはコマ番号ごと赤で「要注意」と表示されます。それぞれの意味は、コマ番号を押すと一覧で読めます。',
+      '以前のバージョンでコマ単位の送りを諦め、黄色い「フレーム 128 / 719」と表示されていたクリップが、素材のコマ単位に戻ることがあります。起動してしばらくすると自動で見直します。',
+      '詳細パネルの表示を整理しました。「未通知」「要確認」をやめ、取れていないコマの合計（「12コマ未取得」）と、録画全体の「要注意」だけを表示します。',
+      'データの保護を強めました。新しいバージョンで更新したライブラリを古いバージョンで開こうとした場合は、書き換えずに停止します。ライブラリの構造を変える更新の前には必ずバックアップを取り、取れなかったときは何も変更せず中止します。また、設定ファイルを読み込めなかった起動では、設定の変更をファイルへ書き込まなくなりました（これまでは初期設定で上書きされていました）。',
+    ],
+    en: [
+      'Clips can now be exported as mp4. Choose “mp4” under Settings > Data > Video conversion and Shiori converts to H.264 on export (webm stays the default). The picture loses a little quality, but frame positions and the frame count stay the same. Only the export is converted — your library is left as it is. Clips that could not be converted are exported in their original format, and the number is shown on screen.',
+      'Fewer frames are lost at the start of a recording. After Alt+D, recording now waits until capture has settled. While it waits, “Preparing to record” appears in the middle of the video, and recording begins the moment it disappears (the wait is at most 2 seconds).',
+      'Frame-stepping annotations have been rebuilt. A frame whose picture was not captured is marked “not captured”, a point where the frames themselves never arrived is marked “8 frames missing”, and a clip whose frame stepping cannot be trusted turns the frame number red and reads “unreliable”. Press the frame number to read what each one means.',
+      'Clips that earlier versions gave up on — showing a yellow “Frame 128 / 719” instead of source frames — may go back to stepping one source frame at a time. Shiori re-checks them shortly after startup.',
+      'The detail panel has been tidied up. “Unreported” and “needs review” are gone; it now shows the total number of frames that are not there (“12 frames not captured”) and, for the clip as a whole, “unreliable”.',
+      'Your data is better protected. A library that a newer version of Shiori has updated will not be opened or rewritten by an older one. A backup is now required before any update that changes the library structure — if it cannot be made, the update is cancelled and nothing is changed. And when the settings file cannot be read at startup, changes are no longer written to it (they used to overwrite it with the defaults).',
+    ],
+  },
   '1.2.0': {
     ja: [
       '動画クリップを録画できるようになりました。動画の再生中に Alt+D を押すと、最長30秒のクリップを録画できます。録画したクリップはアプリ内で再生・トリミングできるほか、手元にある .webm / .mp4 ファイルをドロップして取り込むこともできます。',
