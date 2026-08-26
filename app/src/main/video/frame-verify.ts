@@ -246,3 +246,52 @@ export function logVerifyResult(imageId: number, result: VerifyResult | null): v
     ` | picture changes ${result.fileChanges}/${transitions} transitions (${rate.toFixed(0)}%)`
   )
 }
+
+// 印を付けた表を救えるかの判定（recheckUnusableClips から使う）。
+//
+// **録画時の判定（findFrameDivergence）とは別物。** あちらは供給時刻とファイル内 PTS を
+// 添字で 1 対 1 に突き合わせるので、ファイル側のコマが 1 枚落ちただけで全部ダメと出る。
+// だが録画は素材 1 コマあたり 2 枚以上撮っている（実測 51 枚/秒 で 24fps 素材）ので、
+// 1 枚落ちてもその素材コマには別の 1 枚が当たっていて絵は正しい。
+//
+// こちらは供給時刻を使わず（保存していない）、**表そのものとファイルだけで確かめる**。
+// 素材の時刻の進みと、表が指すファイル内フレームの時刻の進みを比べる。対応が崩れていれば
+// ずれは溜まって末尾まで戻らない。一過性のずれは溜まらない。
+const RESCUE_TAIL_ROWS = 10      // 末尾の何行を見るか（溜まりの有無はここに出る）
+const RESCUE_MAX_OFF_RATIO = 0.05 // 1 コマ以上ずれた行の許容割合
+
+export interface TableFileMatch {
+  /** 表を使ってよいか */
+  ok: boolean
+  /** ファイルの範囲外を指す行を落とした表（末尾切り詰め） */
+  trimmed: StoredFrame[]
+  /** 素材 1 コマぶんを超えてずれた行の数 */
+  offRows: number
+  /** 最大のずれ（ms） */
+  worstMs: number
+}
+
+export function checkTableAgainstFile(frames: StoredFrame[], pts: number[]): TableFileMatch {
+  const trimmed = frames.filter((f) => f.frameIndex < pts.length)
+  const empty = { ok: false, trimmed, offRows: 0, worstMs: 0 }
+  if (trimmed.length < RESCUE_TAIL_ROWS * 2) return empty
+
+  // 素材のコマ長は表の mediaTime の間隔から出す（fps 列は空のことがある）。
+  const gaps: number[] = []
+  for (let i = 1; i < trimmed.length; i++) gaps.push(trimmed[i].mediaTime - trimmed[i - 1].mediaTime)
+  const period = [...gaps].sort((a, b) => a - b)[gaps.length >> 1]
+  if (!(period > 0)) return empty
+
+  const base = trimmed[0]
+  const off = trimmed.map((f) =>
+    ((f.mediaTime - base.mediaTime) - (pts[f.frameIndex] - pts[base.frameIndex])) * 1000
+  )
+  const limit = period * 1000
+  const offRows = off.filter((d) => Math.abs(d) >= limit).length
+  const worstMs = off.reduce((worst, d) => (Math.abs(d) > Math.abs(worst) ? d : worst), 0)
+  // 末尾が収まっていること＝ずれが溜まっていないこと。崩れているとここに必ず出る。
+  const tailOk = off.slice(-RESCUE_TAIL_ROWS).every((d) => Math.abs(d) < limit)
+  // 途中の一過性のずれは許す。録画開始直後の荒れ（実測で先頭 1.2 秒）がここに来る。
+  const spreadOk = offRows / off.length < RESCUE_MAX_OFF_RATIO
+  return { ok: tailOk && spreadOk, trimmed, offRows, worstMs }
+}

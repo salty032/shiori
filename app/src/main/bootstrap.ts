@@ -38,6 +38,7 @@ import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
 import { sendBrowserNotice } from './browser/browser-notice'
+import { recheckUnusableClips } from './video/verify-clip'
 import { decideVersionNotice } from './system/version-notice'
 import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
@@ -319,6 +320,10 @@ export function bootstrap(features: MainFeature[] = []): void {
     // ないため30秒後へ回し、さらに sweepOrphanFilesIfDue 側で週1回までに間引く。
     setTimeout(() => {
       sweepOrphanFilesIfDue().catch((err) => console.warn('[sweep] failed', err))
+      // 使えない印を付けた表の見直し（verify-clip.ts の recheckUnusableClips）。
+      // 判定を直したときに、印が付いたままのクリップを救うための後追い。掃除と同じ理由で
+      // 起動直後は避ける（1 本ごとにフル デコードが要る）。
+      recheckUnusableClips().catch((err) => console.warn('[frame-recheck] failed', err))
     }, 30_000)
     for (const feature of features) await feature.onReady?.()
     const settingsProblem = consumeSettingsLoadProblem()

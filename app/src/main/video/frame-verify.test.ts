@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 // db.ts は electron の app.getPath を import 時点で読むため、型のみの参照でもモックが要る。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { findFrameDivergence, signaturesDiffer, verifyFrameTable } from './frame-verify'
+import { checkTableAgainstFile, findFrameDivergence, signaturesDiffer, verifyFrameTable } from './frame-verify'
 import type { StoredFrame } from '../db-video-frames'
 
 const GRID = 32 * 32
@@ -232,3 +232,60 @@ describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が�
     expect(findFrameDivergence([T0], [0])).toBe(1)
   })
 })
+
+// 印を付けた表を救えるかの判定（recheckUnusableClips が使う）。
+// **録画時の判定とは別の物差し。** あちらは供給枚数とファイル枚数を添字で突き合わせるので
+// ファイル側が 1 枚落ちただけで全部ダメと出るが、録画は素材 1 コマあたり 2 枚以上撮って
+// いるので絵は正しい。こちらは表とファイルだけを見て、ずれが溜まっているかを判定する。
+describe('checkTableAgainstFile（印を付けた表を救えるか）', () => {
+  const SRC = 1 / 23.976   // 素材のコマ長（秒）
+  const CAP = 1 / 51       // 供給の間隔（秒）。素材 1 コマにつき 2 枚強
+
+  // 素材 count コマぶんの表と、それが指すファイル内フレーム時刻を作る。
+  function build(count: number, opts: { shiftRows?: Record<number, number>; drift?: number } = {}) {
+    const pts: number[] = []
+    for (let i = 0; i < count * 3; i++) pts.push(i * CAP)
+    const frames = Array.from({ length: count }, (_, i) => ({
+      mediaTime: i * SRC,
+      frameIndex: Math.round((i * SRC) / CAP),
+      captured: true
+    }))
+    // shiftRows: その行だけファイル内の別フレームを指す（一過性のずれ）
+    for (const [row, by] of Object.entries(opts.shiftRows ?? {})) {
+      frames[Number(row)].frameIndex += by
+    }
+    // drift: その行から先すべてがずれたまま戻らない（対応の崩れ）
+    if (opts.drift) {
+      for (let i = opts.drift; i < frames.length; i++) frames[i].frameIndex += 2
+    }
+    return { frames, pts }
+  }
+
+  it('ずれが無ければ救える', () => {
+    const { frames, pts } = build(120)
+    expect(checkTableAgainstFile(frames, pts).ok).toBe(true)
+  })
+
+  it('先頭の数行だけ 1 コマ以上ずれていても救える（録画開始直後の荒れ）', () => {
+    // 実測（image 249）: 679 行中 2 行が素材 1.4 コマぶんずれ、末尾は 18ms に収まっていた。
+    // ここを弾くと、立ち上がりが荒れただけの録画が永久に黄色いままになる。
+    const { frames, pts } = build(120, { shiftRows: { 2: 3, 3: 3 } })
+    const r = checkTableAgainstFile(frames, pts)
+    expect(r.offRows).toBeGreaterThan(0)
+    expect(r.ok).toBe(true)
+  })
+
+  it('途中から最後までずれ続けていれば救わない（本当に崩れている）', () => {
+    const { frames, pts } = build(120, { drift: 40 })
+    expect(checkTableAgainstFile(frames, pts).ok).toBe(false)
+  })
+
+  it('ファイルの範囲外を指す行は落として数える（末尾切り詰め）', () => {
+    const { frames, pts } = build(120)
+    frames[119].frameIndex = pts.length + 5
+    const r = checkTableAgainstFile(frames, pts)
+    expect(r.trimmed).toHaveLength(119)
+    expect(r.ok).toBe(true)
+  })
+})
+

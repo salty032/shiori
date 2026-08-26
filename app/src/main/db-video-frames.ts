@@ -57,6 +57,73 @@ export function encodeUnusable(data: string, reason: string): string {
   return JSON.stringify(row)
 }
 
+// 印の中に残してある表を取り出す。**救済専用の入口**——通常の読み出し（decodeFrames）は
+// 印が付いていれば必ず null を返す必要があるので、そちらとは別にしてある。
+export function readUnusableFrames(data: string): StoredFrame[] | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const frames = (parsed as { frames?: unknown }).frames
+  return frames === undefined ? null : decodeFrames(JSON.stringify(frames))
+}
+
+// 見直しに使った判定の版。**判定を直したら上げる。** 上げると、前の版で印を付けたまま
+// 救えなかったクリップが起動後にもう一度見直される（recheckUnusableClips）。
+export const RECHECK_VERSION = 1
+
+// 印付きの表のうち、まだこの版で見直していないものを列挙する。
+export function listUnusableForRecheck(): RecheckTarget[] {
+  const rows = prepare(
+    'SELECT v.image_id AS imageId, v.data AS data, i.filepath AS filepath, i.captured_at AS capturedAt' +
+    ' FROM video_frames v JOIN images i ON i.id = v.image_id'
+  ).all() as { imageId: number; data: string; filepath: string; capturedAt: number | null }[]
+  const out: RecheckTarget[] = []
+  for (const row of rows) {
+    if (!readUnusableReason(row.data)) continue
+    if (readRecheckedWith(row.data) >= RECHECK_VERSION) continue
+    const frames = readUnusableFrames(row.data)
+    if (frames && row.filepath) {
+      out.push({ imageId: row.imageId, filepath: row.filepath, frames, capturedAt: row.capturedAt })
+    }
+  }
+  return out
+}
+
+export interface RecheckTarget {
+  imageId: number
+  filepath: string
+  frames: StoredFrame[]
+  /** ログに出す撮影時刻。**番号だけでは、どの録画のことか画面から探せない。** */
+  capturedAt: number | null
+}
+
+function readRecheckedWith(data: string): number {
+  try {
+    const parsed = JSON.parse(data) as { recheckedWith?: unknown }
+    return typeof parsed?.recheckedWith === 'number' ? parsed.recheckedWith : 0
+  } catch {
+    return 0
+  }
+}
+
+// 見直したが救えなかった。**同じ版では二度と見直さない**（1 本ごとにフル デコードが要るため）。
+export function markRechecked(id: number): void {
+  const row = prepare('SELECT data FROM video_frames WHERE image_id = ?').get(id) as { data: string } | undefined
+  if (!row) return
+  try {
+    const parsed = JSON.parse(row.data)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return
+    parsed.recheckedWith = RECHECK_VERSION
+    prepare('UPDATE video_frames SET data = ? WHERE image_id = ?').run(JSON.stringify(parsed), id)
+  } catch {
+    // 壊れた行は触らない（表が無いものとして扱われるだけで害が無い）
+  }
+}
+
 // 印が付いていればその理由、付いていなければ null（＝通常の表・壊れた行）。
 export function readUnusableReason(data: string): string | null {
   let parsed: unknown

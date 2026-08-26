@@ -7,10 +7,13 @@
 // ffmpeg でフレームの署名と表示時刻を取り出し、結果を DB へ書き戻すところだけを受け持つ。
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
-import { findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
+import { checkTableAgainstFile, findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
 import { setAmbiguousFrames, setFrameCounts } from '../db'
-import { markVideoFramesUnusable, saveVideoFrames, type StoredFrame } from '../db-video-frames'
+import {
+  listUnusableForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
+} from '../db-video-frames'
 import { countReportDrops } from './frame-feed'
+import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
 
@@ -119,5 +122,71 @@ export async function verifyClipFrames(
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
     console.warn(`[frame-verify] image ${imageId}: failed`, err)
+  }
+}
+
+// 使えない印を付けた表を、もう一度ファイルと突き合わせて救う。
+//
+// **判定は経験則なので、実測を踏むたび調整が入る。** 2026-08-26 は録画時の判定が誤って
+// 231 コマ・撮り逃し 0 の表を捨てていた。直したあとも、既に印が付いたクリップは印が付いた
+// ままで黄色く出続ける——残しただけでは戻らないので、見直す口が要る。
+//
+// 1 本ごとにフル デコードが要るので、同じ版では二度見しない（markRechecked）。
+// 判定を直したときは RECHECK_VERSION を上げれば、次の起動で全部もう一度見直される。
+const RECHECK_YIELD_MS = 2000
+
+export async function recheckUnusableClips(): Promise<void> {
+  const targets = listUnusableForRecheck()
+  if (targets.length === 0) return
+  console.log(`[frame-recheck] ${targets.length} clip(s) marked unusable, re-checking against the files`)
+  // 番号だけでは画面のどの録画か探せない。撮影時刻を添える（ASCII のみ——dev.bat の
+  // コンソールは Shift-JIS でタイトルの日本語が化ける）。
+  const when = (at: number | null): string =>
+    at ? new Date(at).toLocaleString('sv-SE').slice(5, 16) : 'unknown time'
+  for (const target of targets) {
+    // **録画中は必ず譲る。** 1 本ごとに動画をまるごとデコードするので CPU を食う。
+    // 録画中に走らせると、キャプチャの負荷でページが素材のコマを描き落とす——
+    // recording.ts の waitForSteadyFrames で塞いだのと同じ壊れ方を、こちらから起こすことになる。
+    // 撮り終えてから続ける（後追いの処理なので、遅れて困るものではない）。
+    while (isCurrentlyRecording()) {
+      await new Promise((resolve) => setTimeout(resolve, RECHECK_YIELD_MS))
+    }
+    try {
+      const { pts } = await getFrameSignatures(target.filepath)
+      if (pts.length === 0) {
+        markRechecked(target.imageId)
+        continue
+      }
+      const match = checkTableAgainstFile(target.frames, pts)
+      if (!match.ok) {
+        console.log(
+          `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): still unusable` +
+          ` (${match.offRows} row(s) off by a full source frame, worst ${match.worstMs.toFixed(1)}ms)`
+        )
+        markRechecked(target.imageId)
+        continue
+      }
+      // 印を外して通常の表へ戻す。範囲外を指す行は落としてある。
+      saveVideoFrames(target.imageId, match.trimmed)
+      setFrameCounts(
+        target.imageId,
+        match.trimmed.filter((f) => !f.captured).length,
+        match.trimmed.length,
+        countReportDrops(match.trimmed.map((f) => f.mediaTime))
+      )
+      console.log(
+        `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): rescued` +
+        ` (${match.trimmed.length} rows, worst ${match.worstMs.toFixed(1)}ms)`
+      )
+      notifyVerified(
+        target.imageId,
+        match.trimmed.filter((f) => !f.captured).length,
+        null,
+        match.trimmed.length,
+        countReportDrops(match.trimmed.map((f) => f.mediaTime))
+      )
+    } catch (err) {
+      console.warn(`[frame-recheck] image ${target.imageId} failed`, err)
+    }
   }
 }
