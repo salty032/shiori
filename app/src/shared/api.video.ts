@@ -31,6 +31,13 @@ export const FRAME_QUALITY = {
 export type FrameQuality = (typeof FRAME_QUALITY)[keyof typeof FRAME_QUALITY]
 
 /** クリップのコマ送りに必要な情報一式。 */
+export interface ClipGap {
+  /** この添字のコマの「次」に抜けがある */
+  afterIndex: number
+  /** 抜けているコマ数 */
+  missing: number
+}
+
 export interface ClipFrames {
   /** 1 コマずつの時刻（秒・非減少）。撮り逃したコマは直前と同じ値になる */
   pts: number[]
@@ -44,6 +51,17 @@ export interface ClipFrames {
   sourceBased: boolean
   /** pts と同じ長さ。sourceBased が false のときは空（コマ単位の確からしさが分からない） */
   quality: FrameQuality[]
+  /**
+   * 表から抜けている区間（ページがコマを描かず、知らせも来なかったところ）。
+   *
+   * **撮り逃し（quality の流用）とは別物。** あちらは「コマはあるが専用の絵が無い」だが、
+   * こちらは**表に行すら無い**ので、コマ送りするとその区間がまるごと飛ぶ。枚数にも割合にも
+   * 現れないため、画面に出さないと気づけない（実害はこちらの方が大きい）。
+   *
+   * afterIndex は pts の添字で、「そのコマの次に missing コマぶん抜けている」を表す。
+   * sourceBased が false のときは空（素材のコマ単位でないので抜けを数えられない）。
+   */
+  gaps?: ClipGap[]
 }
 
 export interface VideoApi {

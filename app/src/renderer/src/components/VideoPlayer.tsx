@@ -133,6 +133,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   const stepSec = 1 / Math.max(1, fps || 24)
   // このクリップのコマ情報。取得できるまで（および動画機能を落とした構成）は null のまま。
   const framesRef = useRef<ClipFrames | null>(null)
+  const gapsRef = useRef<Map<number, number>>(new Map())
   // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
   //
   // 時刻で持って毎回シーク結果を実測し直すと、連打したときに前のシークの実測（非同期で
@@ -185,6 +186,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const settle = (frames: ClipFrames | null): void => {
       if (canceled) return
       framesRef.current = frames
+      // 「このコマの次に何コマ抜けているか」を添字で引けるようにしておく（コマ送りのたびに
+      // 配列を走査すると、押しっぱなしのときに効いてくる）。
+      gapsRef.current = new Map((frames?.gaps ?? []).map((g) => [g.afterIndex, g.missing]))
       setFrameEnd(frames && frames.pts.length > 0 ? frames.pts[frames.pts.length - 1] : null)
       setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
       onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
@@ -262,9 +266,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     }
 
     const note = FRAME_NOTE[frames.quality[cur] ?? FRAME_QUALITY.captured]
-    el.textContent = note ? `${tr('viewer.frameIndex', params)} · ${tr(note.label)}` : tr('viewer.frameIndex', params)
-    el.title = tr(note ? note.hint : 'viewer.frameSourceHint')
-    el.style.color = note ? note.color : FRAME_COLOR.ok
+    // 表から抜けている区間（ClipGap）。**撮り逃しより実害が大きい**——撮り逃しは「絵が無い」
+    // だけだが、こちらはコマ自体が表に無く、コマ送りするとその区間がまるごと飛ぶ。
+    // 詳細パネルには合計が出るが、**数えている最中に見えるのはここ**なので、その場に出す。
+    const missing = gapsRef.current.get(cur) ?? 0
+    const notes: string[] = []
+    if (note) notes.push(tr(note.label))
+    if (missing > 0) notes.push(tr('viewer.frameGapAfter', { count: String(missing) }))
+    el.textContent = notes.length > 0
+      ? `${tr('viewer.frameIndex', params)} · ${notes.join(' · ')}`
+      : tr('viewer.frameIndex', params)
+    // 注記が重なったら抜けの説明を優先する（数え間違いに直結するのはこちら）。
+    el.title = missing > 0
+      ? tr('viewer.frameGapAfterHint', { count: String(missing) })
+      : tr(note ? note.hint : 'viewer.frameSourceHint')
+    // 色は強い方を採る。赤（絵が特定不能）＞ 黄（抜け・未検証の流用）＞ 白。
+    el.style.color = note?.color === FRAME_COLOR.alert
+      ? FRAME_COLOR.alert
+      : missing > 0 ? FRAME_COLOR.warn : note ? note.color : FRAME_COLOR.ok
   }
 
   // delta コマ動かす（正で先へ、負で前へ）。

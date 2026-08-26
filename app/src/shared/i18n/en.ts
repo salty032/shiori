@@ -258,6 +258,8 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.frameReused': 'reused',
   'viewer.frameReusedSame': 'reused, no change',
   'viewer.frameNeedsReview': 'needs review',
+  'viewer.frameGapAfter': '{count} frames missing next',
+  'viewer.frameGapAfterHint': 'The page never reported {count} frames right after this one. They are absent from the table, so frame stepping skips over them. Do not count frame timing across this gap.',
   'viewer.frameLoading': 'Loading frame table',
   'viewer.frameEstimated': 'Frame positions unknown ({fps}fps estimate)',
   'viewer.frameSourceHint': 'Stepping one source frame at a time. If the picture does not change, that is because the source held the same picture.',

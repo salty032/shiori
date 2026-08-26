@@ -272,6 +272,10 @@ export const ja = {
   'viewer.frameReused': '流用',
   'viewer.frameReusedSame': '流用・変化なし',
   'viewer.frameNeedsReview': '要確認',
+  // 表から抜けている区間（ClipGap）。撮り逃し（流用）とは別物で、**コマ自体が表に無い**。
+  // コマ送りするとその区間が飛ぶのに、出さないと画面からは気づけない。
+  'viewer.frameGapAfter': 'この先 {count} コマ抜け',
+  'viewer.frameGapAfterHint': 'このコマの次に {count} コマぶん、ページからコマの知らせが届いていません。表に無いのでコマ送りではここが飛びます。この区間をまたいでコマ打ちを数えることはできません。',
   'viewer.frameLoading': 'コマ表を読み込み中',
   'viewer.frameEstimated': 'コマ位置不明（{fps}fps 換算）',
   'viewer.frameSourceHint': '元の動画のコマ単位で進みます。映像が変わらない箇所では、元の動画でも同じ映像が続いています。',

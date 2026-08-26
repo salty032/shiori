@@ -67,10 +67,42 @@ vi.mock('fs/promises', () => ({
   unlink: vi.fn(async () => {})
 }))
 
-import { registerVideoHandlers, buildClipFrames, frameQualityOf } from './ipc-video'
+import { registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf } from './ipc-video'
 import { FRAME_QUALITY } from '../../shared/api.video'
 import type { StoredFrame } from '../db-video-frames'
 import { unlink } from 'fs/promises'
+
+// 表から抜けている区間。**撮り逃し（流用）とは別物で、コマ自体が表に無い。**
+// コマ送りするとその区間が飛ぶのに、枚数にも割合にも現れないので画面に出さないと気づけない。
+describe('findClipGaps（表から抜けている区間）', () => {
+  const SRC = 1 / 23.976
+  const rows = (counts: number[]): { mediaTime: number; frameIndex: number; captured: boolean }[] => {
+    let t = 0
+    return counts.map((step, i) => {
+      t += i === 0 ? 0 : step * SRC
+      return { mediaTime: t, frameIndex: i, captured: true }
+    })
+  }
+
+  it('連続していれば抜けは無い', () => {
+    expect(findClipGaps(rows([1, 1, 1, 1, 1, 1]))).toEqual([])
+  })
+
+  it('飛んでいる位置と枚数を返す', () => {
+    // 実測（2026-08-26・image 255）は 1〜2 コマの飛びが 8 箇所続いたあと 8 コマ・11 コマ。
+    expect(findClipGaps(rows([1, 1, 3, 1, 9, 1]))).toEqual([
+      { afterIndex: 1, missing: 2 },
+      { afterIndex: 3, missing: 8 }
+    ])
+  })
+
+  it('素材のコマ長は表の間隔から出す（fps 列は空のことがある）', () => {
+    // 60fps 素材でも、同じ「1 コマぶん」を基準に数えられること。
+    const t = (i: number): number => i / 60
+    const frames = [0, 1, 2, 5, 6].map((i) => ({ mediaTime: t(i), frameIndex: i, captured: true }))
+    expect(findClipGaps(frames)).toEqual([{ afterIndex: 2, missing: 2 }])
+  })
+})
 
 describe('buildClipFrames（コマ送りに渡す並びと、コマごとの確からしさ）', () => {
   // ファイルには 4 枚のフレームがあり、素材のコマは 3 つ。2 コマ目は専用の絵が撮れていない。

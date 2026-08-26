@@ -11,7 +11,7 @@ import { optionalPositiveInteger } from '../ipc/ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
-import type { ClipFrames, FrameQuality } from '../../shared/api.video'
+import type { ClipFrames, ClipGap, FrameQuality } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { sliceFrameTable, countReportDrops } from './frame-feed'
 import { verifyClipFrames } from './verify-clip'
@@ -68,13 +68,34 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
 // 表が無い・表の frameIndex がファイルの範囲外（＝対応が取れていない）ときは退避して
 // ファイルのフレームをそのまま返し、**素材のコマ単位ではないことを sourceBased で明示する**。
 // 黙って別の刻みへ落ちるのが最悪なので、呼び出し側が画面に出せる形で返す。
+// 表から抜けている区間を拾う（ClipGap のコメント参照）。
+//
+// 素材のコマ長は表の mediaTime の間隔から出す。fps 列は空のことがあり（拡張未接続・
+// 非対応サイト）、そこから割り出すと素材によって基準がぶれる。
+const GAP_MIN_MISSING = 1
+
+export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
+  if (frames.length < 3) return []
+  const diffs: number[] = []
+  for (let i = 1; i < frames.length; i++) diffs.push(frames[i].mediaTime - frames[i - 1].mediaTime)
+  const period = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
+  if (!(period > 0)) return []
+  const gaps: ClipGap[] = []
+  for (let i = 0; i < diffs.length; i++) {
+    const missing = Math.round(diffs[i] / period) - 1
+    if (missing >= GAP_MIN_MISSING) gaps.push({ afterIndex: i, missing })
+  }
+  return gaps
+}
+
 export function buildClipFrames(pts: number[], table: StoredFrame[] | null): ClipFrames {
   const usable = table?.filter((f) => f.frameIndex >= 0 && f.frameIndex < pts.length) ?? []
   if (usable.length === 0) return { pts, sourceBased: false, quality: [] }
   return {
     pts: usable.map((f) => pts[f.frameIndex]),
     sourceBased: true,
-    quality: usable.map(frameQualityOf)
+    quality: usable.map(frameQualityOf),
+    gaps: findClipGaps(usable)
   }
 }
 
