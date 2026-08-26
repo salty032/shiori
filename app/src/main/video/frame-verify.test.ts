@@ -127,12 +127,12 @@ describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が�
   const GAP_MS = 17.8
   const T0 = 1_700_000_000_000
 
-  function makeDrawn(count: number, jitterMs = 0): number[] {
+  function makeDrawn(count: number, jitterMs = 0, gapMs = GAP_MS): number[] {
     let seed = 4242
     return Array.from({ length: count }, (_, i) => {
       seed = (seed * 1103515245 + 12345) & 0x7fffffff
       const jitter = jitterMs === 0 ? 0 : ((seed / 0x7fffffff) * 2 - 1) * jitterMs
-      return T0 + i * GAP_MS + jitter
+      return T0 + i * gapMs + jitter
     })
   }
 
@@ -158,6 +158,31 @@ describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が�
     // 落ちた位置から先は供給 1 回ぶんずれるので、そこで検出できる。
     // 末尾欠落（表を切って使える）と途中欠落（捨てるしかない）を分ける判定そのもの。
     for (const dropAt of [1, 120]) {
+      const drawn = makeDrawn(200, 2)
+      const pts = ptsFrom(drawn)
+      pts.splice(dropAt, 1)
+      expect(findFrameDivergence(drawn, pts), `dropAt=${dropAt}`).toBe(dropAt)
+    }
+  })
+
+  // 2026-08-10 の再現だけでは足りなかった。あちらは許容幅まで 3ms しか余裕が無く、
+  // 外れが 2 枚続いて戻り先がわずかに正側へ振れただけで超える。実機で再発したので、
+  // 実測値そのものを固定する（それまでの判定は image 246 をここで捨てていた）。
+  it('先頭で 2 枚続けて外れても崩れとみなさない（2026-08-26 の実測を再現）', () => {
+    // 実測: 供給 19.1ms・許容 11.5ms。shift が 0.0 / -9.6 / -13.1 と外れ、4 枚目で +0.1、
+    // 以降は +2.9 前後で末尾まで対応が成立していた（231 コマ・撮り逃し 0）。
+    const drawn = makeDrawn(200, 0, 19.1)
+    const pts = ptsFrom(drawn)
+    pts[1] += 9.6 / 1000
+    pts[2] += 13.1 / 1000
+    for (let i = 3; i < pts.length; i++) pts[i] -= 2.9 / 1000
+    expect(findFrameDivergence(drawn, pts)).toBe(200)
+  })
+
+  // 上の直しで「手前が足りないうちは判定しない」に逃げると、ここが素通りする。
+  // 素通りの実害は表が捨てられないことではなく、**1 コマずれた表が黙って使われる**こと。
+  it('先頭付近で本当に落ちていれば、外れと区別してその位置を返す', () => {
+    for (const dropAt of [1, 2, 3, 4]) {
       const drawn = makeDrawn(200, 2)
       const pts = ptsFrom(drawn)
       pts.splice(dropAt, 1)

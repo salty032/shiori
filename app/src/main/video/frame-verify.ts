@@ -88,7 +88,17 @@ export function findFrameDivergence(drawnAt: number[], pts: number[], toleranceM
   for (let i = 0; i < n; i++) shift.push(drawnAt[i] - drawnAt[0] - (pts[i] - pts[0]) * 1000)
 
   for (let i = 1; i < n; i++) {
-    const before = median(shift.slice(Math.max(0, i - LEVEL_WINDOW), i))
+    // 手前が窓に満たない位置（先頭 LEVEL_WINDOW 枚）では中央値を使わず 0 と比べる。
+    // **shift[0] は定義上つねに 0**（先頭を原点にした差なので）で、頭の水準は推定するまでも
+    // なく分かっている。数枚しか無いところで中央値を取ると、一過性の外れが 2 枚あるだけで
+    // 中央値が外れ値そのものになり、正常へ戻った位置を段差と読む。
+    // 実測（2026-08-26・23.976fps / 供給 19.1ms）: shift が 0.0 / -9.6 / -13.1 と外れて
+    // 4 枚目で +0.1 へ戻り、末尾まで対応が成立していた録画で、手前 3 枚の中央値 -9.6 と
+    // その先の +2.9 の差 12.5ms が許容 11.5ms を 1ms 超え、231 コマ・撮り逃し 0 の表を
+    // 捨てていた（image 246）。ここを 0 と比べれば差は 2.9ms で通る。
+    // **窓に満たないからといって判定自体を止めてはいけない。** 止めると先頭で本当に落ちた
+    // ときに水準の変化が窓へ収まりきり、対応が 1 コマずれた表を黙って使うことになる。
+    const before = i < LEVEL_WINDOW ? 0 : median(shift.slice(i - LEVEL_WINDOW, i))
     const after = median(shift.slice(i, Math.min(n, i + LEVEL_WINDOW)))
     if (Math.abs(after - before) <= tolerance) continue
     // 窓の中央値で見ているので、段差を検出した位置は実際の欠落より数枚手前になりうる
