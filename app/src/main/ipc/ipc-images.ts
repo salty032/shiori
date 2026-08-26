@@ -26,6 +26,8 @@ import { getVideoThumbProvider } from '../capture/video-thumb-provider'
 import { createProgressThrottle } from '../system/progress-throttle'
 import { beginTask, endTask } from '../system/busy'
 import { t } from '../system/i18n'
+import { loadSettings } from '../system/settings'
+import { getVideoMeta, transcodeToH264 } from '../video/ffmpeg'
 // 削除を並列投入しすぎると Windows のファイル操作が一時的に失敗するため絞る
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
 const DELETE_CONCURRENCY = 4
@@ -170,6 +172,13 @@ export function registerImageHandlers(): void {
       isImagesExportCanceled = false
       const dest = filePaths[0]
       const used = new Set<string>()
+      // 形式は設定（設定 > データ > 動画の書き出し形式）から読む。**フォルダを選ぶ前ではなく
+      // ここで 1 回だけ読む**ので、書き出しの最中に設定を変えられても 1 回の書き出しの中で
+      // 形式が混ざることはない。
+      const toH264 = loadSettings().videoExportFormat === 'h264'
+      // H.264 で頼まれたのに変換できず、元の形式のまま置いた本数。
+      // **黙って webm を置くと「mp4 で出したつもり」のまま気づけない。** 画面に出す。
+      let notConverted = 0
       const copyOne = async (id: number): Promise<boolean> => {
         const image = getImage(id)
         if (!image) return false
@@ -184,9 +193,41 @@ export function registerImageHandlers(): void {
         const datePart = formatDateForFilename(image.captured_at)
         const timePart = formatTimecodeForFilename(image.current_time)
         const srcExt = extname(src) || '.png'
-        const preferred = `${baseTitle}_${datePart}${timePart ? `_t${timePart}` : ''}${srcExt}`
+        const nameWith = async (ext: string): Promise<string> =>
+          uniqueExportPath(dest, `${baseTitle}_${datePart}${timePart ? `_t${timePart}` : ''}${ext}`, used)
+
+        if (toH264 && image.media_type === 'video') {
+          // すでに H.264 のものは触らない。変換は非可逆なので、掛け直すだけ画質が落ちる
+          // （取り込んだ mp4 が該当する）。コーデックが読めなかったときは変換する側へ倒す
+          //  ——「H.264 でない可能性があるものを H.264 として出す」ほうが困る。
+          let alreadyH264 = false
+          try {
+            alreadyH264 = (await getVideoMeta(src)).codec === 'h264'
+          } catch (err) {
+            console.warn(`[images:export] codec probe failed id=${id}`, err)
+          }
+          if (!alreadyH264) {
+            const outPath = await nameWith('.mp4')
+            try {
+              await transcodeToH264(
+                src,
+                outPath,
+                { width: image.width, height: image.height, fps: image.fps },
+                () => isImagesExportCanceled
+              )
+              return true
+            } catch (err) {
+              try { await unlink(outPath) } catch {}
+              // 中止で落ちたときは「失敗」として数えない（この後ループも抜ける）。
+              if (isImagesExportCanceled) return false
+              console.warn(`[images:export] h264 transcode failed id=${id}`, err)
+              notConverted++
+            }
+          }
+        }
+
         try {
-          await copyFile(src, await uniqueExportPath(dest, preferred, used))
+          await copyFile(src, await nameWith(srcExt))
           return true
         } catch (err) {
           console.warn(`[images:export] copy failed id=${id}`, err)
@@ -202,7 +243,7 @@ export function registerImageHandlers(): void {
         if (await copyOne(ids[i])) count++
         if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
       }
-      return { canceled: isImagesExportCanceled, count, truncated }
+      return { canceled: isImagesExportCanceled, count, truncated, notConverted }
     } finally {
       isImagesExporting = false
       endTask('export')

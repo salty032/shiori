@@ -73,5 +73,6 @@ export function useSettings(showToast?: ShowToast) {
     updateShowAiTags: (v: boolean) => update('showAiTags', v, showToast),
     updateTheme: (v: Settings['theme']) => update('theme', v, showToast),
     updateLanguage: (v: Settings['language']) => update('language', v, showToast),
+    updateVideoExportFormat: (v: Settings['videoExportFormat']) => update('videoExportFormat', v, showToast),
   }
 }

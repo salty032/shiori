@@ -24,6 +24,7 @@ const DEFAULTS = {
   // 無効・未指定の language は 'ja' へ倒す（normalizeSettings は OS ロケールを見ない。
   // 新規インストール時の OS ロケール判定は loadSettings 側の責務）。
   language: 'ja',
+  videoExportFormat: 'original',
   lastRunVersion: null,
 }
 
@@ -172,4 +173,13 @@ describe('normalizeSettings', () => {
     it('無効な値 → デフォルト dark', () => expect(normalizeSettings({ theme: 'invalid' }).theme).toBe('dark'))
     it('値なし → デフォルト dark', () => expect(normalizeSettings({}).theme).toBe('dark'))
   })
+})
+
+describe('videoExportFormat', () => {
+  it("'h264' はそのまま", () => expect(normalizeSettings({ videoExportFormat: 'h264' }).videoExportFormat).toBe('h264'))
+  it("'original' はそのまま", () => expect(normalizeSettings({ videoExportFormat: 'original' }).videoExportFormat).toBe('original'))
+  // 知らない値で「変換するつもりが無いのに変換される」ほうが困るので、既定の
+  // 'original'（そのままコピー）へ倒す。
+  it('知らない値 → そのまま', () => expect(normalizeSettings({ videoExportFormat: 'av1' }).videoExportFormat).toBe('original'))
+  it('未指定 → そのまま', () => expect(normalizeSettings({}).videoExportFormat).toBe('original'))
 })

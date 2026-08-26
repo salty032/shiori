@@ -67,6 +67,10 @@ function languageValue(value: unknown): Lang {
   return value === 'ja' || value === 'en' ? value : DEFAULTS.language
 }
 
+function videoExportFormatValue(value: unknown): Settings['videoExportFormat'] {
+  return value === 'h264' ? 'h264' : DEFAULTS.videoExportFormat
+}
+
 // 新規インストール時の初期表示言語。app.getLocale() は app ready 前だと空文字を返しうるので、
 // 呼ぶのは settings.json が存在しないと分かった後（＝ready 後の loadSettings）に限る。
 // 一度決めたら settings.json に焼き付き、以降 OS の言語変更には追従しない
@@ -126,6 +130,7 @@ export function normalizeSettings(value: unknown): Settings {
     showAiTags: data.showAiTags === true,
     theme: themeValue(data.theme),
     language: languageValue(data.language),
+    videoExportFormat: videoExportFormatValue(data.videoExportFormat),
     lastRunVersion: nullableText(data.lastRunVersion),
   }
 }

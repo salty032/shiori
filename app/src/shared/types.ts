@@ -71,6 +71,10 @@ export type SmartFolder = {
 
 export type Theme = 'system' | 'dark' | 'light'
 
+// 選んだものを書き出すときの動画の形式。'original' は録画したファイルをそのままコピー
+// （従来の挙動・既定）、'h264' は mp4 へ変換して置く。ライブラリの中身は変換しない。
+export type VideoExportFormat = 'original' | 'h264'
+
 export type Settings = {
   titleStrip: string[]
   thumbnailSize: number
@@ -90,6 +94,12 @@ export type Settings = {
   // osDefaultLang）、以降はユーザーが設定画面で選んだ値をそのまま保持する。
   // 既存の settings.json に language が無い場合は 'ja'（従来の挙動）へ倒す。
   language: Lang
+  // 選んだものの書き出しで録画をどう置くか（設定 > データ > 動画の書き出し形式）。
+  // 静止画には効かない——PNG のまま書き出す。
+  //
+  // 共有書き出し（設定 > データ の「ライブラリを書き出す」）はこの値を一切見ない。
+  // あちらは別の PC の Shiori へ読み込ませるためのもので、変換すると元と一致しなくなる。
+  videoExportFormat: VideoExportFormat
   // 前回起動時のアプリバージョン。起動時に現行バージョンと比較し、自動アップデートが
   // （サイレント適用も含め）行われたことを一度だけ通知するために使う。初回起動は null。
   lastRunVersion: string | null

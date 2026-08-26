@@ -33,23 +33,50 @@ function analysisLimitError(): Error {
   return new Error(`ffmpeg output exceeded the analysis limit (${MAX_ANALYZED_FRAMES} frames)`)
 }
 
-function runFfmpeg(args: string[]): Promise<void> {
+// isCanceled を渡すと、実行中でも中止できる。**変換（transcodeToH264）で要る。**
+// 1 本あたり十数秒かかるので、中止ボタンを押しても今の 1 本が終わるまで反応しないと
+// 「押したのに止まらない」ように見える。トリムやサムネは一瞬で終わるので渡していない。
+function runFfmpeg(args: string[], isCanceled?: () => boolean): Promise<void> {
   return new Promise((resolve, reject) => {
     let bin: string
     try { bin = getFfmpegPath() } catch (err) { reject(err); return }
     const proc = spawn(bin, args, { stdio: 'pipe' })
     const stderr = new StderrCollector()
+    let settled = false
     const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      clearTimers()
       proc.kill()
       reject(new Error('ffmpeg timeout'))
     }, FFMPEG_TIMEOUT_MS)
+    const cancelTimer = isCanceled
+      ? setInterval(() => {
+          if (settled || !isCanceled()) return
+          settled = true
+          clearTimers()
+          proc.kill()
+          reject(new Error('ffmpeg canceled'))
+        }, 250)
+      : null
+    function clearTimers(): void {
+      clearTimeout(timer)
+      if (cancelTimer) clearInterval(cancelTimer)
+    }
     proc.stderr?.on('data', (d: Buffer) => { stderr.push(d.toString()) })
     proc.on('close', (code) => {
-      clearTimeout(timer)
+      if (settled) return
+      settled = true
+      clearTimers()
       if (code === 0) resolve()
       else reject(new Error(`ffmpeg exited ${code}: ${stderr.text.slice(-1000)}`))
     })
-    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    proc.on('error', (err) => {
+      if (settled) return
+      settled = true
+      clearTimers()
+      reject(err)
+    })
   })
 }
 
@@ -248,7 +275,7 @@ export async function getVideoFramePts(inputPath: string): Promise<number[]> {
 // 尺・fps をまとめて取る軽い解析。Duration 行・fps 表記のどちらも入力オープン直後の
 // stderr に出るため、出力先を指定せず即座に非ゼロ終了させる（`-f null -` で最後まで
 // デコードするのは無駄）。runFfmpegCollect は終了コードを問わず stderr を返す設計。
-export async function getVideoMeta(inputPath: string): Promise<{ duration: number | null; fps: number | null }> {
+export async function getVideoMeta(inputPath: string): Promise<{ duration: number | null; fps: number | null; codec: string | null }> {
   const { stderr } = await runFfmpegCollect([
     '-hide_banner',
     '-i', inputPath
@@ -271,9 +298,14 @@ export async function getVideoMeta(inputPath: string): Promise<{ duration: numbe
   const fpsMatch = streamLine ? /([\d.]+)\s*fps/.exec(streamLine) : null
   const fps = fpsMatch ? Number(fpsMatch[1]) : null
 
+  // "Video: h264 (Constrained Baseline)" の最初の語。書き出しの変換で「もう H.264 なら
+  // 作り直さない」を判断するために使う（非可逆なので、掛け直すだけ画質が落ちる）。
+  const codecMatch = streamLine ? /: Video: (\w+)/.exec(streamLine) : null
+
   return {
     duration,
-    fps: fps != null && Number.isFinite(fps) && fps > 0 ? fps : null
+    fps: fps != null && Number.isFinite(fps) && fps > 0 ? fps : null,
+    codec: codecMatch ? codecMatch[1].toLowerCase() : null
   }
 }
 
@@ -315,6 +347,86 @@ export async function trimWebm(
     outPath
   )
   await runFfmpeg(args)
+}
+
+// 書き出し（設定 > データ > 動画の書き出し形式）で H.264 を選んだときの変換。
+// **ライブラリの中身には触らない。** 変換するのは書き出し先へ置くコピーだけ。
+//
+// 同梱している ffmpeg は LGPL ビルドで、GPL の libx264 は入っていない（ファイル冒頭参照）。
+// 代わりに libopenh264（Cisco・BSD-2）が入っており、これは GPU の有無に関係なく動く。
+// h264_nvenc / h264_qsv / h264_amf のほうが 3 倍ほど速いが、載っている GPU で結果が
+// 変わるものを既定にすると「うちの PC だけ書き出せない・画質が違う」が起きる。
+// 実測（1080p60・30秒）では libopenh264 12秒 / MediaFoundation 5秒 / NVENC 4秒、
+// 元との一致度（SSIM）は 0.981 / 0.982 / 0.985 でほぼ差が無かったので、速さより
+// 「どの PC でも同じ結果」を採る。
+const H264_ENCODER = 'libopenh264'
+
+// 画素あたりのビット数。1920×1080×60fps で約 20Mbps になる係数。
+// 上の実測（20Mbps・SSIM 0.981）がこの値。
+const H264_BITS_PER_PIXEL = 0.16
+const H264_MIN_BITRATE = 4_000_000
+const H264_MAX_BITRATE = 40_000_000
+// 解像度が分からないとき（取り込んだ動画・古い行では width/height が null）の固定値。
+const H264_FALLBACK_BITRATE = 16_000_000
+
+export function h264Bitrate(width: number | null, height: number | null, fps: number | null): number {
+  if (!width || !height || width <= 0 || height <= 0) return H264_FALLBACK_BITRATE
+  // fps が無い録画がある。低く見積もると足りないので、対応上限に近い 60 を置く。
+  const rate = fps && fps > 0 ? Math.min(fps, 120) : 60
+  const raw = Math.round(width * height * rate * H264_BITS_PER_PIXEL)
+  return Math.min(H264_MAX_BITRATE, Math.max(H264_MIN_BITRATE, raw))
+}
+
+// 引数を組み立てるところだけ切り出す。**コマのずれを防いでいるのは 2 つの指定だけで、
+// どちらも外しても変換自体は成功する**（画面にも出ない）ので、指定が残っていること自体を
+// テストで固定する。実素材での確認は同じテストファイルの transcodeToH264 の項。
+export function h264Args(
+  inputPath: string,
+  outPath: string,
+  meta: { width: number | null; height: number | null; fps: number | null }
+): string[] {
+  return [
+    '-y',
+    '-i', inputPath,
+    // **これが無いとコマ数が変わる。** 録画は「画面が変化したぶんだけ」フレームを吐く
+    // 可変フレームレートで、mp4 の既定（固定フレームレート）に落とすと ffmpeg が
+    // 足りない位置にコマを複製する。実測では 237 コマが 240 コマに水増しされ、
+    // 終わりのほうで元より約 4 秒ずれた。コマ送りもフレーム表も丸ごと嘘になる。
+    // passthrough なら 237 コマのまま、ずれは最大 0.33ms（記録の刻みの丸めぶん）に収まる。
+    '-fps_mode', 'passthrough',
+    // **passthrough だけでは足りない。** コマの本数は保たれるが、時刻は「エンコーダの
+    // 時間の刻み」へ丸められる。ffmpeg はこの刻みを素材の fps から決めるので、57fps の
+    // 録画では 1/57 秒＝17.5ms 刻みになり、実録画で**最大 8.8ms（素材 1 コマの約 1/4）
+    // ずれた**。コマ数のほうは合っているので、枚数を見ても気づけない。
+    // demux は「素材が持っている刻みをそのまま使う」指定。webm は 1ms 刻みなので、
+    // 実録画 4 本で最大ずれ 0.000ms になった（2026-08-26 実測）。
+    // **`-video_track_timescale` では直らない**（丸めは muxer より前で起きている）。
+    '-enc_time_base', 'demux',
+    // libopenh264 は縦横が奇数だと**黙って 1px 削る**（実測 1365x767 → 1364x766）。
+    // 録画のクロップ幅は画面の DPR 次第で奇数になる（capture.ts の computeVideoCrop）ので
+    // 現実に起きる。削られると画面からは気づけないため、削らせずに埋める。
+    // 代償：奇数だったときだけ右端・下端に黒が 1px 入る（見れば分かる）。
+    '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2',
+    '-c:v', H264_ENCODER,
+    '-b:v', String(h264Bitrate(meta.width, meta.height, meta.fps)),
+    '-pix_fmt', 'yuv420p',
+    // 音声が無いクリップでは無視される。
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    // 先頭にインデックスを置く。編集ソフトや再生側が全部読まずに開ける。
+    '-movflags', '+faststart',
+    outPath
+  ]
+}
+
+export async function transcodeToH264(
+  inputPath: string,
+  outPath: string,
+  meta: { width: number | null; height: number | null; fps: number | null },
+  isCanceled?: () => boolean
+): Promise<void> {
+  await mkdir(dirname(outPath), { recursive: true })
+  await runFfmpeg(h264Args(inputPath, outPath, meta), isCanceled)
 }
 
 export async function getTimelineStrip(inputPath: string, duration: number, count: number): Promise<Buffer> {

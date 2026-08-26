@@ -26,7 +26,7 @@ export function buildCoreApi(): ShioriApi {
     listAllTags: (includeAi?: boolean): Promise<TagWithCount[]> =>
       ipcRenderer.invoke(CH.imagesListAllTags, includeAi),
 
-    exportImages: (imageIds: number[]): Promise<{ canceled: boolean; count?: number; truncated?: boolean }> =>
+    exportImages: (imageIds: number[]): Promise<{ canceled: boolean; count?: number; truncated?: boolean; notConverted?: number }> =>
       ipcRenderer.invoke(CH.imagesExport, imageIds),
 
     imagesExportCancel: (): Promise<void> => ipcRenderer.invoke(CH.imagesExportCancel),

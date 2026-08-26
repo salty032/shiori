@@ -2,6 +2,9 @@
 //
 // **進捗と中止は images/share で 1 系統しかない。** 共有書き出しの最中に選択エクスポートを
 // 始めると、進捗バーと中止ボタンがどちらのものか分からなくなる（B-6）。ここで片方に絞る。
+//
+// 動画をどの形式で置くかは設定（設定 > データ > 動画の書き出し形式）で決まる。ここは
+// 形式を渡さない——main が書き出しの直前に設定を読む。
 import type { ShowToast } from './useToast'
 import { useExportStore } from '../stores/exportStore'
 import { t, tp } from '../i18n'
@@ -29,7 +32,14 @@ export function useExportSelected({ getDefaultIds, showToast }: UseExportSelecte
       } else if (result.count != null) {
         // U-2: エクスポートID上限（MAX_EXPORT_IDS）到達を明示する
         const truncatedMsg = result.truncated ? t('toast.exportTruncatedSuffix') : ''
-        showToast(tp('toast.exported', result.count) + truncatedMsg, result.truncated ? 'warning' : 'success')
+        // H.264 を選んでいるのに変換できなかったぶん。**黙って webm を置くと、mp4 で
+        // 出したつもりのまま気づけない。** 成功トーストに混ぜず警告色へ倒す。
+        const notConverted = result.notConverted ?? 0
+        const notConvertedMsg = notConverted > 0
+          ? t('toast.exportNotConvertedSuffix', { count: String(notConverted) })
+          : ''
+        const warn = result.truncated || notConverted > 0
+        showToast(tp('toast.exported', result.count) + truncatedMsg + notConvertedMsg, warn ? 'warning' : 'success')
       }
     } catch (err) {
       console.error('[export] failed', err)

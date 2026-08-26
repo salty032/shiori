@@ -27,6 +27,7 @@ type Props = {
   onUpdateCaptureNotify: (enabled: boolean) => void
   onUpdateShowAiTags: (enabled: boolean) => void
   onUpdateTheme: (theme: Settings['theme']) => void
+  onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
   onUpdateLanguage: (language: Settings['language']) => void
   onTaggerDownload: () => void
   onTaggerCancelDownload: () => void
@@ -536,6 +537,27 @@ export default function SettingsModal(p: Props) {
                       ))}
                     </>
                   )}
+                </div>
+                {/* 選んだものを書き出すときの動画の形式。**すぐ下の「エクスポート」はライブラリの共有
+                    書き出しで、この設定を見ない。** 見出しに「書き出し」を使うと同じ語が隣り合って
+                    見分けられなくなるため、こちらは「変換」と呼ぶ。 */}
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.videoExport')}</div>
+                  <div style={s.row}>
+                    <span style={s.label}>{t('settings.videoExportFormat')}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
+                      {([['original', t('settings.videoExportFormat.original')], ['h264', t('settings.videoExportFormat.h264')]] as const).map(([value, label]) => {
+                        const active = p.settings.videoExportFormat === value
+                        return (
+                          <button key={value} onClick={() => p.onUpdateVideoExportFormat(value)} data-current={active ? 'true' : undefined}
+                            style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div style={s.hint}>{t('settings.videoExportFormatHint')}</div>
                 </div>
                 <div style={s.group}>
                   <div style={s.section}>{t('action.export')}</div>

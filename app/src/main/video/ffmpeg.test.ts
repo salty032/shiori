@@ -16,13 +16,26 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { trimWebm, getVideoDuration, getVideoMeta, getFrameSignatures, getVideoFramePts, SIGNATURE_GRID } from './ffmpeg'
+import { trimWebm, getVideoDuration, getVideoMeta, getFrameSignatures, getVideoFramePts, transcodeToH264, h264Args, h264Bitrate, SIGNATURE_GRID } from './ffmpeg'
 import { signaturesDiffer } from './frame-verify'
 
 function runFfmpegSync(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG_BIN, args, { stdio: 'ignore' })
     proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))))
+    proc.on('error', reject)
+  })
+}
+
+
+// ffmpeg の -i だけを走らせて stderr を読む。出力の縦横は Stream 行にしか出ないので、
+// 「奇数のまま削られていないか」を見るのに要る。
+function probeStderr(path: string): Promise<{ stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(FFMPEG_BIN, ['-hide_banner', '-i', path], { stdio: ['ignore', 'ignore', 'pipe'] })
+    let out = ''
+    proc.stderr?.on('data', (d: Buffer) => { out += d.toString() })
+    proc.on('close', () => resolve({ stderr: out }))
     proc.on('error', reject)
   })
 }
@@ -185,4 +198,119 @@ describe('getVideoMeta', () => {
     expect(meta.duration).toBeNull()
     expect(meta.fps).toBeNull()
   }, 30_000)
+})
+
+describe('h264Bitrate', () => {
+  it('1080p60 では実測で使った 20Mbps 前後になる', () => {
+    expect(h264Bitrate(1920, 1080, 60)).toBeCloseTo(19_906_560, -5)
+  })
+
+  it('解像度が分からない行では固定値へ落ちる（取り込み動画・古い行）', () => {
+    expect(h264Bitrate(null, null, 60)).toBe(16_000_000)
+    expect(h264Bitrate(0, 1080, 60)).toBe(16_000_000)
+  })
+
+  it('小さすぎ・大きすぎは上下限で止まる', () => {
+    expect(h264Bitrate(320, 240, 10)).toBe(4_000_000)
+    expect(h264Bitrate(3840, 2160, 120)).toBe(40_000_000)
+  })
+
+  it('fps が無い録画は 60 とみなす（低く見積もると足りない）', () => {
+    expect(h264Bitrate(1920, 1080, null)).toBe(h264Bitrate(1920, 1080, 60))
+  })
+})
+
+
+describe('h264Args', () => {
+  const args = h264Args('in.webm', 'out.mp4', { width: 1920, height: 1080, fps: 60 })
+
+  // どちらも外しても変換は成功し、画面にも何も出ない。**外れたことに気づけるのは
+  // ここだけ。** それぞれ何が起きるかは ANIME-FRAMES.md に実測付きで書いてある。
+  it('コマ数を保つ指定が入っている（外すと ffmpeg がコマを複製する）', () => {
+    expect(args.join(' ')).toContain('-fps_mode passthrough')
+  })
+
+  it('コマの時刻を保つ指定が入っている（外すと素材の fps 刻みへ丸められる）', () => {
+    expect(args.join(' ')).toContain('-enc_time_base demux')
+  })
+
+  it('奇数サイズを埋める指定が入っている（外すと libopenh264 が 1px 削る）', () => {
+    expect(args.join(' ')).toContain('pad=ceil(iw/2)*2:ceil(ih/2)*2')
+  })
+
+  // GPU 依存のエンコーダを既定にすると「うちの PC だけ書き出せない」が起きる。
+  it('どの PC でも動くエンコーダを使う', () => {
+    expect(args).toContain('libopenh264')
+    expect(args.join(' ')).not.toMatch(/nvenc|qsv|amf|libx264/)
+  })
+})
+
+describe('transcodeToH264', () => {
+  let dir: string
+  let vfrPath: string
+  let oddPath: string
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'shiori-ffmpeg-h264-test-'))
+
+    // 可変フレームレートの素材。録画（MediaRecorder）は「画面が変化したぶんだけ」
+    // フレームを吐くので、実物もこの形になる。select でコマを間引いて等間隔でなくする。
+    vfrPath = join(dir, 'vfr.webm')
+    await runFfmpegSync([
+      '-y',
+      '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=60:duration=3',
+      '-vf', "select='not(eq(mod(n,7),3))+not(eq(mod(n,11),5))'",
+      '-fps_mode', 'passthrough',
+      '-c:v', 'libvpx',
+      vfrPath
+    ])
+
+    // 縦横が奇数の素材。録画のクロップ幅は画面の DPR 次第で奇数になる
+    // （capture.ts の computeVideoCrop）ので、実際に起きる。
+    oddPath = join(dir, 'odd.webm')
+    await runFfmpegSync([
+      '-y',
+      '-f', 'lavfi', '-i', 'testsrc=size=321x241:rate=30:duration=1',
+      '-c:v', 'libvpx',
+      oddPath
+    ])
+  }, 60_000)
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  // **この 2 つが崩れると、コマ送りもフレーム表も黙って嘘になる。**
+  // 固定フレームレートへ落とすと ffmpeg が足りない位置にコマを複製し、実測では
+  // 237 コマが 240 コマに増えて終わりのほうで約 4 秒ずれた（ANIME-FRAMES.md 参照）。
+  it('コマ数が変わらない', async () => {
+    const outPath = join(dir, 'vfr.mp4')
+    await transcodeToH264(vfrPath, outPath, { width: 320, height: 240, fps: 60 })
+    const before = await getVideoFramePts(vfrPath)
+    const after = await getVideoFramePts(outPath)
+    expect(after.length).toBe(before.length)
+  }, 120_000)
+
+  it('各コマの時刻が 1 つも動かない', async () => {
+    const outPath = join(dir, 'vfr_pts.mp4')
+    await transcodeToH264(vfrPath, outPath, { width: 320, height: 240, fps: 60 })
+    const before = await getVideoFramePts(vfrPath)
+    const after = await getVideoFramePts(outPath)
+    expect(after).toEqual(before)
+  }, 120_000)
+
+  // libopenh264 は奇数サイズを黙って 1px 削る（実測 1365x767 → 1364x766）。
+  // 削られると画面からは気づけないので、埋めて逃がしていることを固定する。
+  it('縦横が奇数でも絵が欠けない（偶数へ埋める）', async () => {
+    const outPath = join(dir, 'odd.mp4')
+    await transcodeToH264(oddPath, outPath, { width: 321, height: 241, fps: 30 })
+    const { stderr } = await probeStderr(outPath)
+    expect(stderr).toMatch(/322x242/)
+  }, 120_000)
+
+  it('H.264 として書けている', async () => {
+    const outPath = join(dir, 'codec.mp4')
+    await transcodeToH264(oddPath, outPath, { width: 321, height: 241, fps: 30 })
+    expect((await getVideoMeta(outPath)).codec).toBe('h264')
+  }, 120_000)
 })

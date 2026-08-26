@@ -744,6 +744,7 @@ export default function App() {
             onUpdateCaptureNotify={settings.updateCaptureNotify}
             onUpdateShowAiTags={settings.updateShowAiTags}
             onUpdateTheme={settings.updateTheme}
+            onUpdateVideoExportFormat={settings.updateVideoExportFormat}
             onUpdateLanguage={settings.updateLanguage}
             onTaggerDownload={tagger.handleTaggerDownload}
             onTaggerCancelDownload={tagger.handleTaggerCancelDownload}

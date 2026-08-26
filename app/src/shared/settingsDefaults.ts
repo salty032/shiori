@@ -28,5 +28,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   // この値が実際に効くのは「settings.json はあるが language キーが無い」＝
   // 言語設定より前のバージョンからのアップグレード組で、従来どおり日本語で起動させる。
   language: 'ja',
+  // 既定は「そのまま」。H.264 は非可逆の作り直しなので、更新しただけで今までと違う
+  // ファイルが出るようにはしない（設定で選んだ人にだけ変換が起きる）。
+  videoExportFormat: 'original',
   lastRunVersion: null,
 }
