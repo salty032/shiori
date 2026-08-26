@@ -72,7 +72,12 @@ describe('健全性の確認', () => {
   it('中身を壊したファイルは開けても検出できる（開けた＝健全ではない）', () => {
     // 1000 行入れてページを増やし、ヘッダーではなく中間のページを壊す。ヘッダーだけを
     // 壊すと open の時点で弾かれてしまい、「開けるが壊れている」状態にならない。
+    // 1 行ずつコミットすると WAL への書き込みが 1000 回走る。手元では 1 秒未満だが、
+    // CI（windows-latest）では 5 秒のタイムアウトに掛かった（2026-08-26）。ページを
+    // 増やすのが目的で、コミットの回数には意味が無いのでまとめて 1 回にする。
+    db.exec('BEGIN')
     for (let i = 0; i < 1000; i++) db.exec(`INSERT INTO timesheets (image_id, cell) VALUES (${i}, 'x${i}')`)
+    db.exec('COMMIT')
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     db.close()
 
