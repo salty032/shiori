@@ -175,13 +175,13 @@ describe('canBuildTimesheet', () => {
 
   it('流用でも「前後の絵が同一と検証済み」を例外にしない（撮れてはいない）', () => {
     const q = captured(100)
-    q[7] = FRAME_QUALITY.reusedSame
+    q[7] = FRAME_QUALITY.reused
     expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
   it('要確認のコマがあれば当然出さない', () => {
     const q = captured(100)
-    q[7] = FRAME_QUALITY.reusedChanged
+    q[7] = FRAME_QUALITY.reused
     expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 

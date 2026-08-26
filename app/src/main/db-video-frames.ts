@@ -24,6 +24,14 @@ export interface StoredFrame {
   frameIndex: number
   captured: boolean
   verified?: FrameVerify
+  /**
+   * frameIndex が指すファイル内フレームが、この素材コマとは限らない。
+   *
+   * **表全体を捨てる代わりに、ずれた行にだけ立てる印。** 以前は途中で対応が崩れると表を
+   * 丸ごと使わなくしていたが、崩れた位置より手前は正しいので、そこまで失うのは割に合わない
+   * （docs/ANIME-FRAMES.md 0 章）。立っているコマだけ画面で赤く出す。
+   */
+  misaligned?: boolean
 }
 
 // 直列化時のコード。文字列をそのまま並べると1クリップ千数百要素ぶん嵩む。
@@ -35,10 +43,13 @@ const VERIFY_NAME: FrameVerify[] = ['unknown', 'same', 'changed']
 // コマ送りが静かに従来動作へ落ちる箇所なので、ここだけでも検証できる形にしておく。
 //
 // 配列の配列で持つ。1クリップで千数百要素になるため、キー名を繰り返さない。
-// 4 要素目（検証結果）は後から足したもの。3 要素しか無い古い行も読めるようにしてあるため
-// （decodeFrames の length チェックは >= 3 のまま）、既存のクリップは未検証として扱われる。
+// 4 要素目（検証結果）と 5 要素目（対応のずれ）は後から足したもの。3 要素しか無い古い行も
+// 読めるようにしてあるため（decodeFrames の length チェックは >= 3 のまま）、既存のクリップは
+// 未検証・ずれなしとして扱われる。
 export function encodeFrames(frames: StoredFrame[]): string {
-  return JSON.stringify(frames.map((f) => [f.mediaTime, f.frameIndex, f.captured ? 1 : 0, VERIFY_CODE[f.verified ?? 'unknown']]))
+  return JSON.stringify(frames.map((f) => [
+    f.mediaTime, f.frameIndex, f.captured ? 1 : 0, VERIFY_CODE[f.verified ?? 'unknown'], f.misaligned ? 1 : 0
+  ]))
 }
 
 // 「検証の結果、使ってはいけないと決めた表」の印。**表そのものは中に丸ごと残す**
@@ -73,7 +84,11 @@ export function readUnusableFrames(data: string): StoredFrame[] | null {
 
 // 見直しに使った判定の版。**判定を直したら上げる。** 上げると、前の版で印を付けたまま
 // 救えなかったクリップが起動後にもう一度見直される（recheckUnusableClips）。
-export const RECHECK_VERSION = 1
+// 2: 表全体の採否をやめ、ずれた行にだけ印を立てる形へ（2026-08-26）。
+//    版 1 で「救えない」と判定したクリップにも、使える行が残っていることがある。
+// 3: 単発の印を無視するようにした（2026-08-26）。版 2 は撮影間隔の揺らぎで 1 コマだけ
+//    立つ印を関係ない場所に散らしていた。
+export const RECHECK_VERSION = 3
 
 // 印付きの表のうち、まだこの版で見直していないものを列挙する。
 export function listUnusableForRecheck(): RecheckTarget[] {
@@ -157,7 +172,10 @@ export function decodeFrames(data: string): StoredFrame[] | null {
     // （コマ送りの土台である mediaTime/frameIndex まで巻き添えで失う方が損失が大きい）。
     // 未検証として扱えば、表示は「検証していない」に落ちるだけで嘘にはならない。
     const verified = item.length >= 4 ? VERIFY_NAME[item[3] as number] ?? 'unknown' : 'unknown'
-    out.push({ mediaTime, frameIndex, captured: captured === 1, verified })
+    // 印が立っているときだけ持たせる（false を詰めない）。**大多数の行には無い情報**で、
+    // 付けて回ると既存の比較・保存経路が「別物」として扱いはじめる。
+    const misaligned = item.length >= 5 && item[4] === 1
+    out.push({ mediaTime, frameIndex, captured: captured === 1, verified, ...(misaligned ? { misaligned } : {}) })
   }
   return out
 }

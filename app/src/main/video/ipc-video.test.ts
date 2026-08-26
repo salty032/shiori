@@ -118,7 +118,7 @@ describe('buildClipFrames（コマ送りに渡す並びと、コマごとの確�
     expect(frames.sourceBased).toBe(true)
     expect(frames.pts).toEqual([0, 0.02, 0.06])
     expect(frames.quality).toEqual([
-      FRAME_QUALITY.captured, FRAME_QUALITY.reusedChanged, FRAME_QUALITY.captured
+      FRAME_QUALITY.captured, FRAME_QUALITY.reused, FRAME_QUALITY.captured
     ])
   })
 
@@ -157,8 +157,11 @@ describe('frameQualityOf（そのコマを信じてよいか）', () => {
     const missed = { mediaTime: 0, frameIndex: 0, captured: false }
     expect(frameQualityOf(missed)).toBe(FRAME_QUALITY.reused)
     expect(frameQualityOf({ ...missed, verified: 'unknown' })).toBe(FRAME_QUALITY.reused)
-    expect(frameQualityOf({ ...missed, verified: 'same' })).toBe(FRAME_QUALITY.reusedSame)
-    expect(frameQualityOf({ ...missed, verified: 'changed' })).toBe(FRAME_QUALITY.reusedChanged)
+    // 「前後が同じ＝実害なし」の灰色表示は廃止した（2026-08-26）。前後が同じでも間の
+    // 1 コマだけ違う（ショックコマ）可能性は絵が無い以上消えず、確定できないことを
+    // 確定したように見せていたため。検証結果は残すが、画面では流用と同じ扱いにする。
+    expect(frameQualityOf({ ...missed, verified: 'same' })).toBe(FRAME_QUALITY.reused)
+    expect(frameQualityOf({ ...missed, verified: 'changed' })).toBe(FRAME_QUALITY.reused)
   })
 })
 

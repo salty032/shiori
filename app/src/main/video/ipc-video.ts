@@ -36,6 +36,13 @@ function getCachedClipFrames(id: number): ClipFrames | undefined {
   return hit
 }
 
+// 表を書き換えたら捨てる。**キャッシュは開いた時点のスナップショット**で、検証（verify-clip）
+// や起動時の見直し（recheckUnusableClips）が裏で表を書き換えても自分では気づかない。
+// 捨てないと、印が付いた／外れたクリップを開いたまま古い並びで送り続けることになる。
+export function invalidateClipFrames(id: number): void {
+  clipFramesCache.delete(id)
+}
+
 function setCachedClipFrames(id: number, frames: ClipFrames): void {
   clipFramesCache.delete(id)
   clipFramesCache.set(id, frames)
@@ -52,9 +59,10 @@ function setCachedClipFrames(id: number, frames: ClipFrames): void {
 // 撮れているかどうかを先に見る。verified が 'unknown' のままなのは検証前・検証失敗・
 // 検証を持たない従来の行で、いずれも「流用しているが実害の有無は分からない」に当たる。
 export function frameQualityOf(f: StoredFrame): FrameQuality {
+  // ずれは最優先。**撮れているコマでも、指しているファイル内フレームが違えば出る絵が違う。**
+  // 流用（絵が無い）より重い——あちらは何が出ているか分かっているが、こちらは分からない。
+  if (f.misaligned) return FRAME_QUALITY.misaligned
   if (f.captured) return FRAME_QUALITY.captured
-  if (f.verified === 'same') return FRAME_QUALITY.reusedSame
-  if (f.verified === 'changed') return FRAME_QUALITY.reusedChanged
   return FRAME_QUALITY.reused
 }
 

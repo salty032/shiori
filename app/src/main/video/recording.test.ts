@@ -83,7 +83,8 @@ vi.mock('../system/i18n', () => ({ t: (key: string) => key }))
 
 import { desktopCapturer } from 'electron'
 import { sendBrowserNotice } from '../browser/browser-notice'
-import { finishRecordingState, isCurrentlyRecording, releaseCaptureUi, startRecording, wasRecordingDisplayAmbiguous } from './recording'
+import { waitForSteadyFrames } from './frame-feed'
+import { finishRecordingState, handleClipHotkey, isCurrentlyRecording, releaseCaptureUi, startRecording, wasRecordingDisplayAmbiguous } from './recording'
 
 function postCaptureCount(): number {
   return broadcastMessage.mock.calls.filter(([msg]) => (msg as { type: string }).type === 'post-capture').length
@@ -96,6 +97,40 @@ async function startRecordingSettled(): Promise<void> {
   if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(500)
   await started
 }
+
+// 記録を始める前の待ち（waitForSteadyFrames）の間に停止を押したとき。
+// **レコーダーはまだ録画を始めていないので、停止を送っても空振りする。** 直す前は待ちが
+// 明けてから録画が始まっており、押した人からは「止めたのに始まった」に見えた。
+describe('落ち着くのを待っている間に停止したとき', () => {
+  beforeEach(() => {
+    finishRecordingState()
+    vi.useFakeTimers()
+    broadcastMessage.mockClear()
+    recorderSend.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    finishRecordingState()
+  })
+
+  it('録画を始めずに畳む（recorder:start を送らない）', async () => {
+    // 既定のモックは即座に返るので、この試験のあいだだけ実際に待たせる。
+    vi.mocked(waitForSteadyFrames).mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve({ settled: true, waitedMs: 1000, reports: 30 }), 1000))
+    )
+    const started = startRecording()
+    // 待ちに入ったところで停止（ホットキーの再押下と同じ経路）。
+    await vi.advanceTimersByTimeAsync(300)
+    handleClipHotkey()
+    await vi.advanceTimersByTimeAsync(3000)
+    await started
+    expect(recorderSend.mock.calls.map((c) => c[0])).not.toContain('recorder:start')
+    expect(isCurrentlyRecording()).toBe(false)
+    // 隠したプレーヤー UI は戻す。畳んだのに隠したままにしない。
+    expect(broadcastMessage.mock.calls.some((c) => (c[0] as { type: string }).type === 'post-capture')).toBe(true)
+  })
+})
 
 describe('プレーヤー UI の復帰（post-capture）', () => {
   beforeEach(async () => {

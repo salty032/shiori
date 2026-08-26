@@ -257,41 +257,56 @@ export function logVerifyResult(imageId: number, result: VerifyResult | null): v
 // こちらは供給時刻を使わず（保存していない）、**表そのものとファイルだけで確かめる**。
 // 素材の時刻の進みと、表が指すファイル内フレームの時刻の進みを比べる。対応が崩れていれば
 // ずれは溜まって末尾まで戻らない。一過性のずれは溜まらない。
-const RESCUE_TAIL_ROWS = 10      // 末尾の何行を見るか（溜まりの有無はここに出る）
-const RESCUE_MAX_OFF_RATIO = 0.05 // 1 コマ以上ずれた行の許容割合
+// 印を立てるのに要る連続コマ数。崩れは持続するが、揺らぎは 1〜2 コマで戻る。
+const MISALIGN_SUSTAIN = 3
 
 export interface TableFileMatch {
-  /** 表を使ってよいか */
-  ok: boolean
-  /** ファイルの範囲外を指す行を落とした表（末尾切り詰め） */
-  trimmed: StoredFrame[]
-  /** 素材 1 コマぶんを超えてずれた行の数 */
-  offRows: number
+  /** 印を立てたうえで使う表。ファイルの範囲外を指す行は落としてある */
+  frames: StoredFrame[]
+  /** ずれの印を立てた行数 */
+  misaligned: number
   /** 最大のずれ（ms） */
   worstMs: number
 }
 
+// **表全体の採否を返さない。** 以前は「ずれた行が 5% を超えたら全部捨てる」だったが、
+// 95% が正しくても捨てることになる。取れた精度を切り捨てる方が損失は大きい
+// （docs/ANIME-FRAMES.md 0 章）。ずれた行にだけ印を立てて、残りはそのまま使う。
 export function checkTableAgainstFile(frames: StoredFrame[], pts: number[]): TableFileMatch {
   const trimmed = frames.filter((f) => f.frameIndex < pts.length)
-  const empty = { ok: false, trimmed, offRows: 0, worstMs: 0 }
-  if (trimmed.length < RESCUE_TAIL_ROWS * 2) return empty
+  if (trimmed.length < 3) return { frames: [], misaligned: 0, worstMs: 0 }
 
   // 素材のコマ長は表の mediaTime の間隔から出す（fps 列は空のことがある）。
   const gaps: number[] = []
   for (let i = 1; i < trimmed.length; i++) gaps.push(trimmed[i].mediaTime - trimmed[i - 1].mediaTime)
   const period = [...gaps].sort((a, b) => a - b)[gaps.length >> 1]
-  if (!(period > 0)) return empty
+  if (!(period > 0)) return { frames: [], misaligned: 0, worstMs: 0 }
 
+  // **基準は先頭の行。** ずれの中央値を基準にすると「多数派が正しい」ことになり、後半が
+  // まるごとずれた表では正しい前半の方に印が立つ。録画の先頭は対応が合っている側なので、
+  // そこを原点にして、そこから離れた行にだけ印を立てる。
   const base = trimmed[0]
   const off = trimmed.map((f) =>
     ((f.mediaTime - base.mediaTime) - (pts[f.frameIndex] - pts[base.frameIndex])) * 1000
   )
+
+  // **単発で立つ印は無視する。** 対応が本当に崩れたなら、そこから先はずっとずれ続ける。
+  // 1〜2 コマだけ超えて戻るのは撮影間隔の揺らぎで、崩れではない（実測 2026-08-26・image 264:
+  // 本物の崩れは 38 コマ連続だったが、その手前に 1 コマだけの印が 3 か所、2 コマが 1 か所出ていた）。
   const limit = period * 1000
-  const offRows = off.filter((d) => Math.abs(d) >= limit).length
-  const worstMs = off.reduce((worst, d) => (Math.abs(d) > Math.abs(worst) ? d : worst), 0)
-  // 末尾が収まっていること＝ずれが溜まっていないこと。崩れているとここに必ず出る。
-  const tailOk = off.slice(-RESCUE_TAIL_ROWS).every((d) => Math.abs(d) < limit)
-  // 途中の一過性のずれは許す。録画開始直後の荒れ（実測で先頭 1.2 秒）がここに来る。
-  const spreadOk = offRows / off.length < RESCUE_MAX_OFF_RATIO
-  return { ok: tailOk && spreadOk, trimmed, offRows, worstMs }
+  const over = off.map((d) => Math.abs(d) >= limit)
+  const sustained = over.map((v, i) => {
+    if (!v) return false
+    let run = 0
+    for (let j = i; j < over.length && over[j]; j++) run++
+    for (let j = i - 1; j >= 0 && over[j]; j--) run++
+    return run >= MISALIGN_SUSTAIN
+  })
+  const out = trimmed.map((f, i) => (sustained[i] ? { ...f, misaligned: true } : f))
+  return {
+    frames: out,
+    misaligned: out.filter((f) => f.misaligned).length,
+    worstMs: off.reduce((worst, d) => (Math.abs(d) > Math.abs(worst) ? d : worst), 0)
+  }
 }
+

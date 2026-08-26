@@ -7,6 +7,7 @@
 // ffmpeg でフレームの署名と表示時刻を取り出し、結果を DB へ書き戻すところだけを受け持つ。
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
+import { invalidateClipFrames } from './ipc-video'
 import { checkTableAgainstFile, findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
 import { setAmbiguousFrames, setFrameCounts } from '../db'
 import {
@@ -26,6 +27,9 @@ import { CH } from '../../shared/api'
 // total（素材のコマ総数）も一緒に流す。末尾を切ったときは母数も変わるので、枚数だけ送ると
 // 一覧のスナップショットの中で分子と分母が別の時点の数になり、割合の判定が静かに狂う。
 function notifyVerified(imageId: number, uncaptured: number | null, ambiguous: number | null, total: number | null, unreported: number | null): void {
+  // **画面へ知らせる前にキャッシュを捨てる。** ここへ来るのは表を書き換えた後だけで、
+  // 捨てないと開いたままのクリップが古い並びのままコマ送りを続ける。
+  invalidateClipFrames(imageId)
   sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported })
 }
 
@@ -79,14 +83,40 @@ export async function verifyClipFrames(
         const tail = paired > 3
           ? [paired - 3, paired - 2, paired - 1].map((i) => `${i}:${shiftAt(i)}`).join(' ')
           : ''
+        // **崩れた位置より手前は正しいので、そこまでは使う。** 以前は表を丸ごと使わなく
+        // していたが、それ自体がコマ精度を失う変更にあたる（docs/ANIME-FRAMES.md 0 章）。
+        // 以降の行には「ずれ」の印を立て、画面ではそのコマだけ赤く出す。
+        const marked = frames
+          .filter((f) => f.frameIndex < signatures.length)
+          .map((f) => (f.frameIndex >= divergeAt ? { ...f, misaligned: true } : f))
+        const misaligned = marked.filter((f) => f.misaligned).length
         console.error(
           `[frame-verify] image ${imageId}: frame correspondence breaks at index ${divergeAt}` +
           ` (supplied ${drawnAt.length}, file has ${signatures.length}).` +
           ` head shift [${head}]ms | around break [${around}]ms | tail [${tail}]ms.` +
-          ' Keeping the frame table but marking it unusable (frame stepping falls back to raw file frames).'
+          ` Keeping the ${marked.length - misaligned} row(s) before the break;` +
+          ` ${misaligned} row(s) marked misaligned.`
         )
-        markVideoFramesUnusable(imageId, 'correspondence-break')
-        notifyVerified(imageId, null, null, null, null)
+        if (marked.length === 0 || misaligned === marked.length) {
+          // 1 行も使えるところが無い。ここだけは表として成立しない。
+          markVideoFramesUnusable(imageId, 'correspondence-break')
+          notifyVerified(imageId, null, null, null, null)
+          return
+        }
+        saveVideoFrames(imageId, marked)
+        setFrameCounts(
+          imageId,
+          marked.filter((f) => !f.captured).length,
+          marked.length,
+          countReportDrops(marked.map((f) => f.mediaTime))
+        )
+        notifyVerified(
+          imageId,
+          marked.filter((f) => !f.captured).length,
+          null,
+          marked.length,
+          countReportDrops(marked.map((f) => f.mediaTime))
+        )
         return
       }
       // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
@@ -158,32 +188,34 @@ export async function recheckUnusableClips(): Promise<void> {
         continue
       }
       const match = checkTableAgainstFile(target.frames, pts)
-      if (!match.ok) {
+      const usable = match.frames.length - match.misaligned
+      if (usable === 0) {
         console.log(
-          `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): still unusable` +
-          ` (${match.offRows} row(s) off by a full source frame, worst ${match.worstMs.toFixed(1)}ms)`
+          `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): no usable rows` +
+          ` (${match.misaligned}/${match.frames.length} misaligned, worst ${match.worstMs.toFixed(1)}ms)`
         )
         markRechecked(target.imageId)
         continue
       }
-      // 印を外して通常の表へ戻す。範囲外を指す行は落としてある。
-      saveVideoFrames(target.imageId, match.trimmed)
+      // 印を外して通常の表へ戻す。ずれた行には印が立っており、そこだけ画面で赤く出る。
+      // **全部か全部ダメにしない**——使える行が 1 つでもあれば、その精度は返す。
+      saveVideoFrames(target.imageId, match.frames)
       setFrameCounts(
         target.imageId,
-        match.trimmed.filter((f) => !f.captured).length,
-        match.trimmed.length,
-        countReportDrops(match.trimmed.map((f) => f.mediaTime))
+        match.frames.filter((f) => !f.captured).length,
+        match.frames.length,
+        countReportDrops(match.frames.map((f) => f.mediaTime))
       )
       console.log(
-        `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): rescued` +
-        ` (${match.trimmed.length} rows, worst ${match.worstMs.toFixed(1)}ms)`
+        `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): restored` +
+        ` (${usable} usable, ${match.misaligned} misaligned, worst ${match.worstMs.toFixed(1)}ms)`
       )
       notifyVerified(
         target.imageId,
-        match.trimmed.filter((f) => !f.captured).length,
+        match.frames.filter((f) => !f.captured).length,
         null,
-        match.trimmed.length,
-        countReportDrops(match.trimmed.map((f) => f.mediaTime))
+        match.frames.length,
+        countReportDrops(match.frames.map((f) => f.mediaTime))
       )
     } catch (err) {
       console.warn(`[frame-recheck] image ${target.imageId} failed`, err)

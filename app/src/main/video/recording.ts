@@ -32,6 +32,11 @@ let currentRecordingSessionId = 0
 // finishRecordingState() の二度目を撥ねるために持つ（content.js の post-capture 処理は
 // scheduleRestorePlayerUI がタイマーを張り直すので、二度目を受けると復帰がその分だけ遅れる）。
 let uiHoldReleased = false
+// 記録を始める前の待ち（waitForSteadyFrames）に入っているか。**この間はレコーダーがまだ
+// 録画を始めていないので、停止を送っても空振りする。** 押した人には「止めた」つもりなのに
+// 待ちが明けてから録画が始まる、という形になるため、待ち中の停止は開始の取り消しにする。
+let awaitingStart = false
+let startCanceled = false
 
 export function isCurrentlyRecording(): boolean {
   return isRecording
@@ -252,8 +257,18 @@ export async function startRecording(): Promise<void> {
     // 「準備中」を出す —— まだ記録していないので写り込まないし、全画面でも見える。
     // 消えた瞬間が記録開始の合図になる。
     broadcastMessage({ type: 'clip-arming' })
+    awaitingStart = true
+    startCanceled = false
     const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)
+    awaitingStart = false
     broadcastMessage({ type: 'clip-armed' })
+    // 待っている間に停止を押されていたら、ここで畳む（レコーダーへは何も送らない）。
+    if (startCanceled) {
+      console.log(`[clip] canceled during settle (${settle.waitedMs}ms)`)
+      broadcastMessage({ type: 'post-capture', immediate: true })
+      finishRecordingState()
+      return
+    }
     console.log(`[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`)
     // 表示が実際に消えてから撮り始める。往復はローカルの WS で数 ms だが、消える前に
     // 記録を始めると「準備中」が数コマ写る——**録画そのものを汚す**ので余裕を持たせる。
@@ -328,6 +343,12 @@ export async function startRecording(): Promise<void> {
 
 function stopRecording(): void {
   if (!isRecording) return
+  // まだ記録を始めていない（落ち着くのを待っている）段階。ここで recorder:stop を送っても
+  // レコーダーには止めるものが無く、待ちが明けてから録画が始まってしまう。
+  if (awaitingStart) {
+    startCanceled = true
+    return
+  }
   getRecorderWindow()?.webContents.send('recorder:stop')
 }
 
@@ -357,6 +378,9 @@ export function finishRecordingState(): void {
   const wasRecording = isRecording
   isRecording = false
   recordingMeta = null
+  // 待ち中に異常終了した場合に取り残さない（次の録画が「取り消し済み」で始まらないよう）。
+  awaitingStart = false
+  startCanceled = false
   if (wasRecording) stopFrameFeed()
   // 預けた画面ソースを解放する。残しておくと、次の録画が何らかの理由で
   // setPendingDisplaySource を通らずに始まったとき、前回の（別ディスプレイかもしれない）

@@ -237,7 +237,7 @@ describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が�
 // **録画時の判定とは別の物差し。** あちらは供給枚数とファイル枚数を添字で突き合わせるので
 // ファイル側が 1 枚落ちただけで全部ダメと出るが、録画は素材 1 コマあたり 2 枚以上撮って
 // いるので絵は正しい。こちらは表とファイルだけを見て、ずれが溜まっているかを判定する。
-describe('checkTableAgainstFile（印を付けた表を救えるか）', () => {
+describe('checkTableAgainstFile（印を付けた表を見直す）', () => {
   const SRC = 1 / 23.976   // 素材のコマ長（秒）
   const CAP = 1 / 51       // 供給の間隔（秒）。素材 1 コマにつき 2 枚強
 
@@ -250,42 +250,58 @@ describe('checkTableAgainstFile（印を付けた表を救えるか）', () => {
       frameIndex: Math.round((i * SRC) / CAP),
       captured: true
     }))
-    // shiftRows: その行だけファイル内の別フレームを指す（一過性のずれ）
     for (const [row, by] of Object.entries(opts.shiftRows ?? {})) {
       frames[Number(row)].frameIndex += by
     }
-    // drift: その行から先すべてがずれたまま戻らない（対応の崩れ）
+    // 供給 1 枚ぶん（19.6ms）のずれは素材 1 コマ（41.7ms）未満で、同じ素材コマの別の 1 枚を
+    // 指すだけなので絵は変わらない。**印が立つのは素材 1 コマ以上ずれたときだけ**なので、
+    // 崩れの再現には 3 枚ぶん動かす。
     if (opts.drift) {
-      for (let i = opts.drift; i < frames.length; i++) frames[i].frameIndex += 2
+      for (let i = opts.drift; i < frames.length; i++) frames[i].frameIndex += 3
     }
     return { frames, pts }
   }
 
-  it('ずれが無ければ救える', () => {
+  it('ずれが無ければ、どの行にも印は立たない', () => {
     const { frames, pts } = build(120)
-    expect(checkTableAgainstFile(frames, pts).ok).toBe(true)
-  })
-
-  it('先頭の数行だけ 1 コマ以上ずれていても救える（録画開始直後の荒れ）', () => {
-    // 実測（image 249）: 679 行中 2 行が素材 1.4 コマぶんずれ、末尾は 18ms に収まっていた。
-    // ここを弾くと、立ち上がりが荒れただけの録画が永久に黄色いままになる。
-    const { frames, pts } = build(120, { shiftRows: { 2: 3, 3: 3 } })
     const r = checkTableAgainstFile(frames, pts)
-    expect(r.offRows).toBeGreaterThan(0)
-    expect(r.ok).toBe(true)
+    expect(r.misaligned).toBe(0)
+    expect(r.frames).toHaveLength(120)
   })
 
-  it('途中から最後までずれ続けていれば救わない（本当に崩れている）', () => {
+  it('ずれている行にだけ印を立て、残りはそのまま使う', () => {
+    // **ここが方針転換の核心。** 以前は「ずれた行が 5% を超えたら全部捨てる」だったので、
+    // 116 行が正しくても 120 行まとめて失っていた。
+    const { frames, pts } = build(120, { shiftRows: { 2: 3, 3: 3, 4: 3, 5: 3 } })
+    const r = checkTableAgainstFile(frames, pts)
+    expect(r.misaligned).toBe(4)
+    expect(r.frames).toHaveLength(120)
+    expect(r.frames[2].misaligned).toBe(true)
+    expect(r.frames[50].misaligned).toBeFalsy()
+  })
+
+  // 対応が本当に崩れたなら、そこから先はずっとずれ続ける。1〜2 コマだけ超えて戻るのは
+  // 撮影間隔の揺らぎで、崩れではない。実測（image 264）で本物の崩れ 38 コマ連続の手前に、
+  // 1 コマだけの印が 3 か所出ていた——**関係ない場所に印が散る方が読めなくなる。**
+  it('1〜2 コマだけ外れて戻るところには印を立てない', () => {
+    const { frames, pts } = build(120, { shiftRows: { 10: 3, 40: 3, 41: 3 } })
+    expect(checkTableAgainstFile(frames, pts).misaligned).toBe(0)
+  })
+
+  it('途中から最後までずれ続けていれば、その先だけに印が立つ（手前は残る）', () => {
     const { frames, pts } = build(120, { drift: 40 })
-    expect(checkTableAgainstFile(frames, pts).ok).toBe(false)
+    const r = checkTableAgainstFile(frames, pts)
+    expect(r.frames[10].misaligned).toBeFalsy()
+    expect(r.frames[110].misaligned).toBe(true)
+    // 手前の 40 行ぶんは使えるまま残っていること。
+    expect(r.frames.filter((f) => !f.misaligned).length).toBeGreaterThanOrEqual(39)
   })
 
-  it('ファイルの範囲外を指す行は落として数える（末尾切り詰め）', () => {
+  it('ファイルの範囲外を指す行は落とす（末尾切り詰め）', () => {
     const { frames, pts } = build(120)
     frames[119].frameIndex = pts.length + 5
     const r = checkTableAgainstFile(frames, pts)
-    expect(r.trimmed).toHaveLength(119)
-    expect(r.ok).toBe(true)
+    expect(r.frames).toHaveLength(119)
+    expect(r.misaligned).toBe(0)
   })
 })
-

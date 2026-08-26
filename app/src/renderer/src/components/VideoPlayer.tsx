@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo } from 'react'
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
 import { findFrameIdx, frameSeekTarget } from '../frameTable'
 import { getClipFramesResolver } from '../features/registry'
@@ -71,14 +71,25 @@ const FRAME_COLOR = {
 // **問題が無いときに何も足さない**のが要点で、常に何か表示していると注記が背景になる。
 const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; color: string } | null> = {
   [FRAME_QUALITY.captured]: null,
-  [FRAME_QUALITY.reused]: { label: 'viewer.frameReused', hint: 'viewer.frameReusedHint', color: FRAME_COLOR.warn },
-  [FRAME_QUALITY.reusedSame]: { label: 'viewer.frameReusedSame', hint: 'viewer.frameReusedSameHint', color: FRAME_COLOR.muted },
-  [FRAME_QUALITY.reusedChanged]: { label: 'viewer.frameNeedsReview', hint: 'viewer.frameNeedsReviewHint', color: FRAME_COLOR.alert },
+  [FRAME_QUALITY.reused]: { label: 'viewer.frameNeedsReview', hint: 'viewer.frameReusedHint', color: FRAME_COLOR.alert },
+  [FRAME_QUALITY.misaligned]: { label: 'viewer.frameMisaligned', hint: 'viewer.frameMisalignedHint', color: FRAME_COLOR.alert },
 }
 
 // コマ表示の置き場所。コントロールバー（ホバー時だけ出る）の上に重ねる。
 // **バーの中に入れないのは、バーがホバー中しか出ないため** —— キーボードでコマ送りして
 // いる間はポインタが映像の上に無いことが多く、肝心の番号が見えない。
+// 注記の意味の一覧（コマ番号を押すと開く）。コマ表示のすぐ上に、同じ調子で重ねる。
+const frameLegendStyle: React.CSSProperties = {
+  position: 'absolute', left: 10, bottom: VC_OVERLAY_HEIGHT + 30, zIndex: 4,
+  pointerEvents: 'auto', cursor: 'pointer',
+  // 2 列の格子。**説明文の左端を揃える**ため（横並びだと語の長さで開始位置がずれる）。
+  display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 6, alignItems: 'baseline',
+  padding: '10px 13px', borderRadius: radius.md, background: 'rgba(6,8,12,0.86)',
+  fontSize: font.xs, lineHeight: 1.5, color: 'rgba(255,255,255,0.92)',
+  maxWidth: 'min(420px, calc(100% - 20px))',
+  textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+}
+
 const frameReadoutStyle: React.CSSProperties = {
   position: 'absolute', left: 10, bottom: VC_OVERLAY_HEIGHT + 2, zIndex: 3,
   pointerEvents: 'auto', cursor: 'help',
@@ -151,6 +162,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // コマ表示はフレームごとに書き換わるので、React の再描画ではなく DOM を直接触る
   // （時刻ラベルが updateVcTime で同じことをしているのと同じ理由。再生中は毎フレーム来る）。
   const frameLabelRef = useRef<HTMLSpanElement>(null)
+  const [legendOpen, setLegendOpen] = useState(false)
   const [readout, setReadout] = useState<ReadoutKind>('off')
   // 描画外（コマ送り・rVFC）から読むため ref にも持つ。state だけだと useImperativeHandle が
   // 掴んだ古いクロージャが古い値を見る。
@@ -727,8 +739,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
               opacity: playing ? 0 : 1,
               pointerEvents: playing ? 'none' : 'auto',
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setLegendOpen((v) => !v) }}
           />
+        )}
+        {/* 注記の意味の一覧。**普段は出さず、コマ番号を押したときだけ開く。**
+            常設すると映像の邪魔になり、マウスを載せたときだけの説明では気づけない。
+            押せば出る／押せば消える、の 1 か所に置く。 */}
+        {readout !== 'off' && legendOpen && !playing && (
+          <div
+            style={frameLegendStyle}
+            onClick={(e) => { e.stopPropagation(); setLegendOpen(false) }}>
+            {([
+              ['viewer.legendMissing', FRAME_COLOR.alert],
+              ['viewer.legendMisaligned', FRAME_COLOR.alert],
+              ['viewer.legendGap', FRAME_COLOR.warn],
+            ] as const).map(([key, color]) => (
+              <Fragment key={key}>
+                <span style={{ color, fontWeight: 700, whiteSpace: 'nowrap' }}>{t(`${key}.label` as MessageKey)}</span>
+                <span style={{ opacity: 0.85 }}>{t(`${key}.desc` as MessageKey)}</span>
+              </Fragment>
+            ))}
+          </div>
         )}
         {/* 映像の内側（下端）に重ねる。通常フローで下に積むと動画だけ VC_BAR_HEIGHT 分
             背が高くなり、画像との外形差を埋めるための余白が詳細パネル側に必要になっていた。 */}

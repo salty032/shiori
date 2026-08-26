@@ -269,19 +269,28 @@ export const ja = {
   // （専用の絵があるのか・流用なのか）まで出す。docs/ANIME-FRAMES.md 参照。
   'viewer.frameIndex': 'コマ {cur} / {total}',
   'viewer.frameIndexFile': 'フレーム {cur} / {total}',
-  'viewer.frameReused': '流用',
-  'viewer.frameReusedSame': '流用・変化なし',
-  'viewer.frameNeedsReview': '要確認',
+  'viewer.frameNeedsReview': '未取得',
   // 表から抜けている区間（ClipGap）。撮り逃し（流用）とは別物で、**コマ自体が表に無い**。
   // コマ送りするとその区間が飛ぶのに、出さないと画面からは気づけない。
   'viewer.frameGapAfter': 'この先 {count} コマ抜け',
   'viewer.frameGapAfterHint': 'このコマの次に {count} コマぶん、ページからコマの知らせが届いていません。表に無いのでコマ送りではここが飛びます。この区間をまたいでコマ打ちを数えることはできません。',
+  // 対応がずれているコマ（StoredFrame.misaligned）。表全体を捨てる代わりの印。
+  // **流用より重い**——流用は「絵が無いので直前を出している」と分かっているが、
+  // こちらは今出ている絵が何なのか分からない。
+  'viewer.frameMisaligned': 'ずれ',
+  'viewer.frameMisalignedHint': 'このコマは、ファイルの別のコマを指している可能性があります。表示されている絵が、この素材コマの絵とは限りません。ここを含めてコマ打ちを数えることはできません。',
+  // 注記の意味の一覧（コマ番号を押すと開く）。**常設しない**——映像の邪魔になるし、
+  // マウスを載せたときだけの説明では気づけない。押せば出る 1 か所にまとめる。
+  'viewer.legendMissing.label': '未取得',
+  'viewer.legendMissing.desc': 'このコマの絵が撮れておらず、直前のコマの絵が映っています。別の絵が入っていた可能性を消せません。',
+  'viewer.legendMisaligned.label': 'ずれ',
+  'viewer.legendMisaligned.desc': '絵は撮れていますが、素材のこのコマの絵とは限りません。録画中に一時停止やシークをすると起きます。',
+  'viewer.legendGap.label': '抜け',
+  'viewer.legendGap.desc': 'そのコマ自体がありません。1 回押すと何コマも飛ぶので、またいで数えられません。',
   'viewer.frameLoading': 'コマ表を読み込み中',
   'viewer.frameEstimated': 'コマ位置不明（{fps}fps 換算）',
   'viewer.frameSourceHint': '元の動画のコマ単位で進みます。映像が変わらない箇所では、元の動画でも同じ映像が続いています。',
-  'viewer.frameReusedHint': 'このコマの映像は個別に取り込めなかったため、直前のコマの映像を表示しています（未検証）。ここで映像が変わらないことを、コマ打ちの根拠にはできません。',
-  'viewer.frameReusedSameHint': 'このコマの映像は個別に取り込めませんでしたが、前後の映像が同一であることを確認済みです。コマ打ちの数え方には影響しません。',
-  'viewer.frameNeedsReviewHint': 'このコマの映像は個別に取り込めず、前後の映像も異なります。映像がどのコマで変わったかは特定できません。',
+  'viewer.frameReusedHint': 'このコマの映像は取り込めなかったため、直前のコマの映像を表示しています。ここに別の映像が 1 コマだけ入っていた可能性は消せないので、このコマを含めてコマ打ちを数えることはできません。',
   'viewer.frameFileHint': 'ファイルに記録されたフレームを順に表示します。取り込んだ動画では、これが素材のコマそのものです。',
   'viewer.frameFileCaptureHint': '素材のコマ表がないため、ファイルに記録されたフレームを順に表示します。画面キャプチャの取得間隔に基づくため、素材のコマとは一致しません。',
   'viewer.frameLoadingHint': 'コマ表を読み込んでいます。読み込みが終わるまでコマ送りは保留され、まとめて反映されます。',

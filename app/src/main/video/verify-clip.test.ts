@@ -20,9 +20,12 @@ vi.mock('../db', () => ({
   setFrameCounts: vi.fn()
 }))
 
+const saveVideoFrames = vi.fn()
 vi.mock('../db-video-frames', () => ({
   markVideoFramesUnusable: (...args: unknown[]) => markVideoFramesUnusable(...args),
-  saveVideoFrames: vi.fn()
+  saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
+  listUnusableForRecheck: vi.fn(() => []),
+  markRechecked: vi.fn()
 }))
 
 import { verifyClipFrames } from './verify-clip'
@@ -46,6 +49,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
   beforeEach(() => {
     sendToRenderer.mockClear()
     markVideoFramesUnusable.mockClear()
+    saveVideoFrames.mockClear()
   })
 
   it('撮り逃したコマを検証したら、確定した枚数を飛ばす', () => {
@@ -74,8 +78,9 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     })
   })
 
-  it('表を捨てたときは「コマ精度の情報が無い」状態を飛ばす', () => {
-    // 供給時刻とファイル内 PTS の対応が途中から崩れ続ける＝表が使えないケース。
+  // **崩れても表を丸ごと捨てない。** 崩れた位置より手前は正しいので残し、以降の行にだけ
+  // 「ずれ」の印を立てる。捨てること自体がコマ精度を失う変更にあたる（ANIME-FRAMES.md 0 章）。
+  it('対応が途中から崩れたら、手前は残して以降の行にずれの印を立てる', () => {
     signatures.value = [flat(10), flat(20), flat(30)]
     signatures.pts = [0, 0.04, 0.08]
     const drawnAt = [1000, 1020, 1040, 1060]
@@ -84,8 +89,24 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.04, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(9, 'clip.webm', table, drawnAt).then(() => {
-      expect(markVideoFramesUnusable).toHaveBeenCalledWith(9, 'correspondence-break')
-      expect(verifiedPayload()).toEqual({ id: 9, uncaptured: null, ambiguous: null, total: null, unreported: null })
+      expect(markVideoFramesUnusable).not.toHaveBeenCalled()
+      const saved = saveVideoFrames.mock.calls[0][1] as StoredFrame[]
+      expect(saved[0].misaligned).toBeFalsy()
+      expect(saved.some((f) => f.misaligned)).toBe(true)
+      // 表として成立している以上、枚数は画面へ返す（「情報が無い」にしない）。
+      expect(verifiedPayload()?.total).toBe(saved.length)
+    })
+  })
+
+  it('1 行も使えるところが無ければ、そのときだけ表として使わない', () => {
+    // 対応が崩れたうえ、残った行がすべてファイルの範囲外を指しているケース。
+    signatures.value = [flat(10)]
+    signatures.pts = [0, 0.04, 0.08, 0.12]
+    const drawnAt = [1000, 1040, 1200, 1240]
+    const table: StoredFrame[] = [{ mediaTime: 0, frameIndex: 3, captured: true }]
+    return verifyClipFrames(11, 'clip.webm', table, drawnAt).then(() => {
+      expect(markVideoFramesUnusable).toHaveBeenCalledWith(11, 'correspondence-break')
+      expect(verifiedPayload()).toEqual({ id: 11, uncaptured: null, ambiguous: null, total: null, unreported: null })
     })
   })
 })
