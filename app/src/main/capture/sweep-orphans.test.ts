@@ -88,6 +88,18 @@ describe('sweepOrphanFiles の安全弁', () => {
     expect(result).toEqual({ removed: 0, bytes: 0 })
     expect(listReferencedPaths).not.toHaveBeenCalled()
   })
+
+  it('DB に無い原本は自動削除のために走査しない', async () => {
+    countImages.mockReturnValue(1)
+    listReferencedPaths.mockReturnValue([])
+    readdir.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+
+    await sweepOrphanFiles()
+
+    expect(readdir).toHaveBeenCalledTimes(1)
+    expect(readdir).toHaveBeenCalledWith(join('/mock/userData', 'thumbnails'), { withFileTypes: true })
+    expect(unlink).not.toHaveBeenCalled()
+  })
 })
 
 describe('孤立ファイル掃除の実行間隔', () => {

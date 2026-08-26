@@ -508,6 +508,12 @@ const MAX_STEP_LABEL_LENGTH = 120
 // タイムコードの定期送信の間隔（ms）。
 const TIMECODE_POLL_MS = 5000
 // ==== ここまで自動生成: limits ====
+// app から届く表示文言を丸める。**拡張は文言を1つも持たない**ので、落とすと画面から
+// 文字が消える（機能は動いたまま）。長さだけ切って、型が違えば空にする。
+function stepLabel(v) {
+  return typeof v === 'string' ? v.slice(0, MAX_STEP_LABEL_LENGTH) : ''
+}
+
 const MIN_FORCED_SEND_INTERVAL_MS = 250
 let lastPayloadKey = ''
 let lastSentAt = 0
@@ -1089,7 +1095,7 @@ function showStepReadout(video) {
 // 映像の中央に置く。枠の外に出す案は、全画面再生だと外側が無いので出せない。
 // 中央なら全画面でも普通に見える（記録前なので汚さない）。
 let armingHost = null
-function showArmingOverlay() {
+function showArmingOverlay(text) {
   hideArmingOverlay()
   const video = getVideo()
   const rect = video?.getBoundingClientRect()
@@ -1130,7 +1136,9 @@ function showArmingOverlay() {
   const dot = document.createElement('span')
   dot.className = 'dot'
   const label = document.createElement('span')
-  label.textContent = '録画の準備中'
+  // 文言は app 側（ja.ts が原本）から届く。届いていなければ丸だけ出す —— 拡張が
+  // 日本語を持つと、英語表示の人にだけ日本語が出て、こちらからは気づけない。
+  label.textContent = text || ''
   box.append(dot, label)
   shadow.append(style, box)
   root.appendChild(host)
@@ -1684,7 +1692,7 @@ function normalizePortMessage(msg) {
       video: msg.video === true
     }
   }
-  if (msg.type === 'clip-arming') return { type: 'clip-arming' }
+  if (msg.type === 'clip-arming') return { type: 'clip-arming', label: stepLabel(msg.label) }
   if (msg.type === 'clip-armed') return { type: 'clip-armed' }
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
@@ -1701,7 +1709,6 @@ function normalizePortMessage(msg) {
   }
   if (msg.type === 'settings') {
     const rawKey = typeof msg.captureKey === 'string' ? msg.captureKey : ''
-    const label = (v) => (typeof v === 'string' ? v.slice(0, MAX_STEP_LABEL_LENGTH) : '')
     return {
       type: 'settings',
       frameFps: clampNumber(Number(msg.frameFps), 24, 1, 240),
@@ -1709,8 +1716,8 @@ function normalizePortMessage(msg) {
       captureKey: isValidCaptureKey(rawKey) ? rawKey : 'S',
       // コマ送りの読み取り表示に出す文言。拡張は文言を持たない（原本は app の ja.ts）。
       stepLabels: {
-        blocked: label(msg.stepLabels?.blocked),
-        dropped: label(msg.stepLabels?.dropped)
+        blocked: stepLabel(msg.stepLabels?.blocked),
+        dropped: stepLabel(msg.stepLabels?.dropped)
       }
     }
   }
@@ -1765,7 +1772,7 @@ function connectPort() {
       // 動画クリップ録画のときだけコマ通知を出す（スクショは1枚なので不要）
       if (safeMsg.video) startFrameReporting()
     } else if (safeMsg.type === 'clip-arming') {
-      showArmingOverlay()
+      showArmingOverlay(safeMsg.label)
     } else if (safeMsg.type === 'clip-armed') {
       hideArmingOverlay()
     } else if (safeMsg.type === 'post-capture') {

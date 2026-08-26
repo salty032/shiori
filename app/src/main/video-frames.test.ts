@@ -5,7 +5,24 @@ import { describe, expect, it, vi } from 'vitest'
 // 実 DB を張るテストは書けない。ここでは DB アクセスから切り離した直列化だけを検証する。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { encodeFrames, decodeFrames, encodeUnusable, readUnusableReason, type StoredFrame } from './db-video-frames'
+// 数え直し（backfillFrameCounts）だけは DB を読むので、その 2 か所だけ差し替える。
+const storedRows = vi.fn<() => unknown[]>(() => [])
+const setFrameCountsMock = vi.fn()
+const executedSql: { sql: string; args: unknown[] }[] = []
+vi.mock('./db-core', () => ({
+  getDb: vi.fn(),
+  prepare: (sql: string) => ({
+    all: () => storedRows(),
+    get: () => undefined,
+    run: (...args: unknown[]) => { executedSql.push({ sql, args }) }
+  })
+}))
+vi.mock('./db', () => ({ setFrameCounts: (...args: unknown[]) => setFrameCountsMock(...args) }))
+
+import {
+  encodeFrames, decodeFrames, encodeUnusable, readUnusableReason, backfillFrameCounts,
+  markVideoFramesUnusable, type StoredFrame
+} from './db-video-frames'
 
 const frames: StoredFrame[] = [
   { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
@@ -87,6 +104,16 @@ describe('フレーム表の直列化', () => {
   })
 })
 
+describe('使えない表の集計値を無効化する', () => {
+  it('ずれを含む全カウントを一緒に null へ戻す', () => {
+    executedSql.length = 0
+    markVideoFramesUnusable(7, 'correspondence-break')
+    const update = executedSql.find((entry) => entry.sql.includes('UPDATE images'))
+    expect(update?.sql).toContain('misaligned_frames = NULL')
+    expect(update?.args).toEqual([7])
+  })
+})
+
 // 検証で「使ってはいけない」と決めた表の扱い（markVideoFramesUnusable）。
 // 以前は行ごと DELETE していたが、判定の方が誤っていたときに遡って救えないため残す形にした。
 // **残したうえで、絶対に使われないことが要る。** その保証がこの 3 本。
@@ -112,5 +139,47 @@ describe('使えないと判定した表', () => {
   it('通常の表と壊れた行には印が付いていない', () => {
     expect(readUnusableReason(encodeFrames(frames))).toBeNull()
     expect(readUnusableReason('{')).toBeNull()
+  })
+})
+
+// 詳細パネルに出す枚数は録画・トリミングの直後にしか書いていない。実測（2026-08-26）では
+// 手元 82 本のうち 25 本が空、5 本が表と食い違っており、**詳細パネルだけが黙る**状態だった
+// （コマ送りの表示は開くたびに表から数え直すので出ていた）。起動後に数え直して埋める。
+describe('保存済みのコマ表から枚数を数え直す', () => {
+  const SRC = 1 / 24
+  // 6 コマぶんの表。3 コマ目の後ろで 2 コマ抜け、最後の 1 コマは対応がずれている。
+  const table: StoredFrame[] = [0, 1, 2, 5, 6, 7].map((n, i) => ({
+    mediaTime: n * SRC,
+    frameIndex: i,
+    captured: i !== 1,
+    verified: 'unknown' as const,
+    ...(i === 5 ? { misaligned: true } : {})
+  }))
+
+  const row = (over: Record<string, unknown>): unknown => ({
+    imageId: 7, data: encodeFrames(table),
+    uncaptured: null, total: null, unreported: null, misaligned: null, ...over
+  })
+
+  it('空のままの録画を、表から数えて埋める', () => {
+    setFrameCountsMock.mockClear()
+    storedRows.mockReturnValue([row({})])
+    expect(backfillFrameCounts()).toBe(1)
+    // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1
+    expect(setFrameCountsMock).toHaveBeenCalledWith(7, 1, 6, 2, 1)
+  })
+
+  it('既に合っている録画は書き換えない（起動のたびに全件書き直さない）', () => {
+    setFrameCountsMock.mockClear()
+    storedRows.mockReturnValue([row({ uncaptured: 1, total: 6, unreported: 2, misaligned: 1 })])
+    expect(backfillFrameCounts()).toBe(0)
+    expect(setFrameCountsMock).not.toHaveBeenCalled()
+  })
+
+  it('使えない印の付いた表は触らない（表が無いのと同じ扱い）', () => {
+    setFrameCountsMock.mockClear()
+    storedRows.mockReturnValue([row({ data: encodeUnusable(encodeFrames(table), 'correspondence-break') })])
+    expect(backfillFrameCounts()).toBe(0)
+    expect(setFrameCountsMock).not.toHaveBeenCalled()
   })
 })

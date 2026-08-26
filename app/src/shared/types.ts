@@ -49,6 +49,8 @@ export type ImageRow = {
   // 上 3 つの分母にも入らない（撮り逃しより悪い）。
   // null/undefined は「測っていない」（表を持たないクリップ・従来の行）。
   unreported_frames?: number | null
+  /** 対応がずれていると判定したコマ数（video_frames の misaligned）。詳細パネルの「要注意」の材料 */
+  misaligned_frames?: number | null
   thumb_path: string | null
   source: ImageSource
 }

@@ -44,6 +44,14 @@ export const en: Record<keyof typeof ja, string> = {
   'error.dbOpen':
     'Shiori could not start because its database could not be opened.\n\n' +
     'Check that no other program is locking the file, or restart your PC and try again.',
+  'error.dbVersionTooNew':
+    'This database was updated by a newer version of Shiori and cannot be opened by this version.\n\n' +
+    'Shiori stopped without changing your data. Install the latest version, then try again.\n\n' +
+    'Database schema: {stored} / supported schema: {supported}',
+  'error.dbMigrationBackupFailed':
+    'Shiori could not back up your database before updating its structure, so it stopped without changing your data.\n\n' +
+    'Check free disk space and your antivirus software, then try again.\n\n' +
+    '{path}',
   'error.startupFailed':
     'Shiori could not open because its startup stopped partway.\n\n' +
     'Restart your PC and try again.\n\n' +
@@ -56,7 +64,7 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.settingsCorrupt': 'Your settings file was damaged, so Shiori started with default settings.',
   'notice.settingsUnreadable':
     'Shiori could not read your settings file, so it started with default settings.\n' +
-    'The file itself is still there. Changing any setting now will overwrite it.',
+    'To protect the original file, settings changed during this session will not be saved. Restart Shiori.',
   'dialog.dbRestore.title': 'Restore the database',
   'dialog.dbRestore.message': 'Your database is damaged',
   'dialog.dbRestore.detail':
@@ -256,24 +264,24 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.frameIndex': 'Frame {cur} / {total}',
   'viewer.frameIndexFile': 'File frame {cur} / {total}',
   'viewer.frameNeedsReview': 'not captured',
-  'viewer.frameGapAfter': '{count} frames missing next',
-  'viewer.frameGapAfterHint': 'The page never reported {count} frames right after this one. They are absent from the table, so frame stepping skips over them. Do not count frame timing across this gap.',
-  'viewer.frameMisaligned': 'misaligned',
-  'viewer.frameMisalignedHint': 'This frame may point at a different frame in the file. The picture shown is not necessarily this source frame. Do not count frame timing across it.',
   'viewer.legendMissing.label': 'not captured',
   'viewer.legendMissing.desc': "This frame's picture was not captured; the previous frame's picture is shown. A different picture could have been here.",
-  'viewer.legendMisaligned.label': 'misaligned',
-  'viewer.legendMisaligned.desc': 'A picture was captured, but it is not necessarily this source frame. Pausing or seeking while recording causes this.',
   'viewer.legendGap.label': 'gap',
-  'viewer.legendGap.desc': 'The frame itself is missing. One key press jumps several frames, so you cannot count across it.',
+  'viewer.legendGap.desc': 'Source frames are absent from the table at this point only. One key press jumps several frames, so you cannot count across it — the rest of the clip is fine.',
+  'viewer.legendUnreliable.label': 'unreliable',
+  'viewer.legendUnreliable.desc': 'The pictures do not line up with the source frames, or source frames are missing throughout. Frame timing cannot be counted in this clip.',
+  'viewer.frameUnreliable': 'unreliable',
+  'viewer.frameGapAfter': '{count} frames missing',
+  'viewer.frameGapAfterHint': 'The page never reported {count} frames right after this one. They are absent from the table, so frame stepping skips over them. You cannot count frame timing across this point, but the rest of the clip counts normally.',
+  'viewer.frameSourceHint': "Steps by the source video's own frames. Where the picture does not change, the same picture also continues in the source.",
+  'viewer.frameReusedHint': "No picture was captured for this frame, so the previous frame's picture is shown. A single different frame could have been here, so do not count frame timing across it.",
+  'viewer.frameFileHint': 'Shows the frames recorded in the file in order. For imported videos these are the source frames themselves.',
+  'viewer.frameFileCaptureHint': 'There is no source frame table, so the frames recorded in the file are shown in order. They follow the screen capture interval and do not match the source frames.',
+  'viewer.frameLoadingHint': 'Loading the frame table. Frame steps are held until it finishes, then applied together.',
+  'viewer.frameEstimatedHint': 'Frame positions could not be read for this clip. Steps use an interval derived from fps and do not match the source frames.',
+  'viewer.frameUnreliableHint': 'Frame stepping is not reliable in this clip: source frames are missing, or the pictures do not line up with the source frames. Do not use it to count frame timing.',
   'viewer.frameLoading': 'Loading frame table',
   'viewer.frameEstimated': 'Frame positions unknown ({fps}fps estimate)',
-  'viewer.frameSourceHint': 'Stepping one source frame at a time. If the picture does not change, that is because the source held the same picture.',
-  'viewer.frameReusedHint': "No picture was captured for this frame, so the previous frame's picture is shown. A single different frame could have been here, so do not count frame timing across it.",
-  'viewer.frameFileHint': 'Stepping through the frames recorded in the file. This is an imported video, so those are the source frames.',
-  'viewer.frameFileCaptureHint': 'No source frame table is available, so this steps through the frames recorded in the file. Those come from the screen capture rate and do not line up with the source frames.',
-  'viewer.frameLoadingHint': 'Loading the frame table. Frame steps are held until it finishes, then applied together.',
-  'viewer.frameEstimatedHint': 'Frame positions could not be read for this clip. Stepping uses an interval derived from the fps, so it does not line up with the source frames.',
 
   // Frame playback (stepping on a timer). The speed is held as "how long one frame stays on
   // screen" — that is what you actually experience, so no conversion is needed to read it.
@@ -378,6 +386,7 @@ export const en: Record<keyof typeof ja, string> = {
   // Readout for , / . in the browser. The extension carries no wording of its own
   'video.stepBlocked': 'Cannot step any further',
   'video.stepDropped': 'Too fast — dropped {count}',
+  'video.clipArming': 'Getting ready to record',
   'trim.selection': 'Selection: {seconds}s',
   'trim.seekHint': 'Click to seek',
   'trim.setIn': 'Set in',
@@ -398,16 +407,10 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.duration': 'Length',
   'detail.fps': 'FPS',
   'detail.resolution': 'Resolution',
-  'detail.unreportedFrames': '{count} frames never reported',
-  'detail.unreportedFramesHint':
-    'Of the roughly {expected} frames the source should have, {count} were never reported by the streaming page. ' +
-    'Those frames are absent from the frame table and from the capture ratio above. ' +
-    'Frame stepping does not line up with the source across the whole clip.',
+  'detail.unreliable': 'unreliable',
+  'detail.unreliableHint': 'Frame stepping is not reliable in this clip: the pictures do not line up with the source frames, or source frames are missing throughout. Do not use it to count frame timing.',
   'detail.uncapturedFrames': '{count} frames missed',
-  'detail.ambiguousFrames': '{count} frames need review',
-  'detail.ambiguousFramesHint':
-    '{missed} frames have no picture of their own, and {ambiguous} of them show a change between ' +
-    'the surrounding captures. Which frame the change belongs to cannot be determined, so check these when counting.',
+  'detail.uncapturedFramesHint': "{count} frames were not captured. Some show the previous frame's picture; at others the frame itself is absent and stepping jumps ahead. You cannot count frame timing across those spots. Stepping tells you at the frame just before each one.",
   'detail.memo': 'Notes',
   'detail.memoUnsaved': 'Unsaved',
   'detail.memoSaving': 'Saving…',
@@ -528,7 +531,6 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.extPort': 'Port in use: {port}',
   'settings.extPortBlocked': 'No port available',
   'settings.extPortBlockedHint': 'Shiori could not claim any port, so it cannot connect to the browser extension. Reinstalling the extension or reloading the page will not help. Windows often reserves these ports at startup — restarting your PC usually clears it.',
-  'settings.services': 'Supported services',
   'settings.hotkey': 'Hotkeys',
   'settings.captureHotkey': 'Capture hotkey',
   'settings.frameStep': 'Frame step (, / .)',

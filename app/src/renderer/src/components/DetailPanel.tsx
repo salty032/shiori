@@ -9,7 +9,7 @@ import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
-import VideoPlayer from './VideoPlayer'
+import VideoPlayer, { SEVERE_FRAME_RATIO } from './VideoPlayer'
 import { getMediaActions } from '../features/registry'
 import { useT } from '../i18n'
 
@@ -97,40 +97,52 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   //
   // 表の行数（source_frames）と、素材の fps × 尺から期待される数を突き合わせて出す。
   // 5% は録画停止のラグで duration が僅かに長く出るぶんの余裕（24/30fps の実測は誤差 1% 未満）。
-  const unreportedNote = useMemo(() => {
+  const unreliableNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
     const missing = single.unreported_frames
     const table = single.source_frames
+    const misaligned = single.misaligned_frames ?? 0
+    // ずれは 1 コマでもあれば、その位置から先の対応が崩れている（クリップ全体の話）。
+    if (misaligned > 0) return { text: t('detail.unreliable'), title: t('detail.unreliableHint'), severe: true }
     if (missing == null || table == null || missing <= 0) return null
-    // 見積もりではなく main が測った値をそのまま出す（frame-feed の countReportDrops）。
-    // 以前はここで fps × 尺から見積もっており、同じ事実にログ 98 コマ／画面 85 コマと
-    // 2 つの数字が出ていた。**同じことを 2 通りに数えない。**
-    const expected = table + missing
-    if (missing / expected <= 0.05) return null
-    return {
-      text: t('detail.unreportedFrames', { count: String(missing) }),
-      title: t('detail.unreportedFramesHint', { count: String(missing), expected: String(expected) })
+    // 穴だらけで、どこを見ても数えられないクリップだけ赤にする。**抜けが 1 つでもあれば赤、
+    // にはしない**——実測（手元 82 本・2026-08-26）では 899 コマに 1 コマの穴と、1500 コマに
+    // 194 か所の穴が同じ「抜けあり」に入っていた。前者を全体不可にすると無傷な境目まで
+    // 捨てることになる。欠落コマの割合は 5.4% と 4.1% の間で分布が切れていた。
+    if (missing / (table + missing) > SEVERE_FRAME_RATIO) {
+      return { text: t('detail.unreliable'), title: t('detail.unreliableHint'), severe: true }
     }
+    // ここから下は「その穴をまたぐ境目だけが壊れている」クリップ。**注記は出すが、下の
+    // 未取得と合算して 1 つにする**——絵が無いのも、コマ自体が無いのも、使う人から見れば
+    // 「そのコマが取れていない」で同じ重さで、数える前に見分ける必要が無い。
+    return null
   }, [single, t])
 
   const uncapturedNote = useMemo(() => {
-    const missing = single?.uncaptured_frames
-    if (single?.media_type !== 'video' || missing == null || missing <= 0) return null
-    // 母数は実測（フレーム表の行数）を優先する。fps × duration は、duration が録画停止までの
-    // ラグを含むぶん過大になるうえ、fps の無い行では 0 になって判定が黙って効かなくなる。
-    const total = single.source_frames ?? (single.fps && single.duration ? single.fps * single.duration : 0)
-    const ambiguous = single.ambiguous_frames
-    if (ambiguous == null) {
-      // 未検証（検証前・検証に失敗・従来のクリップ）。分かっているのは撮り逃した枚数だけ。
-      return { text: t('detail.uncapturedFrames', { count: String(missing) }), severe: (total > 0 ? missing / total : 0) > 0.05 }
-    }
-    if (ambiguous <= 0) return null
+    if (single?.media_type !== 'video') return null
+    // **抜け（コマ自体が無い）と未取得（絵が無い）を足して 1 つの数にする。**
+    // どちらも「そのコマが取れていない」で、またいでコマ打ちを数えられない点も同じ。
+    // 分けて 2 つ並べても、使う人の判断は変わらない。
+    const missing = (single.uncaptured_frames ?? 0) + (single.unreported_frames ?? 0)
+    if (missing <= 0) return null
+    // 母数は実測（フレーム表の行数＋抜け）を優先する。fps × duration は、duration が録画停止
+    // までのラグを含むぶん過大になるうえ、fps の無い行では 0 になって判定が黙って効かなくなる。
+    const total = single.source_frames != null
+      ? single.source_frames + (single.unreported_frames ?? 0)
+      : (single.fps && single.duration ? single.fps * single.duration : 0)
+    // **前後の絵が同じかどうかで分けない。** 同じでもそこに 1 コマだけ別の絵が入っていた
+    // 可能性は消せず、確定できないことを確定したように見せることになる（コマ送り側と同じ）。
     return {
-      text: t('detail.ambiguousFrames', { count: String(ambiguous) }),
-      title: t('detail.ambiguousFramesHint', { missed: String(missing), ambiguous: String(ambiguous) }),
-      severe: (total > 0 ? ambiguous / total : 0) > 0.02
+      text: t('detail.uncapturedFrames', { count: String(missing) }),
+      title: t('detail.uncapturedFramesHint', { count: String(missing) }),
+      severe: (total > 0 ? missing / total : 0) > SEVERE_FRAME_RATIO
     }
   }, [single, t])
+
+  // **並べない。重い方だけを出す。** コマ送りの表示（VideoPlayer）と同じ扱いにする。
+  // 要注意が出ている時点でそのクリップは数えられず、未取得を足しても判断は変わらない。
+  // 順は 要注意（数えられない）→ 抜け（その境目だけ数えられない）→ 未取得（絵が無い）。
+  const frameNote = unreliableNote ?? uncapturedNote
 
   const [bulkTagMap, setBulkTagMap] = useState<Map<string, BulkTagEntry>>(new Map())
   const [bulkTagInput, setBulkTagInput] = useState('')
@@ -379,6 +391,20 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     span + justify-content で伸ばす形だと、ラベル・値の間隔や行の縦幅が
                     段ごとに揃わず浮いて見えたため、値の項目は同じ「列1つぶんの metaRow」に
                     統一し、grid の行・列だけを明示的に指定する。 */}
+                {/* コマ精度の注記。**段としては積まず、長さの真下へ重ねる**——開く人が必ず
+                    見る情報なので下へ埋めないが、段を取ると注記の有無で高さが変わり、
+                    開くクリップごとに下の並びがずれる。右端を基準に並べ、順は要注意→未取得
+                    （重い方が先）。片方だけでも右端は動かないので、開くクリップごとに
+                    印の位置が飛ばない。 */}
+                {frameNote && (
+                  <div style={s.frameNotes}>
+                    <span
+                      title={frameNote.title}
+                      style={{ ...s.frameNote, ...(frameNote.severe ? s.frameNoteAlert : s.frameNoteQuiet) }}>
+                      {frameNote.text}
+                    </span>
+                  </div>
+                )}
                 {(single.current_time != null || single.media_type === 'video') && (
                   <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 1 }}>
                     <span style={s.label}>{t('detail.timecode')}</span>
@@ -395,30 +421,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     開いた人が必ず見なければならない情報で、素性の記録とは性質が違う。
                     問題が無ければ何も出ないので（大半はこちら）、平常時に場所は取らない。
                     ラベルを付けないのは、文言自体が「3コマ要確認」と自己説明的なため。 */}
-                {(uncapturedNote || unreportedNote) && (
-                  <div style={{ ...s.metaRow, gridColumn: '1 / -1', gridRow: 2, justifyContent: 'flex-start', flexWrap: 'wrap' }}>
-                    {/* 撮り逃したコマがある場合だけ添える。0 枚なら何も出さない。
-                        絵の変わり目に当たるとコマ打ちの数を誤るため、黙って隠さない。
-                        割合が大きいときだけ色を付けて、数え直しが要ることを示す。 */}
-                    {uncapturedNote && (
-                      <span
-                        title={'title' in uncapturedNote ? uncapturedNote.title : undefined}
-                        style={{ ...s.value, fontSize: 11, whiteSpace: 'nowrap', color: uncapturedNote.severe ? 'var(--warning)' : 'var(--text-muted)' }}>
-                        {uncapturedNote.text}
-                      </span>
-                    )}
-                    {/* 通知そのものが来なかったコマ。上の割合の分母にすら入っていないので、
-                        撮り逃しが 0 でも出ることがある。常に警告色にする——「数え直せば済む」
-                        ではなく「その区間は素材と対応していない」という意味なので。 */}
-                    {unreportedNote && (
-                      <span
-                        title={unreportedNote.title}
-                        style={{ ...s.value, fontSize: 11, whiteSpace: 'nowrap', color: 'var(--warning)' }}>
-                        {unreportedNote.text}
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -623,11 +625,24 @@ const s: Record<string, React.CSSProperties> = {
   titleDisplayRow: { display: 'flex', alignItems: 'flex-start', gap: space.x4, borderBottom: '1px solid var(--border-default)', paddingBottom: 8 },
   // 動画時刻・長さ・フレームレートを並べる箱。列間（項目の分離）は広めに、行間は
   // タイトなままにする（rowGap を columnGap と同じにすると動画時刻の段だけ縦に間延びして見える）。
-  metaHalf: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 32, rowGap: 8, alignItems: 'start', padding: '2px 0 3px' },
+  // position: relative — コマ精度の注記を上端（タイトルとの区切り線の上）へ重ねる。
+  // **段として積まない。** 注記の有無で高さが変わると、開くクリップごとに下の並びがずれる。
+  metaHalf: { position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 32, rowGap: 8, alignItems: 'start', padding: '2px 0 3px' },
   // 値は右端に揃える（tabular-nums と合わせて桁が縦に揃う）。左寄せでラベルに隣接させると
   // 値の開始位置がラベルの文字数に左右され、項目ごとに揃わなくなる。
   // ペアの分離は距離ではなく metaHalf の列間で取ること。
   metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8 },
+  // コマ精度の注記。以前は値と同じ太字の裸の文字で、色（橙／灰）だけが違う 2 語が
+  // 並んでいたため、時刻や長さの数字と地続きに見えて「これも記録の一項目」に読めた。
+  // 小さな枠に入れて数値の並びから切り離す。**枠のぶんで高さを増やさない**——下のタグまでの
+  // 余白は 16px しかなく、厚くすると注記の有無に関わらず下の並び全体を動かすことになる。
+  frameNotes: { position: 'absolute', right: -10, top: '100%', zIndex: 1, display: 'flex', gap: space.x4, pointerEvents: 'none' },
+  frameNote: { display: 'inline-flex', alignItems: 'center', padding: '0 6px', borderRadius: radius.sm, border: '1px solid transparent', fontSize: 11, fontWeight: 700, lineHeight: 1.25, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' },
+  // 要注意は薄く色を敷いて枠を締める。未取得は枠線だけの控えめな見た目にして、
+  // 重さの差（クリップ全体が当てにならない／そのコマの絵が無い）を色の濃さで出す。
+  // 未取得でも割合が大きい（severe）ときは要注意と同じ濃さへ上げる。
+  frameNoteAlert: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.14)', borderColor: 'rgba(var(--warning-rgb), 0.38)', pointerEvents: 'auto' as const },
+  frameNoteQuiet: { color: 'var(--text-muted)', borderColor: 'var(--border-default)' },
   row: { display: 'flex', flexDirection: 'column', gap: space.x4 },
   label: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
   value: { fontSize: font.base, color: 'var(--text-bright)', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },

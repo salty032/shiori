@@ -355,8 +355,13 @@ export default function App() {
 
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで終わる。反映しないと
   // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
-  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported }) =>
-    patchImage(id, { uncaptured_frames: uncaptured, ambiguous_frames: ambiguous, source_frames: total, unreported_frames: unreported })
+  // **misaligned も必ず一緒に流す。** 落とすと、録画した直後の 1 本だけコマ送りの表示が
+  // 赤いのに詳細パネルが黙る（アプリを開き直すまで直らない）。
+  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported, misaligned }) =>
+    patchImage(id, {
+      uncaptured_frames: uncaptured, ambiguous_frames: ambiguous,
+      source_frames: total, unreported_frames: unreported, misaligned_frames: misaligned
+    })
   ), [patchImage])
 
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で

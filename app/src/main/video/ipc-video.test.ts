@@ -1,11 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
+const sendToRenderer = vi.fn()
 
 vi.mock('../system/windows', () => ({
   handleTrusted: (channel: string, listener: (...args: unknown[]) => unknown) => {
     handlers.set(channel, listener)
-  }
+  },
+  sendToRenderer: (...args: unknown[]) => sendToRenderer(...args)
 }))
 
 const mockImage = {
@@ -19,11 +21,13 @@ const mockImage = {
   title: null,
   current_time: null,
   url: null,
-  source: null
+  source: null,
+  ambiguous_frames: 2
 }
 
 const getVideoFrames = vi.fn(() => null as import('../db-video-frames').StoredFrame[] | null)
 const saveVideoFrames = vi.fn()
+const restoreVideoFrames = vi.fn()
 const setFrameCounts = vi.fn()
 
 vi.mock('../db', () => ({
@@ -38,6 +42,7 @@ vi.mock('../db-tags', () => ({
 vi.mock('../db-video-frames', () => ({
   getVideoFrames: () => getVideoFrames(),
   saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
+  restoreVideoFrames: (...args: unknown[]) => restoreVideoFrames(...args),
 }))
 
 vi.mock('../system/paths', () => ({
@@ -69,7 +74,10 @@ vi.mock('fs/promises', () => ({
 
 import { registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf } from './ipc-video'
 import { FRAME_QUALITY } from '../../shared/api.video'
+import { VIDEO_CH } from '../../shared/api.video'
+import { CH } from '../../shared/api'
 import type { StoredFrame } from '../db-video-frames'
+import { countReportDrops } from './frame-feed'
 import { unlink } from 'fs/promises'
 
 // 表から抜けている区間。**撮り逃し（流用）とは別物で、コマ自体が表に無い。**
@@ -101,6 +109,66 @@ describe('findClipGaps（表から抜けている区間）', () => {
     const t = (i: number): number => i / 60
     const frames = [0, 1, 2, 5, 6].map((i) => ({ mediaTime: t(i), frameIndex: i, captured: true }))
     expect(findClipGaps(frames)).toEqual([{ afterIndex: 2, missing: 2 }])
+  })
+
+  // **場所（ここ）と合計（詳細パネルの unreported_frames）は必ず同じ計算から出す。**
+  // 別々に数えていた頃は、実測 82 本のうち 5 本で数字が食い違っていた（2026-08-26）。
+  // 内訳は 20 コマ未満の短いクリップ 4 本（合計側が「抜け無し」と答えていた）と、
+  // 表を切り詰める前の値が残っていた 1 本。
+  it('抜けの合計は、場所の足し算と必ず一致する', () => {
+    for (const pattern of [[1, 1, 1, 1, 1, 1], [1, 1, 3, 1, 9, 1], [1, 4, 1, 2, 1]]) {
+      const frames = rows(pattern)
+      const sum = findClipGaps(frames).reduce((n, g) => n + g.missing, 0)
+      expect(countReportDrops(frames.map((f) => f.mediaTime))).toBe(sum)
+    }
+  })
+
+  it('20 コマ未満の短いクリップでも抜けを数える', () => {
+    // 最小二乗の当てはめは 20 コマ未満で使えず、合計側だけが 0 を返していた。
+    const frames = rows([1, 1, 4, 1])
+    expect(findClipGaps(frames)).toEqual([{ afterIndex: 1, missing: 3 }])
+    expect(countReportDrops(frames.map((f) => f.mediaTime))).toBe(3)
+  })
+})
+
+// コマ送りが数えるのは「ファイル内に実在するコマ」だけ。詳細タイルの枚数は表の全行から
+// 数えたものなので、frameIndex がファイルの外を指す行があると母数が食い違う。
+describe('コマ送りが使う範囲と、詳細タイルの母数が一致する', () => {
+  const pts = [0, 0.02, 0.04]
+  const table: StoredFrame[] = [
+    { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
+    { mediaTime: 0.02, frameIndex: 1, captured: false, verified: 'unknown' },
+    { mediaTime: 0.04, frameIndex: 2, captured: true, verified: 'unknown' },
+    // ファイルには 3 枚しか無いので、この行はコマ送りからは見えない
+    { mediaTime: 0.06, frameIndex: 9, captured: false, verified: 'unknown' },
+  ]
+
+  it('範囲外の行は、コマ送りからも母数からも外れる', () => {
+    const built = buildClipFrames(pts, table)
+    expect(built.pts).toHaveLength(3)
+    // 表の全行（4）ではなく、コマ送りが使う 3 行が母数になること。
+    // 撮り逃しも範囲内の 1 コマだけで、範囲外の 1 コマは数えない。
+    const usable = table.filter((f) => f.frameIndex < pts.length)
+    expect(usable).toHaveLength(3)
+    expect(usable.filter((f) => !f.captured)).toHaveLength(1)
+  })
+
+  it('範囲が確定したら表と全カウントを一緒に保存し、同じ値を画面へ通知する', async () => {
+    handlers.clear()
+    sendToRenderer.mockClear()
+    getVideoFramePts.mockResolvedValue(pts)
+    getVideoFrames.mockReturnValue(table)
+    restoreVideoFrames.mockReset().mockReturnValue({
+      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0
+    })
+    registerVideoHandlers()
+
+    await handlers.get(VIDEO_CH.videoGetClipFrames)!({}, 1)
+
+    expect(restoreVideoFrames).toHaveBeenCalledWith(1, table.slice(0, 3), { ambiguous: 2 })
+    expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, {
+      id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0
+    })
   })
 })
 

@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode, StorageInfo } from '../types'
 import { font, color, modal, radius, space, control } from '../styles'
 import { buildAccelerator, formatBytes } from '../utils'
-import { SUPPORTED_SERVICES, alpha, serviceColor } from '../services'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { XIcon } from './Icon'
 import { useExportStore } from '../stores/exportStore'
@@ -316,23 +315,6 @@ export default function SettingsModal(p: Props) {
                   {wsPort != null && (
                     <div style={s.hint}>{t('settings.extPort', { port: String(wsPort) })}</div>
                   )}
-                </div>
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.services')}</div>
-                  <div style={s.serviceGrid}>
-                    {SUPPORTED_SERVICES.map((service) => {
-                      const accent = serviceColor(service.hosts[0])
-                      return (
-                        <div key={service.label} style={{ ...s.serviceItem, borderColor: alpha(accent, 0.38), background: alpha(accent, 0.08) }}>
-                          <span style={{ ...s.serviceDot, background: accent }} />
-                          <div style={s.serviceText}>
-                            <span style={s.serviceName}>{service.label}</span>
-                            <span style={s.serviceHost}>{service.hosts.join(' / ')}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
                 </div>
               </>
             )}
@@ -784,10 +766,4 @@ export const s: Record<string, React.CSSProperties> = {
   statusLine: { fontSize: font.sm, fontWeight: 700 },
   statusLineOk: { color: 'var(--success)' },
   statusLineError: { color: color.danger },
-  serviceGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(168px, 1fr))', gap: space.x8, width: '100%' },
-  serviceItem: { minHeight: 42, display: 'flex', alignItems: 'center', gap: space.x8, padding: '8px 10px', border: '1px solid', borderRadius: radius.md, boxSizing: 'border-box' as const },
-  serviceDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, boxShadow: '0 0 0 3px rgba(var(--text-rgb), 0.04)' },
-  serviceText: { minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: space.x2 },
-  serviceName: { color: 'var(--text-primary)', fontSize: font.base, fontWeight: 800, lineHeight: 1.2 },
-  serviceHost: { color: 'var(--text-secondary)', fontSize: font.xs, lineHeight: 1.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
 }

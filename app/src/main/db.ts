@@ -91,6 +91,7 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"ambiguous_frames"',
   '"source_frames"',
   '"unreported_frames"',
+  '"misaligned_frames"',
   '"thumb_path"',
   '"source"'
 ].join(', ')
@@ -279,9 +280,9 @@ export function setThumbPath(id: number, thumbPath: string): void {
 
 // 撮り逃した枚数と、その母数である素材のコマ総数。**必ず一緒に書く** —— 片方だけ更新すると
 // 割合が別々の時点の数から算出され、詳細パネルの「多い / 少ない」が静かに狂う。
-export function setFrameCounts(id: number, uncaptured: number, total: number, unreported: number): void {
-  prepare('UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ? WHERE id = ?')
-    .run(uncaptured, total, unreported, id)
+export function setFrameCounts(id: number, uncaptured: number, total: number, unreported: number, misaligned = 0): void {
+  prepare('UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ?, misaligned_frames = ? WHERE id = ?')
+    .run(uncaptured, total, unreported, misaligned, id)
 }
 
 // 検証で「絵が変わっていて特定できない」と分かったコマ数。検証を通していないクリップと

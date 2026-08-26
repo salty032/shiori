@@ -323,10 +323,8 @@ export function registerShareHandlers(): void {
             try {
               const frames = decodeFrames(frameTableData)
               if (frames && frames.length <= MAX_SHARE_FRAME_ROWS) {
-                restoreVideoFrames(result.id, frames, {
-                  ambiguous: parsed.ambiguousFrames,
-                  unreported: parsed.unreportedFrames,
-                })
+                // 合計は渡さない —— 受け取った表から数え直す（restoredFrameCounts）。
+                restoreVideoFrames(result.id, frames, { ambiguous: parsed.ambiguousFrames })
               } else {
                 console.warn(`[share:import] ignored invalid frame table: ${parsed.file}`)
               }

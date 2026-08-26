@@ -2,18 +2,19 @@
 import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import { handleTrusted } from '../system/windows'
+import { handleTrusted, sendToRenderer } from '../system/windows'
 import { getImage, setFrameCounts } from '../db'
 import { getImageTags } from '../db-tags'
-import { getVideoFrames, saveVideoFrames } from '../db-video-frames'
+import { getVideoFrames, restoreVideoFrames, saveVideoFrames } from '../db-video-frames'
 import type { StoredFrame } from '../db-video-frames'
 import { optionalPositiveInteger } from '../ipc/ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
+import { CH } from '../../shared/api'
 import type { ClipFrames, ClipGap, FrameQuality } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { sliceFrameTable, countReportDrops } from './frame-feed'
+import { sliceFrameTable, countReportDrops, frameGaps } from './frame-feed'
 import { verifyClipFrames } from './verify-clip'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
@@ -78,22 +79,10 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
 // 黙って別の刻みへ落ちるのが最悪なので、呼び出し側が画面に出せる形で返す。
 // 表から抜けている区間を拾う（ClipGap のコメント参照）。
 //
-// 素材のコマ長は表の mediaTime の間隔から出す。fps 列は空のことがあり（拡張未接続・
-// 非対応サイト）、そこから割り出すと素材によって基準がぶれる。
-const GAP_MIN_MISSING = 1
-
+// **数え方は frame-feed.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
+// 出る合計とコマ送りに出る場所が別の計算から出ることになる（実測 82 本中 5 本で食い違った）。
 export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
-  if (frames.length < 3) return []
-  const diffs: number[] = []
-  for (let i = 1; i < frames.length; i++) diffs.push(frames[i].mediaTime - frames[i - 1].mediaTime)
-  const period = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
-  if (!(period > 0)) return []
-  const gaps: ClipGap[] = []
-  for (let i = 0; i < diffs.length; i++) {
-    const missing = Math.round(diffs[i] / period) - 1
-    if (missing >= GAP_MIN_MISSING) gaps.push({ afterIndex: i, missing })
-  }
-  return gaps
+  return frameGaps(frames.map((f) => f.mediaTime))
 }
 
 export function buildClipFrames(pts: number[], table: StoredFrame[] | null): ClipFrames {
@@ -105,6 +94,28 @@ export function buildClipFrames(pts: number[], table: StoredFrame[] | null): Cli
     quality: usable.map(frameQualityOf),
     gaps: findClipGaps(usable)
   }
+}
+
+// コマ送りが実際に使う範囲（ファイル内に実在するコマ）で枚数を数え直し、変わっていれば
+// DB へ書き戻して画面へ知らせる。**書き戻さないと、詳細タイルだけが落とした行を数え続ける。**
+function syncFrameCountsToUsable(
+  imageId: number, table: StoredFrame[], fileFrames: number, ambiguous: number | null
+): void {
+  const usable = table.filter((f) => f.frameIndex >= 0 && f.frameIndex < fileFrames)
+  if (usable.length === 0 || usable.length === table.length) return
+  // **表と集計値を同じトランザクションで確定する。** 集計値だけ直すと、起動時の
+  // backfillFrameCounts が未切り詰めの表を正本として数え直し、次回起動で元へ戻してしまう。
+  // ambiguous も usable から再計算し、DBと通知の片方だけ null になる状態を作らない。
+  const restored = restoreVideoFrames(imageId, usable, { ambiguous })
+  if (!restored) return
+  sendToRenderer(CH.framesVerified, {
+    id: imageId,
+    uncaptured: restored.uncaptured,
+    ambiguous: restored.ambiguous,
+    total: restored.sourceFrames,
+    unreported: restored.unreported,
+    misaligned: restored.misaligned
+  })
 }
 
 export function registerVideoHandlers(): void {
@@ -124,7 +135,18 @@ export function registerVideoHandlers(): void {
       const pts = await getVideoFramePts(realPath)
       if (pts.length === 0) return EMPTY   // 失敗・タイムアウトはキャッシュせず再取得の余地を残す
 
-      const result = buildClipFrames(pts, getVideoFrames(validId))
+      const table = getVideoFrames(validId)
+      const result = buildClipFrames(pts, table)
+      // **詳細タイルの枚数を、ここで確定した範囲に合わせ直す。**
+      //
+      // コマ送りが数えるのは「ファイル内に実在するコマ」だけで、frameIndex がファイルの外を
+      // 指す行は落としている。一方 DB の枚数は表の全行から数えたもので、**落とした行まで
+      // 母数に入っている**。検証を通った録画は範囲外の行が切り落とされているので一致するが、
+      // 検証に失敗した録画と、検証を持たない古い録画では一致しない——同じ録画で、詳細タイルと
+      // コマ送りが別の数を出すことになる。ファイルの長さが分かるのはここだけなので、ここで直す。
+      if (table && result.sourceBased) {
+        syncFrameCountsToUsable(validId, table, pts.length, image.ambiguous_frames ?? null)
+      }
       setCachedClipFrames(validId, result)
       return result
     } catch { return EMPTY }

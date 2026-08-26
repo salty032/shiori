@@ -186,6 +186,21 @@ function stopCaptureTicker(): void {
   tickerEl = null
 }
 
+// 停止を決めた瞬間に、コマの供給と記録を止める。
+//
+// **cleanup（onstop の中）まで待ってはいけない。** MediaRecorder は stop() を呼んでから
+// 実際に閉じるまでに時間があり、その間も rVFC は回り続ける。そこで供給した 1〜2 枚は
+// ファイルに入らないのに供給側の記録には残るので、毎回「末尾が足りない」になる
+// （実測 2026-08-26・6 本すべてで発生。素材の最後の 1 コマが表から落ちていた）。
+//
+// ここで止めても録画そのものは影響を受けない —— ティッカーはキャプチャの枚数を稼ぐための
+// もので、映像は画面キャプチャのストリームから直接エンコードされている。
+function stopFrameSupply(token: number): void {
+  if (token !== recordingToken) return
+  rVfcRunning = false
+  stopCaptureTicker()
+}
+
 function cleanup(stream: MediaStream | null, cs: MediaStream | null, token: number): void {
   if (token === recordingToken) {
     rVfcRunning = false
@@ -554,7 +569,10 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, sourceFps, maxSeco
     recorderFailed = true
     console.error('[recorder] MediaRecorder error', event)
     window.recorderApi.reportError('media_recorder_error', sessionId)
-    if (rec.state === 'recording') rec.stop()
+    if (rec.state === 'recording') {
+      stopFrameSupply(token)
+      rec.stop()
+    }
   }
 
   rec.onstop = async () => {
@@ -627,7 +645,10 @@ window.recorderApi.onStart(async ({ sourceId, fps, supplyFps, sourceFps, maxSeco
   if (maxSeconds > 0) {
     stopTimer = setTimeout(() => {
       stopTimer = null
-      if (rec.state === 'recording') rec.stop()
+      if (rec.state === 'recording') {
+        stopFrameSupply(token)
+        rec.stop()
+      }
     }, maxSeconds * 1000)
   }
 })
@@ -779,6 +800,7 @@ window.recorderApi.onBench(async ({ variants, seconds }) => {
 window.recorderApi.onStop(() => {
   recordingToken++
   if (recorder?.state === 'recording') {
+    stopFrameSupply(recordingToken)
     recorder.stop()
   } else {
     // V-1: 録画開始処理中（MediaRecorder.start() 到達前）に停止が来たケース。recorder が

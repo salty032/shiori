@@ -2,7 +2,8 @@ import { app, dialog } from 'electron'
 import { statSync } from 'fs'
 import { initDb, databasePath } from '../db-schema'
 import {
-  isDatabaseDamaged, listBackups, restoreDatabase, setAsideBrokenDatabase, writeRestoreMarker
+  DatabaseMigrationBackupError, DatabaseVersionTooNewError, isDatabaseDamaged, listBackups,
+  restoreDatabase, setAsideBrokenDatabase, writeRestoreMarker
 } from './db-maintenance'
 import { describeStartupError } from './startup-error'
 import { t, currentLang } from './i18n'
@@ -38,6 +39,17 @@ export function openDatabaseOrRecover(): boolean {
 /** DB を開けなかったときの導線。起動を続けられるなら true。 */
 function recoverDatabase(err: unknown): boolean {
   console.error('[startup] initDb failed', err)
+  if (err instanceof DatabaseVersionTooNewError) {
+    dialog.showErrorBox('Shiori', t('error.dbVersionTooNew', {
+      stored: err.storedVersion,
+      supported: err.supportedVersion
+    }))
+    return false
+  }
+  if (err instanceof DatabaseMigrationBackupError) {
+    dialog.showErrorBox('Shiori', t('error.dbMigrationBackupFailed', { path: err.dbPath }))
+    return false
+  }
   // ロック中・権限不足（ウイルス対策やバックアップソフト）を復元に巻き込まない。
   // 破損だと SQLite 自身が言っている場合だけ、現在のファイルを動かす提案をする。
   if (!isDatabaseDamaged(err)) {

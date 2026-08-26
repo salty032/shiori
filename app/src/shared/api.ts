@@ -27,7 +27,7 @@ export interface ShioriApi {
   // 「N コマ未取得」を「N コマ要確認」へ変える。一覧は保存時点のスナップショットなので、
   // これを飛ばさないと**検証済みなのに未検証の表示のまま**になる（実測で 90コマ未取得 のまま
   // 64コマ要確認 に変わらなかった）。値は検証後の確定値。
-  onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null }) => void) => () => void
+  onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null; misaligned: number | null }) => void) => () => void
   onOpenSettings: (cb: () => void) => () => void
   onAppNotice: (cb: (data: AppNotice) => void) => () => void
   onWhatsNew: (cb: (data: WhatsNewData) => void) => () => void

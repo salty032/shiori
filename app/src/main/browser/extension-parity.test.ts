@@ -76,8 +76,8 @@ describe('extension との受け渡しの経路', () => {
     expect(bootstrapTs).toMatch(/stepLabels: browserStepLabels\(\)/)
     expect(bridgeTs).toMatch(/blocked: t\('video\.stepBlocked'\), dropped: t\('video\.stepDropped'\)/)
     for (const src of [backgroundJs, contentJs]) {
-      expect(src).toMatch(/blocked: label\(msg\.stepLabels\?\.blocked\)/)
-      expect(src).toMatch(/dropped: label\(msg\.stepLabels\?\.dropped\)/)
+      expect(src).toMatch(/blocked: stepLabel\(msg\.stepLabels\?\.blocked\)/)
+      expect(src).toMatch(/dropped: stepLabel\(msg\.stepLabels\?\.dropped\)/)
     }
   })
 })
@@ -128,8 +128,22 @@ return restoreDelayFor`)() as (host: string, immediate: boolean) => number
 // 録画は普通に成功する**ので、実機で押してみるまで気づけない。三重実装（M-1）の典型。
 describe('録画の準備中表示（clip-arming / clip-armed）', () => {
   it('background.js の検疫を通る', () => {
-    expect(backgroundJs).toContain("{ type: 'clip-arming' }")
+    expect(backgroundJs).toContain("{ type: 'clip-arming', label: stepLabel(msg.label) }")
     expect(backgroundJs).toContain("{ type: 'clip-armed' }")
+  })
+
+  // **文言は app 側（ja.ts）が原本で、拡張は 1 語も持たない。** 途中の段で落ちると
+  // 丸だけが出て文字が消えるか、拡張に日本語を書き戻すことになる（英語表示の人にだけ
+  // 日本語が出て、こちらからは永久に気づけない）。3 段とも固定する。
+  it('準備中の文言が main → background.js → content.js の3段を素通りする', () => {
+    const recordingTs = readFileSync(join(__dirname, '../video/recording.ts'), 'utf-8')
+    expect(recordingTs).toContain("broadcastMessage({ type: 'clip-arming', label: t('video.clipArming') })")
+    for (const src of [backgroundJs, contentJs]) {
+      expect(src).toContain("{ type: 'clip-arming', label: stepLabel(msg.label) }")
+    }
+    expect(contentJs).toContain('showArmingOverlay(safeMsg.label)')
+    // 拡張に日本語が焼き付いていないこと（オーバーレイの中身は app から来た文字だけ）
+    expect(contentJs).not.toContain("label.textContent = '録画の準備中'")
   })
 
   it('background.js がアクティブタブへ振り分ける（全ポートに配ると裏のタブに残る）', () => {
@@ -139,15 +153,15 @@ describe('録画の準備中表示（clip-arming / clip-armed）', () => {
   })
 
   it('content.js の検疫を通り、表示の出し／消しに繋がっている', () => {
-    expect(contentJs).toContain("{ type: 'clip-arming' }")
+    expect(contentJs).toContain("{ type: 'clip-arming', label: stepLabel(msg.label) }")
     expect(contentJs).toContain("{ type: 'clip-armed' }")
-    expect(contentJs).toContain('showArmingOverlay()')
+    expect(contentJs).toContain('showArmingOverlay(safeMsg.label)')
     expect(contentJs).toContain('hideArmingOverlay()')
   })
 
   it('録画側が出して、消してから撮り始める（順序が逆だと録画に写る）', () => {
     const recordingTs = readFileSync(join(__dirname, '../video/recording.ts'), 'utf-8')
-    const arming = recordingTs.indexOf("broadcastMessage({ type: 'clip-arming' })")
+    const arming = recordingTs.indexOf("broadcastMessage({ type: 'clip-arming'")
     const armed = recordingTs.indexOf("broadcastMessage({ type: 'clip-armed' })")
     const start = recordingTs.indexOf("send('recorder:start'")
     expect(arming).toBeGreaterThan(-1)

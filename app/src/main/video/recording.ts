@@ -157,9 +157,10 @@ const UI_HOLD_MARGIN_SEC = 10
 
 // 記録を始める前に、コマ通知が落ち着くのを待つ上限。**待ち切れなくても必ず始める**
 // （待たされ続けるより、保証できないと出して撮れる方がよい）。
-// 実測（76 本・SETTLE_WINDOW のコメント参照）で最も遅い 24fps YouTube が 1.04 秒なので、
-// 見切りは 1.5 秒。これを超えるのは荒れが収まっていない録画で、そのときは画面に出す。
-const CLIP_SETTLE_TIMEOUT_MS = 1500
+// 実測（76 本・SETTLE_WINDOW のコメント参照）で最も遅い 24fps YouTube が 1.04 秒。
+// 見切りは 2.0 秒（1.5 秒から引き上げ・2026-08-26）。これを超えるのは荒れが収まって
+// いない録画で、そのときは画面に出す。
+const CLIP_SETTLE_TIMEOUT_MS = 2000
 // 「準備中」の表示が消えるのを待つ時間。ローカルの WS 往復は数 ms だが、消える前に
 // 撮り始めると表示が録画に写る。**録画そのものを汚すので、ここは余裕を取る。**
 const ARMED_CLEAR_MS = 120
@@ -256,7 +257,7 @@ export async function startRecording(): Promise<void> {
     // （frame-feed.ts の waitForSteadyFrames にコメント）。待っている間だけ映像の上に
     // 「準備中」を出す —— まだ記録していないので写り込まないし、全画面でも見える。
     // 消えた瞬間が記録開始の合図になる。
-    broadcastMessage({ type: 'clip-arming' })
+    broadcastMessage({ type: 'clip-arming', label: t('video.clipArming') })
     awaitingStart = true
     startCanceled = false
     const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)

@@ -136,6 +136,9 @@ export function normalizeSettings(value: unknown): Settings {
 }
 
 let _settingsCache: Settings | null = null
+// 読み取り不能だった元ファイルを、初期値で起動したセッションから上書きしないためのラッチ。
+// 原因（AVの一時ロック等）が解消した次回起動で元設定を読み直せるよう、プロセス中は解除しない。
+let _settingsWriteBlocked = false
 
 // 読み込みに失敗する理由は 2 種類あり、**取るべき行動が正反対**なので混ぜてはいけない。
 //   * 'corrupt'    — 中身が JSON として読めない。放っておくと次の設定変更で上書きされて
@@ -197,6 +200,8 @@ export function loadSettings(): Settings {
           renameSync(path, `${path}.corrupt-${Date.now()}`)
         } catch (renameErr) {
           console.warn('[settings] failed to preserve corrupt settings.json:', renameErr)
+          // 壊れた内容を退避できていない。このまま初期値を書けば復旧材料を失う。
+          _settingsWriteBlocked = true
         }
         _loadProblem = 'corrupt'
       }
@@ -205,6 +210,7 @@ export function loadSettings(): Settings {
     // リトライしても読めなかった（ロック・権限）。ファイルは残っているので触らない。
     console.warn('[settings] could not read settings.json, leaving it untouched:', err)
     _loadProblem = 'unreadable'
+    _settingsWriteBlocked = true
   }
   // ここに来るのは「settings.json が無い（＝新規インストール）」か「読み込みに失敗した」かの
   // どちらか。前者だけ OS ロケールから表示言語を決める。後者は設定を持っていたユーザーなので、
@@ -287,6 +293,12 @@ export function saveSettings(s: unknown): void {
   // セッション内の真実はここ。ディスク反映を待たず即座に確定し、loadSettings/getSettings が
   // 常に最新値を返すようにする（永続化の成否と UI 反映を切り離す）。
   _settingsCache = normalized
+  if (_settingsWriteBlocked) {
+    // セッション内では操作を反映するが、読めなかった元ファイルには触らない。
+    // 通知は既存の persistFailed 経路へ載せ、画面上だけの変更だと明示する。
+    notifyPersistFailed()
+    return
+  }
   _persistChain = _persistChain
     .then(() => persistToDisk(normalized))
     .catch((err) => { console.error('[settings] unexpected persist error:', err) })

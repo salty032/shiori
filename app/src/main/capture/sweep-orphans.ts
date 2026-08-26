@@ -1,13 +1,13 @@
 import { readFile, readdir, stat, unlink, writeFile } from 'fs/promises'
 import { extname, join, resolve } from 'path'
 import { app } from 'electron'
-import { captureDir, thumbnailDir } from '../system/paths'
+import { thumbnailDir } from '../system/paths'
 import { countImages, listReferencedPaths } from '../db'
 
 // 削除は「DB 行を消す → 実ファイルを消す」の順で行う（ipc-images.ts の設計）。
-// 後半が失敗すると DB から参照されない実ファイルが captures/thumbnails に残る。
-// これは一覧に出ないのでユーザーには見えず、自分で消す手段もない。放置すると
-// ファイル削除が失敗するたびに増え続けるため、起動時にアプリ側で回収する。
+// 後半が失敗すると DB から参照されないファイルが残る。この掃除で自動削除するのは
+// **再生成可能なサムネイルだけ**。画像・動画の原本は、DB移行や復元の不具合で一時的に
+// 参照が見えなくなった場合に唯一の実体を失うため、孤立して見えても触らない。
 
 // 実ファイルの書き込みは DB 行の INSERT より先に起きる（captured-media.ts / ipc-video.ts）。
 // その隙間に掃除が走ると、取り込み中の正当なファイルを孤立と誤判定して消してしまう。
@@ -102,10 +102,9 @@ export async function sweepOrphanFiles(): Promise<{ removed: number; bytes: numb
     if (row.thumb_path) referenced.push(row.thumb_path)
   }
 
-  const candidates = [
-    ...await collectFiles(captureDir()),
-    ...await collectFiles(thumbnailDir())
-  ]
+  // 原本（captures）は意図的に走査しない。容量回収より、判定を誤った場合にもユーザーが
+  // ファイルを取り出せることを優先する。サムネイルは必要なら backfill で作り直せる。
+  const candidates = await collectFiles(thumbnailDir())
   const orphans = selectOrphans(candidates, referenced, Date.now())
 
   let removed = 0

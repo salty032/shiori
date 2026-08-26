@@ -86,6 +86,23 @@ describe('loadSettings の失敗の扱い', () => {
     expect(corruptCopies()).toHaveLength(0)
   })
 
+  it('読めなかったセッションで設定を変えても、元ファイルを上書きしない', async () => {
+    writeFileSync(settingsFile(), VALID, 'utf-8')
+    readFailures = 99
+    const { loadSettings, saveSettings, flushSettings } = await freshSettingsModule()
+
+    loadSettings()
+    saveSettings({ theme: 'dark', language: 'ja' })
+    await flushSettings()
+
+    // ロックが外れた次回起動で元設定へ戻れることが安全側。今のセッションの変更は一時値。
+    readFailures = 0
+    const text = await (await import('fs/promises')).readFile(settingsFile(), 'utf8')
+    expect(JSON.parse(text)).toEqual({
+      theme: 'light', language: 'en'
+    })
+  })
+
   it('JSON として壊れているときだけ退避する', async () => {
     writeFileSync(settingsFile(), '{ "theme": "light"', 'utf-8')
     const { loadSettings, consumeSettingsLoadProblem } = await freshSettingsModule()

@@ -162,19 +162,38 @@ describe('restoredFrameCounts', () => {
     { mediaTime: 2 / 24, frameIndex: 1, captured: false, verified: 'changed' as const },
   ]
 
-  it('コマ表から母数・撮り逃し・要確認を再構築し、未通知数を保持する', () => {
-    expect(restoredFrameCounts(frames, { ambiguous: 1, unreported: 4 })).toEqual({
+  it('コマ表から母数・撮り逃し・要確認を再構築する', () => {
+    expect(restoredFrameCounts(frames, { ambiguous: 1 })).toEqual({
       uncaptured: 2,
       ambiguous: 1,
       sourceFrames: 3,
-      unreported: 4,
+      unreported: 0,
+      misaligned: 0,
     })
   })
 
   it('未検証(null)は要確認0へ潰さない', () => {
-    expect(restoredFrameCounts(frames, { ambiguous: null, unreported: null })).toMatchObject({
-      ambiguous: null,
-      unreported: null,
-    })
+    expect(restoredFrameCounts(frames, { ambiguous: null })).toMatchObject({ ambiguous: null })
+  })
+
+  it('検証済みなら changed と unknown を要確認に含め、same だけを除く', () => {
+    const withUnknown = [
+      ...frames,
+      { mediaTime: 3 / 24, frameIndex: 2, captured: false, verified: 'unknown' as const },
+    ]
+    expect(restoredFrameCounts(withUnknown, { ambiguous: 2 })).toMatchObject({ ambiguous: 2 })
+  })
+
+  // 共有ファイルには 1 コマずつの表しか入っておらず、合計は入っていない。送られてきた値を
+  // 待つのではなく表から数え直さないと、受け取った録画は詳細パネルだけが黙る。
+  it('抜けとずれは、送り主の申告ではなく受け取った表から数える', () => {
+    const withGap = [
+      { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' as const },
+      { mediaTime: 1 / 24, frameIndex: 1, captured: true, verified: 'unknown' as const },
+      // ここで 2 コマぶん飛ぶ
+      { mediaTime: 4 / 24, frameIndex: 2, captured: true, verified: 'unknown' as const, misaligned: true },
+      { mediaTime: 5 / 24, frameIndex: 3, captured: true, verified: 'unknown' as const, misaligned: true },
+    ]
+    expect(restoredFrameCounts(withGap, { ambiguous: null })).toMatchObject({ unreported: 2, misaligned: 2 })
   })
 })

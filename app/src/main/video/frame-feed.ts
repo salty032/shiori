@@ -407,13 +407,41 @@ function fitGrid(mediaTimes: number[]): { periodMs: number; residualRmsMs: numbe
   }
 }
 
-// 表に入っているコマ列から、通知が来なかったコマ数を数える（MatchResult.reportDrops と同じ算出）。
+/** 表から抜けている区間。afterIndex のコマの「次」に missing コマぶん無い */
+export interface FrameGap {
+  afterIndex: number
+  missing: number
+}
+
+// 表に入っているコマ列から、通知が来なかった区間を拾う。
 //
-// **画面に出す数字とログの数字を同じ計算から出すために公開している。** 以前は画面側だけ
-// `fps × 尺` から見積もっており、同じ事実にログ 98 コマ／画面 85 コマと 2 つの数字が出ていた。
-// 尺は録画停止までのラグを含むぶん過大なので、素材のコマ周期の格子から数えるこちらが正しい。
+// **抜けの「場所」と「合計」は必ずここから出す。** 以前は詳細パネルが fps × 尺 から
+// 見積もり、同じ事実にログ 98 コマ／画面 85 コマと 2 つの数字が出ていた。それを潰した後も、
+// 場所（コマ送りの表示）と合計（詳細パネル）が別々の計算で出ており、実測 82 本のうち
+// 5 本で数字が食い違っていた（2026-08-26）。**同じことを 2 通りに数えない。**
+//
+// 周期は間隔の中央値。fitGrid の最小二乗は 20 コマ未満で使えず、実際に短いクリップ 4 本で
+// 「抜けが無い」ことになっていた。抜けの判定は round(間隔/周期) の丸めしか使わないので、
+// 中央値でも結果は変わらない（fitGrid も通し番号は中央値で振っている）。
+export function frameGaps(mediaTimes: number[]): FrameGap[] {
+  if (mediaTimes.length < 3) return []
+  const diffs: number[] = []
+  for (let i = 1; i < mediaTimes.length; i++) diffs.push(mediaTimes[i] - mediaTimes[i - 1])
+  const median = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
+  if (!(median > 0)) return []
+  const gaps: FrameGap[] = []
+  for (let i = 0; i < diffs.length; i++) {
+    const missing = Math.round(diffs[i] / median) - 1
+    if (missing >= 1) gaps.push({ afterIndex: i, missing })
+  }
+  return gaps
+}
+
+// 抜けの合計。**場所（frameGaps）の足し算以外で出さない。**
 export function countReportDrops(mediaTimes: number[]): number {
-  return fitGrid(mediaTimes)?.drops ?? 0
+  let total = 0
+  for (const gap of frameGaps(mediaTimes)) total += gap.missing
+  return total
 }
 
 // トリムした新クリップ用にフレーム表を作り直す。

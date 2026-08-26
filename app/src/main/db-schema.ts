@@ -6,8 +6,9 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { buildSearchText, SEARCH_NORMALIZE_VERSION } from '../shared/normalize'
 import {
-  DatabaseCorruptError, SCHEMA_VERSION, backupDatabase, backupIsDue, integrityProblem,
-  pruneBackups, readSchemaVersion, writeSchemaVersion, type SqlRunner
+  DatabaseCorruptError, DatabaseMigrationBackupError, SCHEMA_VERSION, assertSchemaCompatible,
+  backupDatabase, backupIsDue, integrityProblem, pruneBackups, readSchemaVersion,
+  writeSchemaVersion, type SqlRunner
 } from './system/db-maintenance'
 import { prepare, setDatabase } from './db-core'
 
@@ -98,19 +99,41 @@ export function initDb(): void {
   // どちらも上の integrityProblem を通った後にしか来ない。**この順序が肝心**で、
   // 壊れた中身を世代へ流し込むと数日で健全な世代が押し出され、退避が全滅する。
   const storedVersion = readSchemaVersion(runner)
+  try {
+    assertSchemaCompatible(storedVersion, SCHEMA_VERSION)
+  } catch (err) {
+    // 旧版で新しいDBを開いたままにしない。以降には毎起動の索引再構築もあるため、
+    // 「移行しなければ安全」ではなく、ここを読み書き処理すべてのゲートにする。
+    db.close()
+    throw err
+  }
   const schemaWillChange = storedVersion < SCHEMA_VERSION
-  if (!isNewDatabase && (schemaWillChange || backupIsDue(dbPath, new Date()))) {
+  if (!isNewDatabase && schemaWillChange) {
     try {
       backupDatabase(runner, dbPath, new Date())
       pruneBackups(dbPath)
     } catch (err) {
-      // ディスクフル・権限などで退避が取れないこと自体は起動を止める理由にならない。
-      // ただし黙って進むと「退避があるつもり」で使い続けることになるので画面へ出す。
-      console.warn('[db] backup before migration failed', err)
+      // 構造変更の前だけは退避が必須。ここで続行すると、まさに戻したい移行失敗時に
+      // 戻り先が無い。DBにはまだ何も変更していないので、閉じてそのまま残す。
+      db.close()
+      throw new DatabaseMigrationBackupError(dbPath, { cause: err })
+    }
+  } else if (!isNewDatabase && backupIsDue(dbPath, new Date())) {
+    try {
+      backupDatabase(runner, dbPath, new Date())
+      pruneBackups(dbPath)
+    } catch (err) {
+      // 日次退避の失敗はデータ構造を変えないため、使用は続けて画面で注意する。
+      console.warn('[db] daily backup failed', err)
       _backupFailed = true
     }
   }
-  db.exec(`
+
+  // CREATE / ALTER / FTS再構築 / backfill / user_version の確定を1単位にする。
+  // 電源断や例外で途中までしか適用されても、次回起動が半端なスキーマを使い続けない。
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS images (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       filepath     TEXT    NOT NULL UNIQUE,
@@ -205,6 +228,7 @@ export function initDb(): void {
   // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
   // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_frames INTEGER')
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN misaligned_frames INTEGER')
   // 取り込んだ素材の、送り主が記録していた取得時間。captured_at は取り込んだ時刻に
   // そろえてしまう（他人の素材が自分のキャプチャと日付順で混ざるのを避けるため）ので、
   // 元の時刻を捨てないためにここへ退避する。NULL は自分で撮った素材。
@@ -355,5 +379,15 @@ export function initDb(): void {
 
   // 版の記録は移行が全部通ってから。途中で落ちれば記録は残らず、次回起動で退避から
   // やり直す（search_normalize_version と同じコミットマーカーの置き方）。
-  if (schemaWillChange) writeSchemaVersion(runner, SCHEMA_VERSION)
+    if (schemaWillChange) writeSchemaVersion(runner, SCHEMA_VERSION)
+    db.exec('COMMIT')
+  } catch (err) {
+    if (db.inTransaction) {
+      try { db.exec('ROLLBACK') } catch (rollbackErr) {
+        console.error('[db] schema migration rollback failed', rollbackErr)
+      }
+    }
+    db.close()
+    throw err
+  }
 }

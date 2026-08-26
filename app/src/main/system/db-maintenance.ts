@@ -23,7 +23,8 @@ export interface SqlRunner {
 // **images に列を足したり、テーブル・インデックスを増やしたら必ずここを上げる。**
 // 上げ忘れると、作りを変える前の退避が取られないまま移行が走る。上げ忘れても画面には
 // 何も起きないので、気づけるのは戻したくなった後になる。
-export const SCHEMA_VERSION = 2
+// 3: images に misaligned_frames を追加（2026-08-26）。
+export const SCHEMA_VERSION = 3
 
 /**
  * 残す退避の世代数。日次で 1 世代取るので、実質「何日前まで戻れるか」になる。
@@ -52,6 +53,28 @@ export class DatabaseCorruptError extends Error {
   constructor(readonly detail: string) {
     super(`database integrity check failed: ${detail}`)
     this.name = 'DatabaseCorruptError'
+  }
+}
+
+/** このアプリが理解できない新しいスキーマを、旧版から書き換えないための停止理由。 */
+export class DatabaseVersionTooNewError extends Error {
+  constructor(readonly storedVersion: number, readonly supportedVersion: number) {
+    super(`database schema ${storedVersion} is newer than supported schema ${supportedVersion}`)
+    this.name = 'DatabaseVersionTooNewError'
+  }
+}
+
+/** 構造変更前の必須バックアップを作れず、元データを保ったまま移行を中止したことを表す。 */
+export class DatabaseMigrationBackupError extends Error {
+  constructor(readonly dbPath: string, options?: ErrorOptions) {
+    super(`could not back up the database before schema migration: ${dbPath}`, options)
+    this.name = 'DatabaseMigrationBackupError'
+  }
+}
+
+export function assertSchemaCompatible(storedVersion: number, supportedVersion: number): void {
+  if (storedVersion > supportedVersion) {
+    throw new DatabaseVersionTooNewError(storedVersion, supportedVersion)
   }
 }
 
@@ -109,7 +132,14 @@ export function backupDatabase(runner: SqlRunner, dbPath: string, now: Date): st
     dest = join(dir, `${dbStem(dbPath)}-${backupTimestamp(now)}-${serial}.db`)
     serial += 1
   }
-  runner.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`)
+  try {
+    runner.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`)
+  } catch (err) {
+    // ENOSPC 等で途中まで作られたファイルを「最新の正常な退避」として拾わせない。
+    // 残すと backupIsDue が今日ぶんを成功扱いし、復元時も先頭候補になってしまう。
+    try { unlinkSync(dest) } catch { /* 作成前に失敗した場合は存在しない */ }
+    throw err
+  }
   return dest
 }
 

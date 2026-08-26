@@ -67,12 +67,18 @@ const FRAME_COLOR = {
   alert: '#ff9aa2',
 }
 
+// 注記を赤へ上げる割合。抜け（数えられない）にも未取得（絵が無い）にも同じ値を使う。
+// **詳細パネル（DetailPanel）が同じ定数を読む。** 同じ録画でコマ送りの表示と詳細パネルの
+// どちらか片方だけ赤くなる状態を作らないため、値は 1 か所にしか置かない。
+export const SEVERE_FRAME_RATIO = 0.05
+
 // コマごとの確からしさに添える注記。null（撮れているコマ）のときは番号だけを出す——
 // **問題が無いときに何も足さない**のが要点で、常に何か表示していると注記が背景になる。
 const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; color: string } | null> = {
   [FRAME_QUALITY.captured]: null,
-  [FRAME_QUALITY.reused]: { label: 'viewer.frameNeedsReview', hint: 'viewer.frameReusedHint', color: FRAME_COLOR.alert },
-  [FRAME_QUALITY.misaligned]: { label: 'viewer.frameMisaligned', hint: 'viewer.frameMisalignedHint', color: FRAME_COLOR.alert },
+  [FRAME_QUALITY.reused]: { label: 'viewer.frameNeedsReview', hint: 'viewer.frameReusedHint', color: FRAME_COLOR.warn },
+  // misaligned はここに入れない。**箇所を指さずクリップ全体を赤で通す**（updateFrameReadout）。
+  [FRAME_QUALITY.misaligned]: null,
 }
 
 // コマ表示の置き場所。コントロールバー（ホバー時だけ出る）の上に重ねる。
@@ -145,6 +151,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // このクリップのコマ情報。取得できるまで（および動画機能を落とした構成）は null のまま。
   const framesRef = useRef<ClipFrames | null>(null)
   const gapsRef = useRef<Map<number, number>>(new Map())
+  // このクリップのコマ送りが、どこを見ても当てにならないか。
+  //
+  // **抜けが 1 つでもあれば赤、にはしない。** 実測（手元 82 本・2026-08-26）では抜けのある
+  // 録画 33 本の中身が両極端で、「1500 コマに 194 か所」の穴だらけと「899 コマに 1 コマ」が
+  // 同居していた。後者を全体不可にすると、無傷な 898 か所の境目まで捨てることになる
+  // （docs/ANIME-FRAMES.md 0 章）。欠落コマの割合で並べると 5.4% と 4.1% の間で分布が
+  // 切れていたので、そこを境にする。大きい方 24 本は全体を赤、小さい方 9 本は場所を指す。
+  const unreliableRef = useRef(false)
+  // 未取得が多いクリップか。**コマ単位ではなくクリップ単位で決める**——1 コマずつ見ても
+  // 「多いのか少ないのか」は分からず、詳細パネルは割合で赤くしている。同じ割合をここでも使う。
+  const uncapturedSevereRef = useRef(false)
   // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
   //
   // 時刻で持って毎回シーク結果を実測し直すと、連打したときに前のシークの実測（非同期で
@@ -201,6 +218,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // 「このコマの次に何コマ抜けているか」を添字で引けるようにしておく（コマ送りのたびに
       // 配列を走査すると、押しっぱなしのときに効いてくる）。
       gapsRef.current = new Map((frames?.gaps ?? []).map((g) => [g.afterIndex, g.missing]))
+      // ずれは崩れた位置から末尾まで続くので、1 コマでもあれば全体の話。
+      const misaligned = (frames?.quality ?? []).some((q) => q === FRAME_QUALITY.misaligned)
+      const missing = (frames?.gaps ?? []).reduce((sum, g) => sum + g.missing, 0)
+      const rows = frames?.pts.length ?? 0
+      unreliableRef.current = misaligned ||
+        (missing > 0 && missing / (rows + missing) > SEVERE_FRAME_RATIO)
+      const uncaptured = (frames?.quality ?? []).filter((q) => q === FRAME_QUALITY.reused).length
+      uncapturedSevereRef.current = rows > 0 && uncaptured / rows > SEVERE_FRAME_RATIO
       setFrameEnd(frames && frames.pts.length > 0 ? frames.pts[frames.pts.length - 1] : null)
       setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
       onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
@@ -278,24 +303,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     }
 
     const note = FRAME_NOTE[frames.quality[cur] ?? FRAME_QUALITY.captured]
-    // 表から抜けている区間（ClipGap）。**撮り逃しより実害が大きい**——撮り逃しは「絵が無い」
-    // だけだが、こちらはコマ自体が表に無く、コマ送りするとその区間がまるごと飛ぶ。
-    // 詳細パネルには合計が出るが、**数えている最中に見えるのはここ**なので、その場に出す。
-    const missing = gapsRef.current.get(cur) ?? 0
-    const notes: string[] = []
-    if (note) notes.push(tr(note.label))
-    if (missing > 0) notes.push(tr('viewer.frameGapAfter', { count: String(missing) }))
-    el.textContent = notes.length > 0
-      ? `${tr('viewer.frameIndex', params)} · ${notes.join(' · ')}`
+    // このコマの次に抜けている枚数（小さい抜けのときだけ使う）。
+    const missingNext = gapsRef.current.get(cur) ?? 0
+    // 注記は 3 段（詳細パネルの注記と同じ切り方）。
+    //
+    //   赤「要注意」   … ずれがある、または穴だらけ。どこを見ても数えられないので全体に出す。
+    //                    **押さないと出ない場所ではなく番号の横**に置く（いちばん重いので）。
+    //   黄「この先 N コマ抜け」… 抜けが少ないクリップ。壊れているのは**その穴をまたぐ境目
+    //                    だけ**で、残りの境目は無傷。だから全体を赤くせず、その場所で出す。
+    //   黄「未取得」   … 絵が無いコマ。コマ数は数えられる。従来どおりコマ単位。
+    //
+    // 重なったら重い方を採る。**並べない**——要注意が出ている時点で他を足しても判断は変わらず、
+    // 抜けの手前では「またげない」ことが未取得より先に知りたい。
+    const label = unreliableRef.current
+      ? tr('viewer.frameUnreliable')
+      : missingNext > 0
+        ? tr('viewer.frameGapAfter', { count: String(missingNext) })
+        : note ? tr(note.label) : null
+    el.textContent = label
+      ? `${tr('viewer.frameIndex', params)} · ${label}`
       : tr('viewer.frameIndex', params)
-    // 注記が重なったら抜けの説明を優先する（数え間違いに直結するのはこちら）。
-    el.title = missing > 0
-      ? tr('viewer.frameGapAfterHint', { count: String(missing) })
-      : tr(note ? note.hint : 'viewer.frameSourceHint')
-    // 色は強い方を採る。赤（絵が特定不能）＞ 黄（抜け・未検証の流用）＞ 白。
-    el.style.color = note?.color === FRAME_COLOR.alert
+    el.title = unreliableRef.current
+      ? tr('viewer.frameUnreliableHint')
+      : missingNext > 0
+        ? tr('viewer.frameGapAfterHint', { count: String(missingNext) })
+        : tr(note ? note.hint : 'viewer.frameSourceHint')
+    // 未取得は、そのクリップで多いときだけ赤へ上げる（詳細パネルと同じ 5%）。
+    el.style.color = unreliableRef.current
       ? FRAME_COLOR.alert
-      : missing > 0 ? FRAME_COLOR.warn : note ? note.color : FRAME_COLOR.ok
+      : missingNext > 0
+        ? FRAME_COLOR.warn
+        : note ? (uncapturedSevereRef.current ? FRAME_COLOR.alert : note.color) : FRAME_COLOR.ok
   }
 
   // delta コマ動かす（正で先へ、負で前へ）。
@@ -750,9 +788,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
             style={frameLegendStyle}
             onClick={(e) => { e.stopPropagation(); setLegendOpen(false) }}>
             {([
-              ['viewer.legendMissing', FRAME_COLOR.alert],
-              ['viewer.legendMisaligned', FRAME_COLOR.alert],
+              ['viewer.legendUnreliable', FRAME_COLOR.alert],
               ['viewer.legendGap', FRAME_COLOR.warn],
+              ['viewer.legendMissing', FRAME_COLOR.warn],
             ] as const).map(([key, color]) => (
               <Fragment key={key}>
                 <span style={{ color, fontWeight: 700, whiteSpace: 'nowrap' }}>{t(`${key}.label` as MessageKey)}</span>

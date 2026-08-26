@@ -7,6 +7,8 @@ import { join } from 'path'
 import {
   BACKUP_INTERVAL_MS,
   DatabaseCorruptError,
+  DatabaseVersionTooNewError,
+  assertSchemaCompatible,
   backupDatabase,
   backupDirFor,
   backupIsDue,
@@ -97,6 +99,15 @@ describe('スキーマの版', () => {
     expect(() => writeSchemaVersion(runnerFor(db), 1.5)).toThrow()
     expect(() => writeSchemaVersion(runnerFor(db), -1)).toThrow()
   })
+
+  it('同じ版と古い版は開ける', () => {
+    expect(() => assertSchemaCompatible(3, 3)).not.toThrow()
+    expect(() => assertSchemaCompatible(2, 3)).not.toThrow()
+  })
+
+  it('新しい版を旧アプリで開こうとしたら書き込み前に止める', () => {
+    expect(() => assertSchemaCompatible(4, 3)).toThrow(DatabaseVersionTooNewError)
+  })
 })
 
 describe('退避', () => {
@@ -120,6 +131,19 @@ describe('退避', () => {
     expect(second).not.toBe(first)
     expect(existsSync(first)).toBe(true)
     expect(existsSync(second)).toBe(true)
+  })
+
+  it('退避作成が途中で失敗したファイルを復元候補に残さない', () => {
+    const runner: SqlRunner = {
+      pragma: () => 'ok',
+      exec: (sql) => {
+        const match = /VACUUM INTO '(.+)'/.exec(sql)
+        if (match) writeFileSync(match[1].replace(/''/g, "'"), 'partial')
+        throw new Error('disk full')
+      }
+    }
+    expect(() => backupDatabase(runner, dbPath, new Date())).toThrow('disk full')
+    expect(listBackups(dbPath)).toEqual([])
   })
 
   it('古い世代から消し、新しい方を残す', () => {

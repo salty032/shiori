@@ -26,11 +26,16 @@ import { CH } from '../../shared/api'
 // fps の遡及埋め（fps:backfilled）と同じ購読パターン。
 // total（素材のコマ総数）も一緒に流す。末尾を切ったときは母数も変わるので、枚数だけ送ると
 // 一覧のスナップショットの中で分子と分母が別の時点の数になり、割合の判定が静かに狂う。
-function notifyVerified(imageId: number, uncaptured: number | null, ambiguous: number | null, total: number | null, unreported: number | null): void {
+// misaligned まで流すのは、詳細パネルの「要注意」がこの値で決まるため。**落とすと録画した
+// 直後の 1 本だけ、コマ送りの表示が赤いのに詳細パネルが黙る**（開き直すまで直らない）。
+function notifyVerified(
+  imageId: number, uncaptured: number | null, ambiguous: number | null,
+  total: number | null, unreported: number | null, misaligned: number | null = 0
+): void {
   // **画面へ知らせる前にキャッシュを捨てる。** ここへ来るのは表を書き換えた後だけで、
   // 捨てないと開いたままのクリップが古い並びのままコマ送りを続ける。
   invalidateClipFrames(imageId)
-  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported })
+  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported, misaligned })
 }
 
 /**
@@ -100,7 +105,7 @@ export async function verifyClipFrames(
         if (marked.length === 0 || misaligned === marked.length) {
           // 1 行も使えるところが無い。ここだけは表として成立しない。
           markVideoFramesUnusable(imageId, 'correspondence-break')
-          notifyVerified(imageId, null, null, null, null)
+          notifyVerified(imageId, null, null, null, null, null)
           return
         }
         saveVideoFrames(imageId, marked)
@@ -108,14 +113,16 @@ export async function verifyClipFrames(
           imageId,
           marked.filter((f) => !f.captured).length,
           marked.length,
-          countReportDrops(marked.map((f) => f.mediaTime))
+          countReportDrops(marked.map((f) => f.mediaTime)),
+          misaligned
         )
         notifyVerified(
           imageId,
           marked.filter((f) => !f.captured).length,
           null,
           marked.length,
-          countReportDrops(marked.map((f) => f.mediaTime))
+          countReportDrops(marked.map((f) => f.mediaTime)),
+          misaligned
         )
         return
       }
@@ -123,7 +130,7 @@ export async function verifyClipFrames(
       const kept = frames.filter((f) => f.frameIndex < signatures.length)
       if (kept.length === 0) {
         markVideoFramesUnusable(imageId, 'no-frame-within-file')
-        notifyVerified(imageId, null, null, null, null)
+        notifyVerified(imageId, null, null, null, null, null)
         return
       }
       console.warn(
@@ -204,7 +211,8 @@ export async function recheckUnusableClips(): Promise<void> {
         target.imageId,
         match.frames.filter((f) => !f.captured).length,
         match.frames.length,
-        countReportDrops(match.frames.map((f) => f.mediaTime))
+        countReportDrops(match.frames.map((f) => f.mediaTime)),
+        match.misaligned
       )
       console.log(
         `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): restored` +
@@ -215,7 +223,8 @@ export async function recheckUnusableClips(): Promise<void> {
         match.frames.filter((f) => !f.captured).length,
         null,
         match.frames.length,
-        countReportDrops(match.frames.map((f) => f.mediaTime))
+        countReportDrops(match.frames.map((f) => f.mediaTime)),
+        match.misaligned
       )
     } catch (err) {
       console.warn(`[frame-recheck] image ${target.imageId} failed`, err)

@@ -51,6 +51,12 @@ const NAMED_CAPTURE_KEYS = new Set([
   'Home', 'End', 'PageUp', 'PageDown', 'Up', 'Down', 'Left', 'Right'
 ])
 // ==== ここまで自動生成: limits ====
+// app から届く表示文言を丸める。**拡張は文言を1つも持たない**ので、落とすと画面から
+// 文字が消える（機能は動いたまま）。長さだけ切って、型が違えば空にする。
+function stepLabel(v) {
+  return typeof v === 'string' ? v.slice(0, MAX_STEP_LABEL_LENGTH) : ''
+}
+
 function isValidCaptureKey(k) {
   return /^[A-Za-z0-9]$/.test(k) || /^F([1-9]|1[0-9]|2[0-4])$/.test(k) || NAMED_CAPTURE_KEYS.has(k)
 }
@@ -191,7 +197,8 @@ function normalizeServerMessage(data) {
   // 録画の「準備中」表示の出し／消し。記録が始まる前だけ出るので録画には写らない
   // （app 側 recording.ts の waitForSteadyFrames）。**pre-capture と同じくアクティブタブへ送る**
   // —— 全ポートへ配ると、裏のタブにも準備中が出たまま残る。
-  if (msg.type === 'clip-arming') return { type: 'clip-arming' }
+  // 文言は app 側が持つ（拡張は言語を知らない）。stepLabels と同じ渡し方。
+  if (msg.type === 'clip-arming') return { type: 'clip-arming', label: stepLabel(msg.label) }
   if (msg.type === 'clip-armed') return { type: 'clip-armed' }
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
@@ -212,10 +219,9 @@ function normalizeServerMessage(data) {
     const captureKey = isValidCaptureKey(rawKey) ? rawKey : 'S'
     // **ここは項目を1つずつ書き写して作り直す。** 書き足し忘れると content.js まで届かない
     // （過去にビットレートの連動をこれで丸ごと落とした。extension-parity.test.ts が固定）。
-    const label = (v) => (typeof v === 'string' ? v.slice(0, MAX_STEP_LABEL_LENGTH) : '')
     const stepLabels = {
-      blocked: label(msg.stepLabels?.blocked),
-      dropped: label(msg.stepLabels?.dropped)
+      blocked: stepLabel(msg.stepLabels?.blocked),
+      dropped: stepLabel(msg.stepLabels?.dropped)
     }
     return { type: 'settings', frameFps, frameFpsAuto: msg.frameFpsAuto !== false, captureKey, stepLabels }
   }

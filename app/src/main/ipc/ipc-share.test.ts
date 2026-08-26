@@ -208,7 +208,8 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     expect(restoreVideoFramesMock).toHaveBeenCalledWith(1, [
       { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
       { mediaTime: 1 / 24, frameIndex: 0, captured: false, verified: 'changed' },
-    ], { ambiguous: 1, unreported: 3 })
+    // 抜けの合計は渡さない —— 受け取った表から数え直す（restoredFrameCounts）。
+    ], { ambiguous: 1 })
   })
 
   it('壊れたv2コマ表は無視し、動画本体は取り込む', async () => {

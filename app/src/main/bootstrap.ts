@@ -39,6 +39,7 @@ import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
 import { sendBrowserNotice } from './browser/browser-notice'
 import { recheckUnusableClips } from './video/verify-clip'
+import { backfillFrameCounts } from './db-video-frames'
 import { decideVersionNotice } from './system/version-notice'
 import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
@@ -324,6 +325,15 @@ export function bootstrap(features: MainFeature[] = []): void {
       // 判定を直したときに、印が付いたままのクリップを救うための後追い。掃除と同じ理由で
       // 起動直後は避ける（1 本ごとにフル デコードが要る）。
       recheckUnusableClips().catch((err) => console.warn('[frame-recheck] failed', err))
+      // 詳細パネルに出す枚数を、保存済みのコマ表から数え直す（db-video-frames.ts）。
+      // **古い録画はここでしか埋まらない**——録画・トリミングの直後にしか書いていないので、
+      // その頃に無かった項目（抜けの合計・ずれ）は空のままで、詳細パネルだけが黙る。
+      try {
+        const fixed = backfillFrameCounts()
+        if (fixed > 0) console.log(`[frame-counts] recounted ${fixed} clip(s) from the stored frame tables`)
+      } catch (err) {
+        console.warn('[frame-counts] failed', err)
+      }
     }, 30_000)
     for (const feature of features) await feature.onReady?.()
     const settingsProblem = consumeSettingsLoadProblem()
