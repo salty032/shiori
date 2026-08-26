@@ -122,6 +122,40 @@ return restoreDelayFor`)() as (host: string, immediate: boolean) => number
   })
 })
 
+// 録画の「準備中」表示（clip-arming / clip-armed）。
+// **実際にここで落ちた**（2026-08-26）: content.js には表示を書いたのに background.js の
+// 検疫とタブ振り分けの両方へ足しておらず、合図が 1 つも届かなかった。**画面には何も出ず、
+// 録画は普通に成功する**ので、実機で押してみるまで気づけない。三重実装（M-1）の典型。
+describe('録画の準備中表示（clip-arming / clip-armed）', () => {
+  it('background.js の検疫を通る', () => {
+    expect(backgroundJs).toContain("{ type: 'clip-arming' }")
+    expect(backgroundJs).toContain("{ type: 'clip-armed' }")
+  })
+
+  it('background.js がアクティブタブへ振り分ける（全ポートに配ると裏のタブに残る）', () => {
+    expect(backgroundJs).toContain(
+      "['request-timecode', 'pre-capture', 'post-capture', 'notice', 'clip-arming', 'clip-armed']"
+    )
+  })
+
+  it('content.js の検疫を通り、表示の出し／消しに繋がっている', () => {
+    expect(contentJs).toContain("{ type: 'clip-arming' }")
+    expect(contentJs).toContain("{ type: 'clip-armed' }")
+    expect(contentJs).toContain('showArmingOverlay()')
+    expect(contentJs).toContain('hideArmingOverlay()')
+  })
+
+  it('録画側が出して、消してから撮り始める（順序が逆だと録画に写る）', () => {
+    const recordingTs = readFileSync(join(__dirname, '../video/recording.ts'), 'utf-8')
+    const arming = recordingTs.indexOf("broadcastMessage({ type: 'clip-arming' })")
+    const armed = recordingTs.indexOf("broadcastMessage({ type: 'clip-armed' })")
+    const start = recordingTs.indexOf("send('recorder:start'")
+    expect(arming).toBeGreaterThan(-1)
+    expect(armed).toBeGreaterThan(arming)
+    expect(start).toBeGreaterThan(armed)
+  })
+})
+
 describe('コマ通知が途切れる経路（content.js の rVFC ループ）', () => {
   it('録画中にトラッカーが止まったら main へ知らせる', () => {
     // 途切れた区間のコマは表に入らず、撮り逃しの枚数にも割合にも現れない。

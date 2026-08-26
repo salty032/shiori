@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchFrames, offsetVerdict, summarizeReportDelay, type SourceFrame } from './frame-feed'
+import { isSteadySequence, matchFrames, offsetVerdict, summarizeReportDelay, type SourceFrame } from './frame-feed'
 
 // 素材のコマ（23.976fps = 41.7083ms 間隔）と、画面キャプチャ（60Hz = 16.667ms 間隔）を
 // 合成して、対応付けが 1 対 1 に収まるかを検証する。実機を回さずに固められる部分。
@@ -369,5 +369,35 @@ describe('matchFrames（通知が来なかったコマの検出）', () => {
     const result = matchFrames(withHoles, makeDrawn(200, 20))
     expect(result!.sourcePeriodMs).toBeCloseTo(SRC_PERIOD, 1)
     expect(result!.reportDrops).toBeGreaterThan(0)
+  })
+})
+
+// 記録を始める前の「落ち着いたか」の判定（waitForSteadyFrames の中身）。
+// **完璧を待つ判定にすると 60fps 素材が永久に始まらない。** 数値は手元の全クリップ 76 本に
+// 当てて決めたもので（frame-feed.ts の SETTLE_WINDOW のコメント）、ここで固定しておく。
+describe('isSteadySequence（記録を始めてよいか）', () => {
+  const seq = (count: number, periodMs: number, gapsAt: Record<number, number> = {}): number[] => {
+    const out = [0]
+    for (let i = 1; i < count; i++) out.push(out[i - 1] + (periodMs * (gapsAt[i] ?? 1)) / 1000)
+    return out
+  }
+
+  it('等間隔なら落ち着いている', () => {
+    expect(isSteadySequence(seq(10, 41.7))).toBe(true)
+  })
+
+  it('コマ数が窓に満たなければ、まだ判断しない', () => {
+    expect(isSteadySequence(seq(7, 41.7))).toBe(false)
+  })
+
+  it('1〜2 コマの飛びは落ち着いていると見る（60fps 素材の常態）', () => {
+    // 供給 51 枚/秒では 60 コマに届かず、定常状態でも 1〜2 コマは落ち続ける。
+    // ここを弾くと 60fps の録画が永久に始まらない。
+    expect(isSteadySequence(seq(10, 16.7, { 3: 2, 6: 2 }))).toBe(true)
+  })
+
+  it('3 コマ以上まとめて飛んでいれば、まだ落ち着いていない', () => {
+    // 実測（2026-08-26・YouTube 1080p）の立ち上がりは 8 コマ・11 コマの飛びだった。
+    expect(isSteadySequence(seq(10, 41.7, { 5: 8 }))).toBe(false)
   })
 })

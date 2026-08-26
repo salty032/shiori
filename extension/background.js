@@ -188,6 +188,11 @@ function normalizeServerMessage(data) {
   }
   // immediate: ホスト別の復帰待ちを踏まずにすぐ戻す（クリップ録画のみ。content.js の
   // restoreDelayFor を参照）。
+  // 録画の「準備中」表示の出し／消し。記録が始まる前だけ出るので録画には写らない
+  // （app 側 recording.ts の waitForSteadyFrames）。**pre-capture と同じくアクティブタブへ送る**
+  // —— 全ポートへ配ると、裏のタブにも準備中が出たまま残る。
+  if (msg.type === 'clip-arming') return { type: 'clip-arming' }
+  if (msg.type === 'clip-armed') return { type: 'clip-armed' }
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
@@ -281,7 +286,7 @@ function connectWS() {
     const msg = normalizeServerMessage(event.data)
     if (!msg) return
     if (msg.type === 'settings') cachedSettings = msg
-    if (['request-timecode', 'pre-capture', 'post-capture', 'notice'].includes(msg.type)) {
+    if (['request-timecode', 'pre-capture', 'post-capture', 'notice', 'clip-arming', 'clip-armed'].includes(msg.type)) {
       notifyActiveTab(msg)
     } else {
       notifyAllPorts(msg)

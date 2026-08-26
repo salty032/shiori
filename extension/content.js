@@ -1080,6 +1080,72 @@ function showStepReadout(video) {
   stepReadoutTimer = setTimeout(hideStepReadout, STEP_READOUT_MS)
 }
 
+// 録画の「準備中」表示。**記録が始まる前にだけ出し、始まる前に消す**ので録画には写らない。
+//
+// 出す理由：画面キャプチャの立ち上がりでページがコマを描き落とすため、落ち着くまで記録を
+// 始めない作りにした（app 側の waitForSteadyFrames）。その待ち時間が無言だと「押したのに
+// 始まらない」になるし、**消えた瞬間が記録開始の合図**にもなる。
+//
+// 映像の中央に置く。枠の外に出す案は、全画面再生だと外側が無いので出せない。
+// 中央なら全画面でも普通に見える（記録前なので汚さない）。
+let armingHost = null
+function showArmingOverlay() {
+  hideArmingOverlay()
+  const video = getVideo()
+  const rect = video?.getBoundingClientRect()
+  // 映像が見つからないときは画面中央へ。出さないより出した方がよい（押したことは伝わる）。
+  const cx = rect && rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2
+  const cy = rect && rect.height > 0 ? rect.top + rect.height / 2 : window.innerHeight / 2
+  const root = (document.fullscreenElement) || document.documentElement
+  const host = document.createElement('div')
+  host.id = 'shiori-clip-arming'
+  const st = host.style
+  st.setProperty('position', 'fixed', 'important')
+  st.setProperty('left', `${Math.round(cx)}px`, 'important')
+  st.setProperty('top', `${Math.round(cy)}px`, 'important')
+  st.setProperty('transform', 'translate(-50%, -50%)', 'important')
+  st.setProperty('z-index', '2147483647', 'important')
+  st.setProperty('pointer-events', 'none', 'important')
+  const shadow = host.attachShadow({ mode: 'open' })
+  const style = document.createElement('style')
+  style.textContent = `
+    .box {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 22px; border-radius: 999px;
+      font: 600 15px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #fcfcfa; white-space: nowrap;
+      background: rgba(12, 15, 20, .88);
+      border: 1px solid rgba(255, 255, 255, .16);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    }
+    .dot {
+      width: 11px; height: 11px; border-radius: 50%;
+      background: #ef4444;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+  `
+  const box = document.createElement('div')
+  box.className = 'box'
+  const dot = document.createElement('span')
+  dot.className = 'dot'
+  const label = document.createElement('span')
+  label.textContent = '録画の準備中'
+  box.append(dot, label)
+  shadow.append(style, box)
+  root.appendChild(host)
+  armingHost = host
+}
+
+function hideArmingOverlay() {
+  if (armingHost) {
+    armingHost.remove()
+    armingHost = null
+  }
+  // 全画面へ入る/出る等でホストが取り残された場合の保険（id で拾って消す）。
+  document.querySelectorAll('#shiori-clip-arming').forEach((el) => el.remove())
+}
+
 function showShioriNotice(level, message) {
   let host = document.getElementById('shiori-browser-notice')
   // フルスクリーン時、サイトによっては body 直下の要素を display:none で隠す CSS がある
@@ -1618,6 +1684,8 @@ function normalizePortMessage(msg) {
       video: msg.video === true
     }
   }
+  if (msg.type === 'clip-arming') return { type: 'clip-arming' }
+  if (msg.type === 'clip-armed') return { type: 'clip-armed' }
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
@@ -1696,8 +1764,13 @@ function connectPort() {
       cleanVideoFrame()
       // 動画クリップ録画のときだけコマ通知を出す（スクショは1枚なので不要）
       if (safeMsg.video) startFrameReporting()
+    } else if (safeMsg.type === 'clip-arming') {
+      showArmingOverlay()
+    } else if (safeMsg.type === 'clip-armed') {
+      hideArmingOverlay()
     } else if (safeMsg.type === 'post-capture') {
       stopFrameReporting()
+      hideArmingOverlay()
       scheduleRestorePlayerUI(safeMsg.immediate)
     } else if (safeMsg.type === 'notice') {
       showShioriNotice(safeMsg.level, safeMsg.message)

@@ -473,6 +473,67 @@ export function getSourceFps(): number | null {
   return Math.round(fps * 1000) / 1000
 }
 
+// 録画開始の合図から実際に記録を始めるまで、コマ通知が落ち着くのを待つ。
+//
+// **画面キャプチャが立ち上がる瞬間、ページ側が素材のコマを描き落とす。** ブラウザは
+// ハードウェアアクセラレーション OFF（＝CPU で描画）が前提なので、キャプチャの負荷が
+// 乗った瞬間に一番重いページだけが落ちる。実測（2026-08-26・YouTube 1080p 23.976fps）:
+// 開始から 1.2 秒で 30 コマが描かれず、その後 16.5 秒は 1 コマも落ちなかった。同じ動画を
+// 480p にすると 185/185 で 1 コマも落ちない。DMM・Netflix では 18 本すべて 0 コマ。
+// **描かれなかったコマは録画ファイルにも無い**ので、後からはどうにもならない。
+// 荒れている区間を記録の外へ出すのが唯一の対処になる。
+//
+// 判定は「1 コマも落ちていないか」では**ない**。60fps 素材は供給（実測 51 枚/秒）が
+// 足りず常時 1〜2 コマ落ちるので、完璧を待つと永久に始まらない。**立ち上がりの荒れ
+// （まとまった飛び）が収まったか**だけを見る。
+// 見る直近のコマ数。**手元の全クリップ 76 本に当てて決めた**（2026-08-26）。
+//   窓 8 コマ … 60fps 0.12〜0.25 秒 / 30fps 0.53 秒 / 24fps YouTube 0.63〜1.04 秒
+//   窓 12 コマ… 24fps YouTube が 1.2〜2.9 秒。**上限に張り付いて意味を失う。**
+// 荒れの無いサービス（DMM・Netflix は 18 本すべて 0 コマ落ち）では窓が埋まった時点で
+// 成立するので、24fps なら 0.33 秒。**落ちていないページを待たせない**のが要点。
+const SETTLE_WINDOW = 8
+// 「まとまった飛び」とみなすコマ数。1〜2 コマの欠けは 60fps 素材の常態（供給 51 枚/秒が
+// 60 コマに足りない）なので許す。ここを 2 にすると 60fps が永久に始まらない。
+const SETTLE_BIG_GAP = 3
+const SETTLE_POLL_MS = 50
+
+export interface SettleResult {
+  /** 落ち着いたと判断できたか。false なら見切って始めた（保証できない） */
+  settled: boolean
+  waitedMs: number
+  /** 待っている間に届いたコマ数。0 なら拡張が繋がっていない */
+  reports: number
+}
+
+// 直近 SETTLE_WINDOW コマの間隔に、まとまった飛びが無いか。
+// **DB を張らずに検証できるよう、判定は素材時刻の列だけを見る純粋関数にする**
+// （frame-feed.test.ts が数値を固定している）。
+export function isSteadySequence(mediaTimes: number[]): boolean {
+  if (mediaTimes.length < SETTLE_WINDOW) return false
+  const recent = mediaTimes.slice(-SETTLE_WINDOW)
+  const diffs: number[] = []
+  for (let i = 1; i < recent.length; i++) diffs.push(recent[i] - recent[i - 1])
+  // 素材のコマ長は取得できないことがある（fps 不明・再生開始直後）ので、間隔の中央値で代用する。
+  const period = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
+  if (!(period > 0)) return false
+  return diffs.every((d) => Math.round(d / period) < SETTLE_BIG_GAP)
+}
+
+function looksSteady(): boolean {
+  return isSteadySequence(frames.map((f) => f.mediaTime))
+}
+
+export async function waitForSteadyFrames(timeoutMs: number): Promise<SettleResult> {
+  const started = Date.now()
+  for (;;) {
+    if (looksSteady()) return { settled: true, waitedMs: Date.now() - started, reports: frames.length }
+    if (Date.now() - started >= timeoutMs) {
+      return { settled: false, waitedMs: Date.now() - started, reports: frames.length }
+    }
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
+  }
+}
+
 // 収集済みのコマ通知と撮影時刻から、保存用のフレーム表を作る。
 export function buildFrameTable(drawnAt: number[]): MatchResult | null {
   return matchFrames(frames, drawnAt)

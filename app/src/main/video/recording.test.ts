@@ -65,7 +65,13 @@ vi.mock('./recorder-window', () => ({
   setPendingDisplaySource: vi.fn()
 }))
 
-vi.mock('./frame-feed', () => ({ startFrameFeed: vi.fn(), stopFrameFeed: vi.fn() }))
+// 記録開始前の「落ち着くまで待つ」は即座に済ませる（実時間を待たせない）。
+// 待ちの中身は frame-feed 側のテストで見る。ここで見たいのは録画開始の手順。
+vi.mock('./frame-feed', () => ({
+  startFrameFeed: vi.fn(),
+  stopFrameFeed: vi.fn(),
+  waitForSteadyFrames: vi.fn(async () => ({ settled: true, waitedMs: 0, reports: 30 }))
+}))
 vi.mock('../system/tray', () => ({ setTrayRecording: vi.fn() }))
 vi.mock('../browser/timecode', () => ({
   getLastTimecode: vi.fn(() => ({ title: 'テスト', currentTime: 12, url: 'https://example.test/watch' })),
@@ -83,6 +89,14 @@ function postCaptureCount(): number {
   return broadcastMessage.mock.calls.filter(([msg]) => (msg as { type: string }).type === 'post-capture').length
 }
 
+// startRecording は「準備中」の表示が消えるのを待ってから撮り始める（ARMED_CLEAR_MS）。
+// ここは実時間を止めているので、進めてやらないと録画が始まらない。
+async function startRecordingSettled(): Promise<void> {
+  const started = startRecording()
+  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(500)
+  await started
+}
+
 describe('プレーヤー UI の復帰（post-capture）', () => {
   beforeEach(async () => {
     // 前のテストの録画状態を持ち越さない（モジュール変数のため）。
@@ -90,7 +104,7 @@ describe('プレーヤー UI の復帰（post-capture）', () => {
     // 録画開始の待ち時間（request-timecode の打ち切り・ハング保険）を実時間で待たない。
     vi.useFakeTimers()
     broadcastMessage.mockClear()
-    await startRecording()
+    await startRecordingSettled()
     expect(isCurrentlyRecording()).toBe(true)
     broadcastMessage.mockClear()
   })
@@ -130,7 +144,7 @@ describe('プレーヤー UI の復帰（post-capture）', () => {
   it('次の録画では改めて復帰を流せる（抑止フラグが持ち越されない）', async () => {
     releaseCaptureUi()
     finishRecordingState()
-    await startRecording()
+    await startRecordingSettled()
     broadcastMessage.mockClear()
     releaseCaptureUi()
     expect(postCaptureCount()).toBe(1)
@@ -162,7 +176,7 @@ describe('録画する画面が特定できないとき', () => {
       { id: 'screen:9:0', display_id: '9' },
       { id: 'screen:8:0', display_id: '8' },
     ])
-    await startRecording()
+    await startRecordingSettled()
 
     expect(wasRecordingDisplayAmbiguous()).toBe(true)
     expect(notice).toHaveBeenCalledWith('warning', 'notice.recordingDisplayUncertain')
@@ -172,7 +186,7 @@ describe('録画する画面が特定できないとき', () => {
 
   it('画面が 1 つなら、一致しなくても黙って撮る（先頭がその画面に決まっている）', async () => {
     getSources.mockResolvedValueOnce([{ id: 'screen:9:0', display_id: '' }])
-    await startRecording()
+    await startRecordingSettled()
 
     expect(wasRecordingDisplayAmbiguous()).toBe(false)
     expect(notice).not.toHaveBeenCalled()
@@ -184,7 +198,7 @@ describe('録画する画面が特定できないとき', () => {
       { id: 'screen:9:0', display_id: '9' },
       { id: 'screen:1:0', display_id: '1' },
     ])
-    await startRecording()
+    await startRecordingSettled()
 
     expect(wasRecordingDisplayAmbiguous()).toBe(false)
     expect(notice).not.toHaveBeenCalled()
@@ -195,12 +209,12 @@ describe('録画する画面が特定できないとき', () => {
       { id: 'screen:9:0', display_id: '9' },
       { id: 'screen:8:0', display_id: '8' },
     ])
-    await startRecording()
+    await startRecordingSettled()
     expect(wasRecordingDisplayAmbiguous()).toBe(true)
 
     finishRecordingState()
     notice.mockClear()
-    await startRecording()
+    await startRecordingSettled()
 
     expect(wasRecordingDisplayAmbiguous()).toBe(false)
     expect(notice).not.toHaveBeenCalled()

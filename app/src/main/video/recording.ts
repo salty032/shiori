@@ -6,7 +6,7 @@ import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRec
 import { loadSettings } from '../system/settings'
 import { isMainWindowFocused } from '../system/windows'
 import { getRecorderWindow, createRecorderWindow, setPendingDisplaySource } from './recorder-window'
-import { startFrameFeed, stopFrameFeed } from './frame-feed'
+import { startFrameFeed, stopFrameFeed, waitForSteadyFrames } from './frame-feed'
 import { setTrayRecording } from '../system/tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/timecode'
 import { sendBrowserNotice } from '../browser/browser-notice'
@@ -150,6 +150,15 @@ const RECORDER_LOAD_TIMEOUT_MS = 4000
 // この値が実際に効くのは post-capture を取りこぼした異常時だけ。
 const UI_HOLD_MARGIN_SEC = 10
 
+// 記録を始める前に、コマ通知が落ち着くのを待つ上限。**待ち切れなくても必ず始める**
+// （待たされ続けるより、保証できないと出して撮れる方がよい）。
+// 実測（76 本・SETTLE_WINDOW のコメント参照）で最も遅い 24fps YouTube が 1.04 秒なので、
+// 見切りは 1.5 秒。これを超えるのは荒れが収まっていない録画で、そのときは画面に出す。
+const CLIP_SETTLE_TIMEOUT_MS = 1500
+// 「準備中」の表示が消えるのを待つ時間。ローカルの WS 往復は数 ms だが、消える前に
+// 撮り始めると表示が録画に写る。**録画そのものを汚すので、ここは余裕を取る。**
+const ARMED_CLEAR_MS = 120
+
 // レコーダーウィンドウを生成し、ロード完了まで待つ。
 // 既存ウィンドウ（起動時生成）がまだロード中でも待つことで、起動直後の初回録画で
 // recorder:start が未ロードのページに送られて取りこぼされるのを防ぐ。
@@ -237,6 +246,21 @@ export async function startRecording(): Promise<void> {
     // 明示して渡し、正常に撮り切るまで隠したままにする。
     broadcastMessage({ type: 'pre-capture', holdMs: (maxSeconds + UI_HOLD_MARGIN_SEC) * 1000, video: true })
     shell.beep()
+
+    // **キャプチャの立ち上がりでページがコマを描き落とすので、落ち着くまで記録を始めない**
+    // （frame-feed.ts の waitForSteadyFrames にコメント）。待っている間だけ映像の上に
+    // 「準備中」を出す —— まだ記録していないので写り込まないし、全画面でも見える。
+    // 消えた瞬間が記録開始の合図になる。
+    broadcastMessage({ type: 'clip-arming' })
+    const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)
+    broadcastMessage({ type: 'clip-armed' })
+    console.log(`[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`)
+    // 表示が実際に消えてから撮り始める。往復はローカルの WS で数 ms だが、消える前に
+    // 記録を始めると「準備中」が数コマ写る——**録画そのものを汚す**ので余裕を持たせる。
+    await new Promise((resolve) => setTimeout(resolve, ARMED_CLEAR_MS))
+    // 落ち着きを確認できないまま始めたことは、ログではなくその場の画面に出す。
+    // 黙って始めると「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。
+    if (!settle.settled) sendBrowserNotice('warning', t('notice.recordingNotSettled'))
     const tc = getLastTimecode()
     recordingMeta = {
       title: tc?.title ?? null,
