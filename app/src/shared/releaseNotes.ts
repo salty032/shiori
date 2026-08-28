@@ -20,6 +20,28 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.4.0': {
+    ja: [
+      '録画の先頭でのコマ落ちが減りました。これまでは画面の取り込みを立ち上げながら「落ち着くのを待つ」形だったため、待っても立ち上がりの荒れが録画の頭に入っていました。取り込みを先に立ち上げてから待つようにしています（「録画の準備中」の表示はその分だけ長くなります）。また、この表示が出ている間に Alt+D を押すとすぐに取りやめられます。これまでは数秒待たされた上で、止めたはずなのに録画が始まることがありました。',
+      '録画で取り込む枚数が、お使いの画面のリフレッシュレートに合わさるようになりました。これまでは 1 秒あたり 60 枚で頭打ちで、120Hz などの画面でもそこが天井になっていました。',
+      'トリミングの進み具合がパーセントで表示されるようになりました。書き出しが 100% になったあとも、コマの対応を引き継ぐために数秒かかります。その間は「仕上げています...」と表示されます。',
+      'トリミングしても画質が落ちなくなりました。これまでは切り出すときの画質が一律で、録画時より低い値になっていたため、細かく見たい箇所ほど画質が落ちていました。元のクリップが実際に使っている量に合わせます。切り出した動画のコマ送りも軽くなりました（その分、ファイルサイズは大きくなります）。',
+      'トリミングに失敗したとき、画面に理由が読める形で出るようになりました（以前は「エラー：invalid_out」のような表示でした）。また、選んだ範囲の外から再生が始まらなくなり、Space・I / O のキーがボタンを一度押したあとでも効くようになりました。',
+      'タイムシートが、数コマの撮り逃しがあるクリップでも作れるようになりました。これまでは 1 コマでも撮り逃しがあると表そのものが出ませんでした。表の見出しには「撮り逃し 12 コマ」のように数が出ます。そのコマは直前のコマの絵が出ているだけで、コマ番号はずれていませんが、そこで新しい絵が始まっていても画面からは分かりません。コマ番号そのものがずれる録画（抜けや対応の崩れがあるもの）は、これまでどおり表を出しません。',
+      '動画で M キーを押すと音を消せるようになりました。また、トリミング画面を開いている間に、裏で再生されていた映像の音が重なって鳴り続けることがなくなりました。',
+      'シークバーを掴んで動かしたときと、コマ送りの反応が軽くなりました。',
+    ],
+    en: [
+      'Fewer frames are lost at the start of a recording. Shiori used to start the screen capture and wait for things to settle at the same time, so the rough patch at start-up ended up in the recording anyway. The capture is now brought up first, and only then does the wait begin (“Getting ready to record” stays up a little longer as a result). You can also press Alt+D while that message is showing to cancel right away — it used to take several seconds, and recording could start even though you had stopped it.',
+      'Recording now captures at your display’s refresh rate. It used to be capped at 60 frames per second, which was the ceiling even on a 120Hz display.',
+      'Trimming now shows progress as a percentage. After the export reaches 100%, it still takes a few seconds to carry the frame mapping across; “Finishing up...” is shown while that happens.',
+      'Trimming no longer costs you picture quality. The bitrate used when cutting was fixed and lower than the one used while recording, so the part you most wanted to look at closely was the part that lost the most quality. It now follows what the original clip actually uses. Frame stepping in trimmed clips is faster too (files are correspondingly larger).',
+      'When trimming fails, the screen now says why instead of showing an internal code (it used to read “Error: invalid_out”). Playback also no longer starts from outside the selected range, and Space, I and O keep working after you have clicked a button.',
+      'Timesheets can now be built for clips with a few missed frames. A single missed frame used to hide the sheet entirely. The header shows the count, e.g. “12 frames missed”. Those frames show the previous frame’s picture — the frame numbers are still correct, but a new drawing starting on one of them is invisible on screen. Clips whose frame numbers themselves drift (gaps, or broken alignment) still do not offer a sheet.',
+      'Press M to mute or unmute a video. Video playing behind the trimming screen no longer keeps sounding over it.',
+      'Dragging the seek bar and stepping through frames both respond faster.',
+    ],
+  },
   '1.3.0': {
     ja: [
       '録画したクリップを mp4 で書き出せるようになりました。設定 > データ > 動画の変換 で「mp4」を選ぶと、書き出すときに H.264 へ変換します（既定はこれまでどおり webm です）。画質はわずかに落ちますが、コマの位置と枚数は変わりません。効くのは選んだクリップの書き出しだけで、ライブラリはそのままです。変換できなかったクリップは元の形式のまま書き出し、その本数を画面に表示します。',
