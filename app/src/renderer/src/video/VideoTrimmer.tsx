@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { font, color, radius, space, control } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
-import { FRAME_EPS, findFrameIdx } from '../frameTable'
+import { FRAME_EPS, findFrameIdx, frameSeekTarget } from '../frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { XIcon } from '../components/Icon'
 import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from '../components/videoControls'
 import { videoApi } from './api'
-import { useT } from '../i18n'
+import type { TrimProgress } from '../../../shared/api.video'
+import { useT, type MessageKey } from '../i18n'
 
 type Props = {
   image: ImageRow
@@ -14,6 +16,11 @@ type Props = {
   onClose: () => void
   onTrimmed: () => void
 }
+
+// 表の取得が終わるまでに溜められるコマ送りの上限（ビューアと同じ値・同じ理由）。
+// 押した回数ぶんは動かしたいが、キーリピートの押しっぱなしまで積むと、取得できた瞬間に
+// 何十コマも飛んで「どこを見ているか分からない」状態になる。
+const MAX_PENDING_STEPS = 30
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -24,6 +31,17 @@ function fmtTime(sec: number): string {
 function safeDur(d: number | null | undefined): number {
   if (d == null || !Number.isFinite(d) || d <= 0) return 0
   return d
+}
+
+// main が返す符丁を画面の言葉にする。**ここに無いものはそのまま出す**——ffmpeg の
+// 生のメッセージが入るので、潰すと失敗の手掛かりが画面から消える。
+const TRIM_ERROR_KEY: Record<string, MessageKey> = {
+  invalid_id: 'trim.errNotFound',
+  not_found: 'trim.errNotFound',
+  invalid_in: 'trim.errRange',
+  invalid_out: 'trim.errRange',
+  already_trimming: 'trim.errBusy',
+  path_error: 'trim.errPath',
 }
 
 function fileName(path: string): string {
@@ -41,6 +59,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const displayedSecRef = useRef(0)    // rVFC が確認した実表示フレーム時刻
   const mountedRef = useRef(true)      // アンマウント後の setState を防ぐ
   const posRef = useRef(0)
+  // コマ表の取得が終わるまでに押されたコマ送りの正味の量（ビューアの pendingSteps と同じ）。
+  const pendingStepsRef = useRef(0)
   const dragInSecRef = useRef(0)
   const dragOutSecRef = useRef(0)
   const inDimRef = useRef<HTMLDivElement>(null)
@@ -49,8 +69,6 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const outHandleRef = useRef<HTMLDivElement>(null)
   const inTimeRef = useRef<HTMLSpanElement>(null)
   const outTimeRef = useRef<HTMLSpanElement>(null)
-  const inFrameRef = useRef<HTMLSpanElement>(null)
-  const outFrameRef = useRef<HTMLSpanElement>(null)
   const selRangeRef = useRef<HTMLSpanElement>(null)
   const selBorderRef = useRef<HTMLDivElement>(null)
   const inTabRef = useRef<HTMLDivElement>(null)
@@ -60,6 +78,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const [inSec, setInSec] = useState(0)
   const [outSec, setOutSec] = useState(() => safeDur(image.duration))
   const [trimming, setTrimming] = useState(false)
+  // トリミングの進み具合。null は走っていない状態。
+  const [trimProgress, setTrimProgress] = useState<TrimProgress | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [framePts, setFramePts] = useState<number[]>([])
@@ -181,12 +201,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
 
   function updateSelRangeUI(inS: number, outS: number): void {
     if (!selRangeRef.current) return
-    const oIdx = hasTable ? findFrameIdx(framePts, outS) : -1
-    const iIdx = hasTable ? findFrameIdx(framePts, inS) : -1
     const expOut = exportOutOf(outS)
-    let text = t('trim.selection', { seconds: (expOut - inS).toFixed(2) })
-    if (hasTable) text += ` (${oIdx - iIdx + 1}f)`
-    selRangeRef.current.textContent = text
+    selRangeRef.current.textContent = t('trim.selection', { seconds: (expOut - inS).toFixed(2) })
   }
 
   function updateSelBorder(inP: string, outP: string): void {
@@ -204,7 +220,6 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     if (inTabRef.current) inTabRef.current.style.left = p
     if (inTimeRef.current) inTimeRef.current.textContent = fmtTime(sec)
     // 番号は 1 始まり（ビューアのコマ表示と同じ数え方に揃える）。
-    if (hasTable && inFrameRef.current) inFrameRef.current.textContent = `f${findFrameIdx(framePts, sec) + 1}`
     updateSelBorder(p, outP)
     updateSelRangeUI(sec, dragOutSecRef.current)
   }
@@ -216,7 +231,6 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     if (outHandleRef.current) outHandleRef.current.style.left = p
     if (outTabRef.current) outTabRef.current.style.left = p
     if (outTimeRef.current) outTimeRef.current.textContent = fmtTime(sec)
-    if (hasTable && outFrameRef.current) outFrameRef.current.textContent = `f${findFrameIdx(framePts, sec) + 1}`
     updateSelBorder(inP, p)
     updateSelRangeUI(dragInSecRef.current, sec)
   }
@@ -259,12 +273,31 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     }
   }
 
+  // 再生 / 一時停止。**入口を 1 つにする**——以前は Space・映像クリック・バーのボタンの
+  // 3 か所が同じことを書いていて、片方だけ直す食い違いが出る形だった。
+  //
+  // **範囲の外から流し始めない。** 再生は「切り出す範囲を確かめる」ためのものなので、
+  // IN より手前や OUT より後ろで押したときは IN へ着けてから流す。以前は OUT 側しか
+  // 見ていなかったため、最初の一周だけ切り捨てる区間が混ざって見えていた。
+  function togglePlayback(): void {
+    const v = videoRef.current
+    if (!v) return
+    if (!v.paused) { v.pause(); return }
+    if (v.currentTime < inSec - FRAME_EPS || v.currentTime >= exportOutSec - FRAME_EPS) {
+      seekSeqRef.current += 1
+      v.currentTime = Math.max(0, Math.min(dur, inSec))
+      displayedSecRef.current = inSec
+      updatePos(inSec)
+    }
+    void v.play()
+  }
+
   function stepIn(dir: number): void {
     if (hasTable) {
       const targetIdx = Math.max(0, Math.min(inIdx + dir, outIdx - 1))
       const targetSec = framePts[targetIdx]
       const v = videoRef.current
-      if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = Math.max(0, Math.min(dur, targetSec)); displayedSecRef.current = targetSec }
+      if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = frameSeekSec(targetIdx); displayedSecRef.current = targetSec }
       updatePos(targetSec)
       setInSec(targetSec)
     } else {
@@ -277,7 +310,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       const targetIdx = Math.max(inIdx + 1, Math.min(outIdx + dir, framePts.length - 1))
       const targetSec = framePts[targetIdx]
       const v = videoRef.current
-      if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = Math.max(0, Math.min(dur, targetSec)); displayedSecRef.current = targetSec }
+      if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = frameSeekSec(targetIdx); displayedSecRef.current = targetSec }
       updatePos(targetSec)
       setOutSec(targetSec)
     } else {
@@ -354,12 +387,20 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     const v = videoRef.current
     if (!v) return
     v.pause()
+    // **コマ表の取得中は推定の刻みへ落とさず保留する**（ビューアのコマ送りと同じ）。
+    // 実測は数百ms 後に必ず来るのに、その間だけ fps 換算で動かすと、開いた直後の 1〜2 手
+    // だけ素材のコマと無関係な位置へ飛ぶ。開いてすぐ押すのは普通の操作なので待つ方が正しい。
+    // **押した手は捨てずに溜める**——握り潰すと「押したのに動かない」で終わる。
+    if (ptsLoading) {
+      pendingStepsRef.current = Math.max(-MAX_PENDING_STEPS, Math.min(pendingStepsRef.current + dir, MAX_PENDING_STEPS))
+      return
+    }
     if (hasTable) {
       const curIdx = findFrameIdx(framePts, displayedSecRef.current)
       const targetIdx = Math.max(0, Math.min(curIdx + dir, framePts.length - 1))
       const targetSec = framePts[targetIdx]
       seekSeqRef.current += 1
-      v.currentTime = Math.max(0, Math.min(dur, targetSec))
+      v.currentTime = frameSeekSec(targetIdx)
       displayedSecRef.current = targetSec
       updatePos(targetSec)
     } else {
@@ -379,26 +420,36 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     // コマ送りは , / . のみ。ビューア（Viewer）・ブラウザ拡張・動画編集ソフトの慣習と同じで、
     // 画面ごとに違うキーを覚えずに済む。以前ここだけ Shift+←/→ も受けていたが、拡張側を
     // , / . へ移したので役目が終わった。
-    // , / . は文字入力なので入力欄では通さない。ボタンは除外しない
-    // （−1f 等を押した直後にフォーカスが残っていてもコマ送りが死なないようにする）。
+    // 入力欄でだけ譲る。**ボタンは除外しない**——−1f や「ここを開始位置に設定」を押すと
+    // フォーカスがそのボタンに残るので、除外すると「一度ボタンを押したあとだけキーが死ぬ」
+    // ことになる。押した本人にはフォーカスの場所が見えないため、原因の分からない不発になる。
+    // 以前はここが , / . だけ除外なしで、Space と I / O だけがボタンで死んでいた
+    // （同じ画面でキーごとに挙動が違う状態）。
+    //
+    // Space はフォーカスの残ったボタンをブラウザが押し直すが、下の preventDefault が
+    // それも同時に止めるので、二重に効くことはない（ビューアが元からこの形）。
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
       || (e.target instanceof HTMLElement && e.target.isContentEditable)
-    if (!typing && (e.key === ',' || e.key === '.')) {
+    if (typing) return
+    if (e.key === ',' || e.key === '.') {
       e.preventDefault()
       stepPlayhead(e.key === '.' ? 1 : -1)
       return
     }
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLButtonElement) return
     switch (e.key) {
       case 'i': case 'I': e.preventDefault(); setCurrentAsIn(); break
       case 'o': case 'O': e.preventDefault(); setCurrentAsOut(); break
       case ' ':
         e.preventDefault()
-        if (videoRef.current) {
-          if (videoRef.current.paused) videoRef.current.play()
-          else videoRef.current.pause()
-        }
+        togglePlayback()
         break
+      // ビューアと同じ M。**画面ごとに違うキーを覚えさせない**（, / . を揃えたのと同じ理由）。
+      case 'm': case 'M': {
+        e.preventDefault()
+        const v = videoRef.current
+        if (v) v.muted = !v.muted
+        break
+      }
     }
   }
 
@@ -407,6 +458,17 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [])
+
+  // 表の取得が終わったら、保留していたコマ送りをまとめて動かす。
+  // **取得に失敗したときも動かす**——そこでは推定の刻みしか無いが、押した手を握り潰さない
+  // 方を採る（ビューアの settle と同じ判断）。
+  // 依存は ptsLoading だけ。stepPlayhead は取得後の framePts を掴んだこの描画の版を使う。
+  useEffect(() => {
+    if (ptsLoading) return
+    const pending = pendingStepsRef.current
+    pendingStepsRef.current = 0
+    if (pending !== 0) stepPlayhead(pending)
+  }, [ptsLoading])
 
   // ネイティブシーク（video controls や外部操作）後に displayedSecRef を更新する
   function handleSeeked(): void {
@@ -417,6 +479,20 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       ;(rvfc as (cb: (now: number, meta: { mediaTime: number }) => void) => number)
         .call(v, (_now, meta) => { displayedSecRef.current = meta.mediaTime })
     }
+  }
+
+  // idx 番目のコマを**確実に映す**ためのシーク先。
+  //
+  // **コマの開始時刻ちょうどは狙わない。** 丸めやデコーダの解釈差で 1 つ手前のコマに
+  // 着地することがあり、そうなると f{N} と出ている番号と映っている絵が食い違う。
+  // ここは切る場所を絵で決める画面なので、番号だけ合っていても意味が無い。
+  // 表示区間の中央を狙えば必ずそのコマに入る（frameTable.ts の frameSeekTarget の注記。
+  // ビューアのコマ送りも同じ狙い方をしている）。
+  //
+  // **再生ヘッドや IN/OUT の値には使わない**——あちらはコマの開始時刻そのものが正しい。
+  // ここで返すのは「そのコマを映すために video へ渡す時刻」だけ。
+  function frameSeekSec(idx: number): number {
+    return Math.max(0, Math.min(dur, frameSeekTarget(framePts, idx, step)))
   }
 
   // タイムライン上の秒数→PTS スナップ
@@ -438,7 +514,11 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     const sec = snapToPts(ratio * dur)
     seekSeqRef.current += 1
     updatePos(sec)
-    if (videoRef.current) videoRef.current.currentTime = Math.max(0, Math.min(dur, sec))
+    if (videoRef.current) {
+      videoRef.current.currentTime = hasTable
+        ? frameSeekSec(findFrameIdx(framePts, sec))
+        : Math.max(0, Math.min(dur, sec))
+    }
   }
 
   // IN/OUT マーカードラッグ — mousedown 時に直接リスナー登録して mouseup 取りこぼしを防ぐ
@@ -462,22 +542,29 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       const rect = timelineRef.current.getBoundingClientRect()
       const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width))
       const raw = ratio * dur
+      // 掴んでいる間も、映すのは「そのコマの表示区間の中央」にする（frameSeekSec の注記）。
+      // ドラッグ中こそ絵を見ながら境目を決めているので、1 つ手前が映ると見誤る。
+      const idx = hasTable
+        ? (kind === 'in'
+            ? Math.max(0, Math.min(findFrameIdx(framePts, snapToPts(raw)), curOutIdx - 1))
+            : Math.max(curInIdx + 1, Math.min(findFrameIdx(framePts, snapToPts(raw)), framePts.length - 1)))
+        : -1
       if (kind === 'in') {
-        const sec = hasTable
-          ? framePts[Math.max(0, Math.min(findFrameIdx(framePts, snapToPts(raw)), curOutIdx - 1))]
-          : Math.max(0, Math.min(raw, curOutSec - step))
+        const sec = hasTable ? framePts[idx] : Math.max(0, Math.min(raw, curOutSec - step))
         dragInSecRef.current = sec
         updateInUI(sec)
         updatePos(sec)
-        if (videoRef.current) videoRef.current.currentTime = Math.max(0, Math.min(dur, sec))
+        if (videoRef.current) {
+          videoRef.current.currentTime = hasTable ? frameSeekSec(idx) : Math.max(0, Math.min(dur, sec))
+        }
       } else {
-        const sec = hasTable
-          ? framePts[Math.max(curInIdx + 1, Math.min(findFrameIdx(framePts, snapToPts(raw)), framePts.length - 1))]
-          : Math.max(curInSec + step, Math.min(raw, dur))
+        const sec = hasTable ? framePts[idx] : Math.max(curInSec + step, Math.min(raw, dur))
         dragOutSecRef.current = sec
         updateOutUI(sec)
         updatePos(sec)
-        if (videoRef.current) videoRef.current.currentTime = Math.max(0, Math.min(dur, sec))
+        if (videoRef.current) {
+          videoRef.current.currentTime = hasTable ? frameSeekSec(idx) : Math.max(0, Math.min(dur, sec))
+        }
       }
     }
 
@@ -496,8 +583,14 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
 
   async function handleTrim(): Promise<void> {
     if (!canTrim || trimming) return
+    // 焼き直しの間ずっと区間ループが回り続けて音も鳴っていた。押した意図は「これで切る」
+    // なので、確かめる再生はそこで終わっている。
+    videoRef.current?.pause()
     setTrimming(true)
+    setTrimProgress({ ratio: 0, phase: 'encode' })
     setError(null)
+    // 進み具合の購読は、走っている間だけ張る（閉じたあとに届いても捨てる）。
+    const offProgress = videoApi.onTrimProgress((p) => { if (mountedRef.current) setTrimProgress(p) })
     try {
       const result = await videoApi.trimVideo(image.id, inSec, exportOutSec)
       if (result.ok) {
@@ -509,16 +602,19 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     } catch (err) {
       setError(String(err))
     } finally {
+      offProgress()
       setTrimming(false)
+      setTrimProgress(null)
     }
   }
 
   const pct = (sec: number): string => dur > 0 ? `${(sec / dur) * 100}%` : '0%'
-  const selFrames = hasTable ? outIdx - inIdx + 1 : null
   const videoTitle = image.title ? cleanTitle(image.title, settings.titleStrip) : fileName(image.filepath)
 
+  // 外側クリックも Escape / ✕ と同じ道を通す。以前はここだけ「変更があれば何もしない」
+  // だったため、IN/OUT を動かしたあとに枠外を押すと閉じも確認も出ず、黙って無反応になっていた。
   function handleOverlayClick(): void {
-    if (!trimming && !boundaryChanged) onClose()
+    if (!trimming) requestClose()
   }
 
   return (
@@ -526,7 +622,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       <div style={s.modal} onClick={(e) => e.stopPropagation()}>
         <div style={s.header}>
           <span style={s.fileTitle} title={videoTitle}>{videoTitle}</span>
-          <button style={s.closeBtn} onClick={requestClose} disabled={trimming}>✕</button>
+          <button style={s.closeBtn} onClick={requestClose} disabled={trimming} title={t('action.close')}><XIcon size={16} /></button>
         </div>
 
         <div style={s.videoWrap}>
@@ -534,7 +630,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             ref={videoRef}
             src={mediaUrl(image.id)}
             style={s.video}
-            onClick={() => { const v = videoRef.current; if (v) v.paused ? v.play() : v.pause() }}
+            onClick={togglePlayback}
             onLoadedMetadata={(e) => {
               const d = safeDur(e.currentTarget.duration)
               setDur(d)
@@ -560,7 +656,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             onVolumeChange={() => { setVcVolume(videoRef.current?.volume ?? 1); setVcMuted(videoRef.current?.muted ?? false) }}
           />
           <div style={{ ...vcBarStyle, position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <button style={vcBtnStyle} onClick={() => { const v = videoRef.current; if (v) v.paused ? v.play() : v.pause() }}>
+            <button style={vcBtnStyle} onClick={togglePlayback}>
               <PlayPauseIcon playing={playing} />
             </button>
             <div style={{ flex: 1 }} />
@@ -608,37 +704,39 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             {/* IN/OUT の 2 枚は同じグリッドテンプレート（boundaryCard）を共有する。
                 左右カードで各列の幅が一致するので、バッジ・時刻・コマ送り・設定ボタンが
                 横一列に揃う（列幅がボタン文言の長さで動かないよう setBtn は固定幅）。 */}
-            <div style={{ ...s.boundaryCard, ...s.boundaryCardIn }}>
+            <div style={s.boundaryCard}>
               <span style={{ ...s.badge, ...s.badgeIn }}>IN</span>
               <span ref={inTimeRef} style={s.time}>{fmtTime(inSec)}</span>
-              <span ref={inFrameRef} style={s.frameNum}>{hasTable ? `f${inIdx + 1}` : ''}</span>
               <div style={s.stepper}>
                 <button style={s.stepBtn} onClick={() => stepIn(-1)} disabled={ptsLoading}>−1f</button>
                 <button style={{ ...s.stepBtn, ...s.stepBtnRight }} onClick={() => stepIn(+1)} disabled={ptsLoading}>+1f</button>
               </div>
-              <button style={{ ...s.setBtn, ...s.setBtnIn }} onClick={setCurrentAsIn}>{t('trim.setIn')}</button>
+              <button style={s.setBtn} onClick={setCurrentAsIn}>{t('trim.setIn')}</button>
             </div>
-            <div style={{ ...s.boundaryCard, ...s.boundaryCardOut }}>
+            <div style={s.boundaryCard}>
               <span style={{ ...s.badge, ...s.badgeOut }}>OUT</span>
               <span ref={outTimeRef} style={s.time}>{fmtTime(outSec)}</span>
-              <span ref={outFrameRef} style={s.frameNum}>{hasTable ? `f${outIdx + 1}` : ''}</span>
               <div style={s.stepper}>
                 <button style={s.stepBtn} onClick={() => stepOut(-1)} disabled={ptsLoading}>−1f</button>
                 <button style={{ ...s.stepBtn, ...s.stepBtnRight }} onClick={() => stepOut(+1)} disabled={ptsLoading}>+1f</button>
               </div>
-              <button style={{ ...s.setBtn, ...s.setBtnOut }} onClick={setCurrentAsOut}>{t('trim.setOut')}</button>
+              <button style={s.setBtn} onClick={setCurrentAsOut}>{t('trim.setOut')}</button>
             </div>
           </div>
           <div style={s.infoRow}>
             <span ref={selRangeRef} style={s.duration}>
               {t('trim.selection', { seconds: (exportOutSec - inSec).toFixed(2) })}
-              {selFrames != null && ` (${selFrames}f)`}
             </span>
             {ptsLoading && <span style={s.ptsStatus}>{t('trim.analyzing')}</span>}
             {!ptsLoading && ptsError && <span style={s.ptsWarn}>{t('trim.analyzeFailed')}</span>}
+            {/* 保存ボタンが灰色になる理由。**押せない状態を黙って出さない**——
+                以前は範囲を詰めすぎると理由も出ずにボタンだけ死んでいた。 */}
+            {!ptsLoading && dur > 0 && exportOutSec - inSec < 0.1 && (
+              <span style={s.ptsWarn}>{t('trim.tooShort')}</span>
+            )}
             <span style={s.shortcutHint}>{t('trim.shortcutHint')}</span>
           </div>
-          {error && <div style={s.errorMsg}>{t('trim.error', { message: error })}</div>}
+          {error && <div style={s.errorMsg}>{t('trim.error', { message: TRIM_ERROR_KEY[error] ? t(TRIM_ERROR_KEY[error]) : error })}</div>}
         </div>
 
         <div style={s.footer}>
@@ -648,7 +746,13 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             onClick={handleTrim}
             disabled={!canTrim || trimming}
           >
-            {trimming ? t('trim.working') : t('trim.save')}
+            {!trimming
+              ? t('trim.save')
+              : trimProgress == null
+                ? t('trim.working')
+                : trimProgress.phase === 'finish'
+                  ? t('trim.finishing')
+                  : t('trim.workingPercent', { percent: String(Math.floor(trimProgress.ratio * 100)) })}
           </button>
         </div>
       </div>
@@ -668,10 +772,13 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
 
 const s: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(var(--scrim-rgb), 0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000 },
-  modal: { background: 'var(--bg-page)', border: '1px solid var(--border-default)', borderRadius: radius.md, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
+  // 器はアプリの他のダイアログ（設定・確認・変更点）と同じ作りにする。ここだけ radius.md の
+  // 硬い角＋--bg-page の地だったので、手前に浮いているのに一番角張って見えていた。
+  modal: { background: 'var(--bg-modal)', border: '1px solid var(--border-default)', borderRadius: radius.lg, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x12, padding: '10px 16px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 },
   fileTitle: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.lg, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0, minWidth: 28, minHeight: control.md, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  // ConfirmDialog / WhatsNewModal と同一。裸の「✕」文字だけがこの画面の作りだった。
+  closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   videoWrap: { position: 'relative', flexShrink: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#000' },
   // 190 → 260: タイムライン上の IN/OUT フラグ用の余白と、カード化した IN/OUT 行の
   // 分だけ映像以外の高さが増えたぶんを反映する（ここがズレると縦スクロールが出る）。
@@ -699,32 +806,39 @@ const s: Record<string, React.CSSProperties> = {
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
   playhead: { position: 'absolute', top: -3, bottom: -3, width: 2, background: '#fff', transform: 'translateX(-50%)', pointerEvents: 'none', boxShadow: '0 0 0 1px rgba(0,0,0,0.55)' },
   controls: { padding: '12px 16px 8px', display: 'flex', flexDirection: 'column', gap: space.x8, flexShrink: 0 },
-  boundaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: space.x8 },
-  // 列: バッジ / 時刻 / コマ番号 / コマ送り(右寄せ) / 設定ボタン(固定幅)。
-  // 2 枚のカードで同一なので左右で必ず揃う。
-  boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 40px 1fr auto', alignItems: 'center', gap: space.x8, minWidth: 0, padding: '8px 10px', background: 'var(--bg-inset)', border: '1px solid var(--border-default)', borderRadius: radius.md },
-  boundaryCardIn: { borderLeft: '3px solid rgba(var(--success-rgb), 0.75)' },
-  boundaryCardOut: { borderLeft: '3px solid rgba(var(--danger-rgb), 0.75)' },
+  // 左右の間は x24（画面の大きな区切り）。枠を外したので、詰めると 2 組が 1 本の長い行に
+  // 見えて、どこまでが開始側なのか読めなくなる。
+  boundaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: space.x24 },
+  // 列: バッジ / 時刻 / コマ送り(右寄せ) / 設定ボタン(固定幅)。
+  // 2 枚で同一なので左右で必ず揃う。
+  //
+  // カードの枠と左端の色帯は外してある。中に IN/OUT のバッジがあり、さらに真上の
+  // タイムラインにも同じ色の旗が出ているので、「ここは開始の行」を 3 回言っていた。
+  // 左右の padding も 0 にして、タイムラインの左端と縦に揃える。
+  boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 1fr auto', alignItems: 'center', gap: space.x8, minWidth: 0 },
   badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textAlign: 'center' as const },
   badgeIn: { background: 'rgba(var(--success-rgb), 0.16)', border: '1px solid rgba(var(--success-rgb), 0.5)', color: 'var(--success)' },
   badgeOut: { background: 'rgba(var(--danger-rgb), 0.16)', border: '1px solid rgba(var(--danger-rgb), 0.5)', color: 'var(--danger)' },
   time: { fontSize: font.base, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' as const, letterSpacing: 0.2 },
-  frameNum: { fontSize: font.xs, fontWeight: 700, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' as const },
   // コマ送りは 2 つの独立したボタンではなく、枠を共有するセグメントにする
   // （個別のピルが並ぶと右端が揃わずガタついて見えた）。
   stepper: { justifySelf: 'end', display: 'inline-flex', alignItems: 'stretch', height: control.md, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, overflow: 'hidden' },
   stepBtn: { width: 46, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, fontVariantNumeric: 'tabular-nums' as const, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   stepBtnRight: { borderLeft: '1px solid var(--border-strong)' },
-  setBtn: { boxSizing: 'border-box' as const, width: 108, height: control.md, padding: 0, borderRadius: radius.md, cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
-  setBtnIn: { background: 'rgba(var(--success-rgb), 0.14)', border: '1px solid rgba(var(--success-rgb), 0.45)', color: 'var(--success)' },
-  setBtnOut: { background: 'rgba(var(--danger-rgb), 0.14)', border: '1px solid rgba(var(--danger-rgb), 0.45)', color: 'var(--danger)' },
+  // IN/OUT の色は付けない。すぐ上のタイムラインに緑の IN 旗・赤の OUT 旗が出ており、
+  // 同じ意味の色をこのボタンでもう一度鳴らすと、画面の下半分が色だらけになる。
+  // ここはフッターのキャンセルと同じ無彩色の枠ボタン。
+  setBtn: { boxSizing: 'border-box' as const, width: 88, height: control.md, padding: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
   infoRow: { display: 'flex', alignItems: 'center', gap: space.x12, minHeight: 18 },
   duration: { color: 'var(--text-primary)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
   ptsStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontStyle: 'italic' },
   ptsWarn: { color: 'var(--warning)', fontSize: font.xs, fontStyle: 'italic' },
   errorMsg: { color: color.danger, fontSize: font.sm },
-  shortcutHint: { color: 'var(--text-muted)', fontSize: font.xs, letterSpacing: 0.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
-  footer: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: space.x8, padding: '10px 16px', borderTop: '1px solid var(--border-default)', flexShrink: 0 },
+  // キーの一覧だけ右端へ逃がす（marginLeft:auto）。左詰めだと選択範囲・解析中・
+  // 短すぎ警告と 1 本の団子になり、どれが今の状態でどれが操作説明なのか読めない。
+  shortcutHint: { marginLeft: 'auto', color: 'var(--text-muted)', fontSize: font.xs, letterSpacing: 0.2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+  // ボタン列の帯は一段沈める（他のダイアログの actions / footer と同じ --bg-content）。
+  footer: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: space.x8, padding: '10px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)', flexShrink: 0 },
   // フッターの 2 ボタンは ConfirmDialog と同じ組み合わせにする。以前この保存ボタンだけが
   // var(--accent) のベタ塗り＋白文字で、明るい藤色に白を載せるためコントラストが約 2:1 しか
   // 出ず濁って見えていた（かつアプリ内で唯一の見た目でもあった）。ティント地＋アクセント文字なら

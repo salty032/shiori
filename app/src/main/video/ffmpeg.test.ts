@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { trimWebm, getVideoDuration, getVideoMeta, getFrameSignatures, getVideoFramePts, transcodeToH264, h264Args, h264Bitrate, SIGNATURE_GRID } from './ffmpeg'
+import { trimWebm, trimBitrate, getVideoDuration, getVideoMeta, getFrameSignatures, getVideoFramePts, transcodeToH264, h264Args, h264Bitrate, SIGNATURE_GRID } from './ffmpeg'
 import { signaturesDiffer } from './frame-verify'
 
 function runFfmpegSync(args: string[]): Promise<void> {
@@ -27,6 +27,22 @@ function runFfmpegSync(args: string[]): Promise<void> {
   })
 }
 
+
+// showinfo が 1 フレームごとに出す `iskey:` を数える。**行に分けない**——出力は数百行に
+// なるが、要るのは総数と、そのうち 1 だったものの数だけ。
+function countKeyFrames(path: string): Promise<{ frames: number; keyFrames: number }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(FFMPEG_BIN, ['-hide_banner', '-i', path, '-vf', 'showinfo', '-an', '-f', 'null', '-'],
+      { stdio: ['ignore', 'ignore', 'pipe'] })
+    let out = ''
+    proc.stderr?.on('data', (d: Buffer) => { out += d.toString() })
+    proc.on('close', () => resolve({
+      frames: (out.match(/iskey:/g) ?? []).length,
+      keyFrames: (out.match(/iskey:1/g) ?? []).length
+    }))
+    proc.on('error', reject)
+  })
+}
 
 // ffmpeg の -i だけを走らせて stderr を読む。出力の縦横は Stream 行にしか出ないので、
 // 「奇数のまま削られていないか」を見るのに要る。
@@ -40,9 +56,36 @@ function probeStderr(path: string): Promise<{ stderr: string }> {
   })
 }
 
+// **切り出しの画質を決めるのは元ファイルの実測**（解像度・素材 fps・録画時の要求値が
+// すべてそこに出ている）。以前の 8Mbps 決め打ちは、1080p60 を 24Mbps で録っておきながら
+// 切り出した瞬間に 1/3 へ落としていた。
+describe('trimBitrate', () => {
+  it('元の実効ビットレートに上乗せした値を要求する', () => {
+    // 10Mbps の 10 秒（12.5MB）。
+    expect(trimBitrate(12_500_000, 10)).toBe(11_500_000)
+  })
+
+  it('痩せた素材でも下限を割らない', () => {
+    // 1Mbps 相当。そのままだと切り出しだけ極端に痩せる。
+    expect(trimBitrate(1_250_000, 10)).toBe(4_000_000)
+  })
+
+  it('太い素材でも上限を超えない（エンコードが破綻しない範囲に収める）', () => {
+    expect(trimBitrate(125_000_000, 10)).toBe(32_000_000)
+  })
+
+  it('測れなければ従来どおりの固定値（挙動を変えない）', () => {
+    expect(trimBitrate(null, 10)).toBe(8_000_000)
+    expect(trimBitrate(12_500_000, null)).toBe(8_000_000)
+    expect(trimBitrate(0, 10)).toBe(8_000_000)
+    expect(trimBitrate(12_500_000, 0)).toBe(8_000_000)
+  })
+})
+
 describe('trimWebm', () => {
   let dir: string
   let srcPath: string
+  let vfrPath: string
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'shiori-ffmpeg-test-'))
@@ -57,9 +100,66 @@ describe('trimWebm', () => {
     ])
   }, 30_000)
 
+  // 可変フレームレートの素材。録画（MediaRecorder）は「画面が変化したぶんだけ」フレームを
+  // 吐くので実物もこの形になる。**等間隔の素材ではこの手の丸めは再現しない**
+  // （docs/ANIME-FRAMES.md の H.264 書き出しの項と同じ理由）。
+  beforeAll(async () => {
+    vfrPath = join(dir, 'vfr.webm')
+    await runFfmpegSync([
+      '-y',
+      '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=60:duration=3',
+      '-vf', "select='not(eq(mod(n,7),3))+not(eq(mod(n,11),5))'",
+      '-fps_mode', 'passthrough',
+      '-c:v', 'libvpx',
+      vfrPath
+    ])
+  }, 60_000)
+
   afterAll(async () => {
     await rm(dir, { recursive: true, force: true })
   })
+
+  // **トリムは毎回 VP9 で焼き直す。** ここでコマが増減したり時刻が動いたりすると、
+  // 引き継いだフレーム表と実物の対応が黙って壊れる（画面には何も出ない）。
+  // H.264 書き出しで同じことが起きたのが 2026-08-26 の件で、そちらは h264Args の項で
+  // 指定を固定してある。トリム側は「結果」を固定する。
+  it('可変フレームレートでもコマ数が変わらない', async () => {
+    const outPath = join(dir, 'vfr-trim.webm')
+    const src = await getVideoFramePts(vfrPath)
+    // IN/OUT はトリマーと同じく実コマの時刻へ吸着させる（OUT は「次のコマの開始時刻」）。
+    const inSec = src[60]
+    const outSec = src[121]
+    await trimWebm(vfrPath, outPath, inSec, outSec)
+    const out = await getVideoFramePts(outPath)
+    expect(out.length).toBe(61)
+  }, 120_000)
+
+  it('切り出したコマの時刻が元のコマと 2ms 以上ずれない', async () => {
+    const outPath = join(dir, 'vfr-trim-pts.webm')
+    const src = await getVideoFramePts(vfrPath)
+    const inSec = src[60]
+    await trimWebm(vfrPath, outPath, inSec, src[121])
+    const out = await getVideoFramePts(outPath)
+    const expected = src.slice(60, 121).map((t) => t - inSec)
+    // 許容 2ms は webm のタイムスタンプの刻み（1ms）ぶん。素材 1 コマ（60fps でも 16.7ms）の
+    // 半分より十分小さいので、フレーム表の引き直し（nearestPtsIndex）は同じコマを指し続ける。
+    const worst = Math.max(...expected.map((t, i) => Math.abs(t - out[i])))
+    expect(worst).toBeLessThan(0.002)
+  }, 120_000)
+
+  // 進み具合は ffmpeg が stderr に出す「time=00:00:01.01」を拾っている。**出力の形が
+  // 変われば黙って 0% のまま止まる**（画面には「トリミング中...」が出続けるだけで、
+  // 壊れたことに気づけない）ので、実バイナリの出力に当たることをここで固定する。
+  it('焼き直しの進み具合が届く', async () => {
+    const outPath = join(dir, 'out-progress.webm')
+    const seen: number[] = []
+    await trimWebm(srcPath, outPath, 1, 5, (ratio) => seen.push(ratio))
+    expect(seen.length).toBeGreaterThan(0)
+    expect(Math.min(...seen)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...seen)).toBeLessThanOrEqual(1)
+    // 最後まで焼いた以上、終盤まで届いていないとおかしい。
+    expect(Math.max(...seen)).toBeGreaterThan(0.5)
+  }, 60_000)
 
   it('IN=6/OUT=8 で切り出すと Duration が約2秒になる（preSeek適用時の回帰防止）', async () => {
     const outPath = join(dir, 'out.webm')
@@ -69,6 +169,19 @@ describe('trimWebm', () => {
     expect(duration as number).toBeGreaterThan(1.5)
     expect(duration as number).toBeLessThan(2.5)
   }, 30_000)
+
+  // **録画で入れたキーフレームは焼き直しでは引き継がれない。** 指定しないと既定の
+  // 約 100 コマに 1 回へ戻り、キーフレームから遠いコマほどコマ送りが重くなる
+  // （実測 30ms → 294ms）。切り出した箇所こそコマ送りしたいので、ここが抜けると本末転倒。
+  it('切り出した動画にもキーフレームが 10 コマごとに入る', async () => {
+    const outPath = join(dir, 'out-keyframes.webm')
+    // 10fps の素材を 4 秒＝約 40 コマ切り出す。10 コマごとなら 4 枚前後入る。
+    await trimWebm(srcPath, outPath, 1, 5)
+    const { frames, keyFrames } = await countKeyFrames(outPath)
+    expect(frames).toBeGreaterThan(30)
+    // 指定が効いていなければ先頭の 1 枚だけになる。
+    expect(keyFrames).toBeGreaterThanOrEqual(3)
+  }, 60_000)
 
   it('IN=1/OUT=3（preSeek=0）でも Duration が約2秒になる', async () => {
     const outPath = join(dir, 'out-short.webm')

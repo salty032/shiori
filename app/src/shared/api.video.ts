@@ -47,12 +47,35 @@ export const FRAME_QUALITY = {
 } as const
 export type FrameQuality = (typeof FRAME_QUALITY)[keyof typeof FRAME_QUALITY]
 
+// 抜け・未取得がこの割合を超えたら、場所を指さずクリップ全体の話にする。
+// **同じ録画で、画面のどこか 1 つだけ赤くなる状態を作らないため値は 1 か所にしか置かない**
+// （ビューアのコマ表示・詳細パネル・トリマー・タイムシートの可否が同じ定数を読む）。
+//
+// レンダラー側（frameTable.ts）から共通側へ移したのは、タイムシートの可否判定（shared/
+// timesheet.ts）が同じ数字で決まるようにするため。**ボタンが出るかどうかと、画面が赤く
+// なるかどうかが別の数字で決まっていると、「赤いのに出せる／出せないのに白い」が起きる。**
+export const SEVERE_FRAME_RATIO = 0.05
+
 /** クリップのコマ送りに必要な情報一式。 */
 export interface ClipGap {
   /** この添字のコマの「次」に抜けがある */
   afterIndex: number
   /** 抜けているコマ数 */
   missing: number
+}
+
+/**
+ * トリミングの進み具合。
+ *
+ * **2 段に分けるのは、焼き直しが終わっても作業が残るから。** 元とトリム後の両方を
+ * デコードしてコマ表を引き継ぐため、ffmpeg が 100% に着いた後にも数秒かかる。
+ * そこを「100%」と出すと、終わったのに固まったようにしか見えない。
+ */
+export interface TrimProgress {
+  /** 焼き直しの進み具合（0〜1）。phase が 'finish' のときは 1 */
+  ratio: number
+  /** encode: 焼き直し中 / finish: 焼き直しは済み、登録とコマ表の引き継ぎ中 */
+  phase: 'encode' | 'finish'
 }
 
 export interface ClipFrames {
@@ -86,6 +109,13 @@ export interface VideoApi {
   getClipFrames: (imageId: number) => Promise<ClipFrames>
   getTimelineStrip: (imageId: number, count: number) => Promise<string | null>
   trimVideo: (imageId: number, inSec: number, outSec: number) => Promise<TrimVideoResult>
+  /**
+   * トリミングの進み具合を受け取る。戻り値を呼ぶと購読をやめる。
+   *
+   * 焼き直しは尺次第で数十秒かかる。**待たせるなら、進んでいることが画面から読めること**
+   * （以前は「トリミング中...」だけで、止まったのか進んでいるのか区別が付かなかった）。
+   */
+  onTrimProgress: (cb: (progress: TrimProgress) => void) => () => void
 }
 
 /**
@@ -108,4 +138,5 @@ export const VIDEO_CH = {
   videoGetClipFrames: 'video:getClipFrames',
   videoGetTimelineStrip: 'video:getTimelineStrip',
   videoTrim: 'video:trim',
+  videoTrimProgress: 'video:trimProgress',
 } as const

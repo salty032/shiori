@@ -12,7 +12,7 @@ import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../sy
 import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
-import type { ClipFrames, ClipGap, FrameQuality } from '../../shared/api.video'
+import type { ClipFrames, ClipGap, FrameQuality, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { sliceFrameTable, countReportDrops, frameGaps } from './frame-feed'
 import { verifyClipFrames } from './verify-clip'
@@ -169,7 +169,7 @@ export function registerVideoHandlers(): void {
     } catch { return null }
   })
 
-  handleTrusted(VIDEO_CH.videoTrim, async (_event, imageId: number, inSec: number, outSec: number) => {
+  handleTrusted(VIDEO_CH.videoTrim, async (event, imageId: number, inSec: number, outSec: number) => {
     const validId = optionalPositiveInteger(imageId)
     if (!validId) return { ok: false, error: 'invalid_id' }
     if (typeof inSec !== 'number' || !Number.isFinite(inSec) || inSec < 0)
@@ -208,7 +208,25 @@ export function registerVideoHandlers(): void {
 
     trimmingIds.add(validId)
     try {
-      await trimWebm(realPath, webmOut, inSec, outSec)
+      // 進み具合の送り先。**閉じた後に届いても捨てる**（トリミングは画面を閉じても
+      // 走り切るので、送り先が先に消えることは普通に起きる）。
+      const sendProgress = (progress: TrimProgress): void => {
+        const sender = event?.sender
+        if (!sender || sender.isDestroyed()) return
+        sender.send(VIDEO_CH.videoTrimProgress, progress)
+      }
+      // **整数のパーセントが変わったときだけ**送る。画面に出る値の刻みと送る回数が
+      // 一致する（ffmpeg は 1 本の焼き直しで何百行も進捗を吐く）。
+      let lastPercent = -1
+      await trimWebm(realPath, webmOut, inSec, outSec, (ratio) => {
+        const percent = Math.floor(ratio * 100)
+        if (percent === lastPercent) return
+        lastPercent = percent
+        sendProgress({ ratio, phase: 'encode' })
+      })
+      // 焼き直しはここで終わり。**この先も数秒かかる**（サムネ・登録・コマ表の引き継ぎで
+      // 元とトリム後の両方をデコードする）ので、100% のまま止まったように見せない。
+      sendProgress({ ratio: 1, phase: 'finish' })
 
       // サムネ生成はベストエフォート。録画保存（recorder-ipc.ts）と同様に、失敗しても
       // トリム本体（webmOut）は破棄せずサムネなしで登録を続ける。
@@ -272,10 +290,16 @@ export function registerVideoHandlers(): void {
             // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
             // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。
             //
+            // **撮り逃しが 0 でも走らせる。** 以前は missed > 0 のときだけだったが、それだと
+            // 「最も精度が良く見えるクリップ」ほど照合されないことになる。照合が要るのは
+            // 撮り逃しの有無ではなく、表の frameIndex が新しいファイルの実フレームと
+            // 一致しているかで、一致していなければ全コマが黙って別の絵を指す。
+            // 録画の保存側（recorder-ipc.ts）と同じ基準に揃える。
+            //
             // 枚数照合（第4引数）は不要なので null。切り出し後の表は trimmedPts の添字から
             // 作り直しており、その trimmedPts は新ファイルを ffmpeg でデコードして得たもの
             // なので、定義上ファイル内のフレーム数と一致する。
-            if (missed > 0) void verifyClipFrames(result.id, webmOut, sliced, null)
+            void verifyClipFrames(result.id, webmOut, sliced, null)
           }
         }
       } catch (err) {

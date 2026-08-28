@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { readFile, unlink, mkdir } from 'fs/promises'
+import { readFile, unlink, mkdir, stat } from 'fs/promises'
 import { dirname, join } from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
@@ -36,12 +36,16 @@ function analysisLimitError(): Error {
 // isCanceled を渡すと、実行中でも中止できる。**変換（transcodeToH264）で要る。**
 // 1 本あたり十数秒かかるので、中止ボタンを押しても今の 1 本が終わるまで反応しないと
 // 「押したのに止まらない」ように見える。トリムやサムネは一瞬で終わるので渡していない。
-function runFfmpeg(args: string[], isCanceled?: () => boolean): Promise<void> {
+function runFfmpeg(
+  args: string[],
+  isCanceled?: () => boolean,
+  onStderrLine?: (line: string) => void
+): Promise<void> {
   return new Promise((resolve, reject) => {
     let bin: string
     try { bin = getFfmpegPath() } catch (err) { reject(err); return }
     const proc = spawn(bin, args, { stdio: 'pipe' })
-    const stderr = new StderrCollector()
+    const stderr = new StderrCollector(onStderrLine)
     let settled = false
     const timer = setTimeout(() => {
       if (settled) return
@@ -313,12 +317,64 @@ export async function getVideoDuration(inputPath: string): Promise<number | null
   return (await getVideoMeta(inputPath)).duration
 }
 
+// ffmpeg が進捗行に出す経過時刻（time=00:00:01.23）。**尺の申告ではなく実際に処理した
+// ところ**を指すので、これを切り出す長さで割れば進み具合になる。
+const PROGRESS_TIME_RE = /\btime=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/
+
+// 切り出しの焼き直しで要求する映像ビットレート。
+//
+// **元のファイルが実際に何ビット使っているかから決める。** 以前は 8Mbps 決め打ちで、
+// 解像度も素材 fps も元の要求値も見ていなかった。録画側は供給枚数と素材 fps から決めていて
+// 1080p60 なら約 24Mbps を要求するので、**切り出した瞬間に 1/3 へ落ちたうえに非可逆の
+// 掛け直しが乗っていた。切り出した箇所こそ細かく見たいのに、そこで一番画質が落ちる。**
+//
+// 実効ビットレート（ファイルサイズ ÷ 尺）を根拠にするのは、**解像度・素材 fps・録画時の
+// 要求値がすべて結果としてそこに出ている**から。条件を数え上げる式を別に持つと、録画側の
+// 式を変えたときにこちらだけ取り残される。取り込んだ動画（Shiori が録ったのではないもの）
+// にも同じ理屈がそのまま効く。
+//
+// 上乗せ（TRIM_BITRATE_HEADROOM）は、**切り出した区間が元クリップの平均より動くことがある**
+// ため。平均そのままを要求すると、動きの多い数秒を切り出したときだけ痩せる。
+//
+// 音声ぶんも実効ビットレートに含まれているが、差し引かない——上乗せの内側に収まる程度
+// （192kbps は映像の数 % ）で、引くために音声だけのビットレートを測り直す価値はない。
+const TRIM_BITRATE_HEADROOM = 1.15
+// 元の実効ビットレートが測れないとき（サイズか尺が取れない）の退避値。**従来の固定値と
+// 同じにする**——測れない録画で挙動を変える理由が無い。
+const TRIM_FALLBACK_BITRATE = 8_000_000
+// 下限は、静止画に近い素材で極端に痩せた値を要求しないため。上限は、エンコードが破綻せず
+// 実測済みの範囲（録画側の 24Mbps 近傍）に収める。
+const TRIM_MIN_BITRATE = 4_000_000
+const TRIM_MAX_BITRATE = 32_000_000
+
+export function trimBitrate(fileBytes: number | null, durationSec: number | null): number {
+  if (!fileBytes || !durationSec || fileBytes <= 0 || durationSec <= 0) return TRIM_FALLBACK_BITRATE
+  const effective = (fileBytes * 8) / durationSec
+  const raw = Math.round(effective * TRIM_BITRATE_HEADROOM)
+  return Math.min(TRIM_MAX_BITRATE, Math.max(TRIM_MIN_BITRATE, raw))
+}
+
+// キーフレームを入れる間隔（コマ数）。**録画側と同じ値・同じ単位**（recorder.ts の
+// KEYFRAME_INTERVAL_FRAMES）。ここを指定しないと既定の約 100 コマに 1 回へ戻り、
+// キーフレームから遠いコマほどコマ送りが重くなる（実測 30ms → 294ms）。
+// **録画で入れた間隔は焼き直しでは引き継がれない**ので、こちらでも明示する必要がある。
+// 代償はファイルサイズ +27%（録画側の実測）。
+const TRIM_KEYFRAME_INTERVAL_FRAMES = 10
+
 export async function trimWebm(
   inputPath: string,
   outPath: string,
   inSec: number,
-  outSec: number
+  outSec: number,
+  onProgress?: (ratio: number) => void
 ): Promise<void> {
+  // 元が実際に何ビット使っているかを測る。**要求値ではなく結果**を見る（要求どおりに
+  // 出るとは限らないので、判断材料になるのは実際に出た方。recorder.ts と同じ考え方）。
+  const [srcBytes, srcDuration] = await Promise.all([
+    stat(inputPath).then((st) => st.size).catch(() => null),
+    getVideoDuration(inputPath).catch(() => null)
+  ])
+  const videoBitrate = trimBitrate(srcBytes, srcDuration)
   // 入力側で2秒前まで高速ストリームシーク（タイムスタンプは0リセットされる）→
   // 出力側はシーク後の相対時刻を指定してフレーム精確カット。
   // これにより inSec が大きい長尺クリップでも先頭から全デコードせずに済む
@@ -335,7 +391,10 @@ export async function trimWebm(
     // モスキートノイズという避けたかった劣化をトリム工程で自ら持ち込んでしまう。
     // 録画側と同じコーデックに揃える。
     '-c:v', 'libvpx-vp9',
-    '-b:v', '8M',
+    '-b:v', String(videoBitrate),
+    // コマ送りのために詰める（上の注記）。**単位はコマ数**——決めたいのは「最悪どれだけ
+    // デコードするか」で、それはコマ数そのものだから。
+    '-g', String(TRIM_KEYFRAME_INTERVAL_FRAMES),
     // VP9 は既定のままだと VP8 より大幅に遅く、尺次第で FFMPEG_TIMEOUT_MS に触れる。
     // row-mt で行単位のマルチスレッドを有効にし、cpu-used で速度側へ寄せて実用域に収める
     // （good/2 は画質をほぼ落とさずに速度を稼げる範囲）。
@@ -343,10 +402,23 @@ export async function trimWebm(
     '-deadline', 'good',
     '-cpu-used', '2',
     '-c:a', 'libopus',
+    // 録画側と同じ 192kbps を明示する。未指定だと Chromium ではなく ffmpeg の既定に
+    // 落ちるが、いずれにせよ**元より痩せる方向にしか動かない**ので指定する。
+    '-b:a', '192k',
     '-avoid_negative_ts', 'make_zero',
     outPath
   )
-  await runFfmpeg(args)
+  // 進捗が要らない呼び出しでは行の解析ごと省く（サムネ生成など一瞬で終わるものが大半）。
+  const total = outSec - inSec
+  const watch = onProgress && total > 0
+    ? (line: string): void => {
+        const m = PROGRESS_TIME_RE.exec(line)
+        if (!m) return
+        const sec = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
+        onProgress(Math.max(0, Math.min(1, sec / total)))
+      }
+    : undefined
+  await runFfmpeg(args, undefined, watch)
 }
 
 // 書き出し（設定 > データ > 動画の書き出し形式）で H.264 を選んだときの変換。

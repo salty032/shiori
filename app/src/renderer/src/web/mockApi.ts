@@ -251,6 +251,7 @@ export async function installMockApi(): Promise<void> {
     getClipFrames: async () => ({ pts: [], sourceBased: false, quality: [] }),
     getTimelineStrip: async () => null,
     trimVideo: async () => { unsupported(); return { ok: false, error: t('demo.unavailable') } },
+    onTrimProgress: () => () => {},
 
     // ── push チャンネル（デモでは発火しないものは購読だけ受ける） ──
     onAppNotice: notice.on,
