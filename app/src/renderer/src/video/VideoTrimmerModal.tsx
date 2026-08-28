@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ImageRow, Settings } from '../types'
+import { markFeatureOverlayOpen } from '../features/registry'
 import { useTrimStore } from './trimStore'
 import VideoTrimmer from './VideoTrimmer'
 
@@ -22,6 +23,14 @@ export default function VideoTrimmerModal() {
     })
     return () => { cancelled = true }
   }, [trimImageId, close])
+
+  // 開いている間はコアへ合図を出し、背後のプレーヤー（ビューア・詳細パネル）を止めてもらう。
+  // image/settings の読み込み完了ではなく trimImageId が入った時点で立てる——
+  // 取得を待つ間も画面はもうトリミングに移っているので、そこで鳴っていては同じこと。
+  useEffect(() => {
+    if (trimImageId === null) return
+    return markFeatureOverlayOpen()
+  }, [trimImageId])
 
   if (trimImageId === null || !image || !settings) return null
 

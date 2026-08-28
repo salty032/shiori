@@ -9,8 +9,9 @@ import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
-import VideoPlayer, { SEVERE_FRAME_RATIO } from './VideoPlayer'
-import { getMediaActions } from '../features/registry'
+import VideoPlayer from './VideoPlayer'
+import { SEVERE_FRAME_RATIO } from '../frameTable'
+import { getMediaActions, useFeatureOverlayOpen } from '../features/registry'
 import { useT } from '../i18n'
 
 type Props = {
@@ -59,6 +60,9 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
 
 export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { t, tp, locale } = useT()
+  // トリミング等のオーバーレイに覆われている間も再生を止める（registry の注記を参照）。
+  // ここはビューアと違い、ビューアを開かずに詳細パネルから直接トリミングへ入る経路のため。
+  const overlayOpen = useFeatureOverlayOpen()
   const windowWidth = useWindowWidth()
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
@@ -345,7 +349,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
         <>
           <div style={s.panelContent}>
           {single.media_type === 'video' ? (
-            <VideoPlayer id={single.id} wrapperStyle={s.videoWrap} videoStyle={s.videoEl} pauseWhen={viewerOpen} />
+            <VideoPlayer id={single.id} wrapperStyle={s.videoWrap} videoStyle={s.videoEl} pauseWhen={viewerOpen || overlayOpen} />
           ) : (
             <img src={fullImageSrc ?? thumbSrc(single)} style={s.img} alt="" />
           )}

@@ -4,7 +4,7 @@ import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
 import { s } from '../styles'
 import { XIcon } from './Icon'
 import VideoPlayer, { type VideoPlayerHandle } from './VideoPlayer'
-import { getMediaActions } from '../features/registry'
+import { getMediaActions, useFeatureOverlayOpen } from '../features/registry'
 import { useT } from '../i18n'
 import type { Timesheet } from '../hooks/useTimesheet'
 
@@ -42,6 +42,8 @@ type Props = {
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
 export default function Viewer({ images, index, setIndex, total, titleStrip, frameFps, onToggleDetailPanel, timesheet }: Props) {
   const { t } = useT()
+  // トリミング等のオーバーレイに覆われている間は再生を止める（registry の注記を参照）。
+  const overlayOpen = useFeatureOverlayOpen()
   const [closing, setClosing] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -105,6 +107,14 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
         // 事故になる。preventDefault だけは残す（既定のスクロールを起こさないため）。
         e.preventDefault()
         if (images[index].media_type === 'video') videoPlayerRef.current?.togglePlay()
+        return
+      }
+      // M は音を消す / 戻す。動画プレーヤーの慣習（YouTube・VLC 等）に合わせる。
+      // Space と同じく**動画のときだけ**効かせる（画像には消す音が無い）。
+      // 修飾キー付きは既存のショートカットに譲る。
+      if (images[index].media_type === 'video' && (e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        videoPlayerRef.current?.toggleMute()
         return
       }
       // コマ送り。動画編集ソフト（Premiere 等）と同じ , / . に合わせる。
@@ -386,7 +396,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
               ...s.viewerImg,
               transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
             }}
-            autoPlay fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
+            autoPlay pauseWhen={overlayOpen} fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
             onFramesReady={timesheet.onFramesReady} onFrameIndex={timesheet.onFrameIndex} />
         ) : (
           <img

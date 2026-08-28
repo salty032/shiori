@@ -47,6 +47,7 @@ export function shortcutGroups(t: Translate['t']): ShortcutGroup[] {
         { keys: 'F1 / F2 / F3', desc: t('shortcuts.viewerTimesheetSymbols') },
         { keys: 'Enter / Escape', desc: t('shortcuts.closeViewer') },
         { keys: 'Space', desc: t('shortcuts.viewerSpace') },
+        { keys: 'M', desc: t('shortcuts.toggleMute') },
         { keys: t('shortcuts.keys.doubleClick'), desc: t('shortcuts.toggleZoom') },
         { keys: '+ / - / 0', desc: t('shortcuts.zoomInOutReset') },
         { keys: 'Tab', desc: t('shortcuts.toggleDetails') },
