@@ -1,4 +1,4 @@
-import { FRAME_QUALITY, type ClipFrames } from './api.video'
+import { FRAME_QUALITY, SEVERE_FRAME_RATIO, type ClipFrames } from './api.video'
 
 // 東映アニメーション デジタルタイムシートへ貼り付けるためのクリップボード形式。
 //
@@ -61,22 +61,55 @@ export function buildToeiClipboard(marks: readonly TimesheetMark[], total: numbe
 
 // タイムシートを出してよいクリップか。
 //
-// **撮り逃しが 1 コマでもあれば出さない。** 打った位置が素材のどのコマなのか保証できない表を
-// 作らせると、後から見て信用してよいか分からない記録が残る。しかも書き出し先（東映の
-// クリップボード形式）には「このコマは怪しい」を書く欄が無いので、渡した先では区別が消える。
+// **判断を「番号が素材と一致するか」と「その位置の絵が見えるか」に分ける。**
+// タイムシートが記録しているのは秒ではなく素材コマの通し番号なので、壊れると困るのは前者。
 //
-// 素材 fps も確定していなければ出さない。表の秒区切りとコピー先に必要な尺を設定 fps で
+// ## 出さない（番号が信用できない）
+//
+// **未通知の抜け（gaps）が 1 つでもあれば出さない。** ページがコマを描かず知らせも来なかった
+// ところは、表に**行そのものが無い**。1 コマ抜けるとそこから下の番号が全部素材とずれ、
+// **ずれても画面には何も出ない**（コマ送りは動き、枚数も割合も合ったまま隣のコマが出る）。
+// ここだけは割合で見ない——1 コマずれた表は 100 コマずれた表と同じだけ使えない。
+//
+// **対応崩れ（misaligned）も 1 つでも不可。** 出ている絵が何なのか分からない以上、
+// 打った位置がどのコマなのかも決められない。
+//
+// 素材 fps が確定していなければ出さない。表の秒区切りとコピー先に必要な尺を設定 fps で
 // 代用すると、素材と違うタイムシートを正しいものとして残せてしまうため。
 //
-// この条件で、表そのものが無いクリップ（取り込み動画・対応が崩れて表を捨てたもの）と
-// 60fps 素材（供給不足で原理的に撮り逃す）も自動的に外れる。
+// ## 出す（絵は欠けるが、番号は合っている）
+//
+// **流用（reused）は SEVERE_FRAME_RATIO まで許す。** 流用のコマは**表に行があり、番号は
+// 素材と一致している**——直前のコマの絵が出ているだけ。以前はこれも 1 コマで止めていたが、
+// それは壊れていないものまで止めていた（実際、数コマの流用でタイムシートが出せないのは
+// ただ面倒なだけだった）。**取れた精度を「完全でないから」と切り捨てる方が損失は大きい**
+// （docs/ANIME-FRAMES.md 0 章）。
+//
+// 割合の上限は**コマ送りの赤と同じ定数**を読む。別の数字にすると「赤いのに出せる／出せない
+// のに白い」が起きる（api.video.ts の注記）。この線で 60fps 素材は従来どおり外れる——
+// 供給不足で流用が常時 11〜17% 出るため。
+//
+// 残る危うさは「流用のコマで新しい絵が始まっていても見えない」こと。**番号は壊れないが、
+// 打ち漏らす。** 数はタイムシートの見出しに出す（表を開くと詳細パネルが隠れるので、
+// 打っている場所から読めないと意味がない）。どのコマが流用かはビューアのコマ送りに出る。
+//
+// この条件で、表そのものが無いクリップ（取り込み動画・対応が崩れて表を捨てたもの）も
+// 自動的に外れる。
 export function canBuildTimesheet(frames: ClipFrames | null | undefined, fps: number | null | undefined): boolean {
   if (typeof fps !== 'number' || !Number.isFinite(fps) || fps <= 0) return false
   if (!frames || !frames.sourceBased || frames.pts.length === 0) return false
   // quality は sourceBased のときだけ pts と同じ長さで入る。欠けている＝コマごとの
   // 確からしさが分からないということなので、その時点で出さない。
   if (frames.quality.length !== frames.pts.length) return false
-  return frames.quality.every((q) => q === FRAME_QUALITY.captured)
+  if ((frames.gaps ?? []).some((g) => g.missing >= 1)) return false
+  if (frames.quality.some((q) => q === FRAME_QUALITY.misaligned)) return false
+  return countReusedFrames(frames) / frames.quality.length <= SEVERE_FRAME_RATIO
+}
+
+// 専用の絵が撮れず、直前のコマを出しているコマ数。**番号はずれていないので、これ自体は
+// 表を捨てる理由にならない**——打つ人に見せるための数。
+export function countReusedFrames(frames: ClipFrames | null | undefined): number {
+  return (frames?.quality ?? []).filter((q) => q === FRAME_QUALITY.reused).length
 }
 
 // 打った内容。**記録するのは素材コマの添字だけで、秒は持たない**——秒で持つと再生位置の

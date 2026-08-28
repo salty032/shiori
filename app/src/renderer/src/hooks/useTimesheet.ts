@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipFrames } from '../../../shared/api.video'
 import {
-  buildToeiClipboard, canBuildTimesheet, decodeTimesheet, encodeTimesheet,
+  buildToeiClipboard, canBuildTimesheet, countReusedFrames, decodeTimesheet, encodeTimesheet,
   isToeiSymbol, normalizeTimesheetValue, TOEI_SYMBOL, type TimesheetMark
 } from '../../../shared/timesheet'
 
@@ -52,6 +52,10 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   const ready = canBuildTimesheet(clipFrames, fps)
   const visible = ready && open
   const total = clipFrames?.pts.length ?? 0
+  // 専用の絵が撮れなかったコマ数。**番号はずれていない**（canBuildTimesheet の注記）が、
+  // そのコマは直前と同じ絵が出ているだけなので、そこで新しい絵が始まっていても見えない。
+  // 表を開くと詳細パネルが隠れるため、打っている場所から読めるのはここだけ。
+  const reused = countReusedFrames(clipFrames)
 
   // クリップが変わったら全部引き直す。**開いたままにはしない**——別のクリップでいきなり
   // 打てる状態になっていると、隣のクリップに打ち込む事故が起きる。
@@ -166,7 +170,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   }, [visible, pending, marks, current, apply])
 
   return {
-    ready, visible, open, setOpen, total, current, marks, pending, copied,
+    ready, visible, open, setOpen, total, current, marks, pending, copied, reused,
     onFramesReady, onFrameIndex, setMemo, copy, handleKey, bindPlayer, seek,
   }
 }

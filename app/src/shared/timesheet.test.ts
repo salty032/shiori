@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildToeiClipboard,
   canBuildTimesheet,
+  countReusedFrames,
   decodeTimesheet,
   encodeTimesheet,
   normalizeTimesheetValue,
@@ -167,21 +168,35 @@ describe('canBuildTimesheet', () => {
     expect(canBuildTimesheet(frames, Number.NaN)).toBe(false)
   })
 
-  it('撮り逃しが 1 コマでもあれば出さない', () => {
+  // **流用は番号を壊さない。** 表に行はあり、素材のコマとの対応も保たれていて、出ている絵が
+  // 直前と同じになるだけ。1 コマで止めていた頃は、壊れていないものまで止めていた。
+  it('数コマの流用では止めない（番号はずれていない）', () => {
     const q = captured(100)
     q[42] = FRAME_QUALITY.reused
+    q[7] = FRAME_QUALITY.reused
+    expect(canBuildTimesheet(clip(q), 24)).toBe(true)
+  })
+
+  it('流用がコマ送りの赤と同じ割合を超えたら出さない', () => {
+    const q = captured(100)
+    for (let i = 0; i < 5; i++) q[i] = FRAME_QUALITY.reused
+    // ちょうど 5%（100 コマ中 5 コマ）は許す。赤くならない側と一致させる。
+    expect(canBuildTimesheet(clip(q), 24)).toBe(true)
+    q[5] = FRAME_QUALITY.reused
     expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
-  it('流用でも「前後の絵が同一と検証済み」を例外にしない（撮れてはいない）', () => {
+  // 供給（実測 51枚/秒）が 60 コマに足りず、流用が常時 11〜17% 出る。
+  it('60fps 素材は従来どおり外れる（流用が割合を超えるため）', () => {
     const q = captured(100)
-    q[7] = FRAME_QUALITY.reused
-    expect(canBuildTimesheet(clip(q), 24)).toBe(false)
+    for (let i = 0; i < 15; i++) q[i * 6] = FRAME_QUALITY.reused
+    expect(canBuildTimesheet(clip(q), 59.94)).toBe(false)
   })
 
-  it('要確認のコマがあれば当然出さない', () => {
+  // 流用より重い。出ている絵が何なのか分からない＝打った位置がどのコマかも決められない。
+  it('対応崩れは 1 コマでもあれば出さない（割合で見ない）', () => {
     const q = captured(100)
-    q[7] = FRAME_QUALITY.reused
+    q[42] = FRAME_QUALITY.misaligned
     expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
@@ -195,6 +210,33 @@ describe('canBuildTimesheet', () => {
   it('コマごとの確からしさが欠けていたら出さない（分からない＝保証できない）', () => {
     expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: [] }, 24)).toBe(false)
     expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: captured(2) }, 24)).toBe(false)
+  })
+
+  // **quality だけを見ていると通ってしまう。** 抜けたコマは表に行が無いので、残った行は
+  // すべて captured のまま。ここが緩むと、番号が素材からずれた表を作れてしまう。
+  it('未通知の抜けが 1 コマでもあれば出さない（quality には現れない）', () => {
+    const frames = { ...clip(captured(100)), gaps: [{ afterIndex: 42, missing: 1 }] }
+    expect(frames.quality.every((q) => q === FRAME_QUALITY.captured)).toBe(true)
+    expect(canBuildTimesheet(frames, 24)).toBe(false)
+  })
+
+  it('抜けを割合では見ない（1 コマの抜けと大量の抜けを区別しない）', () => {
+    const many = { ...clip(captured(100)), gaps: [{ afterIndex: 10, missing: 40 }] }
+    expect(canBuildTimesheet(many, 24)).toBe(false)
+  })
+
+  it('流用の数は数えるが、それ自体は可否を決めない', () => {
+    const q = captured(100)
+    q[3] = FRAME_QUALITY.reused
+    q[9] = FRAME_QUALITY.reused
+    expect(countReusedFrames(clip(q))).toBe(2)
+    expect(countReusedFrames(clip(captured(100)))).toBe(0)
+    expect(countReusedFrames(null)).toBe(0)
+  })
+
+  it('gaps が空・未定義なら従来どおり出す', () => {
+    expect(canBuildTimesheet({ ...clip(captured(100)), gaps: [] }, 24)).toBe(true)
+    expect(canBuildTimesheet(clip(captured(100)), 24)).toBe(true)
   })
 })
 

@@ -47,6 +47,10 @@ const c = {
   cellBand: '#fbe3e6',
   counterBg: '#f7fbfc',
   counterInk: '#5a7280',
+  // 撮り逃したコマ数を出すときの文字色。**ビューアの警告色（明るい黄）は使えない**——
+  // あちらは映像の上に載せる前提の色で、この用紙の白地では読めない。地の青灰より濃く、
+  // 数字だけが浮いて見える程度に留める（用紙の見た目を壊さない）。
+  warnInk: '#9a5b00',
   // 秒のブロックごとに交互に敷く地色。
   bandA: '#eef1fa',
   bandB: '#edf7f1',
@@ -122,6 +126,14 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
           <span style={{ color: c.counterInk, fontSize: font.xs }}>
             {t('timesheet.count', { marks: String(marks.length), total: String(total) })}
           </span>
+          {/* 撮り逃したコマ数。**打っている間ずっと見えている必要がある**——そのコマは
+              直前と同じ絵が出ているだけなので、新しい絵が始まっていても画面からは
+              分からない。0 のときは出さない（出ないこと自体が「全コマ専用の絵がある」）。 */}
+          {sheet.reused > 0 && (
+            <span style={{ color: c.warnInk, fontSize: font.xs }} title={t('timesheet.reusedHint')}>
+              {t('timesheet.reused', { frames: String(sheet.reused) })}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
           <button

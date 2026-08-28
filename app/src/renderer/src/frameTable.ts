@@ -7,8 +7,26 @@
 //
 // トリマー（video/）とビューアのプレーヤー（components/）の双方から使うため、
 // どちらにも寄せずコア側の独立モジュールに置く。
+import { FRAME_QUALITY, SEVERE_FRAME_RATIO } from '../../shared/api.video'
 
 export const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
+
+// 実体は shared/api.video.ts。タイムシートの可否（shared 側）が同じ数字で決まるよう
+// 共通側へ移したが、読み手はここを見ているのでそのまま出し直す。
+export { SEVERE_FRAME_RATIO } from '../../shared/api.video'
+
+// このクリップのコマ送りが、どこを見ても当てにならないか。
+//
+// **抜けが 1 つでもあれば赤、にはしない**（docs/ANIME-FRAMES.md 0 章）。ずれ（misaligned）は
+// 崩れた位置から末尾まで続くので 1 コマでもあれば全体の話、抜けは割合で見る。
+export function isClipUnreliable(
+  frames: { pts: number[]; quality?: number[]; gaps?: { missing: number }[] } | null
+): boolean {
+  if (!frames) return false
+  if ((frames.quality ?? []).some((q) => q === FRAME_QUALITY.misaligned)) return true
+  const missing = (frames.gaps ?? []).reduce((sum, g) => sum + g.missing, 0)
+  return missing > 0 && missing / (frames.pts.length + missing) > SEVERE_FRAME_RATIO
+}
 
 // idx 番目のフレームを確実に表示させるためのシーク先。
 //
