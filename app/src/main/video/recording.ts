@@ -195,6 +195,46 @@ async function ensureRecorderReady(timeoutMs: number): Promise<boolean> {
   })
 }
 
+// レコーダーが画面キャプチャを立ち上げ終えるのを待つ上限。**待ち切れなければ録画しない**
+// ——ここで見切って始めても、立ち上がっていないキャプチャからは何も撮れない
+// （落ち着き待ちの見切りとは意味が違う。あちらは撮れるが保証できない、こちらは撮れない）。
+const RECORDER_PREPARE_TIMEOUT_MS = 4000
+
+type PrepareOutcome = 'ready' | 'aborted' | 'timeout'
+let prepareResolver: ((outcome: PrepareOutcome) => void) | null = null
+
+function waitForRecorderPrepared(timeoutMs: number): Promise<PrepareOutcome> {
+  return new Promise((resolve) => {
+    const settle = (outcome: PrepareOutcome): void => {
+      if (prepareResolver === null) return
+      prepareResolver = null
+      clearTimeout(timer)
+      resolve(outcome)
+    }
+    const timer = setTimeout(() => settle('timeout'), timeoutMs)
+    prepareResolver = settle
+  })
+}
+
+// レコーダーから「用意できた」が届いた（recorder-ipc.ts）。
+export function notifyRecorderPrepared(sessionId: number): void {
+  if (!isCurrentRecordingSession(sessionId)) return
+  prepareResolver?.('ready')
+}
+
+// 記録を始める前に停止された時の畳み方。**待ちが 3 か所あるので 1 つにまとめる**
+// （どれか 1 つを直し忘れて、プレーヤー UI を隠したまま・キャプチャを掴んだまま残す、
+// が起きやすい）。
+//
+// **recorder:stop を送るのを省かないこと。** この時点でレコーダーは既に画面キャプチャを
+// 掴んでいる（準備が先に済んでいる）ので、送らないと録画しないまま掴みっぱなしになる。
+// レコーダー側は「まだ録画していない」経路で解放し、中断を返す（recorder.ts の onStop）。
+function cancelBeforeStart(): void {
+  getRecorderWindow()?.webContents.send('recorder:stop')
+  broadcastMessage({ type: 'post-capture', immediate: true })
+  finishRecordingState()
+}
+
 export async function startRecording(): Promise<void> {
   if (isRecording || isRecordingStarting) return
   isRecordingStarting = true
@@ -260,35 +300,22 @@ export async function startRecording(): Promise<void> {
     broadcastMessage({ type: 'clip-arming', label: t('video.clipArming') })
     awaitingStart = true
     startCanceled = false
-    const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)
-    awaitingStart = false
-    broadcastMessage({ type: 'clip-armed' })
-    // 待っている間に停止を押されていたら、ここで畳む（レコーダーへは何も送らない）。
-    if (startCanceled) {
-      console.log(`[clip] canceled during settle (${settle.waitedMs}ms)`)
-      broadcastMessage({ type: 'post-capture', immediate: true })
-      finishRecordingState()
-      return
-    }
-    console.log(`[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`)
-    // 表示が実際に消えてから撮り始める。往復はローカルの WS で数 ms だが、消える前に
-    // 記録を始めると「準備中」が数コマ写る——**録画そのものを汚す**ので余裕を持たせる。
-    await new Promise((resolve) => setTimeout(resolve, ARMED_CLEAR_MS))
-    // 落ち着きを確認できないまま始めたことは、ログではなくその場の画面に出す。
-    // 黙って始めると「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。
-    if (!settle.settled) sendBrowserNotice('warning', t('notice.recordingNotSettled'))
-    const tc = getLastTimecode()
-    recordingMeta = {
-      title: tc?.title ?? null,
-      currentTime: tc?.currentTime ?? null,
-      url: tc?.url ?? null
-    }
 
     const sessionId = ++currentRecordingSessionId
-    // getDisplayMedia 側はソースをレンダラーではなく main のハンドラが決めるため、
-    // ここで解決済みの画面を預けてから開始させる（sourceId は従来方式の退避用に送り続ける）。
+    // **画面キャプチャを先に立ち上げてから待つ。**
+    //
+    // 以前はこの順が逆で、落ち着き待ちが済んでから recorder:start を送り、レコーダーが
+    // そこで getDisplayMedia を叩いていた。つまり**待ちは負荷のかかっていないページを
+    // 見ていた**——見た目は「落ち着くのを待ってから撮る」だが、実際には荒れる前に見て
+    // 「落ち着いている」と答えていただけで、立ち上がりの荒れはそのまま録画の頭に入って
+    // いた（実測: YouTube 1080p 23.976fps で開始から 1.2 秒に 30 コマが描かれず）。
+    //
+    // 準備を先に済ませると、待っている間のページは記録中と同じ負荷を受けている。
+    // 代償は「準備中」の表示が数百 ms 長くなること。**それと引き換えに、待ちが初めて
+    // 実際の状態を見るようになる**（落ち着かないまま見切る録画は増えうるが、それは
+    // 悪化ではなく、今まで見えていなかったものが見えるということ）。
     setPendingDisplaySource(sourceId)
-    getRecorderWindow()!.webContents.send('recorder:start', {
+    getRecorderWindow()!.webContents.send('recorder:prepare', {
       sourceId,
       // 取得フレームレートの上限（recorder.ts の acquireScreenStream に渡す）。
       //
@@ -302,6 +329,64 @@ export async function startRecording(): Promise<void> {
       // 要るのは素材の 2 倍なので、対応上限の 60fps 素材に対して 120 あれば足りる。
       // それ以上はエンコード負荷とファイルサイズが増えるだけで精度には効かない。
       fps: Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60))),
+      sessionId
+    })
+    const prepared = await waitForRecorderPrepared(RECORDER_PREPARE_TIMEOUT_MS)
+    if (startCanceled) {
+      console.log('[clip] canceled while the capture was starting up')
+      cancelBeforeStart()
+      return
+    }
+    if (prepared === 'aborted') {
+      // レコーダー側が失敗を報告済み（recorder:error → finishRecordingState）。
+      // 通知はそちらが出しているので、ここでは何も足さない。
+      console.warn('[clip] recorder aborted while preparing the capture')
+      return
+    }
+    if (prepared === 'timeout') {
+      console.error('[clip] recorder did not report ready in time')
+      cancelBeforeStart()
+      sendBrowserNotice('error', t('notice.recorderPrepareFailed'))
+      return
+    }
+
+    const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)
+    broadcastMessage({ type: 'clip-armed' })
+    // 待っている間に停止を押されていたら、ここで畳む（記録は始めず、キャプチャは解放する）。
+    if (startCanceled) {
+      console.log(`[clip] canceled during settle (${settle.waitedMs}ms)`)
+      cancelBeforeStart()
+      return
+    }
+    console.log(`[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`)
+    // 表示が実際に消えてから撮り始める。往復はローカルの WS で数 ms だが、消える前に
+    // 記録を始めると「準備中」が数コマ写る——**録画そのものを汚す**ので余裕を持たせる。
+    await new Promise((resolve) => setTimeout(resolve, ARMED_CLEAR_MS))
+    // **この待ちも「まだ始めていない」区間。** 以前は落ち着き待ちが明けた時点で
+    // awaitingStart を下ろしており、ここで停止を押すと recorder:stop だけが先に飛んだ。
+    // レコーダーには止めるものがまだ無いので空振りし、直後に recorder:start が送られて
+    // 録画が始まる——押した人からは「止めたのに撮り続けている」に見えた。
+    // 印を下ろすのは実際に開始を送る直前（下）まで遅らせ、ここでもう一度見る。
+    if (startCanceled) {
+      console.log('[clip] canceled while the arming overlay was clearing')
+      cancelBeforeStart()
+      return
+    }
+    // 落ち着きを確認できないまま始めたことは、ログではなくその場の画面に出す。
+    // 黙って始めると「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。
+    if (!settle.settled) sendBrowserNotice('warning', t('notice.recordingNotSettled'))
+    const tc = getLastTimecode()
+    recordingMeta = {
+      title: tc?.title ?? null,
+      currentTime: tc?.currentTime ?? null,
+      url: tc?.url ?? null
+    }
+
+    // ここから先は recorder:stop が効く（レコーダーが開始の合図を受け取る）。**印を下ろすのは
+    // 送信の直前**——間に非同期の待ちを挟まないこと。挟んだぶんがそのまま「停止が空振りする
+    // 窓」になる。
+    awaitingStart = false
+    getRecorderWindow()!.webContents.send('recorder:start', {
       // ビットレートを決めるための「実際に届く枚数」。**上限の見込みとは別物**。
       //
       // 上限を 120 にしても供給は 50.8枚/秒のままだった（2026-08-12 実測）。上限に連動させて
@@ -318,8 +403,9 @@ export async function startRecording(): Promise<void> {
       // ページ側が再生中ずっと rVFC で測っている値。測れていなければ null にして、従来どおりの
       // 固定ビットレートで録る。**推定で埋めない**（images.fps を供給レートで埋めないのと同じ）。
       sourceFps: target?.frameDurMs ? 1000 / target.frameDurMs : null,
-      maxSeconds,
-      sessionId
+      maxSeconds
+      // sessionId は載せない。**セッションは準備の時点で決まっている**ので、レコーダーは
+      // recorder:prepare で受け取った値を使う。ここでも渡すと 2 つの出どころができる。
     })
     setTrayRecording(true)
 
@@ -348,6 +434,12 @@ function stopRecording(): void {
   // レコーダーには止めるものが無く、待ちが明けてから録画が始まってしまう。
   if (awaitingStart) {
     startCanceled = true
+    // 画面キャプチャの立ち上げを待っている最中なら、その待ちも今すぐ起こす。
+    // **起こさないと、押してから見切りの 4 秒が過ぎるまで畳まれない**——プレーヤーの UI は
+    // 隠れたまま、トレイも録画中のままで、押した人には固まったようにしか見えない。
+    // 起こした後は startCanceled の側で拾われる（startRecording は待ちの結果より先に
+    // 押されたかどうかを見る）。
+    prepareResolver?.('aborted')
     return
   }
   getRecorderWindow()?.webContents.send('recorder:stop')
@@ -373,6 +465,10 @@ export function finishRecordingState(): void {
   // ウォッチドッグを無効化する（正常終了・エラー・クラッシュ検知のどの経路でも、
   // 状態が確定した以上ウォッチドッグの出番はない）。
   recordingWatchdogToken++
+  // 準備の返事を待っている最中に終わったなら（レコーダーが立ち上げに失敗した等）、
+  // 待ちを起こす。起こさないと上限まで待たされ、既に出ている通知の後からもう一度
+  // 「準備に失敗」を出すことになる。
+  prepareResolver?.('aborted')
   // 録画中（= recording.ts が pre-capture で UI を隠している）だったときだけ復元を送る。
   // done / error / render-process-gone 監視が重複発火しても、2 回目以降は no-op になり
   // post-capture を空打ちしない（スクショ側の preCaptureSent と同じ対称化）。

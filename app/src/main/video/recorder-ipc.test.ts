@@ -18,7 +18,8 @@ vi.mock('./recorder-window', () => ({
 }))
 
 const finishRecordingState = vi.fn()
-const getRecordingMeta = vi.fn(() => null)
+type MockRecordingMeta = { title: string | null; currentTime: number | null; url: string | null } | null
+const getRecordingMeta = vi.fn<() => MockRecordingMeta>(() => null)
 const isCurrentRecordingSession = vi.fn((_id: number) => true)
 const releaseCaptureUi = vi.fn()
 vi.mock('./recording', () => ({
@@ -29,6 +30,8 @@ vi.mock('./recording', () => ({
   // 次の録画のビットレートの根拠として実測供給を戻す口（recording.ts）。保存経路の検証には
   // 関わらないので受け流す。
   recordMeasuredSupply: () => {},
+  // 準備完了の受け口（recording.ts）。保存経路には関与しない。
+  notifyRecorderPrepared: () => {},
   // ログ（[clip-bitrate]）で「ストリームが画面より縮んでいないか」を並べるためだけの値。
   // 保存経路には関与しないので測っていない扱いで返す。
   getRecordingDisplayPixels: () => null
@@ -69,7 +72,11 @@ vi.mock('./ffmpeg', () => ({
 // （拡張から届くコマ通知の回帰推定）。ここを差し替えて、取れた場合・取れない場合の
 // 両方を確かめる。
 const getSourceFps = vi.fn<() => number | null>(() => null)
-const buildFrameTable = vi.fn<(drawnAt: number[]) => null>(() => null)
+type MockFrameTable = {
+  matches: { mediaTime: number; frameIndex: number; captured: boolean }[]
+  reportDrops: number
+} | null
+const buildFrameTable = vi.fn<(drawnAt: number[]) => MockFrameTable>(() => null)
 vi.mock('./frame-feed', () => ({
   getSourceFps: () => getSourceFps(),
   buildFrameTable: (drawnAt: number[]) => buildFrameTable(drawnAt),
@@ -130,6 +137,72 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
     await handler({}, new ArrayBuffer(10), 5, 1)
     expect(finishRecordingState).toHaveBeenCalled()
     expect(registerCapturedMedia).toHaveBeenCalled()
+  })
+})
+
+// クリップに残る再生時刻（作品の何秒目か）。
+//
+// **ホットキーを押した時刻ではなく、実際に記録された先頭のコマから決める。** 押してから
+// 記録が始まるまでには、画面キャプチャの立ち上げ・落ち着き待ち（最大 2 秒）・「準備中」が
+// 消えるのを待つ 120ms が入る。押した時刻を保存すると、その全部ぶん古い値が詳細パネルにも
+// ファイル名にも出るのに、**何秒ずれているかは画面からは分からない。**
+describe('recorder:done - 再生時刻は実際に撮れた先頭のコマから決める', () => {
+  beforeEach(() => {
+    handlers.clear()
+    isCurrentRecordingSession.mockReturnValue(true)
+    registerCapturedMedia.mockClear()
+    getRecordingMeta.mockReset()
+    buildFrameTable.mockReset()
+    buildFrameTable.mockReturnValue(null)
+    registerRecorderIpc()
+  })
+
+  afterEach(() => {
+    getRecordingMeta.mockReturnValue(null)
+    buildFrameTable.mockReturnValue(null)
+  })
+
+  function insertedCurrentTime(): number | null {
+    const insertArg = registerCapturedMedia.mock.calls[0][0] as { insert: { current_time: number | null } }
+    return insertArg.insert.current_time
+  }
+
+  it('フレーム表があれば 1 行目の素材時刻を使う（押した時刻ではなく）', async () => {
+    getRecordingMeta.mockReturnValue({ title: null, currentTime: 12, url: null })
+    buildFrameTable.mockReturnValue({
+      matches: [
+        { mediaTime: 14.5, frameIndex: 0, captured: true },
+        { mediaTime: 14.541, frameIndex: 1, captured: true }
+      ],
+      reportDrops: 0
+    })
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 1, [1000, 1041])
+    expect(insertedCurrentTime()).toBe(14.5)
+  })
+
+  it('表が無ければ押した時の値へ戻す（測り直す手段が無いので推測で埋めない）', async () => {
+    getRecordingMeta.mockReturnValue({ title: null, currentTime: 12, url: null })
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 1, [1000, 1041])
+    expect(insertedCurrentTime()).toBe(12)
+  })
+
+  it('先頭が 0 秒（作品の頭から撮った）でも押した時の値へ落とさない', async () => {
+    getRecordingMeta.mockReturnValue({ title: null, currentTime: 3, url: null })
+    buildFrameTable.mockReturnValue({
+      matches: [{ mediaTime: 0, frameIndex: 0, captured: true }],
+      reportDrops: 0
+    })
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 1, [1000])
+    expect(insertedCurrentTime()).toBe(0)
+  })
+
+  it('どちらも無ければ空欄', async () => {
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 1, [1000, 1041])
+    expect(insertedCurrentTime()).toBeNull()
   })
 })
 

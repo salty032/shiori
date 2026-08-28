@@ -10,7 +10,7 @@ import { sendBrowserNotice } from '../browser/browser-notice'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
-import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, recordMeasuredSupply, releaseCaptureUi } from './recording'
+import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi } from './recording'
 import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
@@ -29,6 +29,25 @@ const MAX_CLIP_DURATION_SEC = 40
 // **取得上限そのものと同値にしないこと** — 上限ちょうどの供給が続いた録画を弾いてしまう。
 const MAX_FRAME_RATE_FOR_VALIDATION = 240
 
+// このクリップの先頭が、作品の何秒目か。
+//
+// **ホットキーを押した時刻ではなく、実際に記録された先頭のコマから決める。** 押してから
+// 記録が始まるまでには、画面キャプチャの立ち上げ・コマ通知が落ち着くのを待つ時間
+// （最大 2 秒）・「準備中」の表示が消えるのを待つ 120ms が入る（recording.ts）。押した
+// 時刻をそのまま保存すると、その全部ぶん古い値が残る——**表示にもファイル名にも出るのに、
+// 何秒ずれているかは画面からは分からない。**
+//
+// 表の 1 行目の mediaTime は「記録できた最初の素材コマの再生位置」そのものなので、
+// 補正ではなく実測でそのまま置き換わる。
+//
+// 表が無いクリップ（対応が崩れて捨てたもの）では null を返し、押した時の値へ戻す。
+// **推測で埋めない**——表が無いのは拡張からコマが届いていないということで、その状態では
+// 測り直す手段も無い（fps を供給レートで埋めないのと同じ）。
+function recordedStartTime(frameTable: { matches: { mediaTime: number }[] } | null): number | null {
+  const first = frameTable?.matches[0]?.mediaTime
+  return typeof first === 'number' && Number.isFinite(first) && first >= 0 ? first : null
+}
+
 function formatClipDuration(seconds: number): string {
   const s = Math.round(seconds)
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
@@ -38,6 +57,13 @@ export function registerRecorderIpc(): void {
   ipcMain.handle('recorder:getCrop', (event, streamW: number, streamH: number) => {
     if (!isTrustedRecorderSender(event)) return null
     return computeVideoCrop(streamW, streamH)
+  })
+
+  // 画面キャプチャの立ち上げが済んだ合図。**記録はまだ始まっていない。**
+  // main はこれを受けてから、コマ通知が落ち着くのを待つ（recording.ts の startRecording）。
+  ipcMain.on('recorder:ready', (event, sessionId: number) => {
+    if (!isTrustedRecorderSender(event)) return
+    notifyRecorderPrepared(sessionId)
   })
 
   // 録画が実際に止まった合図。**保存の完了ではない**ので録画状態は触らず、隠している
@@ -192,7 +218,7 @@ export function registerRecorderIpc(): void {
           filepath: webmPath,
           captured_at: capturedAt,
           title: meta?.title ?? null,
-          current_time: meta?.currentTime ?? null,
+          current_time: recordedStartTime(frameTable) ?? meta?.currentTime ?? null,
           url: meta?.url ?? null,
           // 実際に記録した画素数。**画質を語るときの母数**なので、取れないときは推定で
           // 埋めず空欄にする（fps を供給レートで埋めないのと同じ理由。capture-diag.ts の

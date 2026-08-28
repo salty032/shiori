@@ -3,7 +3,16 @@ import { contextBridge, ipcRenderer } from 'electron'
 // recorder:* はレコーダーウィンドウ専用の別契約（RecorderApi）で、ShioriApi の CH 定数の
 // 対象外（main 側の検証も isTrustedRecorderSender と別方式）。意図的に生文字列のまま。
 contextBridge.exposeInMainWorld('recorderApi', {
-  onStart: (cb: (data: { sourceId: string; fps: number; supplyFps: number; sourceFps: number | null; maxSeconds: number; sessionId: number }) => void) => {
+  // 画面キャプチャの立ち上げまで（記録は始めない）。**重いのはこちら**なので、落ち着き待ちの
+  // 前に済ませる（recording.ts / recorder.ts の注記）。
+  onPrepare: (cb: (data: { sourceId: string; fps: number; sessionId: number }) => void) => {
+    ipcRenderer.on('recorder:prepare', (_e, data) => cb(data))
+  },
+  // 準備が済んだ合図。main はこれを受けてから、コマ通知が落ち着くのを待つ。
+  reportReady: (sessionId: number) => {
+    ipcRenderer.send('recorder:ready', sessionId)
+  },
+  onStart: (cb: (data: { supplyFps: number; sourceFps: number | null; maxSeconds: number }) => void) => {
     ipcRenderer.on('recorder:start', (_e, data) => cb(data))
   },
   onStop: (cb: () => void) => {
