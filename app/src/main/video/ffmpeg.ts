@@ -8,7 +8,8 @@ import { StderrCollector } from './ffmpeg-stderr'
 // ffmpeg-static は GPL-3.0-or-later で公開されており、その JS を本体プロセスが require すると
 // Shiori 本体まで GPL の派生物と解される余地が生まれる（本体は proprietary ライセンス）。
 // 同梱バイナリも LGPL ビルド（--disable-libx264/x265/xvid ほか、GPL 必須要素なし）に揃えてある。
-// Shiori が使うのは libvpx / libopus / mjpeg だけなので機能上の差はない。
+// Shiori が使うのは libvpx / libopus / mjpeg と、mp4 書き出しの libopenh264（Cisco・BSD-2）/ aac
+// だけなので機能上の差はない。**H.264 に GPL の libx264 を使わないのはこのため**（H264_ENCODER）。
 function getFfmpegPath(): string {
   if (app.isPackaged) return join(process.resourcesPath, 'ffmpeg.exe')
   return join(app.getAppPath(), 'resources', 'ffmpeg.exe')

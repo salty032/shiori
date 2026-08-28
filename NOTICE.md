@@ -19,16 +19,19 @@ Shiori は以下のサードパーティ製ソフトウェア・モデルを利�
 
 ## 動画処理エンジン（FFmpeg）
 
-Shiori は動画クリップの録画後トリミング・サムネイル生成・尺の判定に FFmpeg を利用します。
+Shiori は動画クリップの録画後トリミング・サムネイル生成・尺の判定・書き出し時の mp4（H.264）変換に FFmpeg を利用します。
 
 - 同梱ビルド: **`ffmpeg-n6.1.2-192-g78690eba61-win64-lgpl-6.1`**
   （[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) の autobuild-2025-07-31-14-15 リリース）
 - ライセンス: **GNU Lesser General Public License v3（LGPL v3）**
 - ビルド構成: `--enable-version3` 付きの LGPL ビルドで、GPL を要求する構成要素
   （`libx264` / `libx265` / `libxvid` / `libvidstab` / `librubberband` 等）は**すべて無効**です。
-  Shiori が利用するのは `libvpx`（VP8/VP9）・`libopus`・`mjpeg` と標準フィルタのみで、
-  いずれも LGPL ビルドに含まれます。
-- 用途: 録画クリップのトリミング・サムネイル生成・タイムラインストリップ生成・尺およびフレーム時刻の取得
+  Shiori が利用するのは `libvpx`（VP8/VP9）・`libopus`・`libopenh264`・`aac`・`mjpeg` と
+  標準フィルタのみで、いずれも LGPL ビルドに含まれます。
+  **mp4 での書き出しに使う H.264 エンコーダは、GPL の `libx264` ではなく
+  `libopenh264`（Cisco Systems 製・BSD-2-Clause）です。**
+- 用途: 録画クリップのトリミング・サムネイル生成・タイムラインストリップ生成・尺およびフレーム時刻の取得・
+  撮り逃し検証用のフレーム署名・書き出し時の H.264 変換
 - 呼び出し形態: アプリ本体とは**リンクせず、独立した実行ファイルを子プロセスとして起動**して利用します。
   バイナリは**改変せず**そのまま同梱・再配布します。
 - ライセンス全文: 配布物に同梱される `ffmpeg-LICENSE.txt`（LGPL v3 全文）を参照

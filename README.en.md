@@ -20,7 +20,9 @@ WD Tagger and filtering by tag or date.
 - **Automatic tagging**: WD Tagger (a local AI) tags the contents of each capture
 - **Search and filter**: search titles and notes, and filter by tag (AND/OR), date, or service
 - **Grid and timeline views**: organize in bulk with drag-rectangle selection, Shift/Ctrl-click, and arrow keys
-- **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer)
+- **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer); `M` mutes
+- **Timesheet**: type numbers while stepping through frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet (available only for clips whose frame numbers are known to match the source)
+- **Export as mp4**: choose “mp4” under Settings > Data > Video conversion and Shiori converts to H.264 on export (webm stays the default)
 - **Local import**: paste a clipboard image with `Ctrl+V`, or drop a folder of images and videos (`.webm` / `.mp4`, up to 30 seconds) to import them in bulk
 - **Delete**: press `Delete`. The toast that appears has an "Undo" you can use for a few seconds
   (after the grace period the files are gone for good, and **they are not sent to the Windows Recycle Bin**)
@@ -100,7 +102,10 @@ Disable it in each browser's settings (restart the browser after changing this):
 ### Record a video clip
 
 1. Play a video on a supported site
-2. Press `Alt+D` at the start of the scene you want (press again to stop; it stops automatically at **30 seconds**)
+2. Press `Alt+D` at the start of the scene you want (press again to stop; it stops automatically at **30 seconds**).
+   Recording does not begin the instant you press: “Getting ready to record” appears in the middle of the video,
+   and **recording starts the moment it disappears** (up to about 2 seconds). The wait is there to keep frames from
+   being lost at the head of the clip; pressing `Alt+D` while it is showing cancels the recording
 3. The clip is added to your gallery; open it to play and trim it inside the app
 
 > While recording, the tray icon shows the status (there's no on-screen indicator over the
@@ -114,18 +119,24 @@ In the viewer, `,` / `.` step a recorded clip **one source frame at a time**. Th
 position appears at the bottom left of the video as "Frame 128 / 719".
 
 **Frame accuracy is guaranteed for 24fps / 29.97fps / 30fps sources.**
-Screen capture delivers about 50 frames per second at most, which is shorter than the gap
-between source frames (41.7ms at 24fps, 33.3ms at 30fps), so every source frame gets its own
-picture (measured: zero missed frames).
+The capture interval is about 20ms (measured at roughly 50 frames per second on a 60Hz
+display), shorter than the gap between source frames (41.7ms at 24fps, 33.3ms at 30fps), so
+every source frame gets its own picture (measured: zero missed frames).
 
 **Frame accuracy is not guaranteed for 59.94fps / 60fps sources.** Their frames are 16.7ms
-apart, shorter than the ~20ms capture interval, so some frames inevitably have no picture of
+apart, shorter than the capture interval, so some frames inevitably have no picture of
 their own. Recording still works, but those frames show the previous frame's picture.
 
-**Nothing unreliable is passed off silently.** Stepping onto such a frame changes the readout
-to "reused" or "needs review", and the detail panel shows the counts as "{n} frames need
-review" / "{n} frames never reported". **You can tell on the spot whether the picture staying
-the same is evidence of the animation's frame timing.**
+The capture rate follows your display's refresh rate, up to 120 frames per second. On a
+120Hz display, 60fps sources may well be captured in full — but this is **untested, so it is
+not guaranteed.**
+
+**Nothing unreliable is passed off silently.** A frame whose picture was not captured reads
+"not captured", a point where the frames themselves never arrived reads "8 frames missing",
+and a clip whose frame stepping cannot be trusted turns the frame number red and reads
+"unreliable" (press the frame number to read what each one means). The detail panel shows
+"{n} frames not captured" and "unreliable". **You can tell on the spot whether the picture
+staying the same is evidence of the animation's frame timing.**
 
 ### Import your own images and videos
 
