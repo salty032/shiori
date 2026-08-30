@@ -3,7 +3,7 @@ import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import { ensureCaptureSubDir } from '../system/paths'
+import { ensureCaptureSubDir, captureRootReachable } from '../system/paths'
 import { t } from '../system/i18n'
 import { loadSettings } from '../system/settings'
 import type { CaptureResize } from '../../shared/types'
@@ -43,6 +43,10 @@ export function setBlackFrameHook(fn: BlackFrameHook): void {
 // registerHotkey の catch はこのクラスかどうかだけを見るため、
 // 中断理由が増えてもコアはその文言を知らなくてよい。
 export class SilentCaptureAbort extends Error {}
+
+// 保存先に届かない（外付けを抜いた等）。**「失敗しました」で済ませない**——
+// 原因が保存先だと分からないと、同じことを何度も繰り返すことになる。
+export class CaptureRootUnavailable extends Error {}
 
 let currentHotkey = 'Alt+S'
 let isCapturing = false
@@ -359,6 +363,12 @@ async function captureScreen(): Promise<string> {
       throw new Error('No browser video target available')
     }
 
+    // **撮る前に保存先へ届くか見る。** 撮ってから失敗すると、プレーヤーUIを隠して
+    // 1 枚撮った後に捨てることになるうえ、画面には原因が出ない。
+    if (!(await captureRootReachable())) {
+      throw new CaptureRootUnavailable('capture root is not reachable')
+    }
+
     // 撮影対象のディスプレイはブラウザウィンドウの中心点で解決する。computeVideoCrop にも
     // 同じ Display を渡し、撮影画像と bounds が必ず同一モニターを指すようにする。
     const { left: wl, top: wt, width: ww, height: wh } = browserWindow!
@@ -421,6 +431,11 @@ export function registerHotkey(hotkey: string, onError?: (message: string) => vo
       // 通知不要な中断（連打による再入・Shioriフォーカス中・機能側ガードでの中断等）は無視。
       // preCaptureHook が既に具体的な警告（動画未検出）を送信済みのケースもここに含まれる。
       if (err instanceof SilentCaptureAbort) return
+      if (err instanceof CaptureRootUnavailable) {
+        console.warn('[capture] capture root unreachable')
+        onError?.(t('error.captureRootUnavailable'))
+        return
+      }
       console.error('[capture] failed', err)
       onError?.(t('error.captureFailed'))
     })

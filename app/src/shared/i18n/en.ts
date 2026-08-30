@@ -115,6 +115,7 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.captureSaveFailed': 'Could not save the capture',
   'notice.captureSaved': 'Capture saved',
   'error.captureFailed': 'Capture failed. Please try again.',
+  'error.captureRootUnavailable': 'Shiori cannot reach the folder it saves to. Check that the drive is connected, or choose another folder in Settings > Data.',
   'error.hotkeyRegisterFailed':
     'Could not register the {hotkey} hotkey. Another app may already be using it.',
   'error.clipHotkeyRegisterFailed':

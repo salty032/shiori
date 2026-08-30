@@ -119,6 +119,9 @@ export const ja = {
   'notice.captureSaveFailed': 'キャプチャの保存に失敗しました',
   'notice.captureSaved': 'キャプチャを保存しました',
   'error.captureFailed': 'キャプチャに失敗しました。もう一度お試しください。',
+  // 保存先に届かない（外付けを抜いた等）。**「失敗しました」で終わらせない**——
+  // 原因が保存先だと分からないと、同じことを何度も繰り返すことになる。撮る前に出す。
+  'error.captureRootUnavailable': '保存先のフォルダに届きません。ドライブがつながっているか確認するか、設定 > データ で保存先を選び直してください。',
   'error.hotkeyRegisterFailed':
     'ホットキー {hotkey} を登録できませんでした。他のアプリで使われている可能性があります。',
   'error.clipHotkeyRegisterFailed':

@@ -4,6 +4,7 @@ import { shell, desktopCapturer, screen as electronScreen } from 'electron'
 import { broadcastMessage, onExtensionMessage, type ExtensionMessage } from '../browser/ws-server'
 import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRect } from '../capture/capture'
 import { loadSettings } from '../system/settings'
+import { captureRootReachable } from '../system/paths'
 import { isMainWindowFocused } from '../system/windows'
 import { getRecorderWindow, createRecorderWindow, setPendingDisplaySource } from './recorder-window'
 import { startFrameFeed, stopFrameFeed, waitForSteadyFrames } from './frame-feed'
@@ -261,6 +262,12 @@ export async function startRecording(): Promise<void> {
     if (!canCaptureVideo()) {
       console.warn('[clip] canCaptureVideo false', { hasTarget: !!target, videoRect: target?.videoRect ?? null })
       sendBrowserNotice('warning', t('notice.videoNotDetected'))
+      return
+    }
+    // **録画を始める前に保存先へ届くか見る。** 録画はファイルを書くのが最後なので、
+    // ここで見ないと 30 秒撮り終えてから保存に失敗することになる。
+    if (!(await captureRootReachable())) {
+      sendBrowserNotice('error', t('error.captureRootUnavailable'))
       return
     }
     if (!(await ensureRecorderReady(RECORDER_LOAD_TIMEOUT_MS))) {

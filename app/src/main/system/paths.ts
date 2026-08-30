@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { mkdir, realpath } from 'fs/promises'
+import { mkdir, realpath, stat } from 'fs/promises'
 import { realpathSync } from 'fs'
 import { basename, extname, isAbsolute, join, parse, relative, resolve, sep } from 'path'
 import { loadSettings } from './settings'
@@ -39,6 +39,27 @@ export async function ensureCaptureSubDir(capturedAtMs: number): Promise<string>
 
 // 表示用の軽量サムネイルは原本（captureDir）と物理的に分離する。
 // 再生成可能なキャッシュなので「サムネだけ全消し」「原本だけバックアップ」が安全にできる。
+// これから撮るものを書ける状態か。**撮る前に見る。**
+//
+// 保存先には外付けドライブも選べる。抜けている状態で撮ると保存の書き込みで失敗し、
+// 画面には「キャプチャに失敗しました」としか出ない——原因が保存先だとは読めず、
+// もう一度押しても同じことが起きる。録画に至っては、30 秒撮り終えた後にそれが分かる。
+//
+// 見るのはフォルダに届くかどうかだけ（stat 1 回）。**ホットキーの経路に入るので重くできない。**
+// 書き込みの権限そのものは、保存先を選んだときに実際に 1 ファイル書いて確かめている
+// （ipc-shell.ts）ので、ここで見たいのは「その後にドライブが抜けたか」の 1 点。
+//
+// 既定の場所（userData 配下）は、アプリが動いている以上そこにあるので見ない。
+export async function captureRootReachable(): Promise<boolean> {
+  const root = loadSettings().captureRoot
+  if (!root) return true
+  try {
+    return (await stat(root)).isDirectory()
+  } catch {
+    return false
+  }
+}
+
 export function thumbnailDir(): string {
   return join(app.getPath('userData'), 'thumbnails')
 }
