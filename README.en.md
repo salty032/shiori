@@ -21,11 +21,14 @@ WD Tagger and filtering by tag or date.
 - **Search and filter**: search titles and notes, and filter by tag (AND/OR), date, or service
 - **Grid and timeline views**: organize in bulk with drag-rectangle selection, Shift/Ctrl-click, and arrow keys
 - **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer); `M` mutes
-- **Timesheet**: type numbers while stepping through frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet (available only for clips whose frame numbers are known to match the source)
+- **Timesheet** (**cannot be opened in v1.4.0**): type numbers while stepping through frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet.
+  Which recordings can and cannot produce a usable sheet is still being confirmed, so the feature is held for now rather than risk a sheet you typed becoming unusable (sheets already typed in are kept)
 - **Export as mp4**: choose “mp4” under Settings > Data > Video conversion and Shiori converts to H.264 on export (webm stays the default)
 - **Local import**: paste a clipboard image with `Ctrl+V`, or drop a folder of images and videos (`.webm` / `.mp4`, up to 30 seconds) to import them in bulk
 - **Delete**: press `Delete`. The toast that appears has an "Undo" you can use for a few seconds
   (after the grace period the files are gone for good, and **they are not sent to the Windows Recycle Bin**)
+- **Change where captures are stored**: Settings > Data > Storage location moves captures and recordings to another drive (what you already have moves too; you are shown the file count and size first, and can stop part-way)
+- **Saved resolution**: Settings > Data > Saved resolution defaults to “Auto”, so nothing is saved larger than the stream itself (on a 4K display, a 1080p stream used to be saved four times larger)
 - **Export**: copy the selected images out as plain files
 - **Library export/import**: write out or read back your whole library (captures) with its metadata
 

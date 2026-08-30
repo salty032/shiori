@@ -24,6 +24,20 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
+      # タグと package.json の版が食い違ったまま配ると、**画面のどこにも出ないまま
+      # 実害が出る**。拡張はバンドルの版が上のときだけ配布側へコピーされるので、版を
+      # 上げ忘れた回のリリースは拡張の中身が届かず、直したはずのものが黙って効かない。
+      # アプリの自動更新も新しい版として認識しない。ビルドの前に落とす。
+      - name: Tag must match app/package.json version
+        shell: pwsh
+        run: |
+          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ($pkg -ne $tag) {
+            Write-Error "tag $env:GITHUB_REF_NAME does not match app/package.json version $pkg"
+            exit 1
+          }
+
       - run: npm ci
 
       # electron-builder は publish 先のリリースが未作成だと、複数アーティファクト

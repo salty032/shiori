@@ -20,6 +20,24 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.4.0': {
+    ja: [
+      'キャプチャと録画の保存先を変えられるようになりました。設定 > データ > 保存場所 の「変更...」から、C ドライブ以外のドライブも選べます。これまでに撮ったぶんも一緒に新しい場所へ移ります——移す前に「何件・何 GB を、どこへ」が出て、移している間は進み具合が出て、途中で止められます。止めたときも失敗したときも、何も変わりません（保存先も、これまでのファイルもそのままです）。移動先に同じ名前のファイルがあるときは、上書きせずに中止して、その名前を画面に出します。',
+      '4K の画面で 1080p の配信を見ていると、絵が実際より 4 倍の大きさで保存されていました。増えていたぶんはブラウザが引き伸ばした水増しで、細かさは増えていません。設定 > データ > 保存する解像度 が「自動」（既定）になり、配信より大きくは保存しなくなります。細かさは 1 ドットも減らずに、ファイルだけ小さくなります。容量を優先するなら 1080p / 720p、これまでどおりに戻すなら「上限なし」を選べます（効くのは画像だけで、録画は変わりません）。',
+      '保存先のドライブがつながっていないときに、撮る前・録り始める前に画面へ出るようになりました。これまでは「キャプチャに失敗しました」とだけ出て原因が読めず、録画では 30 秒撮り終えてからそれが分かりました。',
+      '画面の言葉を揃えました。同じ 1 つの数が、画面によって「撮り逃し」と「未取得」の 2 通りで呼ばれていた、といった食い違いを 9 か所直しています。',
+      'タイムシートは、この版では開けません。数コマの抜けがあるだけで表そのものが出せない状態を直したところで、打ち込んでもらったものが後から使えなくなるのを避けるため、確かめが済むまで止めています。打ち込み済みのタイムシートは消えずに残っています。',
+      'この更新ではブラウザ拡張も新しくなります。アプリを起動すると入れ替わり、通知が出ます。ブラウザの拡張機能ページで拡張を再読み込みするまでは、「保存する解像度」の自動は効きません。',
+    ],
+    en: [
+      'You can now change where captures and recordings are stored. Settings > Data > Storage location > “Change...” lets you pick a folder on another drive. What you have already captured moves with it — before anything is copied you are shown how many files, how much space, and where they are going; progress is shown while it runs, and you can stop it. If you stop it, or it fails, nothing changes at all (the location and your existing files stay as they were). If a file of the same name is already in the destination, Shiori stops instead of overwriting it and shows you the name.',
+      'On a 4K display, a 1080p stream was being saved four times larger than it really is. The extra pixels were upscaling done by the browser, not extra detail. Settings > Data > Saved resolution is now “Auto” by default, so nothing is saved larger than the stream itself — not a single dot of real detail is lost, only the file gets smaller. Choose 1080p or 720p if you want to save more space, or “No limit” for the old behaviour (this affects images only; recordings are unchanged).',
+      'If the drive you save to is not connected, Shiori now tells you before capturing and before recording starts. It used to just say “Capture failed”, with no way to tell why — and with recording you only found out after the full 30 seconds.',
+      'Wording across the app has been made consistent — nine places where the same thing went by two different names from one screen to the next.',
+      'Timesheets cannot be opened in this version. Having just fixed the case where a few missing frames hid the sheet entirely, we are holding the feature until that is confirmed, rather than risk you typing in a sheet that later turns out to be unusable. Timesheets you have already typed in are still there.',
+      'This update also brings a new browser extension. It is swapped in when the app starts and you get a notification. Until you reload the extension on your browser’s extensions page, “Saved resolution: Auto” has no effect.',
+    ],
+  },
   '1.3.1': {
     ja: [
       '録画の先頭でのコマ落ちが減りました。これまでは画面の取り込みを立ち上げながら「落ち着くのを待つ」形だったため、待っても立ち上がりの荒れが録画の頭に入っていました。取り込みを先に立ち上げてから待つようにしています（「録画の準備中」の表示はその分だけ長くなります）。また、この表示が出ている間に Alt+D を押すとすぐに取りやめられます。これまでは数秒待たされた上で、止めたはずなのに録画が始まることがありました。',
