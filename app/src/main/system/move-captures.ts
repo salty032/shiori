@@ -17,6 +17,7 @@
 // **移すのは記録にあるファイルだけ。** フォルダの中身を舐めると、その人が前から置いていた
 // 無関係なファイルまで巻き込む。サムネイルは移さない——userData に別で置いてあり、
 // 消えても作り直せるうえ、容量も原本に比べれば些細。
+import { constants } from 'fs'
 import { copyFile, mkdir, stat, unlink } from 'fs/promises'
 import { dirname, relative, resolve, isAbsolute, sep } from 'path'
 
@@ -26,7 +27,10 @@ export type MoveOutcome =
   // moved は記録を書き換えた件数。missing は元のファイルが既に無かった件数
   // （アプリの外で消されたもの。移動より前から開けない行なので、これで中止はしない）。
   | { ok: true; moved: number; missing: number }
-  | { ok: false; reason: 'canceled' | 'failed'; failedPath?: string }
+  // conflict は移動先に同じ名前のファイルが既にあった場合。**上書きはしない**——
+  // その人が前から置いていたファイルかもしれず、後の巻き戻しで消してしまう。
+  // failedPath は conflict のときだけ移動先、それ以外は元のファイルを指す。
+  | { ok: false; reason: 'canceled' | 'failed' | 'conflict'; failedPath?: string }
 
 function isUnder(base: string, target: string): boolean {
   const rel = relative(base, target)
@@ -101,20 +105,41 @@ export async function moveCaptureFiles(params: {
     }
     try {
       await mkdir(dirname(target.to), { recursive: true })
-      await copyFile(target.from, target.to)
+      // **COPYFILE_EXCL＝移動先に同じ名前があれば書かない。** 上書きすると 2 つ壊れる。
+      // 1 つは、その人が前から移動先に置いていた同名のファイル——中身は無関係でも消える。
+      // しかも後で 1 件でもコピーに失敗すれば、巻き戻しがその上書き先を「自分が作ったもの」
+      // として消す。もう 1 つは、別々の保存先にある同じ相対パスの 2 件（古い場所と、さらに
+      // 前の場所に同じ日付・同じ名前で入っている）。先に移した方が黙って消え、記録の
+      // 書き換えも filepath の UNIQUE で落ちる。
+      //
+      // 代償は、1 件でもぶつかると移動そのものが進まないこと。自動で名前を変えて逃がすと
+      // 「思っていた名前と違うものが増えた」が画面から分からないので、名前を出して止める。
+      await copyFile(target.from, target.to, constants.COPYFILE_EXCL)
       copied.push(target)
     } catch (err) {
-      // 容量不足・権限・ドライブ切断。**1 件でも駄目なら全部やめる。**
+      const conflict = (err as NodeJS.ErrnoException)?.code === 'EEXIST'
+      // 容量不足・権限・ドライブ切断・名前の衝突。**1 件でも駄目なら全部やめる。**
       // コピーした先を消して、記録も保存先も触らずに戻る。
       console.warn('[move] copy failed, rolling back', target.from, err)
       for (const done of copied) await removeQuietly(done.to)
-      return { ok: false, reason: 'failed', failedPath: target.from }
+      return conflict
+        ? { ok: false, reason: 'conflict', failedPath: target.to }
+        : { ok: false, reason: 'failed', failedPath: target.from }
     }
     params.onProgress?.(i + 1, params.targets.length)
   }
 
   // ── 第 2 段：記録をまとめて書き換える。ここで初めて確定する ──
-  params.commit(copied)
+  // **ここで落ちたときも、コピーした先を消す。** DB のトランザクションは丸ごと巻き戻るので
+  // 記録と元のファイルは無事だが、消さなければ移動先に全件ぶんの残骸が残る。空きを作りたくて
+  // 動かした人の移動先が、何も移っていないのに埋まることになる。
+  try {
+    params.commit(copied)
+  } catch (err) {
+    console.warn('[move] commit failed, rolling back', err)
+    for (const done of copied) await removeQuietly(done.to)
+    return { ok: false, reason: 'failed' }
+  }
 
   // ── 第 3 段：元を消す。**失敗しても移動は成立している** ──
   // 記録は新しい場所を指しているので、消し残しは開くのに影響しない残骸にすぎない。

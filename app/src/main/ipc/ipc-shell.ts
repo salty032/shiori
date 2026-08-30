@@ -171,6 +171,9 @@ export function registerShellHandlers(): void {
         isCanceled: () => moveCanceled,
       })
       if (!outcome.ok) {
+        if (outcome.reason === 'conflict') {
+          return { ok: false, reason: 'move-conflict', conflictPath: outcome.failedPath ?? '' }
+        }
         return { ok: false, reason: outcome.reason === 'canceled' ? 'move-canceled' : 'move-failed' }
       }
       // **保存先を変えるのは、移し終えてから。** 先に変えると、移動が失敗したときに

@@ -180,6 +180,9 @@ export type ChooseCaptureRootResult =
   // 消されたもの）。移すものが無ければどちらも 0 で、保存先だけが変わる。
   | { ok: true; path: string; moved: number; missing: number }
   | { ok: false; reason: 'canceled' | 'invalid' | 'unwritable' | 'move-canceled' | 'move-failed' }
+  // 移動先に同じ名前のファイルがあって止めた場合。**どれとぶつかったかを画面に出す**——
+  // 「移動できませんでした」だけでは、空きも権限も足りているのに直しようがない。
+  | { ok: false; reason: 'move-conflict'; conflictPath: string }
 
 export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string }
 export type WhatsNewData = { version: string; notes: string[] }

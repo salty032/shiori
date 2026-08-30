@@ -646,11 +646,12 @@ export const ja = {
   'settings.captureRootMissingSuffix': '{count} 件は元のファイルが見つからず、そのままにしました。',
   'settings.captureMoving': '移動中... {current} / {total}',
   'settings.captureMoveFailed': '移動できなかったため、何も変更していません。移動先の空き容量とドライブの接続を確認してください。',
+  'settings.captureMoveConflict': '移動先に同じ名前のファイルがあるため、何も移していません（{path}）。そのファイルを別の場所へどけるか、空のフォルダを選んでください。',
   // 選べない場所（ドライブ直下・Shiori の設定が入っているフォルダの上位）。理由まで出す
   // ——「変更できません」だけだと、壊れているのか選び方が悪いのか分からない。
   'settings.captureRootInvalid': 'この場所は保存先にできません。ドライブ直下や、Shiori のデータが入っているフォルダの上位は選べません。',
   'settings.captureRootUnwritable': 'この場所に書き込めませんでした。別のフォルダを選ぶか、ドライブがつながっているか確認してください。',
-  'settings.storageHint': 'キャプチャと録画はすべてこのフォルダに入ります。変更すると、これから撮るものだけが新しい場所に入ります。これまでのぶんは元の場所に残り、そのまま開けます。',
+  'settings.storageHint': 'キャプチャと録画はすべてこのフォルダに入ります。変更すると、これまでに撮ったものも新しい場所へ移します（何件・何 GB を移すかを確認してから始めます）。',
   'settings.usage': '使用量',
   'settings.usageCalculating': '計算中...',
   'settings.usageFailed': '使用量を取得できませんでした',

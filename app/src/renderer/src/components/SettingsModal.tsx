@@ -508,9 +508,11 @@ export default function SettingsModal(p: Props) {
                         // 選ばなかった・移動をやめたときは何も出さない。何も起きていないので。
                         if (result.reason === 'canceled' || result.reason === 'move-canceled') return
                         setCaptureRootStatus({
-                          text: t(result.reason === 'invalid' ? 'settings.captureRootInvalid'
-                            : result.reason === 'unwritable' ? 'settings.captureRootUnwritable'
-                            : 'settings.captureMoveFailed'),
+                          text: result.reason === 'move-conflict'
+                            ? t('settings.captureMoveConflict', { path: result.conflictPath })
+                            : t(result.reason === 'invalid' ? 'settings.captureRootInvalid'
+                              : result.reason === 'unwritable' ? 'settings.captureRootUnwritable'
+                              : 'settings.captureMoveFailed'),
                           error: true,
                         })
                       }}>
