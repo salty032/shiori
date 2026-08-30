@@ -170,7 +170,7 @@ export function registerShareHandlers(): void {
     // ないため、スマートフォルダと違って静かに重複が積み上がる）（D-1）。
     if (isShareImporting) return { canceled: true }
     isShareImporting = true
-    beginTask('import')
+    beginTask('library-import')
     try {
       // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
       const importWin = getMainWindow()
@@ -371,7 +371,7 @@ export function registerShareHandlers(): void {
       return { canceled: isShareImportCanceled, count, errors, importedFolders }
     } finally {
       isShareImporting = false
-      endTask('import')
+      endTask('library-import')
     }
   })
 

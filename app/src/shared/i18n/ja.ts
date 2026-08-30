@@ -25,6 +25,7 @@ export const ja = {
 
   // ── 実行中タスクのラベル（更新確認ダイアログに出る） ──────────
   'busy.import': '取り込み',
+  'busy.libraryImport': 'インポート',
   'busy.export': 'エクスポート',
   'busy.retag': 'AIタグ付け',
   'busy.modelDownload': 'AIモデルのダウンロード',
@@ -125,9 +126,9 @@ export const ja = {
     '画面録画の権限がありません。ブラウザのハードウェアアクセラレーションをオフにして、もう一度お試しください。',
   'notice.recordingError': '録画エラー: {message}',
   'notice.recordingDataInvalid': '録画データが不正なため保存できませんでした。',
-  'notice.clipSaveFailed': 'クリップの保存に失敗しました',
-  'notice.clipSaved': 'クリップを保存しました（{duration}）',
-  'notice.clipSavedWithMissed': 'クリップを保存しました（{duration}・{count}コマ未取得）',
+  'notice.clipSaveFailed': '録画の保存に失敗しました',
+  'notice.clipSaved': '録画を保存しました（{duration}）',
+  'notice.clipSavedWithMissed': '録画を保存しました（{duration}・撮り逃し {count}コマ）',
   'notice.videoNotDetected':
     '動画を検出できませんでした。対応サイトの動画ページを開き、ブラウザ拡張が有効になっているか確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',
@@ -214,7 +215,7 @@ export const ja = {
   'toast.deletedPartial': '{deleted}枚を削除しました。{failed}枚は削除できませんでした。',
   'toast.deleteFailed': '画像を削除できませんでした。ファイルの状態を確認してください。',
   'toast.deleteUndone': '削除を取り消しました',
-  'toast.selectAllTruncated': '表示上限のため {shown} / {total} 件のみ選択されました',
+  'toast.selectAllTruncated': '表示上限のため {shown} / {total} 枚のみ選択されました',
   'toast.exportBusy': '他のエクスポートが完了してからお試しください',
   'toast.exportStopped.one': '{count}枚でエクスポートを中止しました',
   'toast.exportStopped.other': '{count}枚でエクスポートを中止しました',
@@ -278,7 +279,10 @@ export const ja = {
   // （専用の絵があるのか・流用なのか）まで出す。docs/ANIME-FRAMES.md 参照。
   'viewer.frameIndex': 'コマ {cur} / {total}',
   'viewer.frameIndexFile': 'フレーム {cur} / {total}',
-  'viewer.frameNeedsReview': '未取得',
+  // 「撮り逃し」で通す。**同じ 1 つの数を、画面ごとに別の名前で呼ばない**——
+  // タイムシートは以前から「撮り逃し」で、詳細とビューアだけ「未取得」だった。
+  // 「取得」はこのアプリで取得日時・使用量の取得にも使っていて意味が 3 つある。
+  'viewer.frameNeedsReview': '撮り逃し',
   // 表から抜けている区間（ClipGap）。撮り逃し（流用）とは別物で、**コマ自体が表に無い**。
   // コマ送りするとその区間が飛ぶのに、出さないと画面からは気づけない。
   // 対応がずれているコマ（StoredFrame.misaligned）。表全体を捨てる代わりの印。
@@ -286,10 +290,10 @@ export const ja = {
   // こちらは今出ている絵が何なのか分からない。
   // 注記の意味の一覧（コマ番号を押すと開く）。**常設しない**——映像の邪魔になるし、
   // マウスを載せたときだけの説明では気づけない。押せば出る 1 か所にまとめる。
-  'viewer.legendMissing.label': '未取得',
+  'viewer.legendMissing.label': '撮り逃し',
   'viewer.legendMissing.desc': 'このコマの絵が撮れておらず、直前のコマの絵が映っています。別の絵が入っていた可能性を消せません。',
   'viewer.legendGap.label': '抜け',
-  'viewer.legendGap.desc': 'その境目だけ、素材のコマが表にありません。1 回押すと何コマも進むのでまたいで数えられませんが、他の場所は数えられます。',
+  'viewer.legendGap.desc': 'その境目だけ、元の動画のコマが表にありません。1 回押すと何コマも進むのでまたいで数えられませんが、他の場所は数えられます。',
   // 抜け（コマ自体が無い）とずれ（絵が別のコマのもの）をまとめた注記。
   // **コマ単位で「数えられる」と請け合わない。** どちらも周りを巻き込むので、当てに
   // ならない場所だと示すだけにする（理由は説明で読める）。
@@ -297,7 +301,7 @@ export const ja = {
   // 続き、抜けは前後の関係が壊れるので、そのコマだけの問題ではない。1 つでもあれば
   // そのクリップのコマ送り自体が当てにならないので、番号ごと赤で通す。
   'viewer.legendUnreliable.label': '要注意',
-  'viewer.legendUnreliable.desc': '映っている絵が素材のコマと対応していないか、素材のコマが広く欠けています。この録画ではコマ打ちを数えられません。',
+  'viewer.legendUnreliable.desc': '映っている絵が元の動画のコマと対応していないか、元の動画のコマが広く欠けています。この録画ではコマ打ちを数えられません。',
   'viewer.frameUnreliable': '要注意',
   // 抜けが少ないクリップで、穴の直前のコマまで来たときだけ出る。**場所を指す注記。**
   // 壊れているのはこの境目だけで、残りの境目は無傷なので、クリップ全体は赤くしない。
@@ -306,13 +310,15 @@ export const ja = {
   // 一方、詳細タイルは合計しか出せないので、そちらでは未取得と合算する。
   'viewer.frameGapAfter': '{count} コマ抜け',
   'viewer.frameGapAfterHint': 'このコマの次に {count} コマぶん、ページからコマの知らせが届いていません。表に無いのでコマ送りではここが飛びます。この境目をまたいでコマ打ちを数えることはできませんが、他の場所は通常どおり数えられます。',
-  'viewer.frameSourceHint': '元の動画のコマ単位で進みます。映像が変わらない箇所では、元の動画でも同じ映像が続いています。',
-  'viewer.frameReusedHint': 'このコマの映像は取り込めなかったため、直前のコマの映像を表示しています。ここに別の映像が 1 コマだけ入っていた可能性は消せないので、このコマを含めてコマ打ちを数えることはできません。',
-  'viewer.frameFileHint': 'ファイルに記録されたフレームを順に表示します。取り込んだ動画では、これが素材のコマそのものです。',
-  'viewer.frameFileCaptureHint': '素材のコマ表がないため、ファイルに記録されたフレームを順に表示します。画面キャプチャの取得間隔に基づくため、素材のコマとは一致しません。',
+  'viewer.frameSourceHint': '元の動画のコマ単位で進みます。絵が変わらない箇所では、元の動画でも同じ絵が続いています。',
+  // 1 コマ分の静止した画は「絵」で通す（動いているもの全体は「映像」）。注記一覧と
+  // タイムシートは元から「絵」で、ここだけ「映像」だった。
+  'viewer.frameReusedHint': 'このコマの絵は取り込めなかったため、直前のコマの絵を表示しています。ここに別の絵が 1 コマだけ入っていた可能性は消せないので、このコマを含めてコマ打ちを数えることはできません。',
+  'viewer.frameFileHint': 'ファイルに記録されたフレームを順に表示します。取り込んだ動画では、これが元の動画のコマそのものです。',
+  'viewer.frameFileCaptureHint': '元の動画のコマ表がないため、ファイルに記録されたフレームを順に表示します。画面キャプチャの取得間隔に基づくため、元の動画のコマとは一致しません。',
   'viewer.frameLoadingHint': 'コマ表を読み込んでいます。読み込みが終わるまでコマ送りは保留され、まとめて反映されます。',
-  'viewer.frameEstimatedHint': 'このクリップのフレーム位置を取得できませんでした。fps から換算した間隔で進むため、素材のコマとは一致しません。',
-  'viewer.frameUnreliableHint': 'この録画はコマ送りが当てになりません。素材のコマが欠けているか、映っている絵が素材のコマと対応していません。コマ打ちを数える用途には使えません。',
+  'viewer.frameEstimatedHint': 'この動画のフレーム位置を取得できませんでした。fps から換算した間隔で進むため、元の動画のコマとは一致しません。',
+  'viewer.frameUnreliableHint': 'この録画はコマ送りが当てになりません。元の動画のコマが欠けているか、映っている絵が元の動画のコマと対応していません。コマ打ちを数える用途には使えません。',
   'viewer.frameLoading': 'コマ表を読み込み中',
   'viewer.frameEstimated': 'コマ位置不明（{fps}fps 換算）',
 
@@ -326,7 +332,7 @@ export const ja = {
   'viewer.frameHoldGroup': '1コマの表示時間',
   'viewer.speedNormal': '等速',
   'viewer.speedNormalHint': 'そのままの速さで再生します。',
-  'viewer.framePlayHint': '素材を 1 コマずつ、各コマを {sec} 秒間表示して再生します。',
+  'viewer.framePlayHint': '元の動画を 1 コマずつ、各コマを {sec} 秒間表示して再生します。',
 
   // ── タイムシート ──
   // 手打ちのタイムシート（docs/TIMESHEET.md）。撮り逃し 0 のクリップでしか出ないので、
@@ -353,7 +359,8 @@ export const ja = {
   // ── グリッド / タイムライン ──
   'grid.noMatches': '該当する画像がありません',
   'grid.noMatchesHint': '検索語を短くするか、絞り込み条件を外すと見つかることがあります。',
-  'grid.clearFilters': 'フィルタをクリア',
+  // 絞り込みを外すのは「解除」で通す（「検索をクリア」は入力欄を空にする操作なので別）。
+  'grid.clearFilters': 'フィルタを解除',
   'grid.empty': 'まだ画像がありません',
   'grid.loadFailed': '一覧を読み込めませんでした',
   'thumb.loadFailed': '画像を読み込めません',
@@ -382,7 +389,9 @@ export const ja = {
   'search.prefix.tag': 'タグで絞り込み',
   'search.prefix.from': '開始日を指定',
   'search.prefix.to': '終了日を指定',
-  'search.prefix.site': 'サービスで絞り込み',
+  // 「サイト」で通す。検索の書き方が site: で、詳細パネルの欄名も案内文（対応サイト）も
+  // サイト——ここだけ「サービス」だった。
+  'search.prefix.site': 'サイトで絞り込み',
   'search.prefix.type': '種類で絞り込み',
   'search.type.image': '画像',
   'search.type.video': '動画',
@@ -401,7 +410,7 @@ export const ja = {
   // 「保存済みの」まで入れるとサイドバー幅で 2 行に折り返し、空の状態の方が場所を取っていた。
   // ただし**何が無いのかは残す**（見出しが上にあっても、単に「まだありません」では読めない）。
   'sidebar.noSmartFolders': 'フォルダはまだありません',
-  'sidebar.clearTagFilters': 'タグフィルターをすべて解除',
+  'sidebar.clearTagFilters': 'タグフィルタをすべて解除',
   'sidebar.aiTagSuffix': '（AIタグ）',
   'sidebar.tagDeleteHint': '（右クリック / Shift+F10 でタグ自体を削除）',
   'sidebar.collapseTags': '折りたたむ',
@@ -443,9 +452,9 @@ export const ja = {
   'trim.workingPercent': 'トリミング中... {percent}%',
   'trim.finishing': '仕上げています...',
   'trim.tooShort': '切り出す長さが足りません（0.1 秒以上必要です）',
-  'trim.errNotFound': 'このクリップが見つかりませんでした。',
+  'trim.errNotFound': 'この動画が見つかりませんでした。',
   'trim.errRange': '切り出す範囲が正しくありません。',
-  'trim.errBusy': 'このクリップは、いま別のトリミングを実行中です。',
+  'trim.errBusy': 'この動画は、いま別のトリミングを実行中です。',
   'trim.errPath': '元の動画ファイルを開けませんでした。',
   'trim.error': 'エラー：{message}',
   'trim.working': 'トリミング中...',
@@ -456,16 +465,27 @@ export const ja = {
   // ── 詳細パネル ──
   'detail.titleHint': 'クリックで展開 / ダブルクリックまたは F2 で編集',
   'detail.editTitle': 'タイトルを編集',
-  'detail.timecode': '動画時刻',
+  // 元の動画の中での位置。隣の「長さ」と対にして読ませる。
+  // **「動画時刻」では何の時刻か読めなかった**——「動画」はライブラリのファイルを
+  // 指す言葉なので、このファイルの時刻に読めてしまう。「元の」だけで足りる。
+  //
+  // **4 文字に収める。**隣と横並びの 2 列で、パネル幅は 300px 固定。
+  // 値は映画なら 1:23:45 まで伸びるので、ラベルを伸ばすと行が 2 行になって隣とずれる。
+  'detail.timecode': '元の位置',
   'detail.duration': '長さ',
   'detail.fps': 'FPS',
   'detail.resolution': '解像度',
+  // 縮めて保存した絵にだけ付く。等倍の絵には付かない（付けると等倍だと読めなくなる）。
+  'detail.resolutionShrunk': '（元 {w} × {h}）',
   // コマ送りの注記と同じ括り。抜け（コマ自体が無い）もずれ（絵が別のコマ）も、
   // そのコマだけの問題ではなくクリップ全体の話なので**枚数を出さない**。
   'detail.unreliable': '要注意',
-  'detail.unreliableHint': 'この録画はコマ送りが当てになりません。映っている絵が素材のコマと対応していないか、素材のコマが広く欠けています。コマ打ちを数える用途には使えません。',
-  'detail.uncapturedFrames': '{count}コマ未取得',
-  'detail.uncapturedFramesHint': '取れていないコマが {count} コマあります。直前のコマの映像が表示されている箇所と、コマ自体が無く押すと先へ飛ぶ箇所があります。どちらも、その位置をまたいでコマ打ちを数えることはできません。場所はコマ送りをすると手前のコマで知らせます。',
+  'detail.unreliableHint': 'この録画はコマ送りが当てになりません。映っている絵が元の動画のコマと対応していないか、元の動画のコマが広く欠けています。コマ打ちを数える用途には使えません。',
+  // 抜け（コマ自体が無い）も含めた合計だが、名前は分けない。**使う人に要るのは
+  // 「この素材には不備がある」までで、種類は本質ではない**（2026-08-30 の指示）。
+  // 内訳が要るときは下の説明とコマ送りで読める。
+  'detail.uncapturedFrames': '撮り逃し {count}コマ',
+  'detail.uncapturedFramesHint': '取れていないコマが {count} コマあります。直前のコマの絵が表示されている箇所と、コマ自体が無く押すと先へ飛ぶ箇所があります。どちらも、その位置をまたいでコマ打ちを数えることはできません。場所はコマ送りをすると手前のコマで知らせます。',
   'detail.memo': 'メモ',
   'detail.memoUnsaved': '未保存',
   'detail.memoSaving': '保存中...',
@@ -491,7 +511,7 @@ export const ja = {
   'toast.importFailedSuffix': '（{count}件は取り込めませんでした）',
   'toast.imported.one': '{count}枚を取り込みました',
   'toast.imported.other': '{count}枚を取り込みました',
-  'toast.importAllFailed': '取り込めませんでした（{count}件）',
+  'toast.importAllFailed': '取り込めませんでした（{count}枚）',
   'toast.dragTruncated': '{requested}枚中{copied}枚のみドラッグしました（上限のため一部は対象外です）',
   'toast.tagAdded.one': 'タグ「{tag}」を追加しました',
   'toast.tagAdded.other': '{count}枚にタグ「{tag}」を追加しました',
@@ -499,7 +519,9 @@ export const ja = {
   // ── 実行中タスクのバナー（App） ──
   'task.modelDownloading': 'AIモデルをダウンロード中',
   'task.retagging': '既存画像にAIタグ付け中',
-  'task.libraryImporting': 'ライブラリを読み込み中',
+  // 隣が「ライブラリをエクスポート中」なので、対になる言い方にする。
+  // ここだけ「読み込み中」で、同じ操作に 3 つ目の名前が付いていた。
+  'task.libraryImporting': 'ライブラリをインポート中',
   'task.libraryExporting': 'ライブラリをエクスポート中',
   'task.exporting': 'エクスポート中',
 
@@ -619,10 +641,26 @@ export const ja = {
   'settings.usageModel': 'AIモデル',
   'settings.usageModelAbsent': '未取得',
   'settings.videoExport': '動画の変換',
+  'settings.captureResize': '保存する解像度',
+  'settings.captureResizeTarget': '静止画',
+  // 4 つとも「上限をどこに置くか」で読めるようにする。中の 2 つが具体的な上限なので、
+  // 両端も上限の言葉で揃える——「自動」は上限を配信の映像に合わせる、「上限なし」は置かない。
+  // 「配信のまま」「画面のまま」と並べたことがあるが、どちらが大きいのか読めず分かりにくかった。
+  // 上限は「フルHD / HD」ではなく数字で出す。**HD は 720 と 1080 のどちらにも読まれる**うえ、
+  // 比べる相手（配信サービスの画質表示）が 1080p / 720p 表記なので、そちらに揃える。
+  // 説明で「落とす」を使わないのは、同じ行の「画質が下がる」と意味がぶつかり、
+  // 自動が画質を下げる設定に読めるため。
+  'settings.captureResize.source': '自動',
+  'settings.captureResize.fhd': '1080p',
+  'settings.captureResize.hd': '720p',
+  'settings.captureResize.screen': '上限なし',
+  // **説明が要る選択肢だけ書く。**「上限なし」は言葉のとおりで、ここに足すと
+  // 「以前と同じ」のような、前を知らない人には何も伝わらない補足になる。
+  'settings.captureResizeHint': '自動：配信の解像度に合わせる（引き伸ばされたぶんは保存しない） / 1080p・720p：配信がそれより高いと画質が下がる',
   'settings.videoExportFormat': '書き出し形式',
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
-  'settings.videoExportFormatHint': 'webm：録画したまま書き出し / mp4：H.264 に変換（画質がわずかに劣化。コマの位置と枚数は不変）',
+  'settings.videoExportFormatHint': 'webm：録画したまま書き出し / mp4：H.264 に変換（画質がわずかに劣化）',
   'settings.exportHint': 'キャプチャ、タグ、メモ、録画のコマ精度情報、スマートフォルダをフォルダへ保存します（ローカルから取り込んだ画像は含まれません）。',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',
@@ -660,7 +698,7 @@ export const ja = {
   'demo.unavailable': 'デモ版では利用できません（デスクトップアプリの機能です）',
   // 素材を 1 件も置いていないときの第一画面。デスクトップ版の初回案内（拡張機能フォルダを
   // 開く → 対応サイトで動画を開く → ホットキー）はデモでは全部空振りするので差し替える。
-  'demo.emptyTitle': 'このデモには、まだ素材が置かれていません',
+  'demo.emptyTitle': 'このデモには、まだ画像がありません',
   'demo.emptyHint': 'Shiori は、配信中のアニメを研究用途で記録するデスクトップアプリです。このデモでは実際の画面をブラウザで操作でき、表示・検索・タグ編集を試せます。配信画面のキャプチャはデモに掲載できないため、現在ライブラリは空です。',
   'demo.emptyRepo': 'GitHub でプロジェクトを見る',
 } as const

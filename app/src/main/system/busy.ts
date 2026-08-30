@@ -8,11 +8,16 @@
 import { t } from './i18n'
 import type { MessageKey } from '../../shared/i18n'
 
-type BusyTask = 'import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
+// 'import' はドロップ・クリップボードからの取り込み、'library-import' はライブラリ
+// 丸ごとの受け渡し。**別の名前で出す**——画面ではこの 2 つを「取り込み」と「インポート」
+// で呼び分けているので、更新ダイアログでどちらも「取り込み」と出ると、走っている作業と
+// 押したボタンの名前が食い違う。
+type BusyTask = 'import' | 'library-import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
 
 // 表示直前に翻訳する必要があるため、ここでは辞書キーだけを持つ。
 const LABEL_KEYS: Record<BusyTask, MessageKey> = {
   import: 'busy.import',
+  'library-import': 'busy.libraryImport',
   export: 'busy.export',
   retag: 'busy.retag',
   'model-download': 'busy.modelDownload',

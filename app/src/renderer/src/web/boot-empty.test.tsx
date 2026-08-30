@@ -35,11 +35,11 @@ afterEach(() => {
   cleanup()
 })
 
-it('素材が 0 件なら、デスクトップ版の初回案内ではなくデモ用の説明を出す', async () => {
+it('画像が 0 件なら、デスクトップ版の初回案内ではなくデモ用の説明を出す', async () => {
   const { default: App } = await import('./bootApp')
   const { container } = render(<App />)
 
-  await screen.findByText(/このデモには、まだ素材が置かれていません/, {}, { timeout: 3000 })
+  await screen.findByText(/このデモには、まだ画像がありません/, {}, { timeout: 3000 })
 
   // 押しても断られるだけのボタンと、デモでは成立しない手順が出ていないこと。
   // ここが本題なので、デモ文言が出ていることより厳しく見る。

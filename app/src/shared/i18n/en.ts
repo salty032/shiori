@@ -12,9 +12,13 @@ import type { ja } from './ja'
 //   * Prefer plain words over jargon: "folder" not "directory", "delete" not "remove".
 //
 // Fixed terminology (do not vary within the UI):
-//   キャプチャ → capture        録画クリップ → clip         取り込み → import
-//   書き出し   → export         タグ付け     → tagging      スマートフォルダ → smart folder
-//   サムネイル → thumbnail      再生時刻     → timecode     作品タイトル → title
+//   キャプチャ → capture        録画       → recording    取り込み → import
+//   書き出し   → export         タグ付け   → tagging      スマートフォルダ → smart folder
+//   サムネイル → thumbnail      元の位置   → source       作品タイトル → title
+//   撮り逃し   → missed         元の動画   → the original video
+//   「クリップ」は使わない（自分で録ったもの＝recording、ファイル一般＝video）。
+//   ラベルは uppercase で表示されるため、同じ意味でも英語の方が横幅を食う。
+//   詳細パネルの 2 列（source / length）は特に狭いので、長い語を置かないこと。
 //   ブラウザ拡張 → browser extension (not "Chrome extension" — Firefox is supported too)
 export const en: Record<keyof typeof ja, string> = {
   // ── Tray / native menus ──────────────────────────────────────
@@ -35,6 +39,7 @@ export const en: Record<keyof typeof ja, string> = {
 
   // ── Running task labels (shown in the update dialog) ─────────
   'busy.import': 'Import',
+  'busy.libraryImport': 'Library import',
   'busy.export': 'Export',
   'busy.retag': 'AI tagging',
   'busy.modelDownload': 'AI model download',
@@ -117,9 +122,9 @@ export const en: Record<keyof typeof ja, string> = {
     'Shiori does not have screen recording permission. Turn off hardware acceleration in Chrome and try again.',
   'notice.recordingError': 'Recording error: {message}',
   'notice.recordingDataInvalid': 'The recording was damaged, so it could not be saved.',
-  'notice.clipSaveFailed': 'Could not save the clip',
-  'notice.clipSaved': 'Clip saved ({duration})',
-  'notice.clipSavedWithMissed': 'Clip saved ({duration}, {count} frames missed)',
+  'notice.clipSaveFailed': 'Could not save the recording',
+  'notice.clipSaved': 'Recording saved ({duration})',
+  'notice.clipSavedWithMissed': 'Recording saved ({duration}, {count} frames missed)',
   'notice.videoNotDetected':
     'No video found. Open a video page on a supported site and check that the browser extension is enabled.',
   'notice.recorderPrepareFailed': 'Could not start the recorder. Please try again.',
@@ -264,23 +269,23 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.next': 'Next (→)',
   'viewer.frameIndex': 'Frame {cur} / {total}',
   'viewer.frameIndexFile': 'File frame {cur} / {total}',
-  'viewer.frameNeedsReview': 'not captured',
-  'viewer.legendMissing.label': 'not captured',
+  'viewer.frameNeedsReview': 'missed',
+  'viewer.legendMissing.label': 'missed',
   'viewer.legendMissing.desc': "This frame's picture was not captured; the previous frame's picture is shown. A different picture could have been here.",
   'viewer.legendGap.label': 'gap',
-  'viewer.legendGap.desc': 'Source frames are absent from the table at this point only. One key press jumps several frames, so you cannot count across it — the rest of the clip is fine.',
+  'viewer.legendGap.desc': 'Frames of the original video are absent from the table at this point only. One key press jumps several frames, so you cannot count across it — the rest of the recording is fine.',
   'viewer.legendUnreliable.label': 'unreliable',
-  'viewer.legendUnreliable.desc': 'The pictures do not line up with the source frames, or source frames are missing throughout. Frame timing cannot be counted in this clip.',
+  'viewer.legendUnreliable.desc': 'The pictures do not line up with the frames of the original video, or those frames are missing throughout. Frame timing cannot be counted in this recording.',
   'viewer.frameUnreliable': 'unreliable',
   'viewer.frameGapAfter': '{count} frames missing',
-  'viewer.frameGapAfterHint': 'The page never reported {count} frames right after this one. They are absent from the table, so frame stepping skips over them. You cannot count frame timing across this point, but the rest of the clip counts normally.',
+  'viewer.frameGapAfterHint': 'The page never reported {count} frames right after this one. They are absent from the table, so frame stepping skips over them. You cannot count frame timing across this point, but the rest of the recording counts normally.',
   'viewer.frameSourceHint': "Steps by the source video's own frames. Where the picture does not change, the same picture also continues in the source.",
   'viewer.frameReusedHint': "No picture was captured for this frame, so the previous frame's picture is shown. A single different frame could have been here, so do not count frame timing across it.",
-  'viewer.frameFileHint': 'Shows the frames recorded in the file in order. For imported videos these are the source frames themselves.',
-  'viewer.frameFileCaptureHint': 'There is no source frame table, so the frames recorded in the file are shown in order. They follow the screen capture interval and do not match the source frames.',
+  'viewer.frameFileHint': 'Shows the frames recorded in the file in order. For imported videos these are the frames of the original video themselves.',
+  'viewer.frameFileCaptureHint': 'There is no frame table for the original video, so the frames recorded in the file are shown in order. They follow the screen capture interval and do not match the frames of the original video.',
   'viewer.frameLoadingHint': 'Loading the frame table. Frame steps are held until it finishes, then applied together.',
-  'viewer.frameEstimatedHint': 'Frame positions could not be read for this clip. Steps use an interval derived from fps and do not match the source frames.',
-  'viewer.frameUnreliableHint': 'Frame stepping is not reliable in this clip: source frames are missing, or the pictures do not line up with the source frames. Do not use it to count frame timing.',
+  'viewer.frameEstimatedHint': 'Frame positions could not be read for this video. Steps use an interval derived from fps and do not match the frames of the original video.',
+  'viewer.frameUnreliableHint': 'Frame stepping is not reliable in this recording: frames of the original video are missing, or the pictures do not line up with them. Do not use it to count frame timing.',
   'viewer.frameLoading': 'Loading frame table',
   'viewer.frameEstimated': 'Frame positions unknown ({fps}fps estimate)',
 
@@ -291,7 +296,7 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.frameHoldGroup': 'Time per frame',
   'viewer.speedNormal': 'Normal',
   'viewer.speedNormalHint': 'Plays at the normal speed.',
-  'viewer.framePlayHint': 'Playing steps through the source frames one at a time, holding each for {sec}s.',
+  'viewer.framePlayHint': 'Playing steps through the original video one frame at a time, holding each for {sec}s.',
 
   // ── Timesheet ──
   'timesheet.title': 'Timesheet',
@@ -344,7 +349,7 @@ export const en: Record<keyof typeof ja, string> = {
   'search.prefix.tag': 'Filter by tag',
   'search.prefix.from': 'Set a start date',
   'search.prefix.to': 'Set an end date',
-  'search.prefix.site': 'Filter by service',
+  'search.prefix.site': 'Filter by site',
   'search.prefix.type': 'Filter by type',
   'search.type.image': 'Image',
   'search.type.video': 'Video',
@@ -400,9 +405,9 @@ export const en: Record<keyof typeof ja, string> = {
   'trim.workingPercent': 'Trimming... {percent}%',
   'trim.finishing': 'Finishing up...',
   'trim.tooShort': 'The selected range is too short (0.1 seconds minimum).',
-  'trim.errNotFound': 'This clip could not be found.',
+  'trim.errNotFound': 'This video could not be found.',
   'trim.errRange': 'The selected range is not valid.',
-  'trim.errBusy': 'This clip is already being trimmed.',
+  'trim.errBusy': 'This video is already being trimmed.',
   'trim.errPath': 'The original video file could not be opened.',
   'trim.error': 'Error: {message}',
   'trim.working': 'Trimming…',
@@ -413,12 +418,13 @@ export const en: Record<keyof typeof ja, string> = {
   // ── Details panel ──
   'detail.titleHint': 'Click to expand / double-click or F2 to edit',
   'detail.editTitle': 'Edit title',
-  'detail.timecode': 'Timecode',
+  'detail.timecode': 'Source',
   'detail.duration': 'Length',
   'detail.fps': 'FPS',
   'detail.resolution': 'Resolution',
+  'detail.resolutionShrunk': ' (from {w} × {h})',
   'detail.unreliable': 'unreliable',
-  'detail.unreliableHint': 'Frame stepping is not reliable in this clip: the pictures do not line up with the source frames, or source frames are missing throughout. Do not use it to count frame timing.',
+  'detail.unreliableHint': 'Frame stepping is not reliable in this recording: the pictures do not line up with the frames of the original video, or those frames are missing throughout. Do not use it to count frame timing.',
   'detail.uncapturedFrames': '{count} frames missed',
   'detail.uncapturedFramesHint': "{count} frames were not captured. Some show the previous frame's picture; at others the frame itself is absent and stepping jumps ahead. You cannot count frame timing across those spots. Stepping tells you at the frame just before each one.",
   'detail.memo': 'Notes',
@@ -573,11 +579,18 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.usageModel': 'AI model',
   'settings.usageModelAbsent': 'Not downloaded',
   'settings.videoExport': 'Video conversion',
+  'settings.captureResize': 'Saved resolution',
+  'settings.captureResizeTarget': 'Stills',
+  'settings.captureResize.source': 'Auto',
+  'settings.captureResize.fhd': '1080p',
+  'settings.captureResize.hd': '720p',
+  'settings.captureResize.screen': 'No limit',
+  'settings.captureResizeHint': 'Auto: matches the resolution of the stream (only the upscaling is discarded) / 1080p・720p: quality drops when the stream is higher',
   'settings.videoExportFormat': 'Export format',
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
-  'settings.videoExportFormatHint': 'webm: written as recorded / mp4: converted to H.264 (slight quality loss; frame positions and counts unchanged)',
-  'settings.exportHint': 'Saves your captures, tags, notes, clip frame-accuracy data and smart folders to a folder. (Locally imported items are not included.)',
+  'settings.videoExportFormatHint': 'webm: written as recorded / mp4: converted to H.264 (slight quality loss)',
+  'settings.exportHint': 'Saves your captures, tags, notes, recording frame-accuracy data and smart folders to a folder. (Locally imported items are not included.)',
   'settings.stoppedCount.one': 'Stopped after {count} item',
   'settings.stoppedCount.other': 'Stopped after {count} items',
   'settings.exportFailed': 'Export failed',
@@ -610,7 +623,7 @@ export const en: Record<keyof typeof ja, string> = {
 
   'demo.welcome': 'This is the web demo. Browsing, search and tag editing really work, but desktop features such as capture and recording do not. Edits are lost on reload.',
   'demo.unavailable': 'Not available in the demo (desktop app feature)',
-  'demo.emptyTitle': 'This demo has no sample material yet',
+  'demo.emptyTitle': 'This demo has no images yet',
   'demo.emptyHint': 'Shiori is a desktop app for recording streaming anime for research use. This demo lets you try its interface in a browser — browsing, search and tag editing really work. Captures of streaming players cannot be published here, so the library is empty.',
   'demo.emptyRepo': 'View the project on GitHub',
 }
