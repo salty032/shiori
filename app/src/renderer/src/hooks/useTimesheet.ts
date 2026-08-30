@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClipFrames } from '../../../shared/api.video'
+import { TIMESHEET_LOCKED } from '../timesheetLock'
 import {
   buildToeiClipboard, canBuildTimesheet, countReusedFrames, decodeTimesheet, encodeTimesheet,
   isToeiSymbol, normalizeTimesheetValue, TOEI_SYMBOL, type TimesheetMark
@@ -49,7 +50,10 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   // ビューアに預けてもらったこの参照から届く。
   const playerRef = useRef<TimesheetPlayer | null>(null)
 
-  const ready = canBuildTimesheet(clipFrames, fps)
+  // 配る版では ready を立てない。**ボタンも表も出ず、キーも取らない**——ここを false に
+  // するだけで、下の visible も handleKey も自動的に止まる（判定を増やすと、増やした
+  // ぶんだけ配る版に漏れる経路ができる）。開発版では従来どおり。
+  const ready = !TIMESHEET_LOCKED && canBuildTimesheet(clipFrames, fps)
   const visible = ready && open
   const total = clipFrames?.pts.length ?? 0
   // 専用の絵が撮れなかったコマ数。**番号はずれていない**（canBuildTimesheet の注記）が、

@@ -10,6 +10,7 @@
 // 表示言語で文言が変わるため、定数ではなく t を受け取って組み立てる関数にしている
 // （モジュール読み込み時に文字列を焼き込むと、言語切り替えで更新されない）。
 // keys 側も「矢印キー」「ダブルクリック」のように訳が要るものがあるので t を通す。
+import { TIMESHEET_LOCKED } from './timesheetLock'
 import type { Translate } from './i18n'
 
 type ShortcutGroup = { title: string; items: { keys: string; desc: string }[] }
@@ -43,8 +44,11 @@ export function shortcutGroups(t: Translate['t']): ShortcutGroup[] {
       items: [
         { keys: '← / →', desc: t('shortcuts.prevNext') },
         { keys: ', / .', desc: t('shortcuts.viewerFrameStep') },
-        { keys: '0-9 / Enter', desc: t('shortcuts.viewerTimesheet') },
-        { keys: 'F1 / F2 / F3', desc: t('shortcuts.viewerTimesheetSymbols') },
+        // タイムシートがロックされている版では、効かないキーの説明を出さない。
+        ...(TIMESHEET_LOCKED ? [] : [
+          { keys: '0-9 / Enter', desc: t('shortcuts.viewerTimesheet') },
+          { keys: 'F1 / F2 / F3', desc: t('shortcuts.viewerTimesheetSymbols') },
+        ]),
         { keys: 'Enter / Escape', desc: t('shortcuts.closeViewer') },
         { keys: 'Space', desc: t('shortcuts.viewerSpace') },
         { keys: 'M', desc: t('shortcuts.toggleMute') },
