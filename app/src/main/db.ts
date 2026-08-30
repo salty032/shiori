@@ -297,6 +297,22 @@ export function setAmbiguousFrames(id: number, count: number): void {
   prepare('UPDATE images SET ambiguous_frames = ? WHERE id = ?').run(count, id)
 }
 
+// 保存先の移動用。**id とパスだけ**を引く（数万件で無駄に重くしないため）。
+export function listImagePaths(): { id: number; filepath: string }[] {
+  return prepare('SELECT id, filepath FROM images').all() as { id: number; filepath: string }[]
+}
+
+// 移した先のパスをまとめて書き換える。**1 トランザクションで確定させる**——
+// 1 件ずつ書くと、途中で落ちたときに記録とファイルが半分ずつ食い違う
+// （move-captures.ts の注記）。
+export function setImagePaths(updates: readonly { id: number; filepath: string }[]): void {
+  if (updates.length === 0) return
+  const stmt = prepare('UPDATE images SET filepath = ? WHERE id = ?')
+  getDb().transaction(() => {
+    for (const row of updates) stmt.run(row.filepath, row.id)
+  })()
+}
+
 // 孤立ファイル掃除用（sweep-orphans.ts）。DB が参照している実ファイルの一覧。
 // パス列だけを引き、id や captured_at は載せない（数万件で無駄に重くしないため）。
 export function listReferencedPaths(): { filepath: string; thumb_path: string | null }[] {

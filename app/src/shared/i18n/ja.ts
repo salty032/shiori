@@ -19,6 +19,15 @@ export const ja = {
   'dialog.updateBusy.proceed': '処理を中止して更新',
   'dialog.updateBusy.cancel': 'キャンセル',
   'dialog.exportFolder': 'エクスポート先フォルダを選択',
+  // 保存先の変更で、これまでのぶんを移す前の確認。**件数・容量・移す先を必ず出す。**
+  // 実体のコピーなので分単位かかるうえ、移動中は移す先に 2 倍の空きが要る。
+  // 「場所の設定を変えるだけ」と思っているまま何分も固まるのが最悪。
+  'dialog.moveCaptures.title': '保存先の変更',
+  'dialog.moveCaptures.message': '{count} 件（{size}）を {dest} へ移します',
+  'dialog.moveCaptures.detail':
+    '実体のコピーなので、件数によっては数分かかります。移動中は移動先に一時的に 2 倍の空きが必要です。\n\n' +
+    '途中で止めても、失敗しても、何も変わりません（保存先も記録もそのままです）。',
+  'dialog.moveCaptures.proceed': '移動する',
   'dialog.importFolder': 'インポートするフォルダを選択',
   // activeTaskLabels() を dialog.updateBusy.message へ差し込むときの区切り文字。
   'list.separator': '・',
@@ -30,6 +39,7 @@ export const ja = {
   'busy.retag': 'AIタグ付け',
   'busy.modelDownload': 'AIモデルのダウンロード',
   'busy.thumbRepair': 'サムネイルの修復',
+  'busy.captureMove': '保存先の移動',
 
   // ── 起動時の致命的エラー ──────────────────────────────────────
   'error.dbOpen':
@@ -629,8 +639,17 @@ export const ja = {
   'settings.showAiTags': 'AIタグもサイドバーに表示する',
   'settings.showAiTagsHint': 'オフの間は手動で付けたタグのみを表示します。オンにするとAIタグも表示されますが、手動タグを優先して上位に並べます。',
   'settings.storage': '保存場所',
-  'settings.openCapturesFolder': 'フォルダを開く',
-  'settings.storageHint': 'キャプチャと録画はすべてこのフォルダに保存されます。保存先は変更できません。',
+  'settings.changeCapturesFolder': '変更...',
+  'settings.chooseCapturesFolder': '保存先のフォルダを選択',
+  'settings.captureRootChanged': '保存先を変更しました（{count} 件を移動）。',
+  'settings.captureRootMissingSuffix': '{count} 件は元のファイルが見つからず、そのままにしました。',
+  'settings.captureMoving': '移動中... {current} / {total}',
+  'settings.captureMoveFailed': '移動できなかったため、何も変更していません。移動先の空き容量とドライブの接続を確認してください。',
+  // 選べない場所（ドライブ直下・Shiori の設定が入っているフォルダの上位）。理由まで出す
+  // ——「変更できません」だけだと、壊れているのか選び方が悪いのか分からない。
+  'settings.captureRootInvalid': 'この場所は保存先にできません。ドライブ直下や、Shiori のデータが入っているフォルダの上位は選べません。',
+  'settings.captureRootUnwritable': 'この場所に書き込めませんでした。別のフォルダを選ぶか、ドライブがつながっているか確認してください。',
+  'settings.storageHint': 'キャプチャと録画はすべてこのフォルダに入ります。変更すると、これから撮るものだけが新しい場所に入ります。これまでのぶんは元の場所に残り、そのまま開けます。',
   'settings.usage': '使用量',
   'settings.usageCalculating': '計算中...',
   'settings.usageFailed': '使用量を取得できませんでした',

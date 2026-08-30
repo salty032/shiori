@@ -35,5 +35,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   // 更新しただけでこれに変わっても誰も細かさを失わない（4K 画面で 1080p 配信を撮ると
   // ファイルが約 1/4 になるだけ）。本物の細かさが落ちる 'fhd'/'hd' は自分で選んだときだけ。
   captureResize: 'source',
+  captureRoot: null,
+  previousCaptureRoots: [],
   lastRunVersion: null,
 }

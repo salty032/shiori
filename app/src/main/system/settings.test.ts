@@ -26,6 +26,8 @@ const DEFAULTS = {
   language: 'ja',
   videoExportFormat: 'original',
   captureResize: 'source',
+  captureRoot: null,
+  previousCaptureRoots: [],
   lastRunVersion: null,
 }
 
@@ -182,6 +184,23 @@ describe('captureResize', () => {
   it("'screen' はそのまま", () => expect(normalizeSettings({ captureResize: 'screen' }).captureResize).toBe('screen'))
   it('知らない値 → 既定', () => expect(normalizeSettings({ captureResize: '4k' }).captureResize).toBe('source'))
   it('未指定 → 既定（水増しを省く）', () => expect(normalizeSettings({}).captureResize).toBe('source'))
+})
+
+describe('captureRoot', () => {
+  it('絶対パスはそのまま', () => {
+    // 先頭が / のパスは Windows でも絶対パス扱いなので、両方の環境で同じ値を使える。
+    const p = '/data/shiori'
+    expect(normalizeSettings({ captureRoot: p }).captureRoot).toBe(p)
+  })
+  // 相対パスは実行時の作業ディレクトリ次第で別の場所を指す。どこへ保存したのか
+  // 分からなくなるので受け付けない。
+  it('相対パスは受け付けない', () => expect(normalizeSettings({ captureRoot: 'captures' }).captureRoot).toBeNull())
+  it('空文字は既定へ倒す', () => expect(normalizeSettings({ captureRoot: '  ' }).captureRoot).toBeNull())
+  it('未指定は既定へ倒す', () => expect(normalizeSettings({}).captureRoot).toBeNull())
+  it('過去の保存先は重複を落とす', () => {
+    const a = '/a'
+    expect(normalizeSettings({ previousCaptureRoots: [a, a, 'rel'] }).previousCaptureRoots).toEqual([a])
+  })
 })
 
 describe('videoExportFormat', () => {

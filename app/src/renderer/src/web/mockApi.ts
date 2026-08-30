@@ -223,7 +223,9 @@ export async function installMockApi(): Promise<void> {
     imagesRepairThumbs: async () => { unsupported(); return { repaired: 0, failed: 0 } },
     showInFolder: async () => unsupported(),
     showExtensionFolder: async () => unsupported(),
-    showCapturesFolder: async () => unsupported(),
+    chooseCaptureRoot: async () => { unsupported(); return { ok: false, reason: 'canceled' as const } },
+    cancelCaptureMove: async () => {},
+    onCaptureMoveProgress: () => () => {},
     // デモにはファイルシステムが無い。0 バイトを返すと「空っぽ」という嘘の数字が出てしまうので、
     // 理由をトーストで出したうえで失敗させ、使用量の欄は数字を出さないままにする。
     getStorageInfo: async () => { unsupported(); throw new Error(t('demo.unavailable')) },

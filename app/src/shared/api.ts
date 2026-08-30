@@ -4,7 +4,7 @@
 import type {
   ImageRow, ImageTag, TagWithCount, ImageTagSource, Settings,
   CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, StorageInfo,
-  ImageQuery, ImageListRequest, DeleteImageResult,
+  ImageQuery, ImageListRequest, DeleteImageResult, ChooseCaptureRootResult,
 } from './types'
 
 export interface ShioriApi {
@@ -54,7 +54,9 @@ export interface ShioriApi {
   showExtensionFolder: () => Promise<void>
   // 撮ったものが置いてあるフォルダを Explorer で開く。以前は拡張のフォルダだけが開けて、
   // 自分の何百枚の置き場所には辿り着けなかった。
-  showCapturesFolder: () => Promise<void>
+  chooseCaptureRoot: () => Promise<ChooseCaptureRootResult>
+  cancelCaptureMove: () => Promise<void>
+  onCaptureMoveProgress: (cb: (data: { current: number; total: number }) => void) => () => void
   // 保存場所と使用量。全ファイルを stat するため数万件では数秒かかる（画面側は「計算中」を出す）。
   getStorageInfo: () => Promise<StorageInfo>
   // 拡張との接続に実際に使っているポート。候補を全部確保できなかったときは null。
@@ -128,9 +130,11 @@ export const CH = {
   shellOpenUrl: 'shell:openUrl',
   shellShowInFolder: 'shell:showInFolder',
   shellShowExtensionFolder: 'shell:showExtensionFolder',
-  shellShowCapturesFolder: 'shell:showCapturesFolder',
   // storage
   storageGetInfo: 'storage:getInfo',
+  storageChooseRoot: 'storage:chooseRoot',
+  storageCancelMove: 'storage:cancelMove',
+  storageMoveProgress: 'storage:moveProgress',
   // ws
   wsGetPort: 'ws:getPort',
   // settings

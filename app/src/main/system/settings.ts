@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { join } from 'path'
+import { isAbsolute, join } from 'path'
 import { readFileSync, existsSync, renameSync } from 'fs'
 import { writeFile, rename, unlink } from 'fs/promises'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
@@ -14,6 +14,11 @@ const DEFAULTS: Settings = { ...SETTINGS_DEFAULTS, allowedExtensionIds: [EXTENSI
 const MAX_STRINGS = 100
 const MAX_TEXT_LENGTH = 200
 const MAX_SMART_FOLDERS = 50
+// 保存先の文字数。Windows の実用上の上限（260）に少し余裕を持たせる。
+const MAX_PATH_LENGTH = 400
+// 覚えておく過去の保存先の数。これを超えて遡ると、その保存先に残っている素材は
+// 開けなくなる（ファイルは消えない）。
+const MAX_PREVIOUS_ROOTS = 10
 
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -116,6 +121,29 @@ function migrateThumbnailSize(value: unknown): unknown {
   return LEGACY_THUMB_SIZES[value] ?? value
 }
 
+// 保存先。**絶対パスだけ受け付ける**——相対パスは実行時の作業ディレクトリ次第で
+// 別の場所を指し、どこへ保存したのか誰にも分からなくなる。
+function capturePathValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > MAX_PATH_LENGTH || !isAbsolute(trimmed)) return null
+  return trimmed
+}
+
+function capturePathList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of value) {
+    const path = capturePathValue(item)
+    if (!path || seen.has(path)) continue
+    seen.add(path)
+    out.push(path)
+    if (out.length >= MAX_PREVIOUS_ROOTS) break
+  }
+  return out
+}
+
 export function normalizeSettings(value: unknown): Settings {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const allowedIds = extensionIdList(data.allowedExtensionIds)
@@ -139,6 +167,8 @@ export function normalizeSettings(value: unknown): Settings {
     language: languageValue(data.language),
     videoExportFormat: videoExportFormatValue(data.videoExportFormat),
     captureResize: captureResizeValue(data.captureResize),
+    captureRoot: capturePathValue(data.captureRoot),
+    previousCaptureRoots: capturePathList(data.previousCaptureRoots),
     lastRunVersion: nullableText(data.lastRunVersion),
   }
 }

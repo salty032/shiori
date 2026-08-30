@@ -1,10 +1,20 @@
 import { app } from 'electron'
 import { mkdir, realpath } from 'fs/promises'
 import { realpathSync } from 'fs'
-import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'path'
+import { basename, extname, isAbsolute, join, parse, relative, resolve, sep } from 'path'
+import { loadSettings } from './settings'
 
-export function captureDir(): string {
+// 既定の置き場所。**保存先を変えても、ここは常に「開いてよい場所」に残す**——
+// 変える前に撮ったものはここにあり、記録しているのは絶対パスなので、外すと開けなくなる。
+export function defaultCaptureDir(): string {
   return join(app.getPath('userData'), 'captures')
+}
+
+// これから撮るものを書く場所。設定で変えられる（設定 > データ > 保存場所）。
+// 静止画も録画もここに入る。**既存のファイルは移動しない**——変更後も元の場所から
+// そのまま読める（allowedBases が過去の保存先も許可している）。
+export function captureDir(): string {
+  return loadSettings().captureRoot ?? defaultCaptureDir()
 }
 
 // captureDir 直下に全ファイルをフラット格納すると、数万件規模で Explorer や
@@ -45,11 +55,34 @@ function isChildPath(base: string, target: string): boolean {
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
 }
 
+// 保存先に選んでよいフォルダか。問題が無ければ null。
+//
+// **許可ベースを広げすぎないための判定。** 保存先の配下は「IPC から開いてよい場所」に
+// なるので、ドライブ直下や userData の上位を選ばれると、その下の何もかもが対象になる。
+// 選んだ人に悪意が無くても、境界としては意味を失う。
+export function captureRootProblem(dir: string): 'not-absolute' | 'filesystem-root' | 'contains-app-data' | null {
+  if (typeof dir !== 'string' || !dir.trim() || !isAbsolute(dir)) return 'not-absolute'
+  const target = resolve(dir)
+  if (target === parse(target).root) return 'filesystem-root'
+  if (isChildPath(target, resolve(app.getPath('userData')))) return 'contains-app-data'
+  return null
+}
+
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.webm', '.mp4'])
 
-// 原本（captureDir）と表示用サムネ（thumbnailDir）の両方を許可ベースとする。
+// 原本と表示用サムネの両方を許可ベースとする。
+//
+// **原本の側は 1 つではない。** 保存先は変えられるので、既定の場所・いま使っている場所・
+// 過去に使った場所のどれにも既存のファイルが残っている。記録しているのは絶対パスなので、
+// 使っている場所だけを許可すると、変えた瞬間にそれまでの素材が 1 枚も開けなくなる。
+function captureBases(): string[] {
+  const settings = loadSettings()
+  const roots = [defaultCaptureDir(), ...(settings.captureRoot ? [settings.captureRoot] : []), ...settings.previousCaptureRoots]
+  return [...new Set(roots.map((root) => resolve(root)))]
+}
+
 function allowedBases(): string[] {
-  return [resolve(captureDir()), resolve(thumbnailDir())]
+  return [...captureBases(), resolve(thumbnailDir())]
 }
 
 export function resolveCapturePath(candidate: unknown): string | null {
@@ -61,9 +94,9 @@ export function resolveCapturePath(candidate: unknown): string | null {
   return target
 }
 
-// captureDir/thumbnailDir は userData 配下の固定パスで実行中に変わらないため、
-// realpath 解決結果をキャッシュする。サムネ読み込みのたびに同じ2回の realpath
-// （ファイル本体の解決とは別）を引き直していたのを避ける。未作成ディレクトリは
+// 許可ベースの realpath 解決結果をキャッシュする。サムネ読み込みのたびに同じ realpath
+// （ファイル本体の解決とは別）を引き直していたのを避ける。**パス文字列をキーにする**ので、
+// 保存先が実行中に変わっても取り違えない（変わるのは見るキーの方）。未作成ディレクトリは
 // 失敗時にキャッシュせず、作成後の呼び出しで再解決できるようにする。
 const realBaseCache = new Map<string, string>()
 
@@ -100,7 +133,7 @@ export function resolveRealCapturePathSync(candidate: unknown): string | null {
 
   try {
     const realTarget = resolve(realpathSync(target))
-    const bases = [captureDir(), thumbnailDir()].map(resolveRealBaseSync)
+    const bases = [...captureBases(), thumbnailDir()].map(resolveRealBaseSync)
     if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
     if (!ALLOWED_EXTENSIONS.has(extname(realTarget).toLowerCase())) return null
     return realTarget
@@ -115,7 +148,7 @@ export async function resolveRealCapturePath(candidate: unknown): Promise<string
 
   try {
     const realTarget = resolve(await realpath(target))
-    const bases = await Promise.all([captureDir(), thumbnailDir()].map(resolveRealBase))
+    const bases = await Promise.all([...captureBases(), thumbnailDir()].map(resolveRealBase))
     if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
     if (!ALLOWED_EXTENSIONS.has(extname(realTarget).toLowerCase())) return null
     return realTarget

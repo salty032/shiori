@@ -152,6 +152,11 @@ export default function SettingsModal(p: Props) {
   // 走らせると「基本」タブだけ見て閉じる人にも毎回コストがかかるため、実際に数字を出す
   // タブ（データ・タグ）へ切り替わった最初の一回だけ取りに行く。
   const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [captureRootStatus, setCaptureRootStatus] = useState<{ text: string; error?: boolean } | null>(null)
+  // 移動の進み具合。total が 0 なら動いていない。**押している間ずっと出す**——実体の
+  // コピーで分単位かかるので、何も出ないと固まったようにしか見えない。
+  const [moveProgress, setMoveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 })
+  useEffect(() => window.api.onCaptureMoveProgress(setMoveProgress), [])
   const [storageLoading, setStorageLoading] = useState(false)
   const [storageFailed, setStorageFailed] = useState(false)
   const storageRequested = useRef(false)
@@ -485,11 +490,43 @@ export default function SettingsModal(p: Props) {
                   <div style={s.section}>{t('settings.storage')}</div>
                   <div style={s.actionRow}>
                     <div style={s.pathBox}>{storage?.captureDir ?? '—'}</div>
-                    <button style={s.addBtn} onClick={() => window.api.showCapturesFolder()}>
-                      {t('settings.openCapturesFolder')}
+                    {/* 変更したら使用量も出し直す。**古い場所のぶんは新しい場所の数字に
+                        入らない**ので、変えた直後に容量が減って見えるのが正しい。 */}
+                    <button style={s.addBtn} disabled={moveProgress.total > 0} onClick={async () => {
+                        setCaptureRootStatus(null)
+                        const result = await window.api.chooseCaptureRoot()
+                        if (result.ok) {
+                          // 元が既に無くて飛ばしたぶんは、黙って減らさず件数を出す
+                          // （アプリの外で消されたファイルがあった、という手掛かりになる）。
+                          setCaptureRootStatus({
+                            text: t('settings.captureRootChanged', { count: String(result.moved) })
+                              + (result.missing > 0 ? t('settings.captureRootMissingSuffix', { count: String(result.missing) }) : ''),
+                          })
+                          setStorage(await window.api.getStorageInfo())
+                          return
+                        }
+                        // 選ばなかった・移動をやめたときは何も出さない。何も起きていないので。
+                        if (result.reason === 'canceled' || result.reason === 'move-canceled') return
+                        setCaptureRootStatus({
+                          text: t(result.reason === 'invalid' ? 'settings.captureRootInvalid'
+                            : result.reason === 'unwritable' ? 'settings.captureRootUnwritable'
+                            : 'settings.captureMoveFailed'),
+                          error: true,
+                        })
+                      }}>
+                      {t('settings.changeCapturesFolder')}
                     </button>
                   </div>
                   <div style={s.hint}>{t('settings.storageHint')}</div>
+                  {moveProgress.total > 0 && (
+                    <div style={s.actionRow}>
+                      <div style={s.hint}>
+                        {t('settings.captureMoving', { current: String(moveProgress.current), total: String(moveProgress.total) })}
+                      </div>
+                      <button style={s.addBtn} onClick={() => window.api.cancelCaptureMove()}>{t('action.stop')}</button>
+                    </div>
+                  )}
+                  {captureRootStatus && <div style={{ ...s.statusLine, ...(captureRootStatus.error ? s.statusLineError : s.statusLineOk) }}>{captureRootStatus.text}</div>}
                 </div>
                 {/* 書き出し・読み込み・修復はどれも分単位の作業なのに、「今どれだけあるか」が
                     無いまま押すことになっていた。作業ボタンより先に現状を出す。 */}

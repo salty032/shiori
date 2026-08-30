@@ -1,5 +1,5 @@
 ﻿import { ipcRenderer, webUtils } from 'electron'
-import type { ImageRow, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest, StorageInfo } from '../shared/types'
+import type { ImageRow, TagWithCount, Settings, CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, ImageQuery, ImageListRequest, StorageInfo, ChooseCaptureRootResult } from '../shared/types'
 import type { ShioriApi } from '../shared/api'
 import { CH } from '../shared/api'
 
@@ -80,8 +80,14 @@ export function buildCoreApi(): ShioriApi {
     showExtensionFolder: (): Promise<void> =>
       ipcRenderer.invoke(CH.shellShowExtensionFolder),
 
-    showCapturesFolder: (): Promise<void> =>
-      ipcRenderer.invoke(CH.shellShowCapturesFolder),
+    chooseCaptureRoot: (): Promise<ChooseCaptureRootResult> =>
+      ipcRenderer.invoke(CH.storageChooseRoot),
+
+    cancelCaptureMove: (): Promise<void> =>
+      ipcRenderer.invoke(CH.storageCancelMove),
+
+    onCaptureMoveProgress: (cb: (data: { current: number; total: number }) => void) =>
+      listen<{ current: number; total: number }>(CH.storageMoveProgress, cb),
 
     getStorageInfo: (): Promise<StorageInfo> =>
       ipcRenderer.invoke(CH.storageGetInfo),

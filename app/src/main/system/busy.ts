@@ -12,7 +12,7 @@ import type { MessageKey } from '../../shared/i18n'
 // 丸ごとの受け渡し。**別の名前で出す**——画面ではこの 2 つを「取り込み」と「インポート」
 // で呼び分けているので、更新ダイアログでどちらも「取り込み」と出ると、走っている作業と
 // 押したボタンの名前が食い違う。
-type BusyTask = 'import' | 'library-import' | 'export' | 'retag' | 'model-download' | 'thumb-repair'
+type BusyTask = 'import' | 'library-import' | 'export' | 'retag' | 'model-download' | 'thumb-repair' | 'capture-move'
 
 // 表示直前に翻訳する必要があるため、ここでは辞書キーだけを持つ。
 const LABEL_KEYS: Record<BusyTask, MessageKey> = {
@@ -21,7 +21,8 @@ const LABEL_KEYS: Record<BusyTask, MessageKey> = {
   export: 'busy.export',
   retag: 'busy.retag',
   'model-download': 'busy.modelDownload',
-  'thumb-repair': 'busy.thumbRepair'
+  'thumb-repair': 'busy.thumbRepair',
+  'capture-move': 'busy.captureMove'
 }
 
 // 同種タスクが同時に走ることはない（各モジュールが単一フラグで排他している）が、

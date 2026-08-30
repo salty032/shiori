@@ -34,6 +34,12 @@ export const en: Record<keyof typeof ja, string> = {
   'dialog.updateBusy.proceed': 'Stop and update',
   'dialog.updateBusy.cancel': 'Cancel',
   'dialog.exportFolder': 'Choose a folder to export to',
+  'dialog.moveCaptures.title': 'Change save location',
+  'dialog.moveCaptures.message': 'Move {count} files ({size}) to {dest}?',
+  'dialog.moveCaptures.detail':
+    'This copies the files, so it can take several minutes. The destination needs twice the space while it runs.\n\n' +
+    'If you stop it, or it fails, nothing changes — the save location and your records stay as they are.',
+  'dialog.moveCaptures.proceed': 'Move',
   'dialog.importFolder': 'Choose a folder to import',
   'list.separator': ', ',
 
@@ -44,6 +50,7 @@ export const en: Record<keyof typeof ja, string> = {
   'busy.retag': 'AI tagging',
   'busy.modelDownload': 'AI model download',
   'busy.thumbRepair': 'Thumbnail repair',
+  'busy.captureMove': 'Moving captures',
 
   // ── Fatal startup errors ─────────────────────────────────────
   'error.dbOpen':
@@ -566,8 +573,15 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.showAiTags': 'Show AI tags in the sidebar too',
   'settings.showAiTagsHint': 'While off, only manual tags are shown. Turning it on also shows AI tags, but manual tags stay at the top.',
   'settings.storage': 'Storage location',
-  'settings.openCapturesFolder': 'Open folder',
-  'settings.storageHint': 'Everything you capture is stored here. This location cannot be changed.',
+  'settings.changeCapturesFolder': 'Change...',
+  'settings.chooseCapturesFolder': 'Choose a folder to save captures in',
+  'settings.captureRootChanged': 'Save location changed ({count} files moved).',
+  'settings.captureRootMissingSuffix': ' {count} files were left alone because the originals were missing.',
+  'settings.captureMoving': 'Moving... {current} / {total}',
+  'settings.captureMoveFailed': 'Nothing was changed because the move could not finish. Check free space on the destination and that the drive is connected.',
+  'settings.captureRootInvalid': 'This folder cannot be used. A drive root, or a folder containing Shiori’s own data, cannot be chosen.',
+  'settings.captureRootUnwritable': 'Shiori could not write here. Choose another folder, or check that the drive is connected.',
+  'settings.storageHint': 'Everything you capture is stored here. If you change it, only new captures go to the new folder — what you already have stays where it is and still opens.',
   'settings.usage': 'Disk usage',
   'settings.usageCalculating': 'Calculating...',
   'settings.usageFailed': 'Could not read disk usage. Try reopening settings.',

@@ -124,6 +124,12 @@ export type Settings = {
   // 'fhd'/'hd' を選んだときだけ本物の細かさが落ちる。'screen' は画面のまま（従来の動き）。
   // 録画クリップには効かない——あちらはコマ送りで数える元なので絵を作り直さない。
   captureResize: CaptureResize
+  // 撮ったものを置く場所。null は既定（userData/captures）。静止画も録画も同じ場所に入る。
+  captureRoot: string | null
+  // 過去に使った保存先。**読み出しを許し続けるためだけに持つ。**
+  // 記録しているのは絶対パスなので、ここを捨てると保存先を変えた瞬間に、それまでに
+  // 撮ったものが 1 枚も開けなくなる（既定の場所は常に許可するのでここには入れない）。
+  previousCaptureRoots: string[]
   // 前回起動時のアプリバージョン。起動時に現行バージョンと比較し、自動アップデートが
   // （サイレント適用も含め）行われたことを一度だけ通知するために使う。初回起動は null。
   lastRunVersion: string | null
@@ -172,5 +178,13 @@ export type StorageInfo = {
   imageCount: number
   videoCount: number
 }
+// 保存先の変更結果。**「選ばなかった」と「選べなかった」を分ける**——どちらも
+// 変わらないが、前者は画面に何も出す必要がなく、後者は理由を出さないといけない。
+export type ChooseCaptureRootResult =
+  // moved は移したファイルの数、missing は元が既に無くて飛ばした数（アプリの外で
+  // 消されたもの）。移すものが無ければどちらも 0 で、保存先だけが変わる。
+  | { ok: true; path: string; moved: number; missing: number }
+  | { ok: false; reason: 'canceled' | 'invalid' | 'unwritable' | 'move-canceled' | 'move-failed' }
+
 export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string }
 export type WhatsNewData = { version: string; notes: string[] }
