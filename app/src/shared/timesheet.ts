@@ -59,6 +59,46 @@ export function buildToeiClipboard(marks: readonly TimesheetMark[], total: numbe
   return `${TOEI_CLIPBOARD_HEADER}\n${JSON.stringify(body, null, 4)}\n`
 }
 
+// 元の動画のコマの並び。値は表の行の添字で、GAP_ROW は「表に行が無いコマ」（抜け）。
+//
+// **抜けのぶんだけ空のコマを差し込む。** 表の行をそのまま上から並べると、抜けた枚数だけ
+// 全体が詰まり、そこから下のコマ番号が元の動画とずれる——しかも画面には何も出ない。
+// 差し込めば番号は元の動画と一致し、打つ人には「ここは数えられない」場所が見える。
+//
+// 抜けた枚数は、前後のコマ時刻の差をコマ間隔で割った推定値（frame-feed.ts）。だから
+// 抜けが多いクリップほど並び全体が信用できなくなる。**どこまで許すかは
+// canBuildTimesheet が決める**（ここは並べるだけ）。
+export const GAP_ROW = -1
+
+export function timesheetRows(frames: ClipFrames | null | undefined): number[] {
+  const total = frames?.pts.length ?? 0
+  if (total === 0) return []
+  const missingAfter = new Map<number, number>()
+  for (const gap of frames?.gaps ?? []) {
+    missingAfter.set(gap.afterIndex, (missingAfter.get(gap.afterIndex) ?? 0) + gap.missing)
+  }
+  const rows: number[] = []
+  for (let i = 0; i < total; i++) {
+    rows.push(i)
+    for (let k = 0; k < (missingAfter.get(i) ?? 0); k++) rows.push(GAP_ROW)
+  }
+  return rows
+}
+
+// 打った内容の添字を、表の行から元の動画のコマ番号へ移す。**保存してあるのは表の行の
+// 添字のまま**にしておく——抜けの推定が後で変わっても、打った内容が別のコマを指すように
+// ならない。移すのは書き出すときと表示するときだけ。
+export function expandMarks(marks: readonly TimesheetMark[], rows: readonly number[]): TimesheetMark[] {
+  const positionOf = new Map<number, number>()
+  rows.forEach((row, position) => { if (row !== GAP_ROW) positionOf.set(row, position) })
+  const out: TimesheetMark[] = []
+  for (const mark of marks) {
+    const position = positionOf.get(mark.frame)
+    if (position !== undefined) out.push({ ...mark, frame: position })
+  }
+  return out
+}
+
 // タイムシートを出してよいクリップか。
 //
 // **判断を「番号が素材と一致するか」と「その位置の絵が見えるか」に分ける。**
@@ -66,10 +106,15 @@ export function buildToeiClipboard(marks: readonly TimesheetMark[], total: numbe
 //
 // ## 出さない（番号が信用できない）
 //
-// **未通知の抜け（gaps）が 1 つでもあれば出さない。** ページがコマを描かず知らせも来なかった
-// ところは、表に**行そのものが無い**。1 コマ抜けるとそこから下の番号が全部素材とずれ、
-// **ずれても画面には何も出ない**（コマ送りは動き、枚数も割合も合ったまま隣のコマが出る）。
-// ここだけは割合で見ない——1 コマずれた表は 100 コマずれた表と同じだけ使えない。
+// **抜け（gaps）は、その位置に空のコマを差し込んで出す。** ページがコマを描かず知らせも
+// 来なかったところは表に行そのものが無く、そのまま並べると抜けた枚数だけ下が詰まって
+// 番号がずれる。以前はこれを理由に 1 コマでも抜けたら出さないことにしていたが、
+// **場所も枚数も分かっている**（frameGaps）以上、差し込めば番号は合う（timesheetRows）。
+// 実際、646 コマ中 3 コマの抜けで表が丸ごと出せないのはただ面倒なだけだった。
+//
+// ただし抜けた枚数は推定値（前後の時刻の差 ÷ コマ間隔）なので、多いほど並び全体が
+// 信用できない。**線は撮り逃しと同じ割合・同じ定数で引く**——詳細パネルが「要注意」を
+// 出す条件と揃えることで、「赤いのに出せる／出せないのに白い」が起きないようにする。
 //
 // **対応崩れ（misaligned）も 1 つでも不可。** 出ている絵が何なのか分からない以上、
 // 打った位置がどのコマなのかも決められない。
@@ -101,8 +146,9 @@ export function canBuildTimesheet(frames: ClipFrames | null | undefined, fps: nu
   // quality は sourceBased のときだけ pts と同じ長さで入る。欠けている＝コマごとの
   // 確からしさが分からないということなので、その時点で出さない。
   if (frames.quality.length !== frames.pts.length) return false
-  if ((frames.gaps ?? []).some((g) => g.missing >= 1)) return false
   if (frames.quality.some((q) => q === FRAME_QUALITY.misaligned)) return false
+  const missing = (frames.gaps ?? []).reduce((sum, gap) => sum + gap.missing, 0)
+  if (missing / (frames.pts.length + missing) > SEVERE_FRAME_RATIO) return false
   return countReusedFrames(frames) / frames.quality.length <= SEVERE_FRAME_RATIO
 }
 

@@ -275,7 +275,7 @@ export function bootstrap(features: MainFeature[] = []): void {
       sendBrowserNotice('warning', t('notice.captureBlackScreen'))
     })
 
-    onCaptureDone(async (imagePath, context, size, origSize) => {
+    onCaptureDone(async (imagePath, context, size) => {
       const timecode = (context as { title: string; currentTime: number | null; url: string | null } | null) ?? getLastTimecode()
 
       const thumbPath = thumbPathFor(imagePath)
@@ -295,10 +295,6 @@ export function bootstrap(features: MainFeature[] = []): void {
           // 「何ピクセルで撮ったか」は後から画面で読めないと画質の判断ができない。
           width: size?.width ?? null,
           height: size?.height ?? null,
-          // 縮めて保存したときだけ入る「縮める前」の画素数。詳細に元の大きさを出して
-          // 「この絵は縮めてある」と読めるようにするために持つ。
-          orig_width: origSize?.width ?? null,
-          orig_height: origSize?.height ?? null,
           colors: null,
           memo: null,
           media_type: 'image',

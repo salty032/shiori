@@ -4,7 +4,7 @@ import { font, radius, space } from '../styles'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
-import { requiredSheetLength, timesheetGlyph, timesheetLabels, TOEI_SYMBOL } from '../../../shared/timesheet'
+import { GAP_ROW, requiredSheetLength, timesheetGlyph, timesheetLabels, TOEI_SYMBOL } from '../../../shared/timesheet'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { XIcon } from './Icon'
 
@@ -58,6 +58,10 @@ const c = {
   // 選択中のマス（実物の選択色と同じ薄い青）。
   sel: '#bcd9f2',
   selRow: 'rgba(188,217,242,0.30)',
+  // 抜けのコマ（元の動画にはあるが、表に行が無いところ）。**打てないことが見て分かる
+  // 濃さにする**——秒の地色より暗い灰で、記号も縦線も入らない空の行として並ぶ。
+  // 用紙には無い色だが、用紙にはそもそも「知らせが来なかったコマ」という概念が無い。
+  gapRow: '#d9dde3',
 }
 
 const CELL_COLS = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
@@ -94,7 +98,7 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
     currentRowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [sheet.current])
 
-  const { total, marks, current, pending } = sheet
+  const { total, rows, marks, current, pending } = sheet
   const labels = timesheetLabels(marks)
   const labelAt = new Array<string | null>(total).fill(null)
   marks.forEach((mark, i) => { if (mark.frame < total) labelAt[mark.frame] = labels[i] })
@@ -110,7 +114,9 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
   }
 
   const perSecond = Math.max(1, Math.round(fps))
-  const need = requiredSheetLength(total, fps)
+  // 秒の区切りも貼り付け先で要る尺も、**抜けを含めた並び**で数える。表の行数で数えると、
+  // 抜けたぶんだけ短い尺を要求することになり、貼り付け先で下がずれる。
+  const need = requiredSheetLength(rows.length, fps)
 
   function cellBorder(i: number): string {
     if (i === 0) return '1px solid transparent'
@@ -162,20 +168,24 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
           </div>
 
           <div style={st.body}>
-            {Array.from({ length: total }, (_, i) => {
-              const label = labelAt[i]
-              const isCurrent = i === current
-              const secondIdx = Math.floor(i / perSecond)
+            {/* **並ぶのは元の動画のコマ**で、表の行ではない（rows）。抜けの位置には空のコマが
+                入っていて、そこは打てないし、コマ送りで止まることもできない。差し込まないと
+                抜けた枚数だけ下が詰まり、番号が元の動画とずれる。 */}
+            {rows.map((i, position) => {
+              const isGap = i === GAP_ROW
+              const label = isGap ? null : labelAt[i]
+              const isCurrent = !isGap && i === current
+              const secondIdx = Math.floor(position / perSecond)
               // 秒のブロックごとに地色を替える（実物と同じ）。1 秒の切れ目が目で追える。
               const band = secondIdx % 2 === 0 ? c.bandA : c.bandB
-              const border = cellBorder(i)
-              const isSecondEnd = i % perSecond === perSecond - 1
+              const border = cellBorder(position)
+              const isSecondEnd = position % perSecond === perSecond - 1
               return (
                 <div
-                  key={i}
+                  key={position}
                   ref={isCurrent ? currentRowRef : undefined}
-                  style={{ display: 'flex', height: ROW_H, background: isCurrent ? c.selRow : undefined, cursor: 'pointer' }}
-                  onClick={() => sheet.seek(i)}>
+                  style={{ display: 'flex', height: ROW_H, background: isCurrent ? c.selRow : undefined, cursor: isGap ? 'default' : 'pointer' }}
+                  onClick={() => { if (!isGap) sheet.seek(i) }}>
                   {CELL_COLS.map((label2, col) => {
                     const isWrite = col === WRITE_COL
                     return (
@@ -183,22 +193,25 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                         key={`c${label2}`}
                         style={{
                           ...st.cell, width: W.cell, borderTop: border, position: 'relative',
-                          background: isWrite && isCurrent ? c.sel : band,
+                          background: isGap ? c.gapRow : (isWrite && isCurrent ? c.sel : band),
                           fontWeight: 800, color: c.ink,
                         }}>
-                        {isWrite && (isCurrent && pending
+                        {!isGap && isWrite && (isCurrent && pending
                           ? <span style={{ opacity: 0.6, borderBottom: `1px solid ${c.ink}` }}>{timesheetGlyph(pending)}</span>
                           : label !== null ? timesheetGlyph(label) : '')}
-                        {isWrite && held[i] && !(isCurrent && pending) && (
+                        {/* 絵が続いていることを示す縦線は、抜けをまたいで伸ばさない。
+                            **抜けた区間で新しい絵が始まっていても分からない**ので、
+                            続いていると請け合えない。 */}
+                        {!isGap && isWrite && held[i] && !(isCurrent && pending) && (
                           <span style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, background: c.ink, opacity: 0.7 }} />
                         )}
                       </div>
                     )
                   })}
                   {/* コマ目盛り。秒はブロックの最終行、コマ番号は 2 コマごと（実物と同じ間引き）。 */}
-                  <div style={{ ...st.cell, width: W.counter, background: c.counterBg, borderTop: border, borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
+                  <div style={{ ...st.cell, width: W.counter, background: isGap ? c.gapRow : c.counterBg, borderTop: border, borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
                     <span style={{ fontWeight: 700 }}>{isSecondEnd ? secondIdx + 1 : ''}</span>
-                    <span>{(i + 1) % 2 === 0 ? i + 1 : ''}</span>
+                    <span>{(position + 1) % 2 === 0 ? position + 1 : ''}</span>
                   </div>
                 </div>
               )

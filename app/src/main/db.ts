@@ -87,8 +87,6 @@ const PUBLIC_IMAGE_COLUMNS = [
   '"fps"',
   '"width"',
   '"height"',
-  '"orig_width"',
-  '"orig_height"',
   '"uncaptured_frames"',
   '"ambiguous_frames"',
   '"source_frames"',
@@ -104,17 +102,13 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   const source = params.source ?? 'capture'
   const searchText = buildSearchText(params.title, params.memo)
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, original_captured_at, title, current_time, url, width, height, orig_width, orig_height, colors, memo, media_type, duration, fps, thumb_path, host, source, search_text)
-     VALUES (@filepath, @captured_at, @original_captured_at, @title, @current_time, @url, @width, @height, @orig_width, @orig_height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
+    `INSERT INTO images (filepath, captured_at, original_captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source, search_text)
+     VALUES (@filepath, @captured_at, @original_captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
   )
   const result = stmt.run({
     ...params,
     current_time: normalizeCurrentTime(params.current_time),
     original_captured_at: params.original_captured_at ?? null,
-    // 縮めずに保存した経路（取り込み・共有インポート・録画）は渡してこない。
-    // 名前付きパラメータは欠けると実行時に落ちるので、ここで必ず埋める。
-    orig_width: params.orig_width ?? null,
-    orig_height: params.orig_height ?? null,
     host, source, search_text: searchText
   })
   return Number(result.lastInsertRowid)

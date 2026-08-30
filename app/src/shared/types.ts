@@ -34,11 +34,6 @@ export type ImageRow = {
   // null は「記録が無い」（従来の行・取り込み動画・共有インポート）。
   width: number | null
   height: number | null
-  // 縮めて保存したときの、縮める前の画素数。等倍で保存した行では null。
-  // **「この絵は縮めてある」と画面から読めるようにするためだけに持つ。**
-  // width/height だけでは、元が何ピクセルだったのか後から誰にも分からない。
-  orig_width?: number | null
-  orig_height?: number | null
   // 素材のコマのうち、専用の絵を撮れなかった枚数。
   // 録画クリップにしか意味が無く、静止画・取り込み・従来のクリップでは付かないため任意。
   // null/undefined は「コマ精度の情報が無い」を意味する。

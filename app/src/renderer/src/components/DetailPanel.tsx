@@ -498,16 +498,8 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   **一覧（ThumbCell）には出さない**方針は従来どおり。 */}
               <div style={s.subtleRow}>
                 <span style={s.subtleLabel}>{t('detail.resolution')}</span>
-                {/* 縮めて保存した絵には、縮める前の大きさを併記する。**黙って小さくしないため
-                    の一行**で、これが無いと「この 1920×1080 は元からそうなのか、設定で削られた
-                    のか」が画面から永久に分からない。等倍の絵には出さない（全部に付けると
-                    今度は等倍であることが読めなくなる）。 */}
                 <span style={s.subtleValue}>
-                  {single.width != null && single.height != null
-                    ? single.orig_width != null && single.orig_height != null
-                      ? `${single.width} × ${single.height}${t('detail.resolutionShrunk', { w: String(single.orig_width), h: String(single.orig_height) })}`
-                      : `${single.width} × ${single.height}`
-                    : '—'}
+                  {single.width != null && single.height != null ? `${single.width} × ${single.height}` : '—'}
                 </span>
               </div>
               {single.media_type === 'video' && (

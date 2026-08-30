@@ -488,8 +488,6 @@ export const ja = {
   'detail.duration': '長さ',
   'detail.fps': 'FPS',
   'detail.resolution': '解像度',
-  // 縮めて保存した絵にだけ付く。等倍の絵には付かない（付けると等倍だと読めなくなる）。
-  'detail.resolutionShrunk': '（元 {w} × {h}）',
   // コマ送りの注記と同じ括り。抜け（コマ自体が無い）もずれ（絵が別のコマ）も、
   // そのコマだけの問題ではなくクリップ全体の話なので**枚数を出さない**。
   'detail.unreliable': '要注意',
@@ -664,7 +662,10 @@ export const ja = {
   'settings.usageModelAbsent': '未取得',
   'settings.videoExport': '動画の変換',
   'settings.captureResize': '保存する解像度',
-  'settings.captureResizeTarget': '静止画',
+  // すぐ上の使用量が「画像 {images}枚 ／ 動画 {videos}本」なので、ここも「画像」で通す
+  // （「静止画」はこのアプリの他のどこにも無い語だった）。行の名前で「録画には効かない」
+  // ことを読み取らせる狙いはそのまま。
+  'settings.captureResizeTarget': '画像',
   // 4 つとも「上限をどこに置くか」で読めるようにする。中の 2 つが具体的な上限なので、
   // 両端も上限の言葉で揃える——「自動」は上限を配信の映像に合わせる、「上限なし」は置かない。
   // 「配信のまま」「画面のまま」と並べたことがあるが、どちらが大きいのか読めず分かりにくかった。

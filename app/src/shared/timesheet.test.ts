@@ -5,10 +5,13 @@ import {
   countReusedFrames,
   decodeTimesheet,
   encodeTimesheet,
+  expandMarks,
+  GAP_ROW,
   normalizeTimesheetValue,
   requiredSheetLength,
   timesheetGlyph,
   timesheetLabels,
+  timesheetRows,
   TOEI_SYMBOL,
   TOEI_CLIPBOARD_HEADER,
   TOEI_FRAME_BASE,
@@ -212,15 +215,18 @@ describe('canBuildTimesheet', () => {
     expect(canBuildTimesheet({ pts: [0, 1, 2], sourceBased: true, quality: captured(2) }, 24)).toBe(false)
   })
 
-  // **quality だけを見ていると通ってしまう。** 抜けたコマは表に行が無いので、残った行は
-  // すべて captured のまま。ここが緩むと、番号が素材からずれた表を作れてしまう。
-  it('未通知の抜けが 1 コマでもあれば出さない（quality には現れない）', () => {
+  // 抜けは、その位置に空のコマを差し込んで出す（timesheetRows）。場所も枚数も分かって
+  // いるので番号は元の動画と一致する。**quality には現れない**（抜けたコマは表に行が
+  // 無いので、残った行はすべて captured のまま）ため、gaps を直に見る必要がある。
+  it('少しの抜けなら出す（差し込んで番号を合わせる）', () => {
     const frames = { ...clip(captured(100)), gaps: [{ afterIndex: 42, missing: 1 }] }
     expect(frames.quality.every((q) => q === FRAME_QUALITY.captured)).toBe(true)
-    expect(canBuildTimesheet(frames, 24)).toBe(false)
+    expect(canBuildTimesheet(frames, 24)).toBe(true)
   })
 
-  it('抜けを割合では見ない（1 コマの抜けと大量の抜けを区別しない）', () => {
+  // 抜けた枚数は推定値なので、多いほど並び全体が信用できない。線は撮り逃しと同じ割合・
+  // 同じ定数で引く（詳細パネルが「要注意」を出す条件と揃える）。
+  it('抜けが多すぎるものは出さない', () => {
     const many = { ...clip(captured(100)), gaps: [{ afterIndex: 10, missing: 40 }] }
     expect(canBuildTimesheet(many, 24)).toBe(false)
   })
@@ -337,5 +343,47 @@ describe('requiredSheetLength', () => {
   it('23.976 のような端数の fps は四捨五入して 24 コマで割る', () => {
     expect(requiredSheetLength(720, 23.976)).toEqual({ seconds: 30, frames: 0 })
     expect(requiredSheetLength(899, 29.97)).toEqual({ seconds: 29, frames: 29 })
+  })
+})
+
+describe('timesheetRows', () => {
+  const clipOf = (n: number, gaps?: { afterIndex: number; missing: number }[]) => ({
+    pts: Array.from({ length: n }, (_, i) => i / 24),
+    sourceBased: true,
+    quality: Array.from({ length: n }, () => FRAME_QUALITY.captured),
+    gaps,
+  })
+
+  it('抜けが無ければ表の行がそのまま並ぶ', () => {
+    expect(timesheetRows(clipOf(3))).toEqual([0, 1, 2])
+  })
+
+  // ここが肝。差し込まないと、抜けた枚数だけ下が詰まって番号が元の動画とずれる。
+  it('抜けの位置に、抜けた枚数だけ空のコマが入る', () => {
+    expect(timesheetRows(clipOf(3, [{ afterIndex: 0, missing: 2 }])))
+      .toEqual([0, GAP_ROW, GAP_ROW, 1, 2])
+  })
+
+  it('抜けが複数あっても、それぞれの位置に入る', () => {
+    expect(timesheetRows(clipOf(3, [{ afterIndex: 0, missing: 1 }, { afterIndex: 2, missing: 1 }])))
+      .toEqual([0, GAP_ROW, 1, 2, GAP_ROW])
+  })
+
+  it('表が空なら何も並ばない', () => {
+    expect(timesheetRows(null)).toEqual([])
+  })
+})
+
+describe('expandMarks', () => {
+  // 打った内容は表の行の添字で保存してある。書き出すときだけ、抜けを含めた位置へ移す。
+  it('抜けのぶんだけ後ろへずれる', () => {
+    const rows = [0, GAP_ROW, GAP_ROW, 1, 2]
+    expect(expandMarks([{ frame: 0 }, { frame: 1 }, { frame: 2 }], rows))
+      .toEqual([{ frame: 0 }, { frame: 3 }, { frame: 4 }])
+  })
+
+  it('打った内容（動画番号・メモ）はそのまま持ち越す', () => {
+    expect(expandMarks([{ frame: 1, value: 'A1', memo: 'め' }], [0, GAP_ROW, 1]))
+      .toEqual([{ frame: 2, value: 'A1', memo: 'め' }])
   })
 })

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ClipFrames } from '../../../shared/api.video'
 import { TIMESHEET_LOCKED } from '../timesheetLock'
 import {
   buildToeiClipboard, canBuildTimesheet, countReusedFrames, decodeTimesheet, encodeTimesheet,
-  isToeiSymbol, normalizeTimesheetValue, TOEI_SYMBOL, type TimesheetMark
+  expandMarks, isToeiSymbol, normalizeTimesheetValue, timesheetRows, TOEI_SYMBOL, type TimesheetMark
 } from '../../../shared/timesheet'
 
 // 記号の入力キー。**東映デジタルタイムシートの割り当てをそのまま使う**（F1/F2/F3 と
@@ -56,6 +56,9 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   const ready = !TIMESHEET_LOCKED && canBuildTimesheet(clipFrames, fps)
   const visible = ready && open
   const total = clipFrames?.pts.length ?? 0
+  // 元の動画のコマの並び（抜けの位置に空のコマが入る）。表示も書き出しもこれを母数にする
+  // ——表の行をそのまま並べると、抜けたぶんだけ下が詰まって番号が元の動画とずれる。
+  const rows = useMemo(() => timesheetRows(clipFrames), [clipFrames])
   // 専用の絵が撮れなかったコマ数。**番号はずれていない**（canBuildTimesheet の注記）が、
   // そのコマは直前と同じ絵が出ているだけなので、そこで新しい絵が始まっていても見えない。
   // 表を開くと詳細パネルが隠れるため、打っている場所から読めるのはここだけ。
@@ -107,12 +110,14 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
 
   const copy = useCallback(async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(buildToeiClipboard(marks, total))
+      // 打った内容は表の行の添字で持っている。書き出すときだけ、抜けを含めた並びの
+      // 位置へ移す（そうしないと貼り付け先で抜けたぶんだけ上へずれる）。
+      await navigator.clipboard.writeText(buildToeiClipboard(expandMarks(marks, rows), rows.length))
       setCopied(true)
     } catch (err) {
       console.warn('[timesheet] clipboard write failed', err)
     }
-  }, [marks, total])
+  }, [marks, rows])
 
   const bindPlayer = useCallback((player: TimesheetPlayer | null) => { playerRef.current = player }, [])
   const seek = useCallback((frame: number) => playerRef.current?.goToFrame(frame), [])
@@ -174,7 +179,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   }, [visible, pending, marks, current, apply])
 
   return {
-    ready, visible, open, setOpen, total, current, marks, pending, copied, reused,
+    ready, visible, open, setOpen, total, rows, current, marks, pending, copied, reused,
     onFramesReady, onFrameIndex, setMemo, copy, handleKey, bindPlayer, seek,
   }
 }

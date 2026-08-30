@@ -82,14 +82,10 @@ async function listDisplaysCached(): Promise<DisplayList> {
 type CaptureContext = unknown
 // size は保存した画像の画素数。ファイルを開き直さずに済むよう、その場の値をそのまま渡す。
 // 取れない経路のために null を許すが、通常は必ず入る。
-// origSize は縮めて保存したときの「縮める前」の画素数で、等倍で保存したときは null。
-// **画面に「これは縮めてある」と出すためだけに要る**——size だけでは元が何ピクセル
-// だったのか後から誰にも分からない。
 type CaptureHandler = (
   imagePath: string,
   context: CaptureContext,
-  size: { width: number; height: number } | null,
-  origSize: { width: number; height: number } | null
+  size: { width: number; height: number } | null
 ) => void | Promise<void>
 type AsyncHook = () => Promise<CaptureContext>
 type SyncHook = () => void
@@ -328,11 +324,10 @@ export async function writeCaptureFile(dir: string, data: Buffer, ext = '.png'):
 async function notifyCaptureDone(
   imagePath: string,
   context: CaptureContext,
-  size: { width: number; height: number } | null,
-  origSize: { width: number; height: number } | null
+  size: { width: number; height: number } | null
 ): Promise<void> {
   const results = await Promise.allSettled(
-    handlers.map((handler) => Promise.resolve().then(() => handler(imagePath, context, size, origSize)))
+    handlers.map((handler) => Promise.resolve().then(() => handler(imagePath, context, size)))
   )
   for (const result of results) {
     if (result.status === 'rejected') console.error('[capture] done handler failed', result.reason)
@@ -399,11 +394,17 @@ async function captureScreen(): Promise<string> {
         // ここまで来た絵は動画の枠しか含んでいないので、外から混ざるものが無い。
         // 黒画面の判定は縮小の前に済ませてある（縮めても結果は変わらないが、判定の条件を
         // 設定で動かさないため）。
-        const cropSize = cropped.getSize()
         const limit = resolveCaptureHeightLimit(loadSettings().captureResize, sourceVideoSize?.height ?? null)
-        const shrink = limit != null && cropSize.height > limit
         // quality: 'best' を明示する。アニメは線が細く、粗い縮め方だと画面で分かる。
-        const output = shrink ? cropped.resize({ height: limit, quality: 'best' }) : cropped
+        //
+        // **縮める前の画素数は記録しない。** 一度は残していたが、あれは「画面上で何ピクセル
+        // あったか」で、4K の画面で 1080p の配信を見ていれば 2160 になる——引き伸ばされた
+        // 結果の数で、中身は最初から 1080 ぶんしかない。詳細に「元 3840 × 2160」と出すと、
+        // 何も失われていないのに半分に削られたように読める（2026-08-30 の判断）。
+        // 本当に粗くなるのは 1080p / 720p を自分で選んだときだけで、それは全体にかけた設定。
+        const output = limit != null && cropped.getSize().height > limit
+          ? cropped.resize({ height: limit, quality: 'best' })
+          : cropped
         // 有効なクロップが確定してから保存先サブフォルダを作る。前面/動画未検出/クロップ不正で
         // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
         const dir = await ensureCaptureSubDir(Date.now())
@@ -411,8 +412,7 @@ async function captureScreen(): Promise<string> {
         const size = output.getSize()
         await notifyCaptureDone(
           filepath, context,
-          size.width > 0 && size.height > 0 ? size : null,
-          shrink && cropSize.width > 0 && cropSize.height > 0 ? cropSize : null
+          size.width > 0 && size.height > 0 ? size : null
         )
         return filepath
       }
