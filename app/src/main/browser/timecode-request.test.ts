@@ -13,7 +13,7 @@ function harness() {
     handler?.({
       type: 'timecode', requestId: 'req', title: 'title', currentTime: 1, url: null,
       focused: false, windowLeft: 0, windowTop: 0, windowWidth: 100, windowHeight: 100,
-      innerWidth: 100, innerHeight: 100, devicePixelRatio: 1, videoRect: null, fullscreen: false,
+      innerWidth: 100, innerHeight: 100, devicePixelRatio: 1, videoRect: null, videoSize: null, fullscreen: false,
       frameDurMs: null,
       ...overrides
     })

@@ -750,6 +750,7 @@ export default function App() {
             onUpdateShowAiTags={settings.updateShowAiTags}
             onUpdateTheme={settings.updateTheme}
             onUpdateVideoExportFormat={settings.updateVideoExportFormat}
+            onUpdateCaptureResize={settings.updateCaptureResize}
             onUpdateLanguage={settings.updateLanguage}
             onTaggerDownload={tagger.handleTaggerDownload}
             onTaggerCancelDownload={tagger.handleTaggerCancelDownload}

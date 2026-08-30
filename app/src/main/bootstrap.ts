@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs'
 import { stopWsServer, broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse } from './browser/ws-server'
 import { WS_PORTS } from '../shared/wire-limits'
 import {
-  registerHotkey, changeHotkey, onCaptureDone,
+  registerHotkey, changeHotkey, onCaptureDone, setSourceVideoSize,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, SilentCaptureAbort
 } from './capture/capture'
@@ -242,6 +242,10 @@ export function bootstrap(features: MainFeature[] = []): void {
       if (latest) {
         setLastTimecode(latest)
       }
+      // 静止画の大きさの上限に使う映像の実寸は、**今の返事に入っていた値だけ**を渡す。
+      // 返事が間に合わなかった撮影（下の fallback で続行するケース）では null になり、
+      // capture 側は縮めない。古い値で縮めると、画質が上がった直後の絵を削ってしまう。
+      setSourceVideoSize(latest?.videoSize ?? null)
       const tc = getLastTimecode()
       const timecodeAge = Date.now() - getLastTimecodeAt()
       const hasCaptureTimecode = latest !== null || timecodeAge <= CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS
@@ -271,7 +275,7 @@ export function bootstrap(features: MainFeature[] = []): void {
       sendBrowserNotice('warning', t('notice.captureBlackScreen'))
     })
 
-    onCaptureDone(async (imagePath, context, size) => {
+    onCaptureDone(async (imagePath, context, size, origSize) => {
       const timecode = (context as { title: string; currentTime: number | null; url: string | null } | null) ?? getLastTimecode()
 
       const thumbPath = thumbPathFor(imagePath)
@@ -291,6 +295,10 @@ export function bootstrap(features: MainFeature[] = []): void {
           // 「何ピクセルで撮ったか」は後から画面で読めないと画質の判断ができない。
           width: size?.width ?? null,
           height: size?.height ?? null,
+          // 縮めて保存したときだけ入る「縮める前」の画素数。詳細に元の大きさを出して
+          // 「この絵は縮めてある」と読めるようにするために持つ。
+          orig_width: origSize?.width ?? null,
+          orig_height: origSize?.height ?? null,
           colors: null,
           memo: null,
           media_type: 'image',

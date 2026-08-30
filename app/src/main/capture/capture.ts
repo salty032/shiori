@@ -5,6 +5,8 @@ import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { ensureCaptureSubDir } from '../system/paths'
 import { t } from '../system/i18n'
+import { loadSettings } from '../system/settings'
+import type { CaptureResize } from '../../shared/types'
 
 export type CropRect = { x: number; y: number; w: number; h: number }
 
@@ -74,12 +76,16 @@ async function listDisplaysCached(): Promise<DisplayList> {
 // preCaptureHook が確定したキャプチャ時点のコンテキスト（タイムコード等）を
 // onCaptureDone まで引き回すための型。capture.ts は中身に関知しない。
 type CaptureContext = unknown
-// size は保存した画像の画素数（クロップ後）。ファイルを開き直さずに済むよう、切り出した
-// 時点の値をそのまま渡す。取れない経路のために null を許すが、通常は必ず入る。
+// size は保存した画像の画素数。ファイルを開き直さずに済むよう、その場の値をそのまま渡す。
+// 取れない経路のために null を許すが、通常は必ず入る。
+// origSize は縮めて保存したときの「縮める前」の画素数で、等倍で保存したときは null。
+// **画面に「これは縮めてある」と出すためだけに要る**——size だけでは元が何ピクセル
+// だったのか後から誰にも分からない。
 type CaptureHandler = (
   imagePath: string,
   context: CaptureContext,
-  size: { width: number; height: number } | null
+  size: { width: number; height: number } | null,
+  origSize: { width: number; height: number } | null
 ) => void | Promise<void>
 type AsyncHook = () => Promise<CaptureContext>
 type SyncHook = () => void
@@ -149,6 +155,38 @@ export function setVideoRect(
 
 export function setBrowserFullscreen(fs: boolean): void {
   browserFullscreen = fs
+}
+
+// 撮る直前に配信ページから返ってきた「映像そのものの画素数」。表示上の大きさではない。
+// **preCaptureHook が、その場の返事から取れた値だけを入れる。** 定期送信で流れてくる値を
+// 使い回すと、画質が切り替わった直後に古い値で縮めてしまい、本物の細かさを捨てうる。
+// 返事が間に合わなかった撮影では null のままになり、そのときは縮めない。
+let sourceVideoSize: { width: number; height: number } | null = null
+
+export function setSourceVideoSize(size: { width: number; height: number } | null): void {
+  sourceVideoSize = size
+}
+
+// 静止画を保存するときの高さの上限。null は「縮めない」。
+//
+// 'source'（既定）は配信の映像より大きくは保存しない。4K 画面で 1080p の配信を全画面に
+// すると切り出した絵は高さ 2160 になるが、増えたぶんはブラウザが引き伸ばした水増しで、
+// ここを削っても本物の細かさは 1 ドットも減らない。4K 配信なら sourceHeight が 2160 なので
+// そのまま残る。
+//
+// 'fhd'/'hd' を選んでいるときも配信の実寸と小さい方を採る。上限より元が小さいのに
+// その上限まで引き延ばして保存する意味は無い。
+//
+// **実寸が分からないとき（旧版の拡張・返事が間に合わなかった撮影・メタデータ読み込み前）は
+// 縮めない。** 分からないまま縮めると、本当に 1080p の絵を削ってしまう。
+export function resolveCaptureHeightLimit(
+  mode: CaptureResize,
+  sourceHeight: number | null
+): number | null {
+  if (mode === 'screen') return null
+  const byMode = mode === 'fhd' ? 1080 : mode === 'hd' ? 720 : null
+  if (sourceHeight == null || sourceHeight <= 0) return byMode
+  return byMode == null ? sourceHeight : Math.min(byMode, sourceHeight)
 }
 
 export function canCaptureVideo(): boolean {
@@ -286,10 +324,11 @@ export async function writeCaptureFile(dir: string, data: Buffer, ext = '.png'):
 async function notifyCaptureDone(
   imagePath: string,
   context: CaptureContext,
-  size: { width: number; height: number } | null
+  size: { width: number; height: number } | null,
+  origSize: { width: number; height: number } | null
 ): Promise<void> {
   const results = await Promise.allSettled(
-    handlers.map((handler) => Promise.resolve().then(() => handler(imagePath, context, size)))
+    handlers.map((handler) => Promise.resolve().then(() => handler(imagePath, context, size, origSize)))
   )
   for (const result of results) {
     if (result.status === 'rejected') console.error('[capture] done handler failed', result.reason)
@@ -303,6 +342,8 @@ async function captureScreen(): Promise<string> {
   isCapturing = true
 
   let context: CaptureContext = null
+  // 前回の撮影で入った値を持ち越さない。preCaptureHook が今回の返事から入れ直す。
+  setSourceVideoSize(null)
   // 早期復帰（screenshot 直後）と finally の保険で二重に呼ばれても、プレーヤーUI復帰は
   // 一度だけ送る。呼び出し側（bootstrap）の抑止に依存せず capture.ts 単体で exactly-once。
   let didPostCapture = false
@@ -343,14 +384,25 @@ async function captureScreen(): Promise<string> {
       if (crop) {
         const cropped = native.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h })
         if (isLikelyBlackFrame(cropped)) blackFrameHook?.()
+        // **縮めるのは切り出した後。** 画面全体を縮めてから切り出すと、動画のすぐ外にある
+        // ブラウザの UI の画素が動画の端に溶け込む（縮小の計算が隣の画素を混ぜる）。
+        // ここまで来た絵は動画の枠しか含んでいないので、外から混ざるものが無い。
+        // 黒画面の判定は縮小の前に済ませてある（縮めても結果は変わらないが、判定の条件を
+        // 設定で動かさないため）。
+        const cropSize = cropped.getSize()
+        const limit = resolveCaptureHeightLimit(loadSettings().captureResize, sourceVideoSize?.height ?? null)
+        const shrink = limit != null && cropSize.height > limit
+        // quality: 'best' を明示する。アニメは線が細く、粗い縮め方だと画面で分かる。
+        const output = shrink ? cropped.resize({ height: limit, quality: 'best' }) : cropped
         // 有効なクロップが確定してから保存先サブフォルダを作る。前面/動画未検出/クロップ不正で
         // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
         const dir = await ensureCaptureSubDir(Date.now())
-        const filepath = await writeCaptureFile(dir, cropped.toPNG())
-        const size = cropped.getSize()
+        const filepath = await writeCaptureFile(dir, output.toPNG())
+        const size = output.getSize()
         await notifyCaptureDone(
           filepath, context,
-          size.width > 0 && size.height > 0 ? size : null
+          size.width > 0 && size.height > 0 ? size : null,
+          shrink && cropSize.width > 0 && cropSize.height > 0 ? cropSize : null
         )
         return filepath
       }

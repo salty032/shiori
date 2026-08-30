@@ -31,5 +31,9 @@ export const SETTINGS_DEFAULTS: Settings = {
   // 既定は「そのまま」。H.264 は非可逆の作り直しなので、更新しただけで今までと違う
   // ファイルが出るようにはしない（設定で選んだ人にだけ変換が起きる）。
   videoExportFormat: 'original',
+  // 既定は「引き伸ばしぶんを保存しない」。**細かさは 1 ドットも減らない**ので、
+  // 更新しただけでこれに変わっても誰も細かさを失わない（4K 画面で 1080p 配信を撮ると
+  // ファイルが約 1/4 になるだけ）。本物の細かさが落ちる 'fhd'/'hd' は自分で選んだときだけ。
+  captureResize: 'source',
   lastRunVersion: null,
 }

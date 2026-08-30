@@ -7,7 +7,7 @@ vi.mock('electron', () => ({
   nativeImage: { createFromBuffer: vi.fn(), createFromPath: vi.fn() }
 }))
 
-import { computeVideoCrop, setBrowserWindowPos, setVideoRect, setBrowserFullscreen } from './capture'
+import { computeVideoCrop, setBrowserWindowPos, setVideoRect, setBrowserFullscreen, resolveCaptureHeightLimit } from './capture'
 
 type DisplayArg = Parameters<typeof computeVideoCrop>[2]
 
@@ -102,5 +102,43 @@ describe('computeVideoCrop', () => {
     setBrowserFullscreen(false)
     const result = computeVideoCrop(800, 600, display({ x: 0, y: 0, width: 800, height: 600 }))
     expect(result).toBeNull()
+  })
+})
+
+// 静止画を保存するときの高さの上限。**「分からないときは縮めない」がこの関数の要**で、
+// そこを崩すと、実寸を知らないまま本物の細かさを削る事故になる。
+describe('resolveCaptureHeightLimit', () => {
+  it("'screen' は実寸が分かっていても縮めない", () => {
+    expect(resolveCaptureHeightLimit('screen', 1080)).toBeNull()
+  })
+
+  it("'source' は配信の実寸をそのまま上限にする（4K画面の1080p配信）", () => {
+    expect(resolveCaptureHeightLimit('source', 1080)).toBe(1080)
+  })
+
+  it("'source' で配信が4Kなら 2160 のまま（削らない）", () => {
+    expect(resolveCaptureHeightLimit('source', 2160)).toBe(2160)
+  })
+
+  it("'source' で実寸が分からなければ縮めない", () => {
+    expect(resolveCaptureHeightLimit('source', null)).toBeNull()
+    expect(resolveCaptureHeightLimit('source', 0)).toBeNull()
+  })
+
+  it("'fhd' は実寸が分からなくても 1080 で頭打ちにする（自分で選んだ上限なので効かせる）", () => {
+    expect(resolveCaptureHeightLimit('fhd', null)).toBe(1080)
+  })
+
+  it("'fhd' でも配信が 720p なら 720（上限まで引き延ばして保存しない）", () => {
+    expect(resolveCaptureHeightLimit('fhd', 720)).toBe(720)
+  })
+
+  it("'fhd' で配信が4Kなら 1080（ここだけは本物の細かさが落ちる）", () => {
+    expect(resolveCaptureHeightLimit('fhd', 2160)).toBe(1080)
+  })
+
+  it("'hd' は 720 で頭打ち", () => {
+    expect(resolveCaptureHeightLimit('hd', 2160)).toBe(720)
+    expect(resolveCaptureHeightLimit('hd', null)).toBe(720)
   })
 })

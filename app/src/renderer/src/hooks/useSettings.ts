@@ -74,5 +74,6 @@ export function useSettings(showToast?: ShowToast) {
     updateTheme: (v: Settings['theme']) => update('theme', v, showToast),
     updateLanguage: (v: Settings['language']) => update('language', v, showToast),
     updateVideoExportFormat: (v: Settings['videoExportFormat']) => update('videoExportFormat', v, showToast),
+    updateCaptureResize: (v: Settings['captureResize']) => update('captureResize', v, showToast),
   }
 }

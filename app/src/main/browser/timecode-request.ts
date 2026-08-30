@@ -1,6 +1,14 @@
 import type { ExtensionMessage } from './ws-server'
 
-export type CaptureTimecode = { title: string; currentTime: number | null; url: string | null }
+// videoSize は映像そのものの画素数。**撮る直前の返事に入っていた値だけ**を静止画の
+// 大きさの上限に使うため、ここに載せて運ぶ（定期送信で流れてくる値を拾うと、画質が
+// 切り替わった直後に古い値で縮めてしまう）。返事が間に合わなければ null＝縮めない。
+export type CaptureTimecode = {
+  title: string
+  currentTime: number | null
+  url: string | null
+  videoSize: { width: number; height: number } | null
+}
 
 type Subscribe = (handler: (msg: ExtensionMessage) => void) => () => void
 
@@ -25,7 +33,7 @@ export function waitForPreferredTimecode(
     const timer = setTimeout(() => finish(fallback), timeoutMs)
     off = subscribe((msg) => {
       if (msg.type !== 'timecode' || msg.requestId !== requestId) return
-      const value = { title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null }
+      const value = { title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null, videoSize: msg.videoSize }
       if (msg.focused) finish(value)
       else fallback ??= value
     })

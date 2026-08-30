@@ -202,6 +202,10 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN media_type TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN duration REAL')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN fps REAL')
+  // 縮めて保存した静止画の「縮める前」の画素数。等倍で保存した行では NULL。
+  // width/height だけでは元が何ピクセルだったか分からず、「黙って小さくした」ことになる。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN orig_width INTEGER')
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN orig_height INTEGER')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN host TEXT')
   addColumnIfMissing("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'capture'")
   // 素材のコマのうち、自分の表示区間内に絵を撮れなかった枚数。

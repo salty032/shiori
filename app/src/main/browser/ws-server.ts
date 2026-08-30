@@ -19,12 +19,14 @@ export function getActivePort(): number | null {
 const HOST = '127.0.0.1'
 
 type VideoRect = { left: number; top: number; width: number; height: number }
+// 映像そのものの画素数（画面上の表示サイズではない）。静止画を保存するときの上限に使う。
+export type VideoSize = { width: number; height: number }
 
 export type ExtensionMessage =
   // frameDurMs は素材のコマ間隔（ミリ秒）。ページ側が再生中ずっと実測している値で、
   // **録画開始前に素材の fps を知る唯一の経路**（コマ通知は録画中しか流れない）。
   // 測れていなければ null。旧版の拡張は送ってこないので、その場合も null になる。
-  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; fullscreen: boolean; frameDurMs: number | null; version?: string }
+  | { type: 'timecode'; currentTime: number | null; title: string; url: string | null; focused: boolean; requestId?: string; windowLeft: number; windowTop: number; windowWidth: number; windowHeight: number; innerWidth: number; innerHeight: number; devicePixelRatio: number; videoRect: VideoRect | null; videoSize: VideoSize | null; fullscreen: boolean; frameDurMs: number | null; version?: string }
   | { type: 'ping' }
   // 録画中に配信ページ側から届く、素材の1コマぶんの通知。
   // mediaTime は素材自身のタイムライン上の秒、displayAt はそのコマが画面に出る epoch ミリ秒。
@@ -158,6 +160,16 @@ function safeRect(value: unknown): VideoRect | null {
   return { left, top, width, height }
 }
 
+// 映像の実寸。0 や範囲外は null にする（アプリ側は null のとき縮めない）。
+function safeVideoSize(value: unknown): VideoSize | null {
+  if (!value || typeof value !== 'object') return null
+  const size = value as Record<string, unknown>
+  const width = boundedNumber(size.width, 1, MAX_SCREEN_SIZE)
+  const height = boundedNumber(size.height, 1, MAX_SCREEN_SIZE)
+  if (width == null || height == null) return null
+  return { width, height }
+}
+
 export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   if (Buffer.byteLength(raw, 'utf8') > MAX_WS_PAYLOAD_BYTES) return null
 
@@ -216,6 +228,9 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
     innerHeight,
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
+    // 旧版の拡張は送ってこないので null になる。**その場合は縮めない**——
+    // 分からないときに縮めると本物の細かさを捨てうる。
+    videoSize: safeVideoSize(msg.videoSize),
     fullscreen: msg.fullscreen === true,
     // 未送信（旧拡張）・範囲外はここで null になる。**メッセージ全体は落とさない**——
     // これは補助情報で、無ければ従来どおりの固定ビットレートで録れればよい。

@@ -27,6 +27,7 @@ type Props = {
   onUpdateShowAiTags: (enabled: boolean) => void
   onUpdateTheme: (theme: Settings['theme']) => void
   onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
+  onUpdateCaptureResize: (value: Settings['captureResize']) => void
   onUpdateLanguage: (language: Settings['language']) => void
   onTaggerDownload: () => void
   onTaggerCancelDownload: () => void
@@ -519,6 +520,28 @@ export default function SettingsModal(p: Props) {
                       ))}
                     </>
                   )}
+                </div>
+                {/* 撮った静止画をどの解像度まで保存するか。**容量の話なので使用量のすぐ下に置く**
+                    （4K 環境で C ドライブが埋まる、という声から入れた設定なので、今どれだけ使って
+                    いるかを見た直後に目に入る位置でないと結び付かない）。行の名前を「静止画」に
+                    しているのは、録画には効かないことを説明を読まずに読み取らせるため。 */}
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.captureResize')}</div>
+                  <div style={s.row}>
+                    <span style={s.label}>{t('settings.captureResizeTarget')}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
+                      {([['source', t('settings.captureResize.source')], ['fhd', t('settings.captureResize.fhd')], ['hd', t('settings.captureResize.hd')], ['screen', t('settings.captureResize.screen')]] as const).map(([value, label]) => {
+                        const active = p.settings.captureResize === value
+                        return (
+                          <button key={value} onClick={() => p.onUpdateCaptureResize(value)} data-current={active ? 'true' : undefined}
+                            style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div style={s.hint}>{t('settings.captureResizeHint')}</div>
                 </div>
                 {/* 選んだものを書き出すときの動画の形式。**すぐ下の「エクスポート」はライブラリの共有
                     書き出しで、この設定を見ない。** 見出しに「書き出し」を使うと同じ語が隣り合って

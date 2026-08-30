@@ -71,6 +71,13 @@ function videoExportFormatValue(value: unknown): Settings['videoExportFormat'] {
   return value === 'h264' ? 'h264' : DEFAULTS.videoExportFormat
 }
 
+// 知らない値・未指定は既定（'source'）へ倒す。'screen'（画面のまま）は明示的に選んだ人だけ。
+function captureResizeValue(value: unknown): Settings['captureResize'] {
+  return value === 'fhd' || value === 'hd' || value === 'screen' || value === 'source'
+    ? value
+    : DEFAULTS.captureResize
+}
+
 // 新規インストール時の初期表示言語。app.getLocale() は app ready 前だと空文字を返しうるので、
 // 呼ぶのは settings.json が存在しないと分かった後（＝ready 後の loadSettings）に限る。
 // 一度決めたら settings.json に焼き付き、以降 OS の言語変更には追従しない
@@ -131,6 +138,7 @@ export function normalizeSettings(value: unknown): Settings {
     theme: themeValue(data.theme),
     language: languageValue(data.language),
     videoExportFormat: videoExportFormatValue(data.videoExportFormat),
+    captureResize: captureResizeValue(data.captureResize),
     lastRunVersion: nullableText(data.lastRunVersion),
   }
 }

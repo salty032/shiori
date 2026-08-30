@@ -25,6 +25,7 @@ const DEFAULTS = {
   // 新規インストール時の OS ロケール判定は loadSettings 側の責務）。
   language: 'ja',
   videoExportFormat: 'original',
+  captureResize: 'source',
   lastRunVersion: null,
 }
 
@@ -173,6 +174,14 @@ describe('normalizeSettings', () => {
     it('無効な値 → デフォルト dark', () => expect(normalizeSettings({ theme: 'invalid' }).theme).toBe('dark'))
     it('値なし → デフォルト dark', () => expect(normalizeSettings({}).theme).toBe('dark'))
   })
+})
+
+describe('captureResize', () => {
+  it("'fhd' はそのまま", () => expect(normalizeSettings({ captureResize: 'fhd' }).captureResize).toBe('fhd'))
+  it("'hd' はそのまま", () => expect(normalizeSettings({ captureResize: 'hd' }).captureResize).toBe('hd'))
+  it("'screen' はそのまま", () => expect(normalizeSettings({ captureResize: 'screen' }).captureResize).toBe('screen'))
+  it('知らない値 → 既定', () => expect(normalizeSettings({ captureResize: '4k' }).captureResize).toBe('source'))
+  it('未指定 → 既定（水増しを省く）', () => expect(normalizeSettings({}).captureResize).toBe('source'))
 })
 
 describe('videoExportFormat', () => {

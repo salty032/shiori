@@ -1547,7 +1547,19 @@ function detectVideoCaptureTarget() {
   return {
     video,
     currentTime: video ? video.currentTime : null,
-    videoRect: contentRect ? { left: contentRect.left, top: contentRect.top, width: contentRect.width, height: contentRect.height } : null
+    videoRect: contentRect ? { left: contentRect.left, top: contentRect.top, width: contentRect.width, height: contentRect.height } : null,
+    // 映像そのものの画素数（画面上の表示サイズではない）。**静止画を無駄に大きく保存しないため
+    // だけに送る。** 4K 画面で 1080p の配信を全画面にすると、画面上の映像は高さ 2160 だが
+    // videoHeight は 1080 のまま——差のぶんはブラウザが引き伸ばした水増しで、そこを削っても
+    // 本物の細かさは減らない。
+    //
+    // 配信は途中で画質が切り替わる（回線が細ると勝手に落ちる）ので、この値は**送るたびに
+    // 測り直す**。アプリ側は撮る直前の返事に入っていた値だけを使う（古い値で縮めると、
+    // 本当に 1080p の絵を 480p まで削ってしまう）。
+    // メタデータ読み込み前は 0 になるため、そのときは null（＝アプリ側は縮めない）。
+    videoSize: video && video.videoWidth > 0 && video.videoHeight > 0
+      ? { width: video.videoWidth, height: video.videoHeight }
+      : null
   }
 }
 
@@ -1570,6 +1582,7 @@ function buildPayload() {
     innerHeight: window.innerHeight,
     devicePixelRatio: window.devicePixelRatio,
     videoRect: target.videoRect,
+    videoSize: target.videoSize,
     fullscreen: !!document.fullscreenElement,
     // 素材のコマ間隔（ミリ秒）。**録画開始時のビットレートを決めるために送る。**
     //
@@ -1596,7 +1609,10 @@ function payloadKey(payload) {
     win: [payload.windowLeft, payload.windowTop, payload.windowWidth, payload.windowHeight],
     inner: [payload.innerWidth, payload.innerHeight],
     dpr: payload.devicePixelRatio,
-    rect: rect ? [Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height)] : null
+    rect: rect ? [Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height)] : null,
+    // 画質の切り替わりも「変化」として送る。ここに入れないと、他が全部同じ間は
+    // 送信が抑制され、アプリ側が古い画質のまま縮める窓ができる。
+    size: payload.videoSize ? [payload.videoSize.width, payload.videoSize.height] : null
   })
 }
 
