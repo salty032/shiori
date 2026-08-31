@@ -73,5 +73,5 @@ const s: Record<string, React.CSSProperties> = {
   list: { margin: 0, padding: '16px 18px 18px 34px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75, maxHeight: '50vh', overflowY: 'auto' },
   item: { marginBottom: 4 },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: space.x8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
-  closeAction: { height: control.lg, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.48)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
+  closeAction: { height: control.lg, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
 }

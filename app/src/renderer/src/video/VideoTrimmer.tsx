@@ -800,7 +800,7 @@ const s: Record<string, React.CSSProperties> = {
   handleTab: { position: 'absolute', top: -1, bottom: -1, width: 4, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2, boxShadow: '0 0 0 1px rgba(var(--scrim-rgb), 0.55)' },
   handleTabIn: { background: 'var(--success)', borderRadius: '2px 0 0 2px' },
   handleTabOut: { background: 'var(--danger)', borderRadius: '0 2px 2px 0' },
-  handleFlag: { position: 'absolute', bottom: 'calc(100% + 5px)', left: '50%', transform: 'translateX(-50%)', padding: '1px 6px', borderRadius: radius.md, fontSize: 10, fontWeight: weight.strong, letterSpacing: 0.6, lineHeight: '15px', whiteSpace: 'nowrap' as const },
+  handleFlag: { position: 'absolute', bottom: 'calc(100% + 5px)', left: '50%', transform: 'translateX(-50%)', padding: '1px 6px', borderRadius: radius.md, fontSize: 10, fontWeight: weight.strong, letterSpacing: 0.5, lineHeight: '15px', whiteSpace: 'nowrap' as const },
   handleFlagIn: { background: 'var(--success)', color: 'var(--bg-page)' },
   handleFlagOut: { background: 'var(--danger)', color: 'var(--bg-page)' },
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
@@ -816,9 +816,9 @@ const s: Record<string, React.CSSProperties> = {
   // タイムラインにも同じ色の旗が出ているので、「ここは開始の行」を 3 回言っていた。
   // 左右の padding も 0 にして、タイムラインの左端と縦に揃える。
   boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 1fr auto', alignItems: 'center', gap: space.x8, minWidth: 0 },
-  badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: weight.strong, letterSpacing: 0.6, textAlign: 'center' as const },
-  badgeIn: { background: 'rgba(var(--success-rgb), 0.16)', border: '1px solid rgba(var(--success-rgb), 0.5)', color: 'var(--success)' },
-  badgeOut: { background: 'rgba(var(--danger-rgb), 0.16)', border: '1px solid rgba(var(--danger-rgb), 0.5)', color: 'var(--danger)' },
+  badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: weight.strong, letterSpacing: 0.5, textAlign: 'center' as const },
+  badgeIn: { background: 'rgba(var(--success-rgb), 0.16)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', color: 'var(--success)' },
+  badgeOut: { background: 'rgba(var(--danger-rgb), 0.16)', border: '1px solid rgba(var(--danger-rgb), var(--edge-base))', color: 'var(--danger)' },
   time: { fontSize: font.base, fontWeight: weight.medium, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' as const, letterSpacing: 0.2 },
   // コマ送りは 2 つの独立したボタンではなく、枠を共有するセグメントにする
   // （個別のピルが並ぶと右端が揃わずガタついて見えた）。
@@ -844,6 +844,6 @@ const s: Record<string, React.CSSProperties> = {
   // 出ず濁って見えていた（かつアプリ内で唯一の見た目でもあった）。ティント地＋アクセント文字なら
   // 地に対して文字が十分明るく、ライト/ダークどちらでも成立する。
   cancelBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
-  trimBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
+  trimBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
   trimDisabled: { opacity: 0.4, cursor: 'not-allowed' },
 }

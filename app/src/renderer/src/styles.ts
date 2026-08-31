@@ -59,6 +59,14 @@ export const control = {
   lg: 32,
 } as const
 
+// 字間（letterSpacing）は**日本語には入れない。** 大文字化と同じで、日本語では
+// 「長 さ」と間延びして読みにくくなるだけ（英語のラベル装飾をそのまま持ち込んだ形）。
+// 入れてよいのは 2 つだけ：
+//   0.5 = 大文字の短い語（NEW・IN・OUT）。字面が詰まるので少し開ける
+//   0.2 = 数字の並び（尺・コマ番号・キー表記）
+// 0 を明示している箇所は「継承した字間を打ち消す」ためのもので、消さないこと。
+// タイムシートの 0.6 は紙のシートの再現（docs/TIMESHEET.md）なので、この規則の外。
+
 // 文字の太さはこの 3 段だけ。以前は 400/500/600/700/800/900 が混在し、113 か所のうち
 // 101 か所が太字以上だった。**全部が主役だと、どれも主役に見えない**——一覧のタイトルも
 // サイドバーのタグも設定の項目名も同じ太さで、目が休まる場所が無かった。
@@ -132,8 +140,8 @@ export const THUMB_BORDER = 2
 export const THUMB_CHROME = LABEL_HEIGHT + THUMB_BORDER * 2
 
 export const s: Record<string, CSSProperties> = {
-  updateBanner: { background: 'rgba(var(--success-rgb), 0.14)', borderBottom: '1px solid rgba(var(--success-rgb), 0.32)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: font.base, color: 'var(--success)', flexShrink: 0 },
-  updateBtn: { padding: '6px 14px', background: 'rgba(var(--success-rgb), 0.22)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
+  updateBanner: { background: 'rgba(var(--success-rgb), 0.14)', borderBottom: '1px solid rgba(var(--success-rgb), var(--edge-soft))', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: font.base, color: 'var(--success)', flexShrink: 0 },
+  updateBtn: { padding: '6px 14px', background: 'rgba(var(--success-rgb), 0.22)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   root: { display: 'flex', flex: 1, background: 'var(--bg-page)', color: 'var(--text-primary)', fontSize: font.base, overflow: 'hidden', userSelect: 'none' },
   // Sidebar+main だけを束ねるラッパー。ビューア（position:absolute, inset:0）はこの中だけを
   // 覆うので、隣の DetailPanel は最初からレイアウト上覆われずビューア表示中も操作できる（P1）。
@@ -164,10 +172,10 @@ export const s: Record<string, CSSProperties> = {
   dropOverlayText: { fontSize: font.lg, fontWeight: weight.medium, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: radius.md },
   stickyHeader: { position: 'sticky' as const, top: 0, zIndex: 200, background: 'var(--bg-content)', borderBottom: '1px solid var(--border-soft)', margin: '0 -20px', padding: '12px 20px 9px', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   searchBar: { display: 'flex', alignItems: 'center', gap: space.x8 },
-  searchInputWrap: { position: 'relative' as const, flex: '1 1 360px', display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: space.x4, minWidth: 260, minHeight: control.lg, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid rgba(var(--hairline-rgb), 0.72)', borderRadius: radius.md, padding: '3px 24px 3px 8px', boxShadow: 'inset 0 1px 0 rgba(var(--text-rgb), 0.035)' },
+  searchInputWrap: { position: 'relative' as const, flex: '1 1 360px', display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: space.x4, minWidth: 260, minHeight: control.lg, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-strong))', borderRadius: radius.md, padding: '3px 24px 3px 8px', boxShadow: 'inset 0 1px 0 rgba(var(--text-rgb), 0.035)' },
   searchInputInner: { flex: '1 1 100px', position: 'relative' as const, display: 'flex', alignItems: 'center', height: control.sm, minWidth: 100 },
   searchInput: { flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: 0, fontSize: font.sm, outline: 'none' },
-  sortBtn: { height: control.md, padding: '0 10px', background: 'transparent', border: 'none', borderLeft: '1px solid rgba(var(--hairline-rgb), 0.44)', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  sortBtn: { height: control.md, padding: '0 10px', background: 'transparent', border: 'none', borderLeft: '1px solid rgba(var(--hairline-rgb), var(--edge-base))', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', whiteSpace: 'nowrap' as const },
   sortMenu: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, zIndex: 500, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), var(--shadow-popover))', minWidth: 100 },
   sortMenuItem: { display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const },
   sortMenuItemActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
@@ -182,19 +190,19 @@ export const s: Record<string, CSSProperties> = {
   segSlider: { position: 'absolute' as const, top: 1, left: 1, height: control.md, borderRadius: radius.md, background: 'rgba(var(--accent-rgb), 0.42)', boxShadow: 'inset 0 0 0 1px rgba(var(--accent-rgb), 0.6), 0 1px 3px rgba(var(--scrim-rgb), 0.35)', pointerEvents: 'none' as const, zIndex: 0, transition: 'transform 0.22s cubic-bezier(.22,1,.36,1), width 0.22s cubic-bezier(.22,1,.36,1)' },
   searchIcon: { flexShrink: 0, width: 14, height: 14, color: 'var(--text-secondary)', pointerEvents: 'none' as const },
   searchSpinner: { flexShrink: 0, width: 14, height: 14, color: 'var(--text-secondary)', pointerEvents: 'none' as const, animation: 'shioriSpin 0.7s linear infinite' },
-  searchPrefixMenu: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)' },
+  searchPrefixMenu: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-strong))', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)' },
   searchPrefixItem: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', minHeight: control.md, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const },
   searchDateHint: { padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm },
   searchDateWarning: { padding: '6px 12px', color: 'var(--warning)', fontSize: font.xs },
-  searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), 0.32)', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: radius.md, display: 'flex', alignItems: 'center' },
+  searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-soft))', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: radius.md, display: 'flex', alignItems: 'center' },
   smartFolderEmpty: { fontSize: font.sm, color: 'var(--text-secondary)', padding: '3px 0 2px', lineHeight: 1.5 },
   smartFolderCreateInput: { flex: 1, minWidth: 0, height: control.lg, background: 'var(--bg-content)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 9px', fontSize: font.sm, fontWeight: weight.normal, outline: 'none', boxSizing: 'border-box' as const },
-  smartFolderAddIconBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: weight.medium, lineHeight: 1, boxSizing: 'border-box' as const },
+  smartFolderAddIconBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: weight.medium, lineHeight: 1, boxSizing: 'border-box' as const },
   // 見出しの「＋」は、フォルダの行より一段小さくする。同じ大きさにすると、見出しの帯が
   // 行と同じ厚みになって「もう 1 行あるように」見える。見出しの中で一番大きいものが
   // これなので、ここの大きさが見出しの帯の高さをそのまま決める。
   // （作成中に入力欄の隣へ出る smartFolderAddIconBtn は別物。あちらは入力欄と同じ control.lg）
-  smartFolderHeaderAddBtn: { width: control.md, height: control.md, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, boxSizing: 'border-box' as const },
+  smartFolderHeaderAddBtn: { width: control.md, height: control.md, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, boxSizing: 'border-box' as const },
   smartFolderHeaderAddBtnDisabled: { background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-muted)', cursor: 'default' },
   smartFolderCreateInputRow: { display: 'flex', gap: space.x4, width: '100%' },
   grid: { width: '100%', userSelect: 'none', position: 'relative' as const },
@@ -270,7 +278,7 @@ export const s: Record<string, CSSProperties> = {
   emptyTitle: { color: 'var(--text-primary)', fontSize: font.xl, fontWeight: weight.medium },
   emptySteps: { display: 'flex', flexDirection: 'column' as const, gap: space.x4, color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.6, textAlign: 'left' as const },
   emptyActions: { display: 'flex', gap: space.x8, flexWrap: 'wrap' as const, justifyContent: 'center' },
-  emptyBtn: { padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: weight.medium },
+  emptyBtn: { padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: weight.medium },
   emptyBtnSub: { background: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-strong)' },
   emptyHint: { color: 'var(--text-secondary)', fontSize: font.sm, marginTop: 4 },
   // 空画面に段落を置くとき用（Web デモ版の説明）。emptyHint は一言用で幅の指定が無く、
@@ -295,7 +303,7 @@ export const s: Record<string, CSSProperties> = {
   smartFolderInsertLine: { height: 2, margin: '-1px 0', borderRadius: radius.sm, background: 'var(--accent)', boxShadow: '0 0 0 1px rgba(var(--accent-rgb), 0.18)', transition: 'opacity .08s ease' },
   smartFolderBtn: { flex: 1, minWidth: 0, minHeight: control.lg, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   smartFolderDeleteBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, lineHeight: 1 },
-  smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.46)', color: 'var(--accent-text)' },
+  smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), var(--edge-strong))', color: 'var(--accent-text)' },
     // セクションどうしの間。8px まで詰めたら上の見出し（Shiori ◯枚）と地続きに見えた。
   // サイドバーのセクション（スマートフォルダ・タグ）の中身の並び。
   // **枠のある箱を縦に並べるところなので、素の一覧の行間より広く取る。** 2px だった頃は
@@ -312,14 +320,14 @@ export const s: Record<string, CSSProperties> = {
   tagLabelActions: { display: 'flex', alignItems: 'center', gap: space.x8 },
   tagModeBtn: { minWidth: 28, height: control.md, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid var(--border-default)', borderRadius: radius.md, cursor: 'pointer', fontSize: 11, fontWeight: weight.medium, padding: '0 6px', lineHeight: 1 },
   tagClearBtn: { width: control.md, height: control.md, padding: 0, justifyContent: 'center', color: 'var(--text-secondary)', lineHeight: 1 },
-  searchSuggestions: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)', maxHeight: 200, overflowY: 'auto' as const },
+  searchSuggestions: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-strong))', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)', maxHeight: 200, overflowY: 'auto' as const },
   searchSuggestionItem: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', minHeight: control.md, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' },
   searchSuggestionItemActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   searchSuggestionPlain: { minWidth: 0, color: 'var(--text-secondary)', fontWeight: weight.normal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   searchSuggestionValue: { flex: '0 1 132px', minWidth: 54, maxWidth: '52%', color: 'var(--text-secondary)', fontWeight: weight.normal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   searchSuggestionMeta: { flex: '1 1 auto', minWidth: 0, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.normal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   searchSuggestionEmpty: { minHeight: control.md, padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm, display: 'flex', alignItems: 'center' },
-  searchHistoryHeader: { padding: '4px 12px 2px', color: 'var(--text-muted)', fontSize: 10, fontWeight: weight.normal, letterSpacing: '0.03em' },
+  searchHistoryHeader: { padding: '4px 12px 2px', color: 'var(--text-muted)', fontSize: 10, fontWeight: weight.normal },
   searchPrefixDivider: { height: 1, margin: '4px 0', background: 'rgba(var(--hairline-rgb), 0.22)' },
   searchHistoryRemove: { flexShrink: 0, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: 4, color: 'var(--text-muted)', borderRadius: radius.md },
     // **上下と左右で違う値を使う。** チップは横に並んで折り返すので、左右は詰めたほうが
@@ -338,16 +346,16 @@ export const s: Record<string, CSSProperties> = {
   //
   // AI に藍を持たせないのは、藍がアクセント色（選択・フォーカス・進捗・CTA）で、
   // AI タグを常時その色にすると「AI がこのアプリの主役」に見えていたため。
-  sidebarTagChipManual: { background: 'transparent', border: '1px dashed rgba(var(--success-rgb), 0.5)', color: 'var(--tag-manual)' },
-  sidebarTagChipActive: { background: 'rgba(var(--success-rgb), 0.3)', border: '1px solid rgba(var(--success-rgb), 0.75)', color: 'var(--tag-manual)' },
+  sidebarTagChipManual: { background: 'transparent', border: '1px dashed rgba(var(--success-rgb), var(--edge-soft))', color: 'var(--tag-manual)' },
+  sidebarTagChipActive: { background: 'rgba(var(--success-rgb), 0.3)', border: '1px solid rgba(var(--success-rgb), var(--edge-strong))', color: 'var(--tag-manual)' },
   sidebarTagChipAi: { background: 'transparent', border: '1px dashed var(--border-strong)', color: 'var(--text-secondary)' },
   // **選択しても色相は変えない。** 藍にしていたので、AI タグを選んだ瞬間だけ由来の灰が
   // 消え、詳細パネルに出ている灰のチップと同じものに見えなくなっていた
   // （上の「色＝由来、塗り＝選択」を、ここだけ破っていた）。灰のまま塗りで選択を示す。
-  sidebarTagChipAiActive: { background: 'rgba(var(--text-rgb), 0.16)', border: '1px solid rgba(var(--text-rgb), 0.45)', color: 'var(--text-primary)' },
+  sidebarTagChipAiActive: { background: 'rgba(var(--text-rgb), 0.16)', border: '1px solid rgba(var(--text-rgb), var(--edge-base))', color: 'var(--text-primary)' },
   // TagEditor と DetailPanel の一括編集で同一定義が重複していたタグチップ／追加ボタン（C-2）。
   // 色 = 由来（緑=手動 / 灰=AI）を単一/一括/サイドバーで一貫させるため、AI版もここへ集約。
-  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.20)', border: '1px solid rgba(var(--success-rgb), 0.62)', borderRadius: 999, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
+  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.20)', border: '1px solid rgba(var(--success-rgb), var(--edge-strong))', borderRadius: 999, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
   tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--text-rgb), 0.06)', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
   addTagChip: { height: control.lg, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.medium, cursor: 'pointer', lineHeight: 1 },
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium },
@@ -366,7 +374,7 @@ export const s: Record<string, CSSProperties> = {
   // 混ざるので、ライトでは明るい地に溶けて消えていた（global.css の --border-inset 参照）。
   sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const },
   sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: weight.medium },
-  sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: weight.strong },
+  sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)', fontSize: 10, fontWeight: weight.strong },
   sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
   sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
@@ -398,7 +406,7 @@ export const s: Record<string, CSSProperties> = {
   // **通知だけは本文の太さにしない。** 数秒で消えるので、読む時間を選べない。他の文字は
   // いつでも読み直せるから細くできるが、ここは目を戻したときにはもう無い。
   toastMessage: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.sm, fontWeight: weight.medium, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
-  toastActionBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
+  toastActionBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), var(--edge-faint))', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   toastInfo: {},
   toastSuccess: {},
   toastWarning: {},
@@ -413,7 +421,7 @@ export const s: Record<string, CSSProperties> = {
   taskBarTrack: { width: '100%', height: 4, background: 'rgba(var(--text-rgb), 0.14)', borderRadius: 999, overflow: 'hidden' },
   taskFill: { height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width 0.25s ease' },
   taskDetail: { flexShrink: 0, color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: weight.normal, fontVariantNumeric: 'tabular-nums' as const },
-  taskCancelBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
+  taskCancelBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), var(--edge-faint))', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
   // DetailPanel はレイアウト上そもそもこの外側にあるので、ビューア表示中も隠れず操作できる（P1）。
   // overflow:hidden 必須: ズーム時の scale() で拡大された画像は箱をはみ出すが、ビューアは
@@ -429,7 +437,7 @@ export const s: Record<string, CSSProperties> = {
   viewerImg: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block', transformOrigin: 'center' },
   viewerTitle: { minWidth: 0, flex: 1, color: '#d6dbea', fontSize: font.sm, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, textShadow: '0 2px 10px rgba(0,0,0,0.9)' },
   viewerActions: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: space.x8 },
-  viewerCounter: { color: 'rgba(255,255,255,0.46)', fontSize: font.base, fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' as const, letterSpacing: 0.5 },
+  viewerCounter: { color: 'rgba(255,255,255,0.46)', fontSize: font.base, fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' as const, letterSpacing: 0.2 },
   viewerClose: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#999', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
   viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: control.sm, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, pointerEvents: 'none' as const },
   viewerZoomValue: { color: 'rgba(232,236,248,0.68)', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },

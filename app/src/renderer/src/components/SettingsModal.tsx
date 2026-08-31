@@ -821,7 +821,7 @@ export const s: Record<string, React.CSSProperties> = {
   inputRow: { display: 'flex', gap: space.x8 },
   input: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
   actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
-  addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), 0.45)', color: 'var(--accent-text)' },
+  addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)' },
   patternEmpty: { color: 'var(--text-secondary)', fontSize: font.base },
   patternList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: space.x4 },
   patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.md, padding: '6px 10px' },
