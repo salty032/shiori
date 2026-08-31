@@ -2,7 +2,7 @@ import { vi, describe, expect, it } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { normalizeSettings } from './settings'
+import { normalizeSettings, stripDedicatedSettingKeys } from './settings'
 
 const DEFAULT_EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 
@@ -210,4 +210,45 @@ describe('videoExportFormat', () => {
   // 'original'（そのままコピー）へ倒す。
   it('知らない値 → そのまま', () => expect(normalizeSettings({ videoExportFormat: 'av1' }).videoExportFormat).toBe('original'))
   it('未指定 → そのまま', () => expect(normalizeSettings({}).videoExportFormat).toBe('original'))
+})
+
+// 設定の汎用保存口（CH.settingsSet）は「値を書き換える」以外に main 側でやることがある項目を
+// 通してはいけない。通すと、設定画面の表示と実際に効いているもの（登録済みホットキー・
+// 書き込み確認を通った保存先）が食い違い、**その食い違いは画面に出ない。**
+describe('stripDedicatedSettingKeys - 専用 IPC が要る項目は汎用口を通さない', () => {
+  it('ホットキーは静止画・クリップとも落とす', () => {
+    const { safePatch, ignored } = stripDedicatedSettingKeys({ captureHotkey: 'Alt+X', clipHotkey: 'Alt+Y' })
+    expect(safePatch).toEqual({})
+    expect(ignored).toEqual(['captureHotkey', 'clipHotkey'])
+  })
+
+  it('保存先と過去の保存先を落とす', () => {
+    const { safePatch, ignored } = stripDedicatedSettingKeys({ captureRoot: 'D:/nowhere', previousCaptureRoots: [] })
+    expect(safePatch).toEqual({})
+    expect(ignored).toEqual(['captureRoot', 'previousCaptureRoots'])
+  })
+
+  it('拡張の許可 ID を落とす', () => {
+    const { safePatch, ignored } = stripDedicatedSettingKeys({ allowedExtensionIds: ['anything'] })
+    expect(safePatch).toEqual({})
+    expect(ignored).toEqual(['allowedExtensionIds'])
+  })
+
+  it('落とす項目が混ざっていても、他の項目はそのまま通る', () => {
+    const { safePatch, ignored } = stripDedicatedSettingKeys({ thumbnailSize: 300, captureRoot: 'D:/nowhere', theme: 'dark' })
+    expect(safePatch).toEqual({ thumbnailSize: 300, theme: 'dark' })
+    expect(ignored).toEqual(['captureRoot'])
+  })
+
+  // 落とす側の一覧にしてある理由がここ。設定に項目が増えても、汎用口は従来どおり通す。
+  it('知らない項目は落とさない（通す物の一覧にはしない）', () => {
+    const { safePatch, ignored } = stripDedicatedSettingKeys({ somethingNew: 1 })
+    expect(safePatch).toEqual({ somethingNew: 1 })
+    expect(ignored).toEqual([])
+  })
+
+  it('オブジェクトでないものを渡されても落ちない', () => {
+    expect(stripDedicatedSettingKeys(null)).toEqual({ safePatch: {}, ignored: [] })
+    expect(stripDedicatedSettingKeys('x')).toEqual({ safePatch: {}, ignored: [] })
+  })
 })

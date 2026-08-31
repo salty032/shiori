@@ -9,6 +9,48 @@ import { SETTINGS_DEFAULTS } from '../../shared/settingsDefaults'
 
 export type { SmartFolder, Settings }
 
+// **保存するだけでは済まない項目。** どれも「値を書き換える」以外に main 側でやることがあり、
+// 専用 IPC を通らないとその片方だけが起きる。**食い違っても画面には何も出ない。**
+//
+//   captureHotkey / clipHotkey  … globalShortcut への登録が伴わない。設定画面には新しい
+//     キーが出るのに、押しても撮れない・録画が始まらない。
+//     専用 IPC: CH.captureSetHotkey / VIDEO_CH.clipSetHotkey
+//   captureRoot                 … 「実際に 1 ファイル書いて消す」書き込み確認と、これまでの
+//     ぶんを移すかの確認を飛ばす。抜いてある外付けドライブを保存先にでき、撮った瞬間に
+//     初めて失敗する。専用 IPC: CH.storageChooseRoot
+//   previousCaptureRoots        … 過去の保存先を読み出すためだけの控え。空にすると、それまで
+//     に撮ったものが 1 枚も開けなくなる（paths.ts の captureBases）。
+//   allowedExtensionIds         … 受け入れる拡張の範囲。設定画面に触る場所は無い。
+export const DEDICATED_SETTING_KEYS = [
+  'captureHotkey',
+  'clipHotkey',
+  'captureRoot',
+  'previousCaptureRoots',
+  'allowedExtensionIds',
+] as const satisfies readonly (keyof Settings)[]
+
+// 設定の汎用保存口（CH.settingsSet）が受け取った部分パッチから、上の項目を落とす。
+//
+// **「通す物の一覧」にはしない。** 設定に項目を足して一覧への追加を忘れると、画面上は
+// 切り替わったのに保存されない——これも画面に出ない間違いになる。落とす側の一覧なら、
+// 足し忘れた新項目は従来どおり保存され、手当てが要るのは副作用を持つ項目を足すときだけ。
+export function stripDedicatedSettingKeys(
+  patch: unknown
+): { safePatch: Partial<Settings>; ignored: string[] } {
+  const raw = (patch && typeof patch === 'object' ? patch : {}) as Partial<Settings>
+  const safePatch: Partial<Settings> = {}
+  const ignored: string[] = []
+  for (const key of Object.keys(raw) as (keyof Settings)[]) {
+    if ((DEDICATED_SETTING_KEYS as readonly string[]).includes(key)) {
+      ignored.push(key)
+      continue
+    }
+    // 値のコピーだけ。中身の検証は従来どおり saveSettings 側（sanitize）の担当。
+    ;(safePatch as Record<string, unknown>)[key] = raw[key]
+  }
+  return { safePatch, ignored }
+}
+
 const EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 const DEFAULTS: Settings = { ...SETTINGS_DEFAULTS, allowedExtensionIds: [EXTENSION_ID] }
 const MAX_STRINGS = 100

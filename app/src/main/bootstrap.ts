@@ -11,7 +11,7 @@ import {
 import { databasePath, consumeDbBackupFailure } from './db-schema'
 import { registerCapturedMedia } from './capture/captured-media'
 import type { MainFeature } from './feature'
-import { loadSettings, saveSettings, flushSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, type Settings } from './system/settings'
+import { loadSettings, saveSettings, flushSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, stripDedicatedSettingKeys } from './system/settings'
 import { activeTaskLabels } from './system/busy'
 import { checkExtensionUpdate, installedExtensionPath } from './browser/extension-updater'
 import { startExtensionBridge, browserStepLabels } from './browser/extension-bridge'
@@ -181,16 +181,16 @@ export function bootstrap(features: MainFeature[] = []): void {
     registerShellHandlers()
 
     handleTrusted(CH.settingsGet, () => loadSettings())
-    handleTrusted(CH.settingsSet, (_event, patch: Partial<Settings>) => {
+    handleTrusted(CH.settingsSet, (_event, patch: unknown) => {
       // renderer は変更したいキーだけを送る部分パッチ。ここで最新の保存値とマージすることで、
       // 「複数箇所が同時に別キーを変更すると片方が巻き戻る」レースを構造的になくす
       // （旧: renderer 側で全体オブジェクトを組み立てて送る方式だったため、読み込み待ちが必要だった）
-      // captureHotkey はここでは無視する。実際の登録可否（グローバルショートカット競合）は
-      // main 側の状態が真実であり、専用 IPC（CH.captureSetHotkey）を経由しないと
-      // globalShortcut への登録が伴わない。この汎用口を素通しすると「設定ファイル上の値と
-      // 実際に登録されているホットキーが食い違う」状態を作れてしまうため、ここで弾く。
-      const { captureHotkey: _ignoredCaptureHotkey, ...safePatch } =
-        (patch && typeof patch === 'object' ? patch : {}) as Partial<Settings>
+      // 保存するだけでは済まない項目（ホットキー・保存先・拡張の許可）は落とす。
+      // 何をなぜ落とすかは settings.ts の DEDICATED_SETTING_KEYS に書いてある。
+      const { safePatch, ignored } = stripDedicatedSettingKeys(patch)
+      // 画面には出さない——今この口へ送っている画面は 1 つも無いので、出れば嘘になる。
+      // 将来ここへ流す実装を書いたときに、ログで気づけるようにするためだけの 1 行。
+      if (ignored.length > 0) console.warn('[settings] ignored keys that need their own IPC:', ignored.join(', '))
       const prevLang = loadSettings().language
       const merged = { ...loadSettings(), ...safePatch }
       saveSettings(merged)
