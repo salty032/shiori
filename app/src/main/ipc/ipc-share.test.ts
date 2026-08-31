@@ -280,3 +280,47 @@ describe('share:export - v2研究用メタデータ', () => {
     expect(frameWrite?.[1]).toBe(JSON.stringify([[0, 0, 1, 0], [1 / 24, 0, 0, 2]]))
   })
 })
+
+describe('share:import - 1件の失敗で残りを巻き添えにしない', () => {
+  beforeEach(() => {
+    handlers.clear()
+    statMock.mockClear()
+    readFileMock.mockClear()
+    copyFileMock.mockClear()
+    mkdirMock.mockClear()
+    unlinkMock.mockClear()
+    registerCapturedMedia.mockClear()
+    registerCapturedMedia.mockResolvedValue({ ok: true, id: 1 })
+    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoMeta: getVideoMetaMock })
+    metadataContent = [
+      JSON.stringify({ version: 1, file: 'a.png', captured_at: 1700000000000 }),
+      JSON.stringify({ version: 1, file: 'b.png', captured_at: 1700000000000 }),
+      JSON.stringify({ version: 1, file: 'c.png', captured_at: 1700000000000 }),
+    ].join('\n')
+    registerShareHandlers()
+  })
+
+  it('途中の1件が例外で落ちても、残りの取り込みを続けて件数を返す', async () => {
+    // 2件目だけ想定外の例外（保存先が満杯・DBが書けない等）で落とす
+    registerCapturedMedia
+      .mockResolvedValueOnce({ ok: true, id: 1 })
+      .mockRejectedValueOnce(new Error('ENOSPC'))
+      .mockResolvedValueOnce({ ok: true, id: 3 })
+
+    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+
+    expect(registerCapturedMedia).toHaveBeenCalledTimes(3)
+    expect(result.count).toBe(2)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain('b.png')
+  })
+
+  it('全件が例外で落ちても、失敗した件数がそのまま返る（途中で打ち切らない）', async () => {
+    registerCapturedMedia.mockRejectedValue(new Error('ENOSPC'))
+
+    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+
+    expect(result.count).toBe(0)
+    expect(result.errors).toHaveLength(3)
+  })
+})

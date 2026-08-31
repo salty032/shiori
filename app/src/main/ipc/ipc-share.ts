@@ -206,11 +206,14 @@ export function registerShareHandlers(): void {
 
       for (let i = 0; i < lines.length; i++) {
         if (isShareImportCanceled) break
+        // 下の catch で「どの行が失敗したか」を出すために、行の外側に控える。
+        let entryFile: string | null = null
         try {
           const line = lines[i]
           const parsed = parseShareEntry(line, Date.now())
           if (parsed === null) continue
           if ('error' in parsed) { errors.push(parsed.error); continue }
+          entryFile = parsed.file
 
           const srcFile = join(srcDir, 'images', parsed.file)
           let srcStat: Awaited<ReturnType<typeof stat>>
@@ -333,6 +336,23 @@ export function registerShareHandlers(): void {
             }
           }
           count++
+        } catch (err) {
+          // **1 件の失敗で残り全部を巻き添えにしない。**
+          //
+          // ここに来るのは行の検証を抜けた後の想定外——保存先が満杯で年月フォルダを
+          // 作れない、DB が書けない、といった経路。以前はこの catch が無く、例外は
+          // ループごと抜けてハンドラの外まで飛んでいた。**900 枚目でつまずくと 901 枚目
+          // 以降は取り込まれず、画面には「取り込みに失敗しました」しか出ない**——
+          // 900 枚は実際に入っているのに、それが何枚なのか画面から読めなかった。
+          //
+          // この行を errors に積んで次へ進めば「◯枚を取り込みました（△枚は失敗）」に
+          // なる。空きが尽きた場合は以降も全部失敗するが、**失敗した枚数がそのまま出る
+          // 方が、途中で切れて枚数が消えるより読める。**
+          //
+          // 実体ファイルのコピーだけ済んで登録前に落ちた場合、そのファイルは残る
+          // （どこまで進んだか catch からは分からないため、ここでは消さない）。
+          console.error('[share:import] entry failed', err)
+          errors.push(`import failed: ${entryFile ?? `line ${i + 1}`}`)
         } finally {
           if (shouldSend(i + 1)) sendToRenderer(CH.shareImportProgress, { current: i + 1, total })
         }
