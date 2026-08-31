@@ -41,6 +41,10 @@ export type TimesheetPlayer = {
 export function useTimesheet(imageId: number | null, fps: number | null) {
   const [clipFrames, setClipFrames] = useState<ClipFrames | null>(null)
   const [current, setCurrent] = useState(0)
+  // 抜けの中に居るとき、current の行の後ろ何コマ目か（0 = 表にある行そのもの）。
+  // **current を抜け込みの番号にしない。** current は打鍵の保存に使う表の行の添字で、
+  // 抜けのぶんを詰めて振り直すと、既に打ってあるものが別のコマを指す。
+  const [currentGap, setCurrentGap] = useState(0)
   const [marks, setMarks] = useState<TimesheetMark[]>([])
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -69,6 +73,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   useEffect(() => {
     setClipFrames(null)
     setCurrent(0)
+    setCurrentGap(0)
     setMarks([])
     setPending('')
     setCopied(false)
@@ -84,8 +89,9 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   const onFramesReady = useCallback((frames: ClipFrames | null) => setClipFrames(frames), [])
   // コマが動いたら打ちかけは捨てる。打った番号がどのコマのものか曖昧になるより、
   // 打ち直してもらう方がよい。
-  const onFrameIndex = useCallback((idx: number) => {
+  const onFrameIndex = useCallback((idx: number, gap: number) => {
     setCurrent(idx)
+    setCurrentGap(gap)
     setPending('')
   }, [])
 
@@ -128,11 +134,17 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     const player = playerRef.current
 
     const bare = !e.ctrlKey && !e.metaKey && !e.altKey
+    // 抜けの中に居る。**打鍵は表の行の添字で保存している**（timesheet.ts の expandMarks）
+    // ので、行の無いこの位置には付けようがない。移動と離脱だけ通し、入力は捨てる。
+    //
+    // **キーは取ったことにする（true を返す）。** ビューアの既定へ落とすと、数字がズーム、
+    // Enter が「閉じる」になる——打っている最中に画面が変わるのは事故でしかない。
+    const inGap = currentGap > 0
 
     // ○ / ● / × は 1 つで 1 マスぶんなので、打ちかけがあっても置き換える。
     if (bare && SYMBOL_KEYS[e.key]) {
       e.preventDefault()
-      setPending(SYMBOL_KEYS[e.key])
+      if (!inGap) setPending(SYMBOL_KEYS[e.key])
       return true
     }
 
@@ -140,12 +152,15 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     // 記号を打った後に数字を打ったら、記号を捨てて番号の入力に切り替える。
     if (bare && e.key.length === 1 && /[0-9A-Za-z]/.test(e.key)) {
       e.preventDefault()
-      setPending((p) => normalizeTimesheetValue(isToeiSymbol(p) ? e.key : p + e.key))
+      if (!inGap) setPending((p) => normalizeTimesheetValue(isToeiSymbol(p) ? e.key : p + e.key))
       return true
     }
 
     if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault()
+      // 抜けには確定するものが無い。**止めずに次へ送る**——ここで止まると、抜けを
+      // またぐたびに矢印キーへ持ち替えることになる。
+      if (inGap) { player?.stepFrame(1); return true }
       const value = normalizeTimesheetValue(pending)
       const without = marks.filter((m) => m.frame !== current)
       apply([...without, value ? { frame: current, value } : { frame: current }].sort((a, b) => a.frame - b.frame))
@@ -156,6 +171,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
 
     if (e.key === 'Backspace' || e.key === 'Delete') {
       e.preventDefault()
+      if (inGap) return true   // 消すものが無い
       // 記号は 1 文字ずつ削れない（綴りが崩れるだけ）ので、まるごと捨てる。
       if (pending) setPending((p) => (isToeiSymbol(p) ? '' : p.slice(0, -1)))
       else apply(marks.filter((m) => m.frame !== current))
@@ -176,10 +192,10 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     }
 
     return false
-  }, [visible, pending, marks, current, apply])
+  }, [visible, pending, marks, current, currentGap, apply])
 
   return {
-    ready, visible, open, setOpen, total, rows, current, marks, pending, copied, reused,
+    ready, visible, open, setOpen, total, rows, current, currentGap, marks, pending, copied, reused,
     onFramesReady, onFrameIndex, setMemo, copy, handleKey, bindPlayer, seek,
   }
 }

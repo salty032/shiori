@@ -96,9 +96,19 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
   // 寄せると 1 コマ送るたびに表全体が動き、どこを見ているか分からなくなる。
   useEffect(() => {
     currentRowRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [sheet.current])
+  }, [sheet.current, sheet.currentGap])
 
-  const { total, rows, marks, current, pending } = sheet
+  const { total, rows, marks, current, currentGap, pending } = sheet
+  // いま居る位置が rows の何行目か。抜けの中なら「その行 + 何コマ目か」。
+  // **current をそのまま行番号に使えない**——rows には抜けの空コマが挟まっている。
+  let currentPosition = -1
+  {
+    let seen = -1
+    for (let k = 0; k < rows.length; k++) {
+      if (rows[k] !== GAP_ROW) seen = rows[k]
+      if (seen === current) { currentPosition = k + currentGap; break }
+    }
+  }
   const labels = timesheetLabels(marks)
   const labelAt = new Array<string | null>(total).fill(null)
   marks.forEach((mark, i) => { if (mark.frame < total) labelAt[mark.frame] = labels[i] })
@@ -169,12 +179,17 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
 
           <div style={st.body}>
             {/* **並ぶのは元の動画のコマ**で、表の行ではない（rows）。抜けの位置には空のコマが
-                入っていて、そこは打てないし、コマ送りで止まることもできない。差し込まないと
-                抜けた枚数だけ下が詰まり、番号が元の動画とずれる。 */}
+                入っていて、そこには打てない（行が無いので付ける先が無い）。ただし
+                **コマ送りは止まる**——拡張のコマ送りが 1 手＝素材 1 コマで進むので、
+                飛ばすと同じ操作が同じ意味にならない。差し込まないと抜けた枚数だけ下が
+                詰まり、番号が元の動画とずれる。 */}
             {rows.map((i, position) => {
               const isGap = i === GAP_ROW
               const label = isGap ? null : labelAt[i]
-              const isCurrent = !isGap && i === current
+              // 抜けの行にもカーソルは出る（止まれる場所なので）。ただし打てる場所とは
+              // 見分けが要るので、打鍵欄の反転（c.sel）は実測行のときだけ。
+              const isCurrent = position === currentPosition
+              const isTypable = isCurrent && !isGap
               const secondIdx = Math.floor(position / perSecond)
               // 秒のブロックごとに地色を替える（実物と同じ）。1 秒の切れ目が目で追える。
               const band = secondIdx % 2 === 0 ? c.bandA : c.bandB
@@ -193,16 +208,16 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                         key={`c${label2}`}
                         style={{
                           ...st.cell, width: W.cell, borderTop: border, position: 'relative',
-                          background: isGap ? c.gapRow : (isWrite && isCurrent ? c.sel : band),
+                          background: isGap ? c.gapRow : (isWrite && isTypable ? c.sel : band),
                           fontWeight: 800, color: c.ink,
                         }}>
-                        {!isGap && isWrite && (isCurrent && pending
+                        {!isGap && isWrite && (isTypable && pending
                           ? <span style={{ opacity: 0.6, borderBottom: `1px solid ${c.ink}` }}>{timesheetGlyph(pending)}</span>
                           : label !== null ? timesheetGlyph(label) : '')}
                         {/* 絵が続いていることを示す縦線は、抜けをまたいで伸ばさない。
                             **抜けた区間で新しい絵が始まっていても分からない**ので、
                             続いていると請け合えない。 */}
-                        {!isGap && isWrite && held[i] && !(isCurrent && pending) && (
+                        {!isGap && isWrite && held[i] && !(isTypable && pending) && (
                           <span style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, background: c.ink, opacity: 0.7 }} />
                         )}
                       </div>

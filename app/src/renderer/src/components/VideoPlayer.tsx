@@ -138,8 +138,12 @@ type Props = {
   /** コマ表の取得が終わったら 1 度だけ知らせる（null は表が無い＝コマ単位で数えられない）。 */
   onFramesReady?: (frames: ClipFrames | null) => void
   /** 現在コマが変わったら知らせる。**再生中は呼ばない**——コマ表示と同じ理由で、
-   *  毎フレーム変わる値を出しても読めないうえ、受け手（タイムシート）が高速に再描画される。 */
-  onFrameIndex?: (idx: number) => void
+   *  毎フレーム変わる値を出しても読めないうえ、受け手（タイムシート）が高速に再描画される。
+   *
+   *  gap は「その行の後ろ何コマ目の抜けに居るか」（0 = 表にある行そのもの）。
+   *  **抜けには表の行が無いので、idx だけでは区別できない**——受け手はここが 0 かどうかで
+   *  打てる場所かを決める。 */
+  onFrameIndex?: (idx: number, gap: number) => void
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
@@ -168,11 +172,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // 前後に飛んでコマ順が崩れる。添字を自分で ±1 していけば何回連打しても単調に動く。
   // null = まだ確定していない（外部の再生位置から引き直す）。
   const frameIdxRef = useRef<number | null>(null)
+  // 表の行 i より前に、抜けが何コマあるか（積み上げ）。**画面に出すコマ番号はこれを足す。**
+  //
+  // 表の行をそのまま 1・2・3… と数えると、抜けたぶんだけ番号が詰まり、**番号 ÷ fps が
+  // 秒にならない**。タイムシートも書き出し（buildToeiClipboard）も元から抜けを数えた
+  // 番号で並んでいるので、ビューアだけが別の数を出していた——同じコマがビューアで 324、
+  // タイムシートで 327 になる（2026-08-31 の指摘）。
+  const gapBeforeRef = useRef<number[]>([])
+  // 抜けを含めたコマの総数（＝元の動画のコマ数）。番号の母数。
+  const totalWithGapsRef = useRef(0)
+  // 抜けの中に居るとき、その行の後ろ何コマ目か（0 = 表にある行そのもの）。
+  //
+  // **添字を増やす形にはしない。** この添字はタイムシートが打鍵の保存に使っているものと
+  // 同じで（timesheet.ts の expandMarks）、抜けのぶんを詰めて番号を振り直すと、既に打って
+  // あるものが別のコマを指す。「実測行の添字＋その後ろの何番目か」で持てば、表の行の
+  // 番号は 1 つも動かない。
+  const gapOffsetRef = useRef(0)
   // 自分のコマ送りによるシークかどうか。自分で動かした直後に外部同期（onSeeked）が
   // 添字を引き直すと、上と同じ書き戻しが起きるため 1 回だけ読み飛ばす。
   const selfSeekRef = useRef(false)
-  // 最後にタイムシートへ知らせたコマ番号（同じ番号を二度知らせないため）。
-  const lastNotifiedFrameRef = useRef<number | null>(null)
+  // 最後にタイムシートへ知らせた位置（同じ位置を二度知らせないため）。抜けの中を動いても
+  // 番号は変わらないので、`添字:抜けの何コマ目` で持つ。
+  const lastNotifiedFrameRef = useRef<string | null>(null)
   // コマ表の取得が終わるまでに押されたコマ送りの正味の量（MAX_PENDING_STEPS で頭打ち）。
   const pendingStepsRef = useRef(0)
 
@@ -202,6 +223,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   useEffect(() => {
     framesRef.current = null
     frameIdxRef.current = null
+    gapBeforeRef.current = []
+    totalWithGapsRef.current = 0
+    gapOffsetRef.current = 0
     lastNotifiedFrameRef.current = null
     selfSeekRef.current = false
     pendingStepsRef.current = 0
@@ -220,6 +244,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // 「このコマの次に何コマ抜けているか」を添字で引けるようにしておく（コマ送りのたびに
       // 配列を走査すると、押しっぱなしのときに効いてくる）。
       gapsRef.current = new Map((frames?.gaps ?? []).map((g) => [g.afterIndex, { missing: g.missing, measured: g.measured }]))
+      // 番号を出すたびに前から数え直すと、押しっぱなしのときに効いてくる。一度で積む。
+      const ptsLen = frames?.pts.length ?? 0
+      const before = new Array<number>(ptsLen)
+      let acc = 0
+      for (let i = 0; i < ptsLen; i++) { before[i] = acc; acc += gapsRef.current.get(i)?.missing ?? 0 }
+      gapBeforeRef.current = before
+      totalWithGapsRef.current = ptsLen + acc
       // 判定は frameTable の isClipUnreliable が持つ（トリマーも同じものを読む）。
       const rows = frames?.pts.length ?? 0
       unreliableRef.current = isClipUnreliable(frames)
@@ -238,6 +269,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       .catch((err) => { console.warn('[video] clip frames unavailable', err); settle(null) })
     return () => { canceled = true }
   }, [id, preloadFrameTable])
+
+  // このコマの次に何コマ抜けているか（無ければ 0）。
+  function missingAfter(idx: number): number {
+    return gapsRef.current.get(idx)?.missing ?? 0
+  }
 
   // **いま居るコマの添字を答える唯一の口。** 送っている最中なら持っている添字、
   // そうでなければ実際の再生位置から引く。
@@ -264,12 +300,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     // **流れている間の添字は残さない。** 着いた先からすぐ動き出すので、残せばその瞬間に
     // 古くなる。null にしておけば、次に押したときの位置から引き直される（onPlay と同じ理由）。
     frameIdxRef.current = v.paused ? idx : null
-    updateFrameReadout(idx)
+    // 外から動かされたら抜けの中には居ない。**時刻からは抜けの何コマ目かを引けない**
+    // ——抜けたコマは表にも録画にも位置を持たないので、実測行へ戻す。
+    gapOffsetRef.current = 0
+    updateFrameReadout(idx, 0)
   }
 
   // 現在の再生位置からコマ表示を引き直す（添字がまだ確定していない場合も含む）。
   function refreshFrameReadout(): void {
-    updateFrameReadout(currentFrameIdx())
+    updateFrameReadout(currentFrameIdx(), gapOffsetRef.current)
   }
 
   // コマ表示を書き換える。
@@ -278,7 +317,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // 変わらなかった理由が「素材がその絵を保持していた」のか「こちらが撮り逃して直前の絵を
   // 流用している」のかを、その場で区別できる必要がある。詳細パネルの合計枚数だけでは
   // 「どこかに N コマ嘘がある」としか言えない。
-  function updateFrameReadout(idx: number): void {
+  function updateFrameReadout(idx: number, gap = 0): void {
     const el = frameLabelRef.current
     if (!el) return
     const tr = tRef.current
@@ -302,13 +341,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     // **番号が変わったときだけ知らせる。** 受け取る側（タイムシート）は state を書くので、
     // 毎回呼ぶと同じ番号でも画面全体の描き直しが走る。掴んで動かしている間やコマ再生中は
     // これが 1 秒に何度も乗り、シークの待ちに上積みされていた。
-    if (cur !== lastNotifiedFrameRef.current) {
-      lastNotifiedFrameRef.current = cur
-      onFrameIndexRef.current?.(cur)
+    const posKey = `${cur}:${gap}`
+    if (posKey !== lastNotifiedFrameRef.current) {
+      lastNotifiedFrameRef.current = posKey
+      onFrameIndexRef.current?.(cur, gap)
     }
     // 番号は 1 始まり。0 始まりだと先頭が「0 / 719」になり、何コマ目かを数える用途では
-    // 毎回読み替えが要る（トリマーの f{N} 表示も同じ数え方に揃えてある）。
-    const params = { cur: String(cur + 1), total: String(total) }
+    // 毎回読み替えが要る。
+    //
+    // **数えるのは元の動画のコマで、表の行ではない。** 抜けたコマも 1 コマとして数える
+    // ので、番号 ÷ fps がそのまま秒になり、タイムシート・書き出しの番号とも一致する。
+    // トリマーの f{N} は**別の数え方のまま**——あちらが指しているのは録画ファイルを
+    // どこで切るかで、抜けたコマはそもそも切る対象に無い。
+    const srcNo = cur + (gapBeforeRef.current[cur] ?? 0) + gap + 1
+    const srcTotal = totalWithGapsRef.current || total
+    const params = { cur: String(srcNo), total: String(srcTotal) }
 
     if (kind === 'file') {
       // 表が無い＝ファイルに記録されたフレームをそのまま送っている。取り込み動画なら
@@ -321,9 +368,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       return
     }
 
-    const note = FRAME_NOTE[frames.quality[cur] ?? FRAME_QUALITY.captured]
     // このコマの次に抜けている枚数（小さい抜けのときだけ使う）。
     const gapNext = gapsRef.current.get(cur)
+
+    // 抜けの中に居る。**番号は続けて出す**——ここも元の動画の 1 コマなので、飛ばすと
+    // 番号が詰まる。他のコマと違うのは「絵が無い」ことなので、それを注記で言う。
+    if (gap > 0) {
+      const hint = { cur: String(cur + (gapBeforeRef.current[cur] ?? 0) + 1), count: String(gapNext?.missing ?? gap) }
+      el.textContent = `${tr('viewer.frameIndex', params)} · ${tr(gapNext?.measured ? 'viewer.frameInGap' : 'viewer.frameInGapEstimated')}`
+      el.title = tr(gapNext?.measured ? 'viewer.frameInGapHint' : 'viewer.frameInGapEstimatedHint', hint)
+      el.style.color = FRAME_COLOR.warn
+      return
+    }
+
+    const note = FRAME_NOTE[frames.quality[cur] ?? FRAME_QUALITY.captured]
     const missingNext = gapNext?.missing ?? 0
     // 枚数に裏が取れていない抜けは、そう分かる言い方で出す。**推定が 1 枚違うと、そこから
     // 下のコマ番号が全部ずれる**——確定と同じ文言だと、その危うさが画面から消える。
@@ -359,6 +417,31 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
         : note ? (uncapturedSevereRef.current ? FRAME_COLOR.alert : note.color) : FRAME_COLOR.ok
   }
 
+  // 抜けを 1 コマとして数えながら delta コマ歩く。
+  //
+  // **添字の ±1 では足りない。** 表の行と行の間に、行を持たないコマが挟まっている
+  // （抜け）。ここを飛ばすと、拡張のコマ送り（1 手＝素材 1 コマ）と同じ操作が同じ意味に
+  // ならない。1 スロットずつ進めるのは delta が小さいから（連打の保留は MAX_PENDING_STEPS
+  // で頭打ち、コマ再生は毎回 1）。
+  function walkFrames(idx: number, gap: number, delta: number, total: number): { idx: number; gap: number } {
+    let i = idx
+    let g = gap
+    for (let k = 0; k < Math.abs(delta); k++) {
+      if (delta > 0) {
+        if (g < missingAfter(i)) { g++; continue }
+        if (i >= total - 1) { g = 0; break }
+        i++
+        g = 0
+      } else {
+        if (g > 0) { g--; continue }
+        if (i <= 0) break
+        i--
+        g = missingAfter(i)
+      }
+    }
+    return { idx: i, gap: g }
+  }
+
   // delta コマ動かす（正で先へ、負で前へ）。
   // コマ表があるときは隣のコマへ直接移る。表がないとき（解決役が未登録・解析失敗）だけ従来の
   // fps 換算に落ちる。その場合は境界を必ず跨ぐよう半コマ余分に送る（進む側 +1.5 / 戻る側 -0.5）。
@@ -370,14 +453,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const pts = framesRef.current?.pts ?? []
     if (pts.length > 0) {
       const cur = currentFrameIdx()
-      const next = Math.max(0, Math.min(cur + delta, pts.length - 1))
+      const curGap = gapOffsetRef.current
+      const { idx: next, gap: nextGap } = walkFrames(cur, curGap, delta, pts.length)
       frameIdxRef.current = next
+      gapOffsetRef.current = nextGap
       // 端でも表示だけは更新する。「719 / 719」で止まっていれば、壊れているのではなく
       // 端まで来たのだと分かる（以前は無反応で、どちらか区別できなかった）。
-      updateFrameReadout(next)
+      updateFrameReadout(next, nextGap)
       if (next === cur) return
       selfSeekRef.current = true
-      v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec), limit))
+      // **抜けの中でも、シーク先は手前の実測行のまま。** 抜けたコマの絵はどこにも無い
+      // （録画ファイルの該当時刻の絵を出すのは、コマ打ちを絵から決めることになるので禁止
+      // ——docs/FRAME-GAPS.md 6-2）。手前のコマに固定しておけば、前から入っても後ろから
+      // 戻っても同じ絵になる。何が出ているかはコマ表示が言う。
+      v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
       return
     }
     v.currentTime = Math.max(0, Math.min(v.currentTime + stepSec * (delta + 0.5), limit))
@@ -409,8 +498,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const v = videoRef.current
     const pts = framesRef.current?.pts ?? []
     if (!v || pts.length === 0) return
-    const cur = currentFrameIdx()
-    moveFrames(Math.max(0, Math.min(idx, pts.length - 1)) - cur)
+    // **差分で渡さない。** 抜けが挟まっていると添字の引き算は歩数と一致しない
+    // （walkFrames）。行を指して飛ぶ操作なので、位置を直に置く。
+    const next = Math.max(0, Math.min(idx, pts.length - 1))
+    const moved = next !== currentFrameIdx() || gapOffsetRef.current !== 0
+    frameIdxRef.current = next
+    gapOffsetRef.current = 0
+    updateFrameReadout(next, 0)
+    if (!moved) return
+    v.pause()
+    selfSeekRef.current = true
+    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
+    v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
   }
 
   // 毎描画で最新に差し替える。useImperativeHandle の依存に props を並べると、足し忘れた
@@ -729,7 +828,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // 書き換えると番号も「流用 / 要確認」の注記も高速に明滅して読めたものではなくなる
       // （そもそも再生中は隠している。下の JSX を参照）。
       const pts = framesRef.current?.pts
-      if (pts && pts.length > 0) frameIdxRef.current = findFrameIdx(pts, meta.mediaTime)
+      if (pts && pts.length > 0) { frameIdxRef.current = findFrameIdx(pts, meta.mediaTime); gapOffsetRef.current = 0 }
       handle = rv.requestVideoFrameCallback!(tick)
     }
     handle = rv.requestVideoFrameCallback(tick)
@@ -801,7 +900,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           // 持ったままだと止めたときにはもう別のコマに居る。以前はここが残っていたため、
           // 少し流してからコマ送りを押すと、最後に送った場所へ戻ってから 1 コマ動いていた
           // （コマ表示も、止めた瞬間に古い番号が出ていた）。
-          onPlay={() => { setPlaying(true); setFramePlay(false); frameIdxRef.current = null }}
+          onPlay={() => { setPlaying(true); setFramePlay(false); frameIdxRef.current = null; gapOffsetRef.current = 0 }}
           onPause={() => setPlaying(false)}
           // シークバー操作など、コマ送り以外で位置が動いたときに添字を引き直す。
           onSeeked={handleSeeked}
