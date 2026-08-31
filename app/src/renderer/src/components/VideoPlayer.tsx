@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
 import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from '../frameTable'
+import {
+  buildGapIndex, frameReadout, walkFrames, FRAME_COLOR,
+  type GapIndex, type ReadoutKind
+} from '../frameReadout'
 import { getClipFramesResolver } from '../features/registry'
 import { useT, type Translate, type MessageKey } from '../i18n'
 import { font, radius, weight } from '../styles'
@@ -34,18 +38,7 @@ function fmtDur(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-/**
- * コマ表示が今どの土台で動いているか。**コマ送りの結果をどう読んでよいかが変わる**ので、
- * 内部で分岐するだけでなく画面にも出す（docs/ANIME-FRAMES.md 3章「保証できないときは
- * 保証できないと出す」）。
- *
- *   off       … コマ表示をしない（詳細パネル。表を取りに行かないので何も言えない）
- *   loading   … 表を取得中。**推定に落とさず、押されたコマ送りは保留する**
- *   source    … 素材の実コマ単位。1 コマ送り＝素材の 1 コマ
- *   file      … ファイルに記録されたフレーム単位（表が無い／対応が取れなかった）
- *   estimated … フレーム位置すら取れず、fps 換算の刻みで動いている
- */
-type ReadoutKind = 'off' | 'loading' | 'source' | 'file' | 'estimated'
+// ReadoutKind / FRAME_COLOR / FRAME_NOTE は frameReadout.ts が原本（判定と一緒に置く）。
 
 // 表の取得が終わるまでに溜められるコマ送りの上限。
 // 押した回数ぶんは動かしたいが、キーリピートを押しっぱなしにした場合まで積むと、
@@ -55,28 +48,6 @@ const MAX_PENDING_STEPS = 30
 // 再生中、ポインタが止まってからコントロールバーを引くまでの時間（ビューアのみ）。
 // 短いと映像を見ている間に何度も出入りしてちらつき、長いと映像の下端が隠れ続ける。
 const CONTROLS_IDLE_MS = 2500
-
-// コマ表示の色。**映像に直接重なる層なので、テーマ変数ではなくオンビデオの固定色にする**
-// （コントロールバーが半透明ホワイトに統一しているのと同じ判断。videoControls.tsx 参照）。
-const FRAME_COLOR = {
-  /** 素材のコマ単位で送れている・確からしさに問題が無い */
-  ok: 'rgba(255,255,255,0.92)',
-  /** 補足情報（読み込み中・実害なしと確認済みの流用） */
-  muted: 'rgba(255,255,255,0.62)',
-  /** 黙って誤読させうる状態（未検証の流用・素材のコマ単位でない） */
-  warn: '#ffcf70',
-  /** 検証の結果、絵が変わっていて特定不能と分かったコマ */
-  alert: '#ff9aa2',
-}
-
-// コマごとの確からしさに添える注記。null（撮れているコマ）のときは番号だけを出す——
-// **問題が無いときに何も足さない**のが要点で、常に何か表示していると注記が背景になる。
-const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; color: string } | null> = {
-  [FRAME_QUALITY.captured]: null,
-  [FRAME_QUALITY.reused]: { label: 'viewer.frameNeedsReview', hint: 'viewer.frameReusedHint', color: FRAME_COLOR.warn },
-  // misaligned はここに入れない。**箇所を指さずクリップ全体を赤で通す**（updateFrameReadout）。
-  [FRAME_QUALITY.misaligned]: null,
-}
 
 // コマ表示の置き場所。コントロールバー（ホバー時だけ出る）の上に重ねる。
 // **バーの中に入れないのは、バーがホバー中しか出ないため** —— キーボードでコマ送りして
@@ -150,7 +121,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   const framesRef = useRef<ClipFrames | null>(null)
   // 通知欠落数と、録画画像から推定したアニメの抜けコマ数を混ぜない。コマ送りと番号に使う
   // missing は後者だけ。推定できなければ 0 のままにし、境界で「未確認」と表示する。
-  const gapsRef = useRef<Map<number, { missing: number; technicalMissing: number; known: boolean }>>(new Map())
+  const gapIndexRef = useRef<GapIndex>(buildGapIndex(null))
   // このクリップのコマ送りが、どこを見ても当てにならないか。
   //
   // **抜けが 1 つでもあれば赤、にはしない。** 実測（手元 82 本・2026-08-26）では抜けのある
@@ -169,15 +140,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // 前後に飛んでコマ順が崩れる。添字を自分で ±1 していけば何回連打しても単調に動く。
   // null = まだ確定していない（外部の再生位置から引き直す）。
   const frameIdxRef = useRef<number | null>(null)
-  // 表の行 i より前に、抜けが何コマあるか（積み上げ）。**画面に出すコマ番号はこれを足す。**
-  //
-  // 表の行をそのまま 1・2・3… と数えると、抜けたぶんだけ番号が詰まり、**番号 ÷ fps が
-  // 秒にならない**。タイムシートも書き出し（buildToeiClipboard）も元から抜けを数えた
-  // 番号で並んでいるので、ビューアだけが別の数を出していた——同じコマがビューアで 324、
-  // タイムシートで 327 になる（2026-08-31 の指摘）。
-  const gapBeforeRef = useRef<number[]>([])
-  // 抜けを含めたコマの総数（＝元の動画のコマ数）。番号の母数。
-  const totalWithGapsRef = useRef(0)
   // 実測行の後ろに推定した抜けがあるとき、その何コマ目に居るか。0 は実測行そのもの。
   // video_frames に偽の行は足さず、ビューア内の一時的な位置としてだけ持つ。
   const gapOffsetRef = useRef(0)
@@ -215,8 +177,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   useEffect(() => {
     framesRef.current = null
     frameIdxRef.current = null
-    gapBeforeRef.current = []
-    totalWithGapsRef.current = 0
+    gapIndexRef.current = buildGapIndex(null)
     gapOffsetRef.current = 0
     lastNotifiedFrameRef.current = null
     selfSeekRef.current = false
@@ -233,20 +194,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const settle = (frames: ClipFrames | null): void => {
       if (canceled) return
       framesRef.current = frames
-      // 「このコマの次に何コマ抜けているか」を添字で引けるようにしておく（コマ送りのたびに
-      // 配列を走査すると、押しっぱなしのときに効いてくる）。
-      gapsRef.current = new Map((frames?.gaps ?? []).map((g) => [g.afterIndex, {
-        missing: g.animeMissing ?? 0,
-        technicalMissing: g.missing,
-        known: g.animeMissing != null
-      }]))
-      // 番号を出すたびに前から数え直すと、押しっぱなしのときに効いてくる。一度で積む。
-      const ptsLen = frames?.pts.length ?? 0
-      const before = new Array<number>(ptsLen)
-      let acc = 0
-      for (let i = 0; i < ptsLen; i++) { before[i] = acc; acc += gapsRef.current.get(i)?.missing ?? 0 }
-      gapBeforeRef.current = before
-      totalWithGapsRef.current = ptsLen + acc
+      // 抜けの索引（次の抜け・前までの積み上げ・母数）は frameReadout がまとめて作る。
+      gapIndexRef.current = buildGapIndex(frames)
       // 判定は frameTable の isClipUnreliable が持つ（トリマーも同じものを読む）。
       const rows = frames?.pts.length ?? 0
       unreliableRef.current = isClipUnreliable(frames)
@@ -268,7 +217,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
 
   // この実測行の次に、推定したアニメの抜けが何コマあるか。
   function missingAfter(idx: number): number {
-    return gapsRef.current.get(idx)?.missing ?? 0
+    return gapIndexRef.current.gaps.get(idx)?.missing ?? 0
   }
 
   // **いま居るコマの添字を答える唯一の口。** 送っている最中なら持っている添字、
@@ -306,135 +255,43 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     updateFrameReadout(currentFrameIdx(), gapOffsetRef.current)
   }
 
-  // コマ表示を書き換える。
-  //
-  // **番号だけでは足りない。** コマ送りで絵が変わらないこと自体が測定結果（コマ打ち）なので、
-  // 変わらなかった理由が「素材がその絵を保持していた」のか「こちらが撮り逃して直前の絵を
-  // 流用している」のかを、その場で区別できる必要がある。詳細パネルの合計枚数だけでは
-  // 「どこかに N コマ嘘がある」としか言えない。
+  // コマ表示を書き換える。**何を出すかは frameReadout.ts が決める**（そちらでテストする）。
+  // ここに残すのは DOM への書き込みと、タイムシートへの通知だけ。
   function updateFrameReadout(idx: number, gap = 0): void {
     const el = frameLabelRef.current
     if (!el) return
-    const tr = tRef.current
-    const kind = readoutRef.current
-    if (kind === 'loading') {
-      el.textContent = tr('viewer.frameLoading')
-      el.title = tr('viewer.frameLoadingHint')
-      el.style.color = FRAME_COLOR.muted
-      return
-    }
-    if (kind === 'estimated') {
-      el.textContent = tr('viewer.frameEstimated', { fps: String(Math.round(1 / stepSec)) })
-      el.title = tr('viewer.frameEstimatedHint')
-      el.style.color = FRAME_COLOR.warn
-      return
-    }
-    const frames = framesRef.current
-    if (!frames || frames.pts.length === 0) return
-    const total = frames.pts.length
-    const cur = Math.max(0, Math.min(idx, total - 1))
+    const out = frameReadout({
+      kind: readoutRef.current,
+      idx,
+      gap,
+      frames: framesRef.current,
+      index: gapIndexRef.current,
+      unreliable: unreliableRef.current,
+      uncapturedSevere: uncapturedSevereRef.current,
+      clipSource,
+      estimatedFps: Math.round(1 / stepSec),
+    }, tRef.current)
+    // null は「コマ表が無い」＝表示を書き換えない（従来どおり前の表示のまま）。
+    if (!out) return
     // **番号が変わったときだけ知らせる。** 受け取る側（タイムシート）は state を書くので、
     // 毎回呼ぶと同じ番号でも画面全体の描き直しが走る。掴んで動かしている間やコマ再生中は
     // これが 1 秒に何度も乗り、シークの待ちに上積みされていた。
-    const posKey = `${cur}:${gap}`
-    if (posKey !== lastNotifiedFrameRef.current) {
-      lastNotifiedFrameRef.current = posKey
-      onFrameIndexRef.current?.(cur, gap)
-    }
-    // 番号は 1 始まり。0 始まりだと先頭が「0 / 719」になり、何コマ目かを数える用途では
-    // 毎回読み替えが要る。
-    //
-    // **数えるのは元の動画のコマで、表の行ではない。** 抜けたコマも 1 コマとして数える
-    // ので、番号 ÷ fps がそのまま秒になり、タイムシート・書き出しの番号とも一致する。
-    // トリマーの f{N} は**別の数え方のまま**——あちらが指しているのは録画ファイルを
-    // どこで切るかで、抜けたコマはそもそも切る対象に無い。
-    const srcNo = cur + (gapBeforeRef.current[cur] ?? 0) + gap + 1
-    const srcTotal = totalWithGapsRef.current || total
-    const params = { cur: String(srcNo), total: String(srcTotal) }
-
-    if (kind === 'file') {
-      // 表が無い＝ファイルに記録されたフレームをそのまま送っている。取り込み動画なら
-      // それが素材のコマそのものだが、録画クリップのフレームは画面キャプチャの供給レートの
-      // 産物で素材のコマとは対応しない。**後者は黙って通してはいけない。**
-      const isImport = clipSource === 'import'
-      el.textContent = tr(isImport ? 'viewer.frameIndex' : 'viewer.frameIndexFile', params)
-      el.title = tr(isImport ? 'viewer.frameFileHint' : 'viewer.frameFileCaptureHint')
-      el.style.color = isImport ? FRAME_COLOR.ok : FRAME_COLOR.warn
-      return
-    }
-
-    // このコマの次に抜けている枚数（小さい抜けのときだけ使う）。
-    const gapNext = gapsRef.current.get(cur)
-
-    // 推定した抜けの中。対応する録画画像は無いので、映像は手前の実測行のままにする。
-    // 番号だけ進めることを黙らせず、精度の無い仮想位置だと常に表示する。
-    if (gap > 0) {
-      const hint = {
-        cur: String(cur + (gapBeforeRef.current[cur] ?? 0) + 1),
-        count: String(gapNext?.missing ?? gap)
+    if (out.cur !== null) {
+      const posKey = `${out.cur}:${gap}`
+      if (posKey !== lastNotifiedFrameRef.current) {
+        lastNotifiedFrameRef.current = posKey
+        onFrameIndexRef.current?.(out.cur, gap)
       }
-      el.textContent = `${tr('viewer.frameIndex', params)} · ${tr('viewer.frameInGapEstimated')}`
-      el.title = tr('viewer.frameInGapEstimatedHint', hint)
-      el.style.color = FRAME_COLOR.warn
-      return
     }
-
-    const note = FRAME_NOTE[frames.quality[cur] ?? FRAME_QUALITY.captured]
-    const missingNext = gapNext?.missing ?? 0
-    const unknownNext = gapNext != null && !gapNext.known
-    // 注記は 3 段（詳細パネルの注記と同じ切り方）。
-    //
-    //   赤「要注意」   … ずれがある、または穴だらけ。どこを見ても数えられないので全体に出す。
-    //                    **押さないと出ない場所ではなく番号の横**に置く（いちばん重いので）。
-    //   黄「この先 N コマ抜け」… 抜けが少ないクリップ。壊れているのは**その穴をまたぐ境目
-    //                    だけ**で、残りの境目は無傷。だから全体を赤くせず、その場所で出す。
-    //   黄「未取得」   … 絵が無いコマ。コマ数は数えられる。従来どおりコマ単位。
-    //
-    // 重なったら重い方を採る。**並べない**——要注意が出ている時点で他を足しても判断は変わらず、
-    // 抜けの手前では「またげない」ことが未取得より先に知りたい。
-    const label = unreliableRef.current
-      ? tr('viewer.frameUnreliable')
-      : unknownNext
-        ? tr('viewer.frameGapUnknown')
-        : missingNext > 0
-          ? tr('viewer.frameGapAfterEstimated', { count: String(missingNext) })
-        : note ? tr(note.label) : null
-    el.textContent = label
-      ? `${tr('viewer.frameIndex', params)} · ${label}`
-      : tr('viewer.frameIndex', params)
-    el.title = unreliableRef.current
-      ? tr('viewer.frameUnreliableHint')
-      : unknownNext
-        ? tr('viewer.frameGapUnknownHint', { count: String(gapNext.technicalMissing) })
-        : missingNext > 0
-          ? tr('viewer.frameGapAfterEstimatedHint', { count: String(missingNext) })
-        : tr(note ? note.hint : 'viewer.frameSourceHint')
-    // 未取得は、そのクリップで多いときだけ赤へ上げる（詳細パネルと同じ 5%）。
-    el.style.color = unreliableRef.current
-      ? FRAME_COLOR.alert
-      : unknownNext || missingNext > 0
-        ? FRAME_COLOR.warn
-        : note ? (uncapturedSevereRef.current ? FRAME_COLOR.alert : note.color) : FRAME_COLOR.ok
+    el.textContent = out.text
+    el.title = out.title
+    el.style.color = out.color
   }
 
   // 実測行と、その間に推定した仮想コマを合わせて delta コマ歩く。
-  function walkFrames(idx: number, gap: number, delta: number, total: number): { idx: number; gap: number } {
-    let i = idx
-    let g = gap
-    for (let k = 0; k < Math.abs(delta); k++) {
-      if (delta > 0) {
-        if (g < missingAfter(i)) { g++; continue }
-        if (i >= total - 1) { g = 0; break }
-        i++
-        g = 0
-      } else {
-        if (g > 0) { g--; continue }
-        if (i <= 0) break
-        i--
-        g = missingAfter(i)
-      }
-    }
-    return { idx: i, gap: g }
+  // 実体は frameReadout.ts（歩き方だけをテストできるように出してある）。
+  function walkFramesHere(idx: number, gap: number, delta: number, total: number): { idx: number; gap: number } {
+    return walkFrames(idx, gap, delta, total, missingAfter)
   }
 
   // delta コマ動かす（正で先へ、負で前へ）。
@@ -449,7 +306,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     if (pts.length > 0) {
       const cur = currentFrameIdx()
       const curGap = gapOffsetRef.current
-      const { idx: next, gap: nextGap } = walkFrames(cur, curGap, delta, pts.length)
+      const { idx: next, gap: nextGap } = walkFramesHere(cur, curGap, delta, pts.length)
       frameIdxRef.current = next
       gapOffsetRef.current = nextGap
       // 端でも表示だけは更新する。「719 / 719」で止まっていれば、壊れているのではなく
