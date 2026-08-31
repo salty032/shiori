@@ -59,7 +59,6 @@ ${extractFunction(contentJs, 'stripBilibiliTabName')}
 ${extractFunction(contentJs, 'getPageTitle')}
 return getPageTitle
 `
-// eslint-disable-next-line no-new-func
 const makeGetPageTitle = new Function('location', 'document', 'getVideo', src) as
   (location: unknown, document: unknown, getVideo: () => FakeNode | null) => () => string
 

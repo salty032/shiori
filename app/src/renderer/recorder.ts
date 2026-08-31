@@ -305,9 +305,7 @@ async function acquireScreenStream(sourceId: string, fps: number): Promise<{ str
   // 素材 24fps に対し供給が 34枚/秒では 2 倍に届かないため、素材 1 コマぶんの表示区間に
   // 1 枚も撮れない箇所が 5〜7% 生じる。避けられないので、フレーム表側で「未取得」として
   // 印を付けてユーザーへ見せる（frame-feed.ts の captured を参照）。
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const videoConstraints = { cursor: 'never', frameRate: { ideal: maxFrameRate, max: maxFrameRate } } as any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const videoMandatory = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate } } as any
 
   // 音声処理は全て切る。既定（audio: true）だと音声通話向けの処理チェーン
@@ -343,7 +341,6 @@ async function acquireScreenStream(sourceId: string, fps: number): Promise<{ str
   try {
     return {
       stream: await navigator.mediaDevices.getUserMedia({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         audio: { mandatory: { chromeMediaSource: 'desktop' } } as any,
         video: videoMandatory,
       }),
@@ -485,7 +482,6 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   // the cropped output follows the captured source frame timing.
   const cs = canvas.captureStream(0)
   canvasStream = cs
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const csTrack = cs.getVideoTracks()[0] as any
 
   rVfcRunning = true
@@ -542,11 +538,9 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     } else {
       duplicateSuppressed++
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(video as any).requestVideoFrameCallback(scheduleFrame)
   }
   if ('requestVideoFrameCallback' in video) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(video as any).requestVideoFrameCallback(scheduleFrame)
   } else {
     const intervalMs = Math.max(16, Math.round(1000 / Math.min(60, Math.max(1, fps || 30))))
@@ -798,7 +792,6 @@ async function runBenchVariant(variant: BenchVariant, seconds: number): Promise<
     }
     // 録画時と同じ経路（getDisplayMedia）。解像度・フレームレートだけ変えて比較する。
     // 音声は要求しない — 計測したいのは映像の供給枚数で、音声の有無で失敗要因を増やしたくない。
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const videoConstraints: any = { frameRate: { ideal: variant.maxFrameRate ?? 60, max: variant.maxFrameRate ?? 60 } }
     if (variant.maxWidth) videoConstraints.width = { max: variant.maxWidth }
     stream = await navigator.mediaDevices.getDisplayMedia({ video: videoConstraints })
@@ -813,7 +806,6 @@ async function runBenchVariant(variant: BenchVariant, seconds: number): Promise<
     await video.play()
 
     let ctx: CanvasRenderingContext2D | null = null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let csTrack: any = null
     if (variant.stage !== 'capture') {
       const crop = await window.recorderApi.getCrop(base.width, base.height)
@@ -834,7 +826,6 @@ async function runBenchVariant(variant: BenchVariant, seconds: number): Promise<
       // 描画は録画時と同じ「切り出して等倍で描く」形にする（拡大縮小のコストを混ぜない）。
       const sx = crop?.x ?? 0
       const sy = crop?.y ?? 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(video as any).__benchDraw = () => {
         ctx?.drawImage(video, sx, sy, w, h, 0, 0, w, h)
         csTrack?.requestFrame()
@@ -850,14 +841,11 @@ async function runBenchVariant(variant: BenchVariant, seconds: number): Promise<
         if (meta?.mediaTime === undefined || meta.mediaTime !== lastMediaTime) {
           base.distinct++
           if (meta?.mediaTime !== undefined) lastMediaTime = meta.mediaTime
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(video as any).__benchDraw?.()
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(video as any).requestVideoFrameCallback(tick)
       }
       if ('requestVideoFrameCallback' in video) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(video as any).requestVideoFrameCallback(tick)
       }
       setTimeout(() => { running = false; resolve() }, seconds * 1000)

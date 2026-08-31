@@ -153,7 +153,6 @@ export default function App() {
   // 画像間の移動（viewerIdx が非nullのまま変わる）では再実行しない。
   useEffect(() => {
     if (viewerIdx !== null) setDetailPanelHiddenInViewer(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewerIdx !== null])
 
   // useSelection はグリッド/タイムラインで矩形選択の当たり判定を切り替えるため最新の viewMode を ref で参照する。

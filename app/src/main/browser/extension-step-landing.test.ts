@@ -19,7 +19,6 @@ function constant(name: string): number {
   const hit = new RegExp(`^const ${name} = ([^\\n]+?)\\s*(?://.*)?$`, 'm').exec(contentJs)
   if (!hit) throw new Error(`${name} not found in extension source`)
   // 1 / 120 のような式もそのまま評価する（定数の定義はソース側が原本）。
-  // eslint-disable-next-line no-new-func
   const value = Function(`"use strict"; return (${hit[1]})`)() as number
   if (!Number.isFinite(value)) throw new Error(`${name} is not a number`)
   return value
@@ -114,7 +113,6 @@ function createHarness(opts: { frameSec?: number, srcFrameSec?: number, seedSec?
   }
 
   // 自プロジェクトのソースを読むだけで外部入力は含まないため Function での評価は許容する。
-  // eslint-disable-next-line no-new-func
   const api = Function('deps', `"use strict";
 ${STEP_CONSTS}
 const MAX_PENDING_STEPS = ${constant('MAX_PENDING_STEPS')}

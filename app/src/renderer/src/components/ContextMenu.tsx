@@ -37,7 +37,6 @@ export default function ContextMenu({ x, y, items, onClose, initialHighlight = -
     const left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))
     const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))
     setPos({ left, top })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [x, y, items])
 
   useEffect(() => {

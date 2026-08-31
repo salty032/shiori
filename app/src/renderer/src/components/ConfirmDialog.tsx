@@ -64,7 +64,6 @@ export default function ConfirmDialog({
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, closing])
 
   async function handleConfirm(): Promise<void> {

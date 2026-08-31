@@ -158,7 +158,6 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
       ...historySuggestions.map((h) => ({ key: `history:${h}`, onConfirm: () => setSearchImmediate(h) })),
     ]
     return []
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePrefix, tagSuggestions, siteSuggestions, typeSuggestions, historySuggestions, prefixSuggestions])
 
   useEffect(() => { setHighlightedIndex(-1) }, [activeSuggestions])
@@ -283,7 +282,6 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
       })
     }
     return chips
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.search, filters.sites, filters.tagFilters, searchTags])
 
   return (

@@ -89,7 +89,6 @@ describe('録画停止後のプレーヤー UI 復帰（post-capture の immedia
   const delayFn = contentJs.match(/function restoreDelayFor\(host, immediate\)[\s\S]*?\n}/)?.[0] ?? ''
   const delayTable = contentJs.match(/const POST_CAPTURE_RESTORE_DELAY_BY_HOST = \{[\s\S]*?\n\}/)?.[0] ?? ''
   const defaultDelay = contentJs.match(/const DEFAULT_POST_CAPTURE_RESTORE_DELAY_MS = [^\n]+/)?.[0] ?? ''
-  // eslint-disable-next-line no-new-func
   const restoreDelayFor = Function(`"use strict";
 ${defaultDelay}
 ${delayTable}

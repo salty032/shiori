@@ -34,9 +34,7 @@ type ProgressCallback = (progress: number) => void
 type DownloadSignal = { signal?: AbortSignal }
 interface TagEntry { name: string; category: number }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ortModule: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let session: any = null
 let tagList: TagEntry[] = []
 let ensureModelPromise: Promise<void> | null = null
@@ -74,7 +72,6 @@ async function unloadModel(): Promise<void> {
 
 async function getOrt(): Promise<any> {
   if (!ortModule) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     ortModule = require('onnxruntime-node')
   }
   return ortModule

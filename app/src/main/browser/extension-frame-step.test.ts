@@ -16,7 +16,6 @@ const constLines = contentJs.match(/^const STEP_[A-Z0-9_]+ = [^\n]+$/gm)
 if (!constLines || constLines.length < 6) throw new Error('STEP_* constants not found in extension source')
 
 // 自プロジェクトのソースを読むだけで外部入力は含まないため Function での評価は許容する。
-// eslint-disable-next-line no-new-func
 const api = Function(`"use strict";
 ${constLines.join('\n')}
 ${extractFunction(contentJs, 'initialFrameStep')}

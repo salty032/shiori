@@ -62,7 +62,6 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
       window.removeEventListener('mousedown', onPointerDown, true)
       window.removeEventListener('keydown', onKey, true)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose, anchorEl, closing])
 
   return (

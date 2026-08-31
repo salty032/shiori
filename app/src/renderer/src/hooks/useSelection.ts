@@ -166,7 +166,6 @@ export function useSelection({
     setSelectedIds(new Set())
     anchorIdx.current = null
     setFocusIdx(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterQueryKey])
 
   function preserveSelectionOnce(): void { preserveSelectionRef.current = true }

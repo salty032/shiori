@@ -50,7 +50,6 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closing])
 
   const steps = [

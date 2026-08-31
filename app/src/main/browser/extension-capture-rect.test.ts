@@ -45,7 +45,6 @@ function load(env: Env = {}) {
         ? (env.surfaces ?? []).map((r) => ({ getBoundingClientRect: () => r }))
         : [],
   }
-  // eslint-disable-next-line no-new-func
   return new Function('window', 'document', 'location', 'getComputedStyle', src)(
     { innerWidth: viewport.width, innerHeight: viewport.height },
     document,
