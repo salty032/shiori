@@ -85,11 +85,27 @@ export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
   return frameGaps(frames)
 }
 
+// 1 コマの長さ（ファイル側の実測）。**次の「行」ではなく次の「ファイルのコマ」まで。**
+//
+// 行と行の間は、抜けがあれば広く空く（id=297 では 13.404 → 13.559）。そこを 1 コマの長さと
+// して扱うと、真ん中を狙うシークが抜けの中へ落ちて**番号と違う絵が出る。** 全コマの時刻は
+// ここにしか無いので、行ごとに自分の長さを付けて渡す。
+//
+// 末尾のファイルコマには次が無いので、直前の間隔を続くものとみなす（frameSeekTarget の
+// 末尾の扱いと同じ）。
+function fileFrameDur(pts: number[], i: number): number {
+  if (i + 1 < pts.length) return pts[i + 1] - pts[i]
+  return i > 0 ? pts[i] - pts[i - 1] : 0
+}
+
 export function buildClipFrames(pts: number[], table: StoredFrame[] | null): ClipFrames {
   const usable = table?.filter((f) => f.frameIndex >= 0 && f.frameIndex < pts.length) ?? []
-  if (usable.length === 0) return { pts, sourceBased: false, quality: [] }
+  if (usable.length === 0) {
+    return { pts, sourceBased: false, quality: [], dur: pts.map((_, i) => fileFrameDur(pts, i)) }
+  }
   return {
     pts: usable.map((f) => pts[f.frameIndex]),
+    dur: usable.map((f) => fileFrameDur(pts, f.frameIndex)),
     sourceBased: true,
     quality: usable.map(frameQualityOf),
     gaps: findClipGaps(usable)

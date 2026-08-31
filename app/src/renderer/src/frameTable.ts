@@ -33,9 +33,21 @@ export function isClipUnreliable(
 // フレームの開始時刻ちょうどを指すと、浮動小数点の丸めやデコーダの解釈差で隣のフレームに
 // 着地することがあり、「1 回押したのに動かない／2 コマ進む」の原因になる。表示区間の中央を
 // 狙えば必ずそのフレームに入る（拡張側のコマ送りが ±1.5/0.5 コマずらすのと同じ考え方）。
+//
+// **中央は「そのコマ自身の長さ」から出す（dur）。次の行までの中央ではない。**
+//
+// 行と行の間は、抜け（ページからコマの知らせが来なかった区間）があると広く空く。そこの
+// 中央を狙うと**抜けの中のファイルコマに着地し、番号と違う絵が出る。** id=297 の番号 323 が
+// 実例で、13.404 と 13.559 の中央 13.4815 はファイルのコマ 687（別の絵）だった——画面には
+// 「323」と出たまま、コマ表からは到達できないはずの絵が映っていた（2026-08-31）。
+//
+// dur は録画ファイル側の実測（ipc-video.ts の fileFrameDur）。**無い場合は従来どおり
+// 次の行までの中央で代用する**——古い取得結果や、dur を持たない呼び出し元があるため。
 // 末尾フレームは次の PTS が無いので、直前の間隔を継続すると見なす。
-export function frameSeekTarget(pts: number[], idx: number, fallbackDur: number): number {
+export function frameSeekTarget(pts: number[], idx: number, fallbackDur: number, dur?: number[]): number {
   const start = pts[idx]
+  const own = dur?.[idx]
+  if (own !== undefined && own > 0) return start + own / 2
   if (idx + 1 < pts.length) return (start + pts[idx + 1]) / 2
   const prevGap = idx > 0 ? start - pts[idx - 1] : fallbackDur
   return start + prevGap / 2

@@ -83,6 +83,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [framePts, setFramePts] = useState<number[]>([])
+  // 1 コマずつの長さ（録画ファイル側の実測）。**シーク先を出すためだけに持つ。**
+  // pts だけで中央を狙うと、抜けをまたぐ場所で別の絵に着く（frameSeekTarget を参照）。
+  const [frameDurs, setFrameDurs] = useState<number[] | undefined>(undefined)
   const [ptsLoading, setPtsLoading] = useState(true)
   const [ptsError, setPtsError] = useState(false)
   const [stripUrl, setStripUrl] = useState<string | null>(null)
@@ -114,12 +117,13 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     setPtsError(false)
     ptsLoadedRef.current = false
     videoApi.getClipFrames(image.id)
-      .then(({ pts }) => {
+      .then(({ pts, dur: frameDur }) => {
         ptsLoadedRef.current = true
         if (pts.length === 0) {
           setPtsError(true)
         } else {
           setFramePts(pts)
+          setFrameDurs(frameDur)
           setInSec(pts[0])
           setOutSec(pts[pts.length - 1])
           // タイムラインの全長を「最後のフレーム + 1 コマ」に詰める。
@@ -492,7 +496,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   // **再生ヘッドや IN/OUT の値には使わない**——あちらはコマの開始時刻そのものが正しい。
   // ここで返すのは「そのコマを映すために video へ渡す時刻」だけ。
   function frameSeekSec(idx: number): number {
-    return Math.max(0, Math.min(dur, frameSeekTarget(framePts, idx, step)))
+    return Math.max(0, Math.min(dur, frameSeekTarget(framePts, idx, step, frameDurs)))
   }
 
   // タイムライン上の秒数→PTS スナップ
