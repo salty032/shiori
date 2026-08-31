@@ -45,12 +45,15 @@ jobs:
       # 同時に走らせ、同一タグのリリースが 2 つできることがある（既知のレース）。
       # 先に空のリリースを 1 つ用意し、electron-builder には既存リリースへ添付だけ
       # させて回避する。再実行で既に存在する場合は作らずに続行する。
-      - name: Ensure release exists (avoid duplicate-release race)
+      # **draft で作る。** 公開は全部上がってから（最後の Publish release ステップ）。
+      # 先に公開すると、この後のビルドや FFmpeg ソースの添付が落ちた回に、**中身が空か
+      # 半端なリリースが公開されたまま残る**。draft なら人目には出ない。
+      - name: Ensure draft release exists (avoid duplicate-release race)
         shell: pwsh
         run: |
           gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --title "$env:GITHUB_REF_NAME" --notes "Shiori $env:GITHUB_REF_NAME"
+            gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --draft --title "$env:GITHUB_REF_NAME" --notes "Shiori $env:GITHUB_REF_NAME"
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,5 +74,14 @@ jobs:
           node scripts/fetch-ffmpeg-source.mjs
           $archive = Get-ChildItem dist/ffmpeg-*-source.tar.gz | Select-Object -First 1
           gh release upload "$env:GITHUB_REF_NAME" $archive.FullName --repo "$env:GITHUB_REPOSITORY" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # **ここまで来て初めて公開する。** 自動更新はこの latest.yml を見に行くので、
+      # draft のままだと更新が配られない。**このステップが落ちた回は、更新が黙って
+      # 止まる**——ワークフローが赤くなるので、そのときは手で draft を外すこと。
+      - name: Publish release
+        shell: pwsh
+        run: gh release edit "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --draft=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
