@@ -132,7 +132,7 @@ export function buildCoreApi(): ShioriApi {
     taggerRemoveTagBulk: (imageIds: number[], tagName: string): Promise<void> => ipcRenderer.invoke(CH.taggerRemoveTagBulk, imageIds, tagName),
     taggerRemoveTagFromAll: (tagName: string): Promise<number> => ipcRenderer.invoke(CH.taggerRemoveTagFromAll, tagName),
     onTaggerDone: (cb: (data: { imageId: number }) => void) => listen(CH.taggerDone, cb),
-    onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null; misaligned: number | null }) => void) =>
+    onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null; misaligned: number | null; unreportedMeasured: boolean }) => void) =>
       listen(CH.framesVerified, cb),
     onTaggerDownloadProgress: (cb: (progress: number) => void) => listen<number>(CH.taggerDownloadProgress, cb),
     onTaggerError: (cb: (msg: string) => void) => listen<string>(CH.taggerError, cb),

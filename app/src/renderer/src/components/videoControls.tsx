@@ -3,7 +3,7 @@
 // shiori-vc-styles 注入・再生/ミュートアイコン）を 1 箇所に集約し、片方だけ直して
 // 挙動が食い違う温床を無くす。挙動は両コンポーネントの従来実装と同一。
 import { useEffect, useRef, useState } from 'react'
-import { font, radius, space, control } from '../styles'
+import { control, font, radius, space, weight } from '../styles'
 import { useT } from '../i18n'
 
 // 音量ポップアップのスライドイン/アウト用 keyframes を一度だけ注入する。
@@ -307,21 +307,21 @@ export const vcTimeLabelStyle: React.CSSProperties = {
 const s: Record<string, React.CSSProperties> = {
   // 秒数は桁が変わる（1秒 ↔ 0.25秒）ので固定幅にしないと、選び直すたびにバーの他の
   // コントロールが左右に動く。
-  vcStepBtn: { minWidth: 92, gap: space.x4, fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0, whiteSpace: 'nowrap' },
+  vcStepBtn: { minWidth: 92, gap: space.x4, fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', letterSpacing: 0, whiteSpace: 'nowrap' },
   // コマ再生が走っていることは一目で分かる必要がある（映像は止まったまま少しずつ動くので、
   // 手で送っているのか自動なのかが画面から区別できないと迷う）。
   vcStepBtnActive: { color: 'var(--accent-text)' },
   // 速さ・音量のポップアップは映像の外へ浮く「メニュー」なので、右クリックメニュー
   // （ContextMenu の menu）とまったく同じ地・枠・角丸・影にする。以前は #171a23 の地に
   // #2b3243 の枠という、ここだけの青灰だった（アプリ本体は中立のグレー）。
-  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, display: 'flex', flexDirection: 'column', gap: space.x2, zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },
-  vcStepItem: { background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
+  vcStepPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, display: 'flex', flexDirection: 'column', gap: space.x2, zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), var(--shadow-popover))' },
+  vcStepItem: { background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', padding: '3px 8px', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', textAlign: 'center', whiteSpace: 'nowrap' },
   vcStepItemActive: { background: 'rgba(var(--accent-rgb), 0.22)', color: 'var(--accent-text)' },
   // 選択肢ではなく見出しなので、押せる行と同じ明るさにしない（押せるものと見分けが付かなくなる）。
-  vcStepGroup: { display: 'flex', alignItems: 'center', gap: space.x4, padding: '4px 4px 2px', color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 700, whiteSpace: 'nowrap' },
+  vcStepGroup: { display: 'flex', alignItems: 'center', gap: space.x4, padding: '4px 4px 2px', color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: weight.normal, whiteSpace: 'nowrap' },
   vcStepRule: { flex: 1, height: 1, background: 'rgba(var(--text-rgb), 0.14)' },
   vcLoopActive: { color: 'var(--accent-text)' },
-  vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)' },
+  vcVolPopup: { position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), var(--shadow-popover))' },
   // ポップアップの中はアプリの面なので、溝も映像用の半透明ホワイトではなくアプリの溝に合わせる。
   vcVolTrack: { position: 'relative', width: 6, height: 60, background: 'var(--bg-inset-strong)', borderRadius: radius.md, cursor: 'pointer', flexShrink: 0 },
   vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: radius.md },

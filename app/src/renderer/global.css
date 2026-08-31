@@ -54,7 +54,7 @@
 
    いまは 3 つの規則で両テーマから同じ手順で出す：
      1. **色相は両テーマ共通**（赤352 / 黄37 / 緑158 / 藍206）。
-     2. **明るさは「サムネの題名（--text-label）のすぐ下」に揃える。** 意味の色は
+     2. **明るさは --text-label のすぐ下に揃える。** 意味の色は
         目印であって本文ではないので、本文より前に出ない位置に置く。
      3. **彩度は暗い側だけ低く抑える。** 同じ彩度でも、暗い地の上の明るい色は
         光って見え、明るい地の上の暗い色は落ち着いて見える。ライトの黄（彩度 77%）を
@@ -116,6 +116,8 @@
      ライトは 0.57）、サムネイルが画面を埋めるぶん題名だけが主張して見えた。
      いまは label / secondary / muted の 3 段とも、本文に対する割合がライトと同じ
      （0.57 / 0.47 / 0.38）。**片方だけ動かさないこと。** */
+  /* 意味の色（赤・黄・緑・藍）の明るさを決めるための基準。かつてはサムネの題名の色でも
+     あったが、題名が普通の太さになったときに --text-primary へ上げたので、いまは基準専用。 */
   --text-label: #939393;
   --text-rgb: 255, 255, 255;
 
@@ -159,6 +161,11 @@
 
   --scrollbar-thumb: #383838;
   --scrollbar-thumb-hover: #4c4c4c;
+  /* 浮くもの（メニュー・候補・ポップアップ）の影の濃さ。**テーマごとに変える。**
+     --hover-brightness と同じ理由で、同じ数字が両テーマで同じ強さには見えない。
+     暗い地の上では影はほとんど沈み込まないので濃いまま残すが、明るい地の上では
+     同じ 0.42 が灰色の雲になり、メニュー本体より影のほうが目立つ。 */
+  --shadow-popover: 0.42;
   --hover-brightness: 1.336;
   --hover-tint: 0.053;
   --hover-tint-danger: 0.132;
@@ -207,6 +214,7 @@
 
   --scrollbar-thumb: #cbcbcb;
   --scrollbar-thumb-hover: #b2b2b2;
+  --shadow-popover: 0.19;
   --hover-brightness: 0.93;
   --hover-tint: 0.091;
   --hover-tint-danger: 0.097;
@@ -295,9 +303,14 @@ button, input, select { line-height: 1.2; }
    マウス/タッチでのフォーカス（:focus だが :focus-visible ではない）には出さない。
    input/textarea 等は個別に outline:'none' をインラインで指定しているため、
    フォーカス表示自体が消えてしまっていた。ここで !important により上書きする。 */
+/* **offset は -1px。** 1px 空けると枠と線の間に地の色が 1 本挟まり、リングが部品から
+   剥がれて浮いて見える。**0 でもまだ足りない。** 部品自身の 1px の枠線が青線の内側に
+   灰色の線として残り、それがすき間に見える。-1px にして枠線の上に青線を重ねる。
+   色は accent そのままではなく少し透かす。ベタの accent 2px は入力欄の細い枠に対して
+   強すぎて、フォーカスしただけで画面の主役がそこへ移ってしまっていた。 */
 :focus-visible {
-  outline: 2px solid var(--accent) !important;
-  outline-offset: 1px;
+  outline: 2px solid rgba(var(--accent-rgb), 0.55) !important;
+  outline-offset: -1px;
 }
 
 /* 検索欄だけは例外。他の入力欄は <input> 自身が border/background を持つ＝見えている枠と
@@ -311,8 +324,8 @@ button, input, select { line-height: 1.2; }
   outline: none !important;
 }
 .shiori-search-input-wrap:has(.shiori-search-input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid rgba(var(--accent-rgb), 0.55);
+  outline-offset: -1px;
 }
 /* ライトはボタン濃色地に white ではなく黒寄りテキストのため、hover は明るくすると
    逆にコントラストが落ちる。ダーク(明るくする)/ライト(暗くする)で係数を反転する。

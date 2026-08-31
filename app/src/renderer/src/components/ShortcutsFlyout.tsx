@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { shortcutGroups } from '../shortcuts'
 import { useT } from '../i18n'
-import { font, radius, space } from '../styles'
+import { font, radius, space, weight } from '../styles'
 
 const CLOSE_MS = 100
 // 説明とキーを横に並べる分、縦積みだった頃（260）より広い幅が要る。
@@ -89,10 +89,10 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  flyout: { position: 'fixed' as const, width: FLYOUT_WIDTH, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.5)', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: space.x12, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
-  heading: { fontSize: font.sm, fontWeight: 800, color: 'var(--accent-text)' },
+  flyout: { position: 'fixed' as const, width: FLYOUT_WIDTH, maxHeight: '70vh', overflowY: 'auto' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: '14px 16px', boxShadow: '0 18px 40px rgba(var(--scrim-rgb), var(--shadow-popover))', zIndex: 4000, display: 'flex', flexDirection: 'column' as const, gap: space.x12, boxSizing: 'border-box' as const, transformOrigin: 'bottom left' as const },
+  heading: { fontSize: font.sm, fontWeight: weight.medium, color: 'var(--accent-text)' },
   group: { display: 'flex', flexDirection: 'column' as const, gap: space.x4 },
-  groupTitle: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: 800 },
+  groupTitle: { fontSize: font.xs, color: 'var(--text-secondary)', letterSpacing: 0.4, fontWeight: weight.medium },
   list: { display: 'flex', flexDirection: 'column' as const, gap: space.x4, width: '100%' },
   // 説明を左・キーを右に並べる。縦積みだと説明とキーが 1 本の流れになり、どの説明が
   // どのキーの分か目で追えなかった。キーを右端で揃えることで、行の対応が横一直線で読める。

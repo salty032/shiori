@@ -52,6 +52,11 @@ export const MAX_SOURCE_FRAME_MS = 1000 / 10
 // 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま時刻計算に入ると、
 // コマの対応付けが黙って狂うため入口で落とす。
 export const MAX_EPOCH_MS = 4_102_444_800_000
+// コマ通知の presentedFrames（合成へ送られたコマの累積数）の妥当上限。
+// 120fps で 24 時間開きっぱなしにしても 1000 万に届かないので、その 10 倍を上限にする。
+// **この値の差がそのまま「通知が来なかったコマ数」になる**ので、壊れた値が入ると
+// 抜けの枚数が黙って狂う。入口で落とす。
+export const MAX_PRESENTED_FRAMES = 100_000_000
 
 // ここから下はアプリ側に対応する処理が無い、**拡張の中だけで使う値**。それでも
 // background.js と content.js の 2 箇所に要る、あるいはテストが値を見るので、原本はここに置く。
@@ -168,6 +173,15 @@ export function renderExtensionBlocks(namedCaptureKeys: ReadonlySet<string>): Ge
           ],
           name: 'MAX_EPOCH_MS',
           literal: String(MAX_EPOCH_MS),
+        },
+        {
+          note: [
+            'コマ通知の presentedFrames（合成へ送られたコマの累積数）の妥当上限。',
+            '**前後の差がそのまま「通知が来なかったコマ数」になる**ので、壊れた値を中継すると',
+            '抜けの枚数が黙って狂う。入口で落とす。',
+          ],
+          name: 'MAX_PRESENTED_FRAMES',
+          literal: String(MAX_PRESENTED_FRAMES),
         },
         {
           note: [

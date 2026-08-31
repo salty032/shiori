@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SmartFolder } from '../types'
 import type { Filters } from '../hooks/useFilters'
 import type { ViewMode } from './Toolbar'
-import { s, font, control } from '../styles'
+import { control, font, s, weight } from '../styles'
 import { FolderIcon, GridIcon, HelpCircleIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from './Icon'
 import ContextMenu from './ContextMenu'
 import ShortcutsFlyout from './ShortcutsFlyout'
@@ -496,7 +496,7 @@ export default function Sidebar({
           <button className="shiori-hover-tint" style={{ ...s.gearBtn, color: settingsActive ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={onToggleSettings}>
             <SettingsIcon size={16} />
-            <span style={{ fontSize: font.base, fontWeight: 600 }}>{t('menu.settings')}</span>
+            <span style={{ fontSize: font.base, fontWeight: weight.medium }}>{t('menu.settings')}</span>
           </button>
           <button className="shiori-hover-tint" ref={shortcutsBtnRef} style={{ ...s.gearBtn, ...s.shortcutsBtn, color: showShortcuts ? 'var(--accent-text)' : 'var(--text-secondary)' }}
             onClick={() => setShowShortcuts((v) => !v)} title={t('shortcuts.heading')}>

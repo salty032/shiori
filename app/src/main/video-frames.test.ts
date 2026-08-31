@@ -166,7 +166,7 @@ describe('保存済みのコマ表から枚数を数え直す', () => {
     storedRows.mockReturnValue([row({})])
     expect(backfillFrameCounts()).toBe(1)
     // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1
-    expect(setFrameCountsMock).toHaveBeenCalledWith(7, 1, 6, 2, 1)
+    expect(setFrameCountsMock).toHaveBeenCalledWith(7, 1, 6, 2, 1, false)
   })
 
   it('既に合っている録画は書き換えない（起動のたびに全件書き直さない）', () => {

@@ -11,7 +11,10 @@ import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
 import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi } from './recording'
-import { logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions } from './frame-feed'
+import {
+  logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions,
+  countReportDrops, reportDropsMeasured
+} from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { setFrameCounts } from '../db'
@@ -249,7 +252,10 @@ export function registerRecorderIpc(): void {
       if (frameTable) {
         try {
           saveVideoFrames(result.id, frameTable.matches)
-          setFrameCounts(result.id, missedFrames, frameTable.matches.length, frameTable.reportDrops)
+          setFrameCounts(
+            result.id, missedFrames, frameTable.matches.length,
+            countReportDrops(frameTable.matches), 0, reportDropsMeasured(frameTable.matches)
+          )
           // 撮り逃しの有無にかかわらず走らせる。撮り逃しが 0 でも、表の frameIndex が
           // ファイル内の実フレームと一致しているかの照合は必要だから（一致しなければ
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { font, radius, space, control } from '../styles'
+import { control, font, radius, space, weight } from '../styles'
 import { normalizeTag, tagSuggestions, tagNormalizePreview, fetchBulkTagFrequency, addTagToImages, MAX_TAG_LENGTH } from '../utils'
 import { useTagSuggest } from '../hooks/useTagSuggest'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -137,7 +137,7 @@ const s: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed' as const, inset: 0, zIndex: 6100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '18vh', background: 'rgba(var(--scrim-rgb), 0.18)' },
   panel: { width: 360, maxWidth: 'calc(100vw - 40px)', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, boxShadow: '0 22px 60px rgba(var(--scrim-rgb), 0.58)', padding: 10 },
   header: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: space.x12, padding: '2px 2px 8px' },
-  title: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800 },
+  title: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium },
   target: { minWidth: 0, color: 'var(--text-muted)', fontSize: font.xs, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   input: { width: '100%', height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 11px', fontSize: font.base, outline: 'none' },
   suggestions: { marginTop: 6, maxHeight: 220, overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const, gap: space.x2 },

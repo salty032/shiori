@@ -219,7 +219,7 @@ describe('canBuildTimesheet', () => {
   // いるので番号は元の動画と一致する。**quality には現れない**（抜けたコマは表に行が
   // 無いので、残った行はすべて captured のまま）ため、gaps を直に見る必要がある。
   it('少しの抜けなら出す（差し込んで番号を合わせる）', () => {
-    const frames = { ...clip(captured(100)), gaps: [{ afterIndex: 42, missing: 1 }] }
+    const frames = { ...clip(captured(100)), gaps: [{ afterIndex: 42, missing: 1, measured: false }] }
     expect(frames.quality.every((q) => q === FRAME_QUALITY.captured)).toBe(true)
     expect(canBuildTimesheet(frames, 24)).toBe(true)
   })
@@ -227,7 +227,7 @@ describe('canBuildTimesheet', () => {
   // 抜けた枚数は推定値なので、多いほど並び全体が信用できない。線は撮り逃しと同じ割合・
   // 同じ定数で引く（詳細パネルが「要注意」を出す条件と揃える）。
   it('抜けが多すぎるものは出さない', () => {
-    const many = { ...clip(captured(100)), gaps: [{ afterIndex: 10, missing: 40 }] }
+    const many = { ...clip(captured(100)), gaps: [{ afterIndex: 10, missing: 40, measured: false }] }
     expect(canBuildTimesheet(many, 24)).toBe(false)
   })
 
@@ -347,7 +347,7 @@ describe('requiredSheetLength', () => {
 })
 
 describe('timesheetRows', () => {
-  const clipOf = (n: number, gaps?: { afterIndex: number; missing: number }[]) => ({
+  const clipOf = (n: number, gaps?: { afterIndex: number; missing: number; measured: boolean }[]) => ({
     pts: Array.from({ length: n }, (_, i) => i / 24),
     sourceBased: true,
     quality: Array.from({ length: n }, () => FRAME_QUALITY.captured),
@@ -360,12 +360,12 @@ describe('timesheetRows', () => {
 
   // ここが肝。差し込まないと、抜けた枚数だけ下が詰まって番号が元の動画とずれる。
   it('抜けの位置に、抜けた枚数だけ空のコマが入る', () => {
-    expect(timesheetRows(clipOf(3, [{ afterIndex: 0, missing: 2 }])))
+    expect(timesheetRows(clipOf(3, [{ afterIndex: 0, missing: 2, measured: false }])))
       .toEqual([0, GAP_ROW, GAP_ROW, 1, 2])
   })
 
   it('抜けが複数あっても、それぞれの位置に入る', () => {
-    expect(timesheetRows(clipOf(3, [{ afterIndex: 0, missing: 1 }, { afterIndex: 2, missing: 1 }])))
+    expect(timesheetRows(clipOf(3, [{ afterIndex: 0, missing: 1, measured: false }, { afterIndex: 2, missing: 1, measured: false }])))
       .toEqual([0, GAP_ROW, 1, 2, GAP_ROW])
   })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSteadySequence, matchFrames, offsetVerdict, summarizeReportDelay, type SourceFrame } from './frame-feed'
+import { frameGaps, isSteadySequence, matchFrames, offsetVerdict, summarizeReportDelay, type SourceFrame } from './frame-feed'
 
 // 素材のコマ（23.976fps = 41.7083ms 間隔）と、画面キャプチャ（60Hz = 16.667ms 間隔）を
 // 合成して、対応付けが 1 対 1 に収まるかを検証する。実機を回さずに固められる部分。
@@ -399,5 +399,67 @@ describe('isSteadySequence（記録を始めてよいか）', () => {
   it('3 コマ以上まとめて飛んでいれば、まだ落ち着いていない', () => {
     // 実測（2026-08-26・YouTube 1080p）の立ち上がりは 8 コマ・11 コマの飛びだった。
     expect(isSteadySequence(seq(10, 41.7, { 5: 8 }))).toBe(false)
+  })
+})
+
+// presentedFrames（合成へ送られたコマの累積数）から抜けの枚数を実数で出す。
+//
+// **これが入るまで、抜けの枚数は「前後の時刻の差 ÷ 残っているコマの間隔」の推定だけだった。**
+// 欠けた区間の刻みは欠けたコマからは検算できず、1 枚違うとその下のコマ番号が全部ずれる
+// （タイムシートは秒ではなくコマの通し番号を記録している）。実測で撮った 27 秒のクリップに
+// 166.8ms の穴が 1 つあり、3 コマと出ていたが裏を取る手段が無かった（2026-08-30）。
+describe('frameGaps（抜けの枚数と、その裏取り）', () => {
+  const P = SRC_PERIOD / 1000
+  // n コマ目を素材の格子に置く。presented を渡すと累積数付きになる。
+  const at = (n: number, presented?: number) => ({
+    mediaTime: n * P,
+    ...(presented === undefined ? {} : { presentedFrames: presented })
+  })
+
+  it('累積数が無ければ従来どおり時刻から推定し、measured は立たない', () => {
+    // 0,1,2 の次が 6 コマ目＝間に 3 コマ無い
+    expect(frameGaps([at(0), at(1), at(2), at(6), at(7)]))
+      .toEqual([{ afterIndex: 2, missing: 3, measured: false }])
+  })
+
+  it('累積数の差が推定と一致したら、その枚数は裏が取れている', () => {
+    // 合成へは 4 枚送られていて、通知が来たのは両端だけ＝間の 3 枚が落ちた
+    expect(frameGaps([at(0, 0), at(1, 1), at(2, 2), at(6, 6), at(7, 7)]))
+      .toEqual([{ afterIndex: 2, missing: 3, measured: true }])
+  })
+
+  it('ブラウザが描かなかったコマが混ざると、推定の方が大きくなる（裏は取れない）', () => {
+    // 素材では 3 コマぶん空いているのに、合成へ送られたのは 1 枚だけ。
+    // **少ない方を採ると下のコマ番号がずれる**ので、大きい方（推定）を採る。
+    expect(frameGaps([at(0, 0), at(1, 1), at(2, 2), at(6, 4), at(7, 5)]))
+      .toEqual([{ afterIndex: 2, missing: 3, measured: false }])
+  })
+
+  it('累積数が進んでいない・戻っているときは裏取りに使わない（壊れた値）', () => {
+    expect(frameGaps([at(0, 5), at(1, 5), at(2, 5), at(6, 5), at(7, 5)]))
+      .toEqual([{ afterIndex: 2, missing: 3, measured: false }])
+  })
+
+  it('抜けが無ければ何も返さない（累積数があってもなくても）', () => {
+    expect(frameGaps([at(0, 0), at(1, 1), at(2, 2), at(3, 3)])).toEqual([])
+    expect(frameGaps([at(0), at(1), at(2), at(3)])).toEqual([])
+  })
+
+  // 重複通知は同じコマが再提示されただけで、抜けではない。**累積数はそこでも増える**ので、
+  // 畳むときに詰め直さないと「通知が来なかったコマ」に見え、灰色の行が増えてコマ番号が
+  // 後ろへずれる。matchFrames が詰め直していることを、保存される表の値で確かめる。
+  it('重複通知を畳むとき、累積数も詰め直す（抜けを水増ししない）', () => {
+    const src = makeSource(6).map((f, i) => ({ ...f, presentedFrames: i }))
+    // 3 コマ目を 2 回通知した状態（累積数は 1 つ進む）を差し込む
+    const withDup: SourceFrame[] = [
+      ...src.slice(0, 3),
+      { ...src[2], presentedFrames: 3 },
+      ...src.slice(3).map((f) => ({ ...f, presentedFrames: (f.presentedFrames ?? 0) + 1 }))
+    ]
+    const result = matchFrames(withDup, makeDrawn(60, 17))
+    expect(result?.duplicateReports).toBe(1)
+    const presented = result!.matches.map((m) => m.presentedFrames)
+    expect(presented).toEqual([0, 1, 2, 3, 4, 5])
+    expect(frameGaps(result!.matches)).toEqual([])
   })
 })

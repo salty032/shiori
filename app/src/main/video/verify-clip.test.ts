@@ -62,7 +62,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.08, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(7, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toEqual({ id: 7, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0 })
+      expect(verifiedPayload()).toEqual({ id: 7, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0, unreportedMeasured: true })
     })
   })
 
@@ -74,7 +74,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.04, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(8, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toEqual({ id: 8, uncaptured: 0, ambiguous: null, total: 2, unreported: 0, misaligned: 0 })
+      expect(verifiedPayload()).toEqual({ id: 8, uncaptured: 0, ambiguous: null, total: 2, unreported: 0, misaligned: 0, unreportedMeasured: true })
     })
   })
 
@@ -106,7 +106,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     const table: StoredFrame[] = [{ mediaTime: 0, frameIndex: 3, captured: true }]
     return verifyClipFrames(11, 'clip.webm', table, drawnAt).then(() => {
       expect(markVideoFramesUnusable).toHaveBeenCalledWith(11, 'correspondence-break')
-      expect(verifiedPayload()).toEqual({ id: 11, uncaptured: null, ambiguous: null, total: null, unreported: null, misaligned: null })
+      expect(verifiedPayload()).toEqual({ id: 11, uncaptured: null, ambiguous: null, total: null, unreported: null, misaligned: null, unreportedMeasured: false })
     })
   })
 })

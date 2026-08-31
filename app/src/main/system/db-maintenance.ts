@@ -24,7 +24,9 @@ export interface SqlRunner {
 // 上げ忘れると、作りを変える前の退避が取られないまま移行が走る。上げ忘れても画面には
 // 何も起きないので、気づけるのは戻したくなった後になる。
 // 3: images に misaligned_frames を追加（2026-08-26）。
-export const SCHEMA_VERSION = 3
+// 4: images に unreported_measured を追加（2026-08-30）。抜けの枚数が推定なのか実測なのかを
+//    区別する列。従来は推定しか無く、枚数が 1 違うだけで下のコマ番号が全部ずれていた。
+export const SCHEMA_VERSION = 4
 
 /**
  * 残す退避の世代数。日次で 1 世代取るので、実質「何日前まで戻れるか」になる。

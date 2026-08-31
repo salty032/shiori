@@ -151,11 +151,28 @@ function reportFrameGap() {
   if (!port) return
   try { port.postMessage({ type: 'frame-gap' }) } catch {}
 }
+// presentedFrames は rVFC が返す「合成へ送られたコマの累積数」。**通知が飛んでも、この数は
+// 飛んだぶんだけ増えている。** 前後の差から 1 を引けば、通知が来なかったコマ数が推定ではなく
+// 実数で出る（app 側 frameGaps）。
+//
+// 従来は「前後の mediaTime の差 ÷ 間隔の中央値」で数えていた。これは**欠けた区間の刻みが
+// 残っている区間と同じ**という仮定の上に乗っており、欠けたコマからは検算できない。1 枚
+// 違うだけで、その下のコマ番号が全部ずれる（タイムシートは通し番号を記録している）。
+//
+// **この値で分かるのは「合成へ送られた」ぶんだけ。** ブラウザがそもそも描かなかったコマは
+// ここにも入らないので、その場合は従来の割り算に落ちる。ただし**どちらだったかは区別できる**
+// ——差が増えていれば「映っていたが通知が落ちた」で枚数は確定、増えていなければ
+// 「そもそも描かれていない」で枚数は推定のまま。いまはこの区別が付いていない。
+//
+// 古いブラウザ・古い実装では undefined になりうるので、その場合は送らない（app 側は
+// 従来の数え方へ落ちる）。旧版の拡張から届く通知も同じ扱いになる。
 function reportFrame(now, meta) {
   if (!reportingFrames || !port) return
   const display = Number.isFinite(meta.expectedDisplayTime) ? meta.expectedDisplayTime : now
   try {
-    port.postMessage({ type: 'frame', mediaTime: meta.mediaTime, displayAt: performance.timeOrigin + display })
+    const msg = { type: 'frame', mediaTime: meta.mediaTime, displayAt: performance.timeOrigin + display }
+    if (Number.isFinite(meta.presentedFrames)) msg.presentedFrames = meta.presentedFrames
+    port.postMessage(msg)
   } catch {
     reportingFrames = false   // 拡張コンテキスト無効化。次の録画で張り直る
   }

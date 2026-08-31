@@ -17,6 +17,15 @@ export interface SourceFrame {
   displayAt: number
   /** main が通知を受け取った時刻（epoch ミリ秒）。遅延の測定に使う */
   receivedAt: number
+  /**
+   * 合成へ送られたコマの累積数（rVFC の presentedFrames）。返さない環境では null。
+   *
+   * **通知が飛んでも、この値は飛んだぶんだけ増えている。** 前後の差から 1 を引けば、
+   * 通知が来なかったコマ数が実数で出る（frameGaps）。従来の「時刻の差 ÷ 間隔の中央値」は
+   * **欠けた区間の刻みが残っている区間と同じ**という仮定に乗っており、欠けたコマからは
+   * 検算できない。1 枚違うだけで、その下のコマ番号が全部ずれる。
+   */
+  presentedFrames?: number | null
 }
 
 // 60秒 × 60fps に、通知の重複や高フレームレート素材ぶんの余裕を持たせた上限。
@@ -57,7 +66,10 @@ export function startFrameFeed(): void {
       }
       return
     }
-    frames.push({ mediaTime: msg.mediaTime, displayAt: msg.displayAt, receivedAt: Date.now() })
+    frames.push({
+      mediaTime: msg.mediaTime, displayAt: msg.displayAt, receivedAt: Date.now(),
+      presentedFrames: msg.presentedFrames
+    })
   })
 }
 
@@ -82,6 +94,12 @@ export interface FrameMatch {
    * フラグとして残し、ユーザーに見せる。
    */
   captured: boolean
+  /**
+   * 合成へ送られたコマの累積数（SourceFrame.presentedFrames を重複ぶん詰め直した値）。
+   * 返さない環境・旧版の拡張では null。**表に保存して、読み出し後も抜けの枚数を実数で
+   * 数え直せるようにする**（db-video-frames の encodeFrames）。
+   */
+  presentedFrames?: number | null
 }
 
 /**
@@ -236,6 +254,12 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   // 次に別の絵が来るまで同じフレームを指すため。撮り逃しでも何でもないのに枚数を水増しする。
   // 録画側は同じ理由で既に重複を潰しており（recorder.ts の lastDrawnMediaTime）、
   // 素材側だけ潰していなかった。
+  //
+  // **presentedFrames はここで詰め直す。** あの値は「合成へ送られた回数」なので、同じコマの
+  // 再提示でも増える。畳んだ後の隣り合うコマで差を取ると、再提示のぶんだけ「通知が来なかった
+  // コマ」に見えてしまう——**抜けを水増しし、灰色の行を増やす方向の誤り**で、コマ番号が
+  // 後ろへずれる。ここまでに落とした重複の数を引いておけば、差は「別のコマが何枚送られたか」
+  // になる。
   const frames: SourceFrame[] = []
   let duplicateReports = 0
   for (const f of source) {
@@ -244,7 +268,9 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
       duplicateReports++
       continue
     }
-    frames.push(f)
+    frames.push(
+      f.presentedFrames == null ? f : { ...f, presentedFrames: f.presentedFrames - duplicateReports }
+    )
   }
 
   const pick = (offsetMs: number): FrameMatch[] => {
@@ -267,7 +293,8 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
     const out = idx.map((frameIndex, k) => ({
       mediaTime: frames[k].mediaTime,
       frameIndex,
-      captured: k + 1 < idx.length ? idx[k + 1] !== frameIndex : frameIndex !== idx[k - 1]
+      captured: k + 1 < idx.length ? idx[k + 1] !== frameIndex : frameIndex !== idx[k - 1],
+      presentedFrames: frames[k].presentedFrames
     }))
     // 自分の区間に絵が無かったコマは、そのままだと「次のコマの絵」を指してしまう
     // （選び方が「その時刻以降の最初のフレーム」なので、区間を跨いだ先を掴む）。
@@ -411,6 +438,24 @@ function fitGrid(mediaTimes: number[]): { periodMs: number; residualRmsMs: numbe
 export interface FrameGap {
   afterIndex: number
   missing: number
+  /**
+   * 枚数が実測で裏付けられたか。
+   *
+   * true は「presentedFrames の差（合成へ送られた枚数）と、時刻から出した推定が一致した」。
+   * false は推定だけ——**返さない環境、旧版の拡張で撮ったクリップ、そして「ブラウザが
+   * そもそも描かなかった」場合**が含まれる。最後のものは presentedFrames にも入らないので、
+   * 枚数は時刻からの推定に頼るしかない。
+   *
+   * **この違いは画面に出す。** 枚数が 1 違うと、そこから下のコマ番号が全部ずれる
+   * （タイムシートは通し番号を記録している）。推定を確定として出すと、黙って誤らせる。
+   */
+  measured: boolean
+}
+
+/** frameGaps の入力。コマ表（StoredFrame）と録画直後の突き合わせ結果の両方が満たす形。 */
+export interface GapSample {
+  mediaTime: number
+  presentedFrames?: number | null
 }
 
 // 表に入っているコマ列から、通知が来なかった区間を拾う。
@@ -423,25 +468,47 @@ export interface FrameGap {
 // 周期は間隔の中央値。fitGrid の最小二乗は 20 コマ未満で使えず、実際に短いクリップ 4 本で
 // 「抜けが無い」ことになっていた。抜けの判定は round(間隔/周期) の丸めしか使わないので、
 // 中央値でも結果は変わらない（fitGrid も通し番号は中央値で振っている）。
-export function frameGaps(mediaTimes: number[]): FrameGap[] {
-  if (mediaTimes.length < 3) return []
+// **presentedFrames があれば、そちらで裏を取る。**
+//
+// 時刻からの推定（round(間隔/周期)）は「欠けた区間の刻みは残っている区間と同じ」という
+// 仮定に乗っていて、欠けたコマからは検算できない。一方 presentedFrames は合成へ送られた
+// コマの累積数なので、通知が飛んでも飛んだぶん増えている。差から 1 を引けば、
+// **通知だけが落ちたコマ数が実数で出る。**
+//
+// ただし **presentedFrames が拾えるのは「画面に出たのに通知が来なかった」ぶんだけ**。
+// ブラウザがそもそも合成へ送らなかったコマはこちらにも入らないので、推定の方が大きくなる。
+// そこで採る枚数は 2 つの大きい方——**少なく入れると、その下のコマ番号が全部ずれる**ため、
+// 足りない側へ倒さない。裏が取れた（両者が一致した）ときだけ measured を立てる。
+export function frameGaps(samples: readonly GapSample[]): FrameGap[] {
+  if (samples.length < 3) return []
   const diffs: number[] = []
-  for (let i = 1; i < mediaTimes.length; i++) diffs.push(mediaTimes[i] - mediaTimes[i - 1])
+  for (let i = 1; i < samples.length; i++) diffs.push(samples[i].mediaTime - samples[i - 1].mediaTime)
   const median = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
   if (!(median > 0)) return []
   const gaps: FrameGap[] = []
   for (let i = 0; i < diffs.length; i++) {
-    const missing = Math.round(diffs[i] / median) - 1
-    if (missing >= 1) gaps.push({ afterIndex: i, missing })
+    const estimated = Math.round(diffs[i] / median) - 1
+    const from = samples[i].presentedFrames
+    const to = samples[i + 1].presentedFrames
+    // 累積数が減る／進まないのは値が壊れている合図。裏取りには使わない。
+    const counted = from != null && to != null && to > from ? to - from - 1 : null
+    const missing = counted == null ? estimated : Math.max(counted, estimated)
+    if (missing >= 1) gaps.push({ afterIndex: i, missing, measured: counted != null && counted === estimated })
   }
   return gaps
 }
 
 // 抜けの合計。**場所（frameGaps）の足し算以外で出さない。**
-export function countReportDrops(mediaTimes: number[]): number {
+export function countReportDrops(samples: readonly GapSample[]): number {
   let total = 0
-  for (const gap of frameGaps(mediaTimes)) total += gap.missing
+  for (const gap of frameGaps(samples)) total += gap.missing
   return total
+}
+
+// 上の合計に裏が取れているか。**1 か所でも推定が混ざれば false。**
+// 抜けが 1 つも無ければ true（推定した枚数がそもそも無い）。
+export function reportDropsMeasured(samples: readonly GapSample[]): boolean {
+  return frameGaps(samples).every((gap) => gap.measured)
 }
 
 // トリムした新クリップ用にフレーム表を作り直す。

@@ -228,6 +228,17 @@ export function initDb(): void {
   // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
   // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_frames INTEGER')
+  // 上の枚数に裏が取れているか（1/0）。NULL は「まだ数え直していない」で、推定として扱う。
+  //
+  // **枚数は本来ずっと推定だった**——前後の時刻の差を、残っているコマの間隔で割った値。
+  // 欠けた区間の刻みは欠けたコマからは検算できず、1 枚違うとその下のコマ番号が全部ずれる
+  // （タイムシートは秒ではなくコマの通し番号を記録している）。合成へ送られたコマの累積数
+  // （rVFC の presentedFrames）と一致したときだけ 1 を書く。
+  //
+  // **列を足したのは、詳細タイルがコマ表を読まないため。** タイルはサムネの隣で軽く出す
+  // 場所で、コマ表の取得は ffmpeg のデコードを伴う（VideoPlayer の preloadFrameTable の注記）。
+  // 同じ 1 つの数を、ビューアでは「推定」・タイルでは断定、と出さないための列。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_measured INTEGER')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN misaligned_frames INTEGER')
   // 取り込んだ素材の、送り主が記録していた取得時間。captured_at は取り込んだ時刻に
   // そろえてしまう（他人の素材が自分のキャプチャと日付順で混ざるのを避けるため）ので、

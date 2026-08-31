@@ -99,8 +99,8 @@ describe('findClipGaps（表から抜けている区間）', () => {
   it('飛んでいる位置と枚数を返す', () => {
     // 実測（2026-08-26・image 255）は 1〜2 コマの飛びが 8 箇所続いたあと 8 コマ・11 コマ。
     expect(findClipGaps(rows([1, 1, 3, 1, 9, 1]))).toEqual([
-      { afterIndex: 1, missing: 2 },
-      { afterIndex: 3, missing: 8 }
+      { afterIndex: 1, missing: 2, measured: false },
+      { afterIndex: 3, missing: 8, measured: false }
     ])
   })
 
@@ -108,7 +108,7 @@ describe('findClipGaps（表から抜けている区間）', () => {
     // 60fps 素材でも、同じ「1 コマぶん」を基準に数えられること。
     const t = (i: number): number => i / 60
     const frames = [0, 1, 2, 5, 6].map((i) => ({ mediaTime: t(i), frameIndex: i, captured: true }))
-    expect(findClipGaps(frames)).toEqual([{ afterIndex: 2, missing: 2 }])
+    expect(findClipGaps(frames)).toEqual([{ afterIndex: 2, missing: 2, measured: false }])
   })
 
   // **場所（ここ）と合計（詳細パネルの unreported_frames）は必ず同じ計算から出す。**
@@ -119,15 +119,15 @@ describe('findClipGaps（表から抜けている区間）', () => {
     for (const pattern of [[1, 1, 1, 1, 1, 1], [1, 1, 3, 1, 9, 1], [1, 4, 1, 2, 1]]) {
       const frames = rows(pattern)
       const sum = findClipGaps(frames).reduce((n, g) => n + g.missing, 0)
-      expect(countReportDrops(frames.map((f) => f.mediaTime))).toBe(sum)
+      expect(countReportDrops(frames)).toBe(sum)
     }
   })
 
   it('20 コマ未満の短いクリップでも抜けを数える', () => {
     // 最小二乗の当てはめは 20 コマ未満で使えず、合計側だけが 0 を返していた。
     const frames = rows([1, 1, 4, 1])
-    expect(findClipGaps(frames)).toEqual([{ afterIndex: 1, missing: 3 }])
-    expect(countReportDrops(frames.map((f) => f.mediaTime))).toBe(3)
+    expect(findClipGaps(frames)).toEqual([{ afterIndex: 1, missing: 3, measured: false }])
+    expect(countReportDrops(frames)).toBe(3)
   })
 })
 
@@ -159,7 +159,7 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
     getVideoFramePts.mockResolvedValue(pts)
     getVideoFrames.mockReturnValue(table)
     restoreVideoFrames.mockReset().mockReturnValue({
-      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0
+      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0, unreportedMeasured: true
     })
     registerVideoHandlers()
 
@@ -167,7 +167,7 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
 
     expect(restoreVideoFrames).toHaveBeenCalledWith(1, table.slice(0, 3), { ambiguous: 2 })
     expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, {
-      id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0
+      id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0, unreportedMeasured: true
     })
   })
 })
@@ -299,6 +299,6 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
       { mediaTime: 2, frameIndex: 0, captured: true },
       { mediaTime: 4, frameIndex: 2, captured: true },
     ])
-    expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0)
+    expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0, 0, true)
   })
 })

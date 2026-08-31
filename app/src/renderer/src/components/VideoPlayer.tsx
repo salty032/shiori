@@ -3,7 +3,7 @@ import { mediaUrl } from '../utils'
 import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from '../frameTable'
 import { getClipFramesResolver } from '../features/registry'
 import { useT, type Translate, type MessageKey } from '../i18n'
-import { font, radius } from '../styles'
+import { font, radius, weight } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 import {
@@ -97,7 +97,7 @@ const frameReadoutStyle: React.CSSProperties = {
   position: 'absolute', left: 10, bottom: VC_OVERLAY_HEIGHT + 2, zIndex: 3,
   pointerEvents: 'auto', cursor: 'help',
   padding: '2px 7px', borderRadius: radius.md, background: 'rgba(6,8,12,0.72)',
-  fontSize: font.xs, fontWeight: 700, fontVariantNumeric: 'tabular-nums', letterSpacing: 0,
+  fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', letterSpacing: 0,
   whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.9)',
   transition: 'opacity 0.15s ease',
 }
@@ -147,7 +147,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   const stepSec = 1 / Math.max(1, fps || 24)
   // このクリップのコマ情報。取得できるまで（および動画機能を落とした構成）は null のまま。
   const framesRef = useRef<ClipFrames | null>(null)
-  const gapsRef = useRef<Map<number, number>>(new Map())
+  // 抜けは枚数だけでなく「その枚数に裏が取れているか」も持つ。**枚数が 1 違うと、そこから
+  // 下のコマ番号が全部ずれる**ので、推定を確定と同じ顔で出さない（ClipGap.measured）。
+  const gapsRef = useRef<Map<number, { missing: number; measured: boolean }>>(new Map())
   // このクリップのコマ送りが、どこを見ても当てにならないか。
   //
   // **抜けが 1 つでもあれば赤、にはしない。** 実測（手元 82 本・2026-08-26）では抜けのある
@@ -217,7 +219,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       framesRef.current = frames
       // 「このコマの次に何コマ抜けているか」を添字で引けるようにしておく（コマ送りのたびに
       // 配列を走査すると、押しっぱなしのときに効いてくる）。
-      gapsRef.current = new Map((frames?.gaps ?? []).map((g) => [g.afterIndex, g.missing]))
+      gapsRef.current = new Map((frames?.gaps ?? []).map((g) => [g.afterIndex, { missing: g.missing, measured: g.measured }]))
       // 判定は frameTable の isClipUnreliable が持つ（トリマーも同じものを読む）。
       const rows = frames?.pts.length ?? 0
       unreliableRef.current = isClipUnreliable(frames)
@@ -321,7 +323,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
 
     const note = FRAME_NOTE[frames.quality[cur] ?? FRAME_QUALITY.captured]
     // このコマの次に抜けている枚数（小さい抜けのときだけ使う）。
-    const missingNext = gapsRef.current.get(cur) ?? 0
+    const gapNext = gapsRef.current.get(cur)
+    const missingNext = gapNext?.missing ?? 0
+    // 枚数に裏が取れていない抜けは、そう分かる言い方で出す。**推定が 1 枚違うと、そこから
+    // 下のコマ番号が全部ずれる**——確定と同じ文言だと、その危うさが画面から消える。
+    const gapKey = <T extends string>(measured: T, estimated: T): T => gapNext?.measured ? measured : estimated
     // 注記は 3 段（詳細パネルの注記と同じ切り方）。
     //
     //   赤「要注意」   … ずれがある、または穴だらけ。どこを見ても数えられないので全体に出す。
@@ -335,7 +341,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const label = unreliableRef.current
       ? tr('viewer.frameUnreliable')
       : missingNext > 0
-        ? tr('viewer.frameGapAfter', { count: String(missingNext) })
+        ? tr(gapKey('viewer.frameGapAfter', 'viewer.frameGapAfterEstimated'), { count: String(missingNext) })
         : note ? tr(note.label) : null
     el.textContent = label
       ? `${tr('viewer.frameIndex', params)} · ${label}`
@@ -343,7 +349,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     el.title = unreliableRef.current
       ? tr('viewer.frameUnreliableHint')
       : missingNext > 0
-        ? tr('viewer.frameGapAfterHint', { count: String(missingNext) })
+        ? tr(gapKey('viewer.frameGapAfterHint', 'viewer.frameGapAfterEstimatedHint'), { count: String(missingNext) })
         : tr(note ? note.hint : 'viewer.frameSourceHint')
     // 未取得は、そのクリップで多いときだけ赤へ上げる（詳細パネルと同じ 5%）。
     el.style.color = unreliableRef.current
@@ -842,7 +848,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
               ['viewer.legendMissing', FRAME_COLOR.warn],
             ] as const).map(([key, color]) => (
               <Fragment key={key}>
-                <span style={{ color, fontWeight: 700, whiteSpace: 'nowrap' }}>{t(`${key}.label` as MessageKey)}</span>
+                <span style={{ color, fontWeight: weight.medium, whiteSpace: 'nowrap' }}>{t(`${key}.label` as MessageKey)}</span>
                 <span style={{ opacity: 0.85 }}>{t(`${key}.desc` as MessageKey)}</span>
               </Fragment>
             ))}

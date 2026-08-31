@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
-import { font, color, radius, space, control } from '../styles'
+import { color, control, font, radius, space, weight } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
 import { FRAME_EPS, findFrameIdx, frameSeekTarget } from '../frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -776,7 +776,7 @@ const s: Record<string, React.CSSProperties> = {
   // 硬い角＋--bg-page の地だったので、手前に浮いているのに一番角張って見えていた。
   modal: { background: 'var(--bg-modal)', border: '1px solid var(--border-default)', borderRadius: radius.lg, width: 'calc(100vw - clamp(48px, 6vw, 112px))', maxWidth: 1280, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.64)' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x12, padding: '10px 16px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 },
-  fileTitle: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.lg, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  fileTitle: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.lg, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   // ConfirmDialog / WhatsNewModal と同一。裸の「✕」文字だけがこの画面の作りだった。
   closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   videoWrap: { position: 'relative', flexShrink: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#000' },
@@ -800,7 +800,7 @@ const s: Record<string, React.CSSProperties> = {
   handleTab: { position: 'absolute', top: -1, bottom: -1, width: 4, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2, boxShadow: '0 0 0 1px rgba(var(--scrim-rgb), 0.55)' },
   handleTabIn: { background: 'var(--success)', borderRadius: '2px 0 0 2px' },
   handleTabOut: { background: 'var(--danger)', borderRadius: '0 2px 2px 0' },
-  handleFlag: { position: 'absolute', bottom: 'calc(100% + 5px)', left: '50%', transform: 'translateX(-50%)', padding: '1px 6px', borderRadius: radius.md, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, lineHeight: '15px', whiteSpace: 'nowrap' as const },
+  handleFlag: { position: 'absolute', bottom: 'calc(100% + 5px)', left: '50%', transform: 'translateX(-50%)', padding: '1px 6px', borderRadius: radius.md, fontSize: 10, fontWeight: weight.strong, letterSpacing: 0.6, lineHeight: '15px', whiteSpace: 'nowrap' as const },
   handleFlagIn: { background: 'var(--success)', color: 'var(--bg-page)' },
   handleFlagOut: { background: 'var(--danger)', color: 'var(--bg-page)' },
   dragHandle: { position: 'absolute', top: 0, bottom: 0, width: 22, marginLeft: -11, cursor: 'ew-resize', zIndex: 3 },
@@ -816,21 +816,21 @@ const s: Record<string, React.CSSProperties> = {
   // タイムラインにも同じ色の旗が出ているので、「ここは開始の行」を 3 回言っていた。
   // 左右の padding も 0 にして、タイムラインの左端と縦に揃える。
   boundaryCard: { display: 'grid', gridTemplateColumns: '38px 74px 1fr auto', alignItems: 'center', gap: space.x8, minWidth: 0 },
-  badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textAlign: 'center' as const },
+  badge: { boxSizing: 'border-box' as const, height: 20, lineHeight: '18px', borderRadius: radius.md, fontSize: 10, fontWeight: weight.strong, letterSpacing: 0.6, textAlign: 'center' as const },
   badgeIn: { background: 'rgba(var(--success-rgb), 0.16)', border: '1px solid rgba(var(--success-rgb), 0.5)', color: 'var(--success)' },
   badgeOut: { background: 'rgba(var(--danger-rgb), 0.16)', border: '1px solid rgba(var(--danger-rgb), 0.5)', color: 'var(--danger)' },
-  time: { fontSize: font.base, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' as const, letterSpacing: 0.2 },
+  time: { fontSize: font.base, fontWeight: weight.medium, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' as const, letterSpacing: 0.2 },
   // コマ送りは 2 つの独立したボタンではなく、枠を共有するセグメントにする
   // （個別のピルが並ぶと右端が揃わずガタついて見えた）。
   stepper: { justifySelf: 'end', display: 'inline-flex', alignItems: 'stretch', height: control.md, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, overflow: 'hidden' },
-  stepBtn: { width: 46, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, fontVariantNumeric: 'tabular-nums' as const, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  stepBtn: { width: 46, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums' as const, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   stepBtnRight: { borderLeft: '1px solid var(--border-strong)' },
   // IN/OUT の色は付けない。すぐ上のタイムラインに緑の IN 旗・赤の OUT 旗が出ており、
   // 同じ意味の色をこのボタンでもう一度鳴らすと、画面の下半分が色だらけになる。
   // ここはフッターのキャンセルと同じ無彩色の枠ボタン。
-  setBtn: { boxSizing: 'border-box' as const, width: 88, height: control.md, padding: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  setBtn: { boxSizing: 'border-box' as const, width: 88, height: control.md, padding: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   infoRow: { display: 'flex', alignItems: 'center', gap: space.x12, minHeight: 18 },
-  duration: { color: 'var(--text-primary)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
+  duration: { color: 'var(--text-primary)', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
   ptsStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontStyle: 'italic' },
   ptsWarn: { color: 'var(--warning)', fontSize: font.xs, fontStyle: 'italic' },
   errorMsg: { color: color.danger, fontSize: font.sm },
@@ -843,7 +843,7 @@ const s: Record<string, React.CSSProperties> = {
   // var(--accent) のベタ塗り＋白文字で、明るい藤色に白を載せるためコントラストが約 2:1 しか
   // 出ず濁って見えていた（かつアプリ内で唯一の見た目でもあった）。ティント地＋アクセント文字なら
   // 地に対して文字が十分明るく、ライト/ダークどちらでも成立する。
-  cancelBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
-  trimBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800 },
+  cancelBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
+  trimBtn: { boxSizing: 'border-box' as const, height: control.lg, padding: '0 20px', background: 'rgba(var(--accent-rgb), 0.2)', border: '1px solid rgba(var(--accent-rgb), 0.55)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
   trimDisabled: { opacity: 0.4, cursor: 'not-allowed' },
 }

@@ -42,6 +42,10 @@ const MAX_SOURCE_FRAME_MS = 100
 // 壊れた値・別基準の時刻（performance.now() の生値など）が混ざったまま main 側の
 // 時刻計算に入ると、コマの対応付けが黙って狂うため入口で落とす。
 const MAX_EPOCH_MS = 4102444800000
+// コマ通知の presentedFrames（合成へ送られたコマの累積数）の妥当上限。
+// **前後の差がそのまま「通知が来なかったコマ数」になる**ので、壊れた値を中継すると
+// 抜けの枚数が黙って狂う。入口で落とす。
+const MAX_PRESENTED_FRAMES = 100000000
 // プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理の
 // マージンを十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。
 const MAX_UI_HOLD_MS = 120000
@@ -122,10 +126,16 @@ function normalizePortMessage(msg) {
   // 録画中に content.js が送る素材のコマ通知。mediaTime は素材のタイムライン上の秒、
   // displayAt はそのコマが画面に出る epoch ミリ秒。録画のコマ供給を駆動する値なので、
   // 欠けた値・範囲外は中継せず落とす（黙って 0 を送ると全コマの対応がずれる）。
+  // presentedFrames は無くても中継する（古い content.js・返さないブラウザ）。**欠けても
+  // 従来の数え方に落ちるだけだが、ここで丸ごと落とすと抜けの枚数が永久に推定のままになる。**
   if (msg.type === 'frame') {
     const mediaTime = boundedNumber(msg.mediaTime, 0, MAX_TIMECODE_SECONDS)
     const displayAt = boundedNumber(msg.displayAt, 0, MAX_EPOCH_MS)
-    return mediaTime == null || displayAt == null ? null : { type: 'frame', mediaTime, displayAt }
+    if (mediaTime == null || displayAt == null) return null
+    const presentedFrames = boundedNumber(msg.presentedFrames, 0, MAX_PRESENTED_FRAMES)
+    const out = { type: 'frame', mediaTime, displayAt }
+    if (presentedFrames != null) out.presentedFrames = presentedFrames
+    return out
   }
   if (msg.type !== 'timecode') return null
 

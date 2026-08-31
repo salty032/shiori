@@ -59,6 +59,22 @@ export const control = {
   lg: 32,
 } as const
 
+// 文字の太さはこの 3 段だけ。以前は 400/500/600/700/800/900 が混在し、113 か所のうち
+// 101 か所が太字以上だった。**全部が主役だと、どれも主役に見えない**——一覧のタイトルも
+// サイドバーのタグも設定の項目名も同じ太さで、目が休まる場所が無かった。
+// 詳細パネルでは灰色の小さいラベル(800)が、その値(700)より太いという逆転まで起きていた。
+//   normal = 中身の文字。値でない文字ぜんぶ（説明・一覧のタイトル・小さいラベル・タグ）
+//   medium = 押せるもの・見出し・値。**画面で目を引かせたいものはここ止まり**
+//   strong = 小さくて色の付いた印だけ（NEW・尺・手順の丸数字）。地と色で戦うので太さが要る
+//
+// **元の「太字だらけ」に戻すには、この 3 つを 700 / 800 / 900 にする。** 役割の振り分けは
+// そのまま残るので、戻したあと段だけ下げ直すこともできる。
+export const weight = {
+  normal: 400,
+  medium: 600,
+  strong: 800,
+} as const
+
 export const radius = {
   sm: 4,
   md: 7,
@@ -117,7 +133,7 @@ export const THUMB_CHROME = LABEL_HEIGHT + THUMB_BORDER * 2
 
 export const s: Record<string, CSSProperties> = {
   updateBanner: { background: 'rgba(var(--success-rgb), 0.14)', borderBottom: '1px solid rgba(var(--success-rgb), 0.32)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: font.base, color: 'var(--success)', flexShrink: 0 },
-  updateBtn: { padding: '6px 14px', background: 'rgba(var(--success-rgb), 0.22)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, whiteSpace: 'nowrap' as const },
+  updateBtn: { padding: '6px 14px', background: 'rgba(var(--success-rgb), 0.22)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   root: { display: 'flex', flex: 1, background: 'var(--bg-page)', color: 'var(--text-primary)', fontSize: font.base, overflow: 'hidden', userSelect: 'none' },
   // Sidebar+main だけを束ねるラッパー。ビューア（position:absolute, inset:0）はこの中だけを
   // 覆うので、隣の DetailPanel は最初からレイアウト上覆われずビューア表示中も操作できる（P1）。
@@ -139,26 +155,26 @@ export const s: Record<string, CSSProperties> = {
   sidebarHeaderRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.x24 },
   sidebarBrand: { minWidth: 0, display: 'flex', alignItems: 'center', gap: space.x8 },
   sidebarIcon: { flexShrink: 0, borderRadius: radius.md, display: 'block' },
-  sidebarBrandName: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, letterSpacing: 0 },
-  count: { color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700 },
+  sidebarBrandName: { color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, letterSpacing: 0 },
+  count: { color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.normal },
   main: { flex: 1, overflowY: 'scroll', scrollbarGutter: 'stable' as const, padding: '0 20px 18px', position: 'relative', display: 'flex', flexDirection: 'column' as const, gap: space.x16, background: 'var(--bg-content)' },
   // ドロップ受け口はウィンドウ全体なので、枠も端まで詰める（inset/角丸を入れると
   // 「枠の外側は受け付けない」ように見えてしまうが、実際はそこも受け付ける）。
   dropOverlay: { position: 'absolute' as const, inset: 0, zIndex: 400, pointerEvents: 'none' as const, background: 'rgba(var(--accent-rgb), 0.12)', border: '2px dashed rgba(var(--accent-rgb), 0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dropOverlayText: { fontSize: font.lg, fontWeight: 800, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: radius.md },
+  dropOverlayText: { fontSize: font.lg, fontWeight: weight.medium, color: 'var(--accent-text)', background: 'rgba(var(--scrim-rgb), 0.6)', padding: '10px 20px', borderRadius: radius.md },
   stickyHeader: { position: 'sticky' as const, top: 0, zIndex: 200, background: 'var(--bg-content)', borderBottom: '1px solid var(--border-soft)', margin: '0 -20px', padding: '12px 20px 9px', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   searchBar: { display: 'flex', alignItems: 'center', gap: space.x8 },
   searchInputWrap: { position: 'relative' as const, flex: '1 1 360px', display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: space.x4, minWidth: 260, minHeight: control.lg, background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid rgba(var(--hairline-rgb), 0.72)', borderRadius: radius.md, padding: '3px 24px 3px 8px', boxShadow: 'inset 0 1px 0 rgba(var(--text-rgb), 0.035)' },
   searchInputInner: { flex: '1 1 100px', position: 'relative' as const, display: 'flex', alignItems: 'center', height: control.sm, minWidth: 100 },
   searchInput: { flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: 0, fontSize: font.sm, outline: 'none' },
   sortBtn: { height: control.md, padding: '0 10px', background: 'transparent', border: 'none', borderLeft: '1px solid rgba(var(--hairline-rgb), 0.44)', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  sortMenu: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, zIndex: 500, boxShadow: '0 8px 24px rgba(var(--scrim-rgb), 0.5)', minWidth: 100 },
+  sortMenu: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, padding: 4, zIndex: 500, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), var(--shadow-popover))', minWidth: 100 },
   sortMenuItem: { display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const },
   sortMenuItemActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   viewToggle: { position: 'relative' as const, display: 'flex', alignItems: 'center' },
   viewToggleBtn: { position: 'relative' as const, zIndex: 1, width: 38, height: control.lg, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer' },
   thumbSizeControl: { position: 'relative' as const, display: 'flex', alignItems: 'center' },
-  thumbSizeBtn: { position: 'relative' as const, zIndex: 1, width: 34, height: control.lg, background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 700, padding: 0 },
+  thumbSizeBtn: { position: 'relative' as const, zIndex: 1, width: 34, height: control.lg, background: 'none', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium, padding: 0 },
   controlDivider: { flexShrink: 0, width: 1, alignSelf: 'stretch' as const, margin: '5px 3px', background: 'rgba(var(--hairline-rgb), 0.4)' },
   // セグメントコントロール（S/M/L・グリッド/タイムライン）の選択中ハイライト。
   // ボタン背面で transform:translateX して選択先へスライドする（「今こう変えた」を伝える）。
@@ -172,8 +188,8 @@ export const s: Record<string, CSSProperties> = {
   searchDateWarning: { padding: '6px 12px', color: 'var(--warning)', fontSize: font.xs },
   searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), 0.32)', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: radius.md, display: 'flex', alignItems: 'center' },
   smartFolderEmpty: { fontSize: font.sm, color: 'var(--text-secondary)', padding: '3px 0 2px', lineHeight: 1.5 },
-  smartFolderCreateInput: { flex: 1, minWidth: 0, height: control.lg, background: 'var(--bg-content)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 9px', fontSize: font.sm, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const },
-  smartFolderAddIconBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 900, lineHeight: 1, boxSizing: 'border-box' as const },
+  smartFolderCreateInput: { flex: 1, minWidth: 0, height: control.lg, background: 'var(--bg-content)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 9px', fontSize: font.sm, fontWeight: weight.normal, outline: 'none', boxSizing: 'border-box' as const },
+  smartFolderAddIconBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: weight.medium, lineHeight: 1, boxSizing: 'border-box' as const },
   // 見出しの「＋」は、フォルダの行より一段小さくする。同じ大きさにすると、見出しの帯が
   // 行と同じ厚みになって「もう 1 行あるように」見える。見出しの中で一番大きいものが
   // これなので、ここの大きさが見出しの帯の高さをそのまま決める。
@@ -191,7 +207,7 @@ export const s: Record<string, CSSProperties> = {
   // 余白は viewer と同様に画像鑑賞用途として意図的に非テーマの暗色で埋める
   thumbImgWrapVertical: { background: '#0d0d0d' },
   thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
-  thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: 800, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: radius.sm, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
+  thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: weight.strong, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: radius.sm, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   thumbHovered: { border: '2px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
   // 選択は**タイルそのものを染める。** 枠線の色も変わるが、太さは未選択と同じ 2px のまま。
   // エクスプローラーや Finder と同じで、一覧の中で選んだ項目は「地が塗られている」のが定番。
@@ -206,16 +222,17 @@ export const s: Record<string, CSSProperties> = {
   // (3) 枠の外にもう 1 本淡い輪を足して視認性を稼いだ。二重の輪は本来キーボードの
   // フォーカス表示の手法で、一覧の選択に使うものではない（フォーカス枠と役割が被る）。
   thumbSelected: { border: '2px solid rgba(var(--accent-rgb), 0.72)', background: 'rgba(var(--accent-rgb), 0.18)' },
-  // 染めた地の上でも読めるよう選択中は一段だけ明るくする。
-  thumbLabelSelected: { color: 'var(--text-primary)' },
+  // 染めた地の上でも読めるよう選択中は一段だけ明るくする。題名の既定が --text-primary へ
+  // 上がったので、その 1 つ上（--text-bright）を取る。段が潰れると選択が題名から読めない。
+  thumbLabelSelected: { color: 'var(--text-bright)' },
   // 新着 NEW（ウィンドウ表示後の数秒だけ）。選択（インディゴ）と区別できる緑系アクセント。
   thumbNew: { border: '2px solid rgba(var(--success-rgb), 0.9)', boxShadow: '0 0 0 2px rgba(var(--success-rgb), 0.3)', animation: 'shioriNewPulse 1.6s ease-in-out infinite' },
   // NEW表示が外れる瞬間（リング/グローをふわっとフェードアウト）
   thumbNewExit: { boxShadow: '0 0 0 2px rgba(var(--success-rgb), 0)', transition: 'border-color 0.9s ease, box-shadow 0.9s ease' },
   // バッジ自体は彩度の高い緑グラデーション地に固定文字色で、どちらのテーマでも
   // そのまま視認できるため意図的にテーマ非依存（var化しない）。
-  thumbNewBadge: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' },
-  thumbNewBadgeExit: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)', animation: 'shioriNewBadgeOut 0.9s ease forwards' },
+  thumbNewBadge: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: weight.strong, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' },
+  thumbNewBadgeExit: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: weight.strong, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)', animation: 'shioriNewBadgeOut 0.9s ease forwards' },
   // 「選択されていないのに、次のキー操作の起点になっている 1 枚」の目印（呼び出し側で
   // focused && !selected の時だけ重ねる）。矢印キーでの移動は選択とフォーカスが常に同じ
   // セルを指すため、選択ハイライトと二重表示すると常時点灯してうるさくなる。
@@ -236,21 +253,24 @@ export const s: Record<string, CSSProperties> = {
   // サムネが読めなかったとき。**無地で済ませない**——ファイルが消えたのか読み込み中なのかが
   // 画面から分からず、黙って欠けた状態になる。一番小さいセル（横120px）では文字が折り返す。
   thumbFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' as const, background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
-  thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: 700, textAlign: 'center' as const, lineHeight: 1.35 },
-  // 題名は本文より一段落とす（--text-label）。以前は --text-secondary で、サムネイルを
-  // 大きくしてからは薄すぎて読めなかった。逆に本文と同じ濃さまで上げると明るすぎる
-  // （ダークで一度そこまで寄って、題名だけが主張して見えた。global.css の --text-label 参照）。
-  // 選択中はさらに一段明るくするので（thumbLabelSelected）、濃さの段は 2 つ残る。
-  thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: 700, color: 'var(--text-label)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: weight.normal, textAlign: 'center' as const, lineHeight: 1.35 },
+  // 題名は本文と同じ濃さ（--text-primary）。**濃さを上げられるのは太さを下げたから。**
+  // 以前ここを本文と同じ濃さにしたときは「題名だけが主張して見えた」が、そのときは太字で、
+  // 太さと濃さの両方で前に出ていた。普通の太さになったぶん、濃さの段が 1 つ空いた。
+  // 履歴: --text-secondary（薄すぎて、サムネイルを大きくすると読めなかった）
+  //     → --text-label（太字時代の落としどころ。いまは意味の色の基準としてだけ残っている）
+  //     → --text-primary（普通の太さ＋本文の濃さ。絵より前に出ず、読める）
+  // 選択中はさらに一段上げるので（thumbLabelSelected → --text-bright）、濃さの段は 2 つ残る。
+  thumbLabel: { height: LABEL_HEIGHT, lineHeight: `${LABEL_HEIGHT}px`, fontSize: font.xs, fontWeight: weight.normal, color: 'var(--text-primary)', padding: '0 6px', boxSizing: 'border-box', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   thumbLabelHighlight: { background: 'rgba(var(--warning-rgb), 0.32)', color: 'var(--warning)', borderRadius: radius.sm, padding: '0 1px' },
   // 初回ロード中（まだ1枚も届いていない）に実グリッドと同じ寸法で敷くプレースホルダ。
   // 以前はここが完全な空白で、画面下の「読み込み中...」だけが手掛かりだった。
   skeletonCell: { background: 'var(--bg-surface)', border: '2px solid var(--border-default)', borderRadius: radius.md, animation: 'shioriSkeletonPulse 1.4s ease-in-out infinite' },
   empty: { color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column' as const, gap: space.x12, alignItems: 'center', justifyContent: 'center', textAlign: 'center' as const, width: '100%', minHeight: 'calc(100vh - 190px)' },
-  emptyTitle: { color: 'var(--text-primary)', fontSize: font.xl, fontWeight: 700 },
+  emptyTitle: { color: 'var(--text-primary)', fontSize: font.xl, fontWeight: weight.medium },
   emptySteps: { display: 'flex', flexDirection: 'column' as const, gap: space.x4, color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.6, textAlign: 'left' as const },
   emptyActions: { display: 'flex', gap: space.x8, flexWrap: 'wrap' as const, justifyContent: 'center' },
-  emptyBtn: { padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: 700 },
+  emptyBtn: { padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), 0.4)', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: weight.medium },
   emptyBtnSub: { background: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-strong)' },
   emptyHint: { color: 'var(--text-secondary)', fontSize: font.sm, marginTop: 4 },
   // 空画面に段落を置くとき用（Web デモ版の説明）。emptyHint は一言用で幅の指定が無く、
@@ -273,7 +293,7 @@ export const s: Record<string, CSSProperties> = {
   // 上下の margin を半分ずつ負にして、占める高さを差し引きゼロにする。線が出るときは
   // 隣の行へ 1px ずつ食い込むが、行の間に引く線なので見え方は変わらない。
   smartFolderInsertLine: { height: 2, margin: '-1px 0', borderRadius: radius.sm, background: 'var(--accent)', boxShadow: '0 0 0 1px rgba(var(--accent-rgb), 0.18)', transition: 'opacity .08s ease' },
-  smartFolderBtn: { flex: 1, minWidth: 0, minHeight: control.lg, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
+  smartFolderBtn: { flex: 1, minWidth: 0, minHeight: control.lg, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   smartFolderDeleteBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, lineHeight: 1 },
   smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.46)', color: 'var(--accent-text)' },
     // セクションどうしの間。8px まで詰めたら上の見出し（Shiori ◯枚）と地続きに見えた。
@@ -288,24 +308,24 @@ export const s: Record<string, CSSProperties> = {
   // 上下中央で揃える（呼び出し側が alignItems: center を付けている）。ただし游ゴシックは
   // 上下の余白が非対称で、既定の行送りのままだと行の箱の中で文字が上寄りに座る。
   // 箱を中央に置いても文字は中央に見えない。行の箱を文字にぴったり合わせて初めて揃う。
-  siteGroupLabel: { fontSize: font.xs, lineHeight: 1, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: 0.8, marginBottom: space.x4, fontWeight: 800 },
+  siteGroupLabel: { fontSize: font.xs, lineHeight: 1, color: 'var(--text-muted)', marginBottom: space.x4, fontWeight: weight.medium },
   tagLabelActions: { display: 'flex', alignItems: 'center', gap: space.x8 },
-  tagModeBtn: { minWidth: 28, height: control.md, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid var(--border-default)', borderRadius: radius.md, cursor: 'pointer', fontSize: 11, fontWeight: 800, padding: '0 6px', lineHeight: 1 },
+  tagModeBtn: { minWidth: 28, height: control.md, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.72)', border: '1px solid var(--border-default)', borderRadius: radius.md, cursor: 'pointer', fontSize: 11, fontWeight: weight.medium, padding: '0 6px', lineHeight: 1 },
   tagClearBtn: { width: control.md, height: control.md, padding: 0, justifyContent: 'center', color: 'var(--text-secondary)', lineHeight: 1 },
   searchSuggestions: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), 0.58)', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)', maxHeight: 200, overflowY: 'auto' as const },
   searchSuggestionItem: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', minHeight: control.md, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const, whiteSpace: 'nowrap' as const, overflow: 'hidden' },
   searchSuggestionItemActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
-  searchSuggestionPlain: { minWidth: 0, color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  searchSuggestionValue: { flex: '0 1 132px', minWidth: 54, maxWidth: '52%', color: 'var(--text-secondary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  searchSuggestionMeta: { flex: '1 1 auto', minWidth: 0, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  searchSuggestionPlain: { minWidth: 0, color: 'var(--text-secondary)', fontWeight: weight.normal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  searchSuggestionValue: { flex: '0 1 132px', minWidth: 54, maxWidth: '52%', color: 'var(--text-secondary)', fontWeight: weight.normal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  searchSuggestionMeta: { flex: '1 1 auto', minWidth: 0, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.normal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   searchSuggestionEmpty: { minHeight: control.md, padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm, display: 'flex', alignItems: 'center' },
-  searchHistoryHeader: { padding: '4px 12px 2px', color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.03em' },
+  searchHistoryHeader: { padding: '4px 12px 2px', color: 'var(--text-muted)', fontSize: 10, fontWeight: weight.normal, letterSpacing: '0.03em' },
   searchPrefixDivider: { height: 1, margin: '4px 0', background: 'rgba(var(--hairline-rgb), 0.22)' },
   searchHistoryRemove: { flexShrink: 0, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: 4, color: 'var(--text-muted)', borderRadius: radius.md },
     // **上下と左右で違う値を使う。** チップは横に並んで折り返すので、左右は詰めたほうが
   // 1 行に多く入る。上下を同じだけ詰めると行同士がくっついて塊に見える。
   sidebarTagList: { display: 'flex', flexWrap: 'wrap' as const, rowGap: space.x6, columnGap: space.x4 },
-  sidebarTagChip: { maxWidth: '100%', minHeight: control.md, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.6)', border: '1px solid var(--border-default)', borderRadius: 999, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 700, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
+  sidebarTagChip: { maxWidth: '100%', minHeight: control.md, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.92)', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   sidebarTagChipText: { display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   // **由来は色、選択は塗りつぶし。** 手動=緑、AI=灰（無彩色）で、これは選んでいても
   // 変わらない。選んだかどうかは「地が塗ってあるか」で読む——非選択は地が完全に透明で
@@ -321,13 +341,16 @@ export const s: Record<string, CSSProperties> = {
   sidebarTagChipManual: { background: 'transparent', border: '1px dashed rgba(var(--success-rgb), 0.5)', color: 'var(--tag-manual)' },
   sidebarTagChipActive: { background: 'rgba(var(--success-rgb), 0.3)', border: '1px solid rgba(var(--success-rgb), 0.75)', color: 'var(--tag-manual)' },
   sidebarTagChipAi: { background: 'transparent', border: '1px dashed var(--border-strong)', color: 'var(--text-secondary)' },
-  sidebarTagChipAiActive: { background: 'rgba(var(--accent-rgb), 0.3)', border: '1px solid rgba(var(--accent-rgb), 0.75)', color: 'var(--accent-text)' },
+  // **選択しても色相は変えない。** 藍にしていたので、AI タグを選んだ瞬間だけ由来の灰が
+  // 消え、詳細パネルに出ている灰のチップと同じものに見えなくなっていた
+  // （上の「色＝由来、塗り＝選択」を、ここだけ破っていた）。灰のまま塗りで選択を示す。
+  sidebarTagChipAiActive: { background: 'rgba(var(--text-rgb), 0.16)', border: '1px solid rgba(var(--text-rgb), 0.45)', color: 'var(--text-primary)' },
   // TagEditor と DetailPanel の一括編集で同一定義が重複していたタグチップ／追加ボタン（C-2）。
   // 色 = 由来（緑=手動 / 灰=AI）を単一/一括/サイドバーで一貫させるため、AI版もここへ集約。
-  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.45)', borderRadius: 999, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
-  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, userSelect: 'text' as const },
-  addTagChip: { height: control.lg, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: 700, cursor: 'pointer', lineHeight: 1 },
-  sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800 },
+  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.20)', border: '1px solid rgba(var(--success-rgb), 0.62)', borderRadius: 999, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
+  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--text-rgb), 0.06)', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
+  addTagChip: { height: control.lg, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.medium, cursor: 'pointer', lineHeight: 1 },
+  sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium },
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid var(--border-inset)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   // サイドバー下部（セットアップ・サイズ・表示切替・設定）は毎日押すものではないのに、
   // 面と枠を持っていて上のスマートフォルダやタグ一覧より目立っていた。地と枠を外す。
@@ -341,9 +364,9 @@ export const s: Record<string, CSSProperties> = {
   // --border-strong まで上げると 3 つ並んだ枠が主張して帯が騒がしくなる。
   // 以前は --border-rgb を 0.8 で薄めて中間を作っていたが、薄めた枠は乗っている地に
   // 混ざるので、ライトでは明るい地に溶けて消えていた（global.css の --border-inset 参照）。
-  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 600, textAlign: 'left' as const },
-  sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: 700 },
-  sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: 900 },
+  sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const },
+  sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: weight.medium },
+  sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.42)', color: 'var(--accent-text)', fontSize: 10, fontWeight: weight.strong },
   sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
   sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
@@ -355,7 +378,7 @@ export const s: Record<string, CSSProperties> = {
   // 「不具合・要望を報／告」のように行の途中で切れる。1 個ずつを塊として扱い、入らなければ
   // 塊ごと次の行へ送る（rowGap を入れて 2 行になっても読めるようにしてある）。
   sidebarLinks: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'center', columnGap: space.x4, rowGap: space.x2, paddingTop: 6 },
-  sidebarLink: { padding: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: font.xs, fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' as const },
+  sidebarLink: { padding: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: font.xs, fontFamily: 'inherit', fontWeight: weight.medium, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' as const },
   // リンクの区切り。**文字ではなく細い縦線。** 「・」を使うと「不具合・要望を報告」の
   // 中の「・」と同じ形になり、2 つのリンクが 3 つに見える。
   sidebarLinkSep: { width: 1, height: 10, background: 'rgba(var(--hairline-rgb), 0.6)' },
@@ -372,8 +395,10 @@ export const s: Record<string, CSSProperties> = {
   notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: space.x8, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, boxShadow: '0 12px 32px rgba(var(--scrim-rgb), 0.42), 0 2px 8px rgba(var(--scrim-rgb), 0.3)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: 'var(--text-primary)' },
   toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, flexShrink: 0, background: 'var(--text-secondary)' },
   toastBody: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x12 },
-  toastMessage: { minWidth: 0, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
-  toastActionBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  // **通知だけは本文の太さにしない。** 数秒で消えるので、読む時間を選べない。他の文字は
+  // いつでも読み直せるから細くできるが、ここは目を戻したときにはもう無い。
+  toastMessage: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.sm, fontWeight: weight.medium, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
+  toastActionBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   toastInfo: {},
   toastSuccess: {},
   toastWarning: {},
@@ -384,11 +409,11 @@ export const s: Record<string, CSSProperties> = {
   toastErrorMark: { background: color.danger },
   taskToast: { width: 'min(340px, calc(100vw - 36px))', flexDirection: 'column' as const, gap: space.x8 },
   taskHeader: { display: 'flex', alignItems: 'center', gap: space.x8 },
-  taskLabel: { flex: 1, minWidth: 0, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  taskLabel: { flex: 1, minWidth: 0, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   taskBarTrack: { width: '100%', height: 4, background: 'rgba(var(--text-rgb), 0.14)', borderRadius: 999, overflow: 'hidden' },
   taskFill: { height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width 0.25s ease' },
-  taskDetail: { flexShrink: 0, color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums' as const },
-  taskCancelBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  taskDetail: { flexShrink: 0, color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: weight.normal, fontVariantNumeric: 'tabular-nums' as const },
+  taskCancelBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), 0.18)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
   // DetailPanel はレイアウト上そもそもこの外側にあるので、ビューア表示中も隠れず操作できる（P1）。
   // overflow:hidden 必須: ズーム時の scale() で拡大された画像は箱をはみ出すが、ビューアは
@@ -402,12 +427,12 @@ export const s: Record<string, CSSProperties> = {
   viewerMediaStack: { width: 'calc(100% - clamp(48px, 6vw, 112px))', height: 'calc(100% - clamp(136px, 18vh, 188px))', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', gap: space.x8 },
   viewerMediaFrame: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   viewerImg: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block', transformOrigin: 'center' },
-  viewerTitle: { minWidth: 0, flex: 1, color: '#d6dbea', fontSize: font.sm, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, textShadow: '0 2px 10px rgba(0,0,0,0.9)' },
+  viewerTitle: { minWidth: 0, flex: 1, color: '#d6dbea', fontSize: font.sm, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, textShadow: '0 2px 10px rgba(0,0,0,0.9)' },
   viewerActions: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: space.x8 },
   viewerCounter: { color: 'rgba(255,255,255,0.46)', fontSize: font.base, fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' as const, letterSpacing: 0.5 },
   viewerClose: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#999', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
   viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: control.sm, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, pointerEvents: 'none' as const },
-  viewerZoomValue: { color: 'rgba(232,236,248,0.68)', fontSize: font.xs, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
+  viewerZoomValue: { color: 'rgba(232,236,248,0.68)', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
   filmstrip: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: space.x4, padding: '30px 80px 18px', background: 'linear-gradient(transparent, rgba(0,0,0,0.82))', zIndex: 1 },
   filmstripThumb: { width: 64, height: control.lg, objectFit: 'cover' as const, borderRadius: radius.md, cursor: 'pointer', border: '2px solid transparent', flexShrink: 0, opacity: 0.6 },
   filmstripThumbPlaceholder: { width: 64, height: control.lg, border: '2px solid transparent', flexShrink: 0, opacity: 0, pointerEvents: 'none' as const },

@@ -13,7 +13,7 @@ import { setAmbiguousFrames, setFrameCounts } from '../db'
 import {
   listUnusableForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
 } from '../db-video-frames'
-import { countReportDrops } from './frame-feed'
+import { countReportDrops, reportDropsMeasured } from './frame-feed'
 import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
@@ -30,12 +30,13 @@ import { CH } from '../../shared/api'
 // 直後の 1 本だけ、コマ送りの表示が赤いのに詳細パネルが黙る**（開き直すまで直らない）。
 function notifyVerified(
   imageId: number, uncaptured: number | null, ambiguous: number | null,
-  total: number | null, unreported: number | null, misaligned: number | null = 0
+  total: number | null, unreported: number | null, misaligned: number | null = 0,
+  unreportedMeasured = false
 ): void {
   // **画面へ知らせる前にキャッシュを捨てる。** ここへ来るのは表を書き換えた後だけで、
   // 捨てないと開いたままのクリップが古い並びのままコマ送りを続ける。
   invalidateClipFrames(imageId)
-  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported, misaligned })
+  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported, misaligned, unreportedMeasured })
 }
 
 /**
@@ -113,16 +114,18 @@ export async function verifyClipFrames(
           imageId,
           marked.filter((f) => !f.captured).length,
           marked.length,
-          countReportDrops(marked.map((f) => f.mediaTime)),
-          misaligned
+          countReportDrops(marked),
+          misaligned,
+          reportDropsMeasured(marked)
         )
         notifyVerified(
           imageId,
           marked.filter((f) => !f.captured).length,
           null,
           marked.length,
-          countReportDrops(marked.map((f) => f.mediaTime)),
-          misaligned
+          countReportDrops(marked),
+          misaligned,
+          reportDropsMeasured(marked)
         )
         return
       }
@@ -140,21 +143,21 @@ export async function verifyClipFrames(
       )
       frames = kept
       saveVideoFrames(imageId, frames)
-      setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames.map((f) => f.mediaTime)))
+      setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
     }
 
     const missed = frames.filter((f) => !f.captured).length
     // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
     // 末尾を切って枚数が変わっている場合があるので、画面への反映だけは伝える。
     if (missed === 0) {
-      notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames.map((f) => f.mediaTime)))
+      notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
       return
     }
 
     const result = verifyFrameTable(frames, signatures)
     saveVideoFrames(imageId, result.frames)
     setAmbiguousFrames(imageId, result.ambiguous)
-    notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames.map((f) => f.mediaTime)))
+    notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
     logVerifyResult(imageId, result)
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
@@ -211,8 +214,9 @@ export async function recheckUnusableClips(): Promise<void> {
         target.imageId,
         match.frames.filter((f) => !f.captured).length,
         match.frames.length,
-        countReportDrops(match.frames.map((f) => f.mediaTime)),
-        match.misaligned
+        countReportDrops(match.frames),
+        match.misaligned,
+        reportDropsMeasured(match.frames)
       )
       console.log(
         `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): restored` +
@@ -223,8 +227,9 @@ export async function recheckUnusableClips(): Promise<void> {
         match.frames.filter((f) => !f.captured).length,
         null,
         match.frames.length,
-        countReportDrops(match.frames.map((f) => f.mediaTime)),
-        match.misaligned
+        countReportDrops(match.frames),
+        match.misaligned,
+        reportDropsMeasured(match.frames)
       )
     } catch (err) {
       console.warn(`[frame-recheck] image ${target.imageId} failed`, err)

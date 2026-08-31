@@ -14,7 +14,7 @@ import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
 import type { ClipFrames, ClipGap, FrameQuality, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { sliceFrameTable, countReportDrops, frameGaps } from './frame-feed'
+import { sliceFrameTable, countReportDrops, frameGaps, reportDropsMeasured } from './frame-feed'
 import { verifyClipFrames } from './verify-clip'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
@@ -82,7 +82,7 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
 // **数え方は frame-feed.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
 // 出る合計とコマ送りに出る場所が別の計算から出ることになる（実測 82 本中 5 本で食い違った）。
 export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
-  return frameGaps(frames.map((f) => f.mediaTime))
+  return frameGaps(frames)
 }
 
 export function buildClipFrames(pts: number[], table: StoredFrame[] | null): ClipFrames {
@@ -114,7 +114,8 @@ function syncFrameCountsToUsable(
     ambiguous: restored.ambiguous,
     total: restored.sourceFrames,
     unreported: restored.unreported,
-    misaligned: restored.misaligned
+    misaligned: restored.misaligned,
+    unreportedMeasured: restored.unreportedMeasured
   })
 }
 
@@ -285,7 +286,7 @@ export function registerVideoHandlers(): void {
           if (sliced.length > 0) {
             saveVideoFrames(result.id, sliced)
             const missed = sliced.filter((f) => !f.captured).length
-            setFrameCounts(result.id, missed, sliced.length, countReportDrops(sliced.map((f) => f.mediaTime)))
+            setFrameCounts(result.id, missed, sliced.length, countReportDrops(sliced), 0, reportDropsMeasured(sliced))
             // 撮り逃しの検証は元クリップの結果を流用せず、新しいファイルで取り直す。
             // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
             // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。

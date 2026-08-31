@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageRow, ImageTagSource, Settings } from '../types'
 import { cleanTitle, siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
-import { font, color, s as commonStyles, radius, space, control } from '../styles'
+import { color, control, font, radius, s as commonStyles, space, weight } from '../styles'
 import TagEditor from './TagEditor'
 import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
@@ -136,9 +136,14 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       : (single.fps && single.duration ? single.fps * single.duration : 0)
     // **前後の絵が同じかどうかで分けない。** 同じでもそこに 1 コマだけ別の絵が入っていた
     // 可能性は消せず、確定できないことを確定したように見せることになる（コマ送り側と同じ）。
+    // **抜けの枚数が推定なら、そう分かる言い方で出す。** ビューアと同じ切り分け
+    // （ClipGap.measured）を、こちらは列から読む——タイルはコマ表を取りに行かない。
+    // 同じ 1 つの数を、ビューアでは「推定」・ここでは断定、と出さないため。
+    // 絵が無いだけのコマ（uncaptured_frames）は行を数えた実数なので、抜けが 0 なら断定でよい。
+    const estimated = (single.unreported_frames ?? 0) > 0 && single.unreported_measured !== 1
     return {
-      text: t('detail.uncapturedFrames', { count: String(missing) }),
-      title: t('detail.uncapturedFramesHint', { count: String(missing) }),
+      text: t(estimated ? 'detail.uncapturedFramesEstimated' : 'detail.uncapturedFrames', { count: String(missing) }),
+      title: t(estimated ? 'detail.uncapturedFramesEstimatedHint' : 'detail.uncapturedFramesHint', { count: String(missing) }),
       severe: (total > 0 ? missing / total : 0) > SEVERE_FRAME_RATIO
     }
   }, [single, t])
@@ -411,13 +416,13 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 )}
                 {(single.current_time != null || single.media_type === 'video') && (
                   <div style={{ ...s.metaRow, gridColumn: 1, gridRow: 1 }}>
-                    <span style={s.label}>{t('detail.timecode')}</span>
+                    <span style={{ ...s.label, ...s.metaLabel }}>{t('detail.timecode')}</span>
                     <span style={s.value}>{single.current_time != null ? formatTime(single.current_time) : '—'}</span>
                   </div>
                 )}
                 {single.media_type === 'video' && (
                   <div style={{ ...s.metaRow, gridColumn: 2, gridRow: 1 }}>
-                    <span style={s.label}>{t('detail.duration')}</span>
+                    <span style={{ ...s.label, ...s.metaLabel }}>{t('detail.duration')}</span>
                     <span style={s.value}>{single.duration != null ? formatTime(single.duration) : '—'}</span>
                   </div>
                 )}
@@ -613,7 +618,7 @@ const s: Record<string, React.CSSProperties> = {
   searchTile: { padding: '8px 16px 16px', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: space.x16 },
   actions: { padding: '16px 12px', borderTop: '1px solid var(--border-default)', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' as const, gap: space.x8, flexShrink: 0 },
   empty: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', height: '100%', gap: space.x8, padding: '0 20px', textAlign: 'center' as const },
-  emptyTitle: { color: 'var(--text-secondary)', fontSize: font.base, fontWeight: 700 },
+  emptyTitle: { color: 'var(--text-secondary)', fontSize: font.base, fontWeight: weight.medium },
   emptyHints: { display: 'flex', flexDirection: 'column' as const, gap: space.x4, color: 'var(--text-secondary)', fontSize: font.sm, lineHeight: 1.6 },
   // シークバーが映像内のオーバーレイになったので、動画と画像は外形が完全に一致する。
   // 以前ここにあった marginBottom: VC_BAR_HEIGHT（バー分の辻褄合わせ）は不要になった。
@@ -631,40 +636,56 @@ const s: Record<string, React.CSSProperties> = {
   // タイトなままにする（rowGap を columnGap と同じにすると動画時刻の段だけ縦に間延びして見える）。
   // position: relative — コマ精度の注記を上端（タイトルとの区切り線の上）へ重ねる。
   // **段として積まない。** 注記の有無で高さが変わると、開くクリップごとに下の並びがずれる。
-  metaHalf: { position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 32, rowGap: 8, alignItems: 'start', padding: '2px 0 3px' },
+  // **下の余白（6px）がそのまま「長さ」と注記チップの間隔になる。** 注記は top:100%＝この
+  // 箱の下端に貼り付くので、間隔を空けたいときは注記側の top ではなくここを動かすこと。
+  // top をずらすと注記だけが下がって、下のタグ欄に食い込む（そこまで 16px しか無い）。
+  // **縦に積まない。** 1 行に横並びのまま（段を増やすと下の並び全体が動く）。
+  metaHalf: { position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 32, rowGap: 8, alignItems: 'start', padding: '2px 0 6px' },
   // 値は右端に揃える（tabular-nums と合わせて桁が縦に揃う）。左寄せでラベルに隣接させると
   // 値の開始位置がラベルの文字数に左右され、項目ごとに揃わなくなる。
   // ペアの分離は距離ではなく metaHalf の列間で取ること。
-  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8 },
+  // **maxWidth は広がりの上限。** パネルは幅を変えられるので、上限が無いと広げるほど
+  // 「元の位置 …… 0:34」が離れていく。
+  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8, maxWidth: 100 },
+  // **ラベルの枠は固定幅。文字数で隙間を変えない。** 値は右端に揃えてあるので、枠が
+  // 中身なりだと「長さ」(2文字)の側だけ 2 文字ぶん余計に空く。4em＝全角4文字ぶんを
+  // 常に確保し、短いラベルは枠の中で余らせる。**ラベルの語を変えても隙間は動かない。**
+  // s.label 自体には入れない（メモの見出しにも使っていて、そちらは枠を持つ必要が無い）。
+  metaLabel: { minWidth: '4em' },
   // コマ精度の注記。以前は値と同じ太字の裸の文字で、色（橙／灰）だけが違う 2 語が
   // 並んでいたため、時刻や長さの数字と地続きに見えて「これも記録の一項目」に読めた。
   // 小さな枠に入れて数値の並びから切り離す。**枠のぶんで高さを増やさない**——下のタグまでの
   // 余白は 16px しかなく、厚くすると注記の有無に関わらず下の並び全体を動かすことになる。
   frameNotes: { position: 'absolute', right: -10, top: '100%', zIndex: 1, display: 'flex', gap: space.x4, pointerEvents: 'none' },
-  frameNote: { display: 'inline-flex', alignItems: 'center', padding: '0 6px', borderRadius: radius.sm, border: '1px solid transparent', fontSize: 11, fontWeight: 700, lineHeight: 1.25, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' },
+  frameNote: { display: 'inline-flex', alignItems: 'center', padding: '0 6px', borderRadius: radius.sm, border: '1px solid transparent', fontSize: 11, fontWeight: weight.medium, lineHeight: 1.25, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' },
   // 要注意は薄く色を敷いて枠を締める。未取得は枠線だけの控えめな見た目にして、
   // 重さの差（クリップ全体が当てにならない／そのコマの絵が無い）を色の濃さで出す。
   // 未取得でも割合が大きい（severe）ときは要注意と同じ濃さへ上げる。
   frameNoteAlert: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.14)', borderColor: 'rgba(var(--warning-rgb), 0.38)', pointerEvents: 'auto' as const },
   frameNoteQuiet: { color: 'var(--text-muted)', borderColor: 'var(--border-default)' },
   row: { display: 'flex', flexDirection: 'column', gap: space.x4 },
-  label: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
-  value: { fontSize: font.base, color: 'var(--text-bright)', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+  // **大文字化と字間は入れない。** 日本語では大文字化は何も起きず、残るのは字間の空いた
+  // 読みにくい 2 文字だけになる（「長 さ」）。en では効くが、原本は ja（CLAUDE.md）。
+  // ラベルは値より細く・薄く。読みたいのは値のほうで、以前はラベル(800)が値(700)より太かった。
+  label: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: weight.normal },
+  value: { fontSize: font.base, color: 'var(--text-bright)', wordBreak: 'break-all', userSelect: 'text' as const, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums' },
   // 短いタイトルでも常に3行分の領域を確保し、画像によって下の要素の位置がズレないようにする
-  titleValue: { flex: 1, minWidth: 0, fontSize: font.base, color: 'var(--text-primary)', lineHeight: 1.45, minHeight: 'calc(1.45em * 3)', fontWeight: 700, wordBreak: 'break-word', cursor: 'pointer', userSelect: 'text' as const },
+  titleValue: { flex: 1, minWidth: 0, fontSize: font.base, color: 'var(--text-primary)', lineHeight: 1.45, minHeight: 'calc(1.45em * 3)', fontWeight: weight.medium, wordBreak: 'break-word', cursor: 'pointer', userSelect: 'text' as const },
   titleValueClamped: { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' },
   titleEditBtn: { flexShrink: 0, width: control.md, height: control.md, padding: 0, background: 'rgba(var(--surface-rgb), 0.55)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 },
-  titleInput: { width: 'calc(100% - 34px)', minHeight: 'calc(1.45em * 3 + 9px)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-default)', color: 'var(--text-primary)', padding: '0 0 8px', fontSize: font.base, fontWeight: 700, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-word', lineHeight: 1.45, fontFamily: 'inherit' },
+  titleInput: { width: 'calc(100% - 34px)', minHeight: 'calc(1.45em * 3 + 9px)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-default)', color: 'var(--text-primary)', padding: '0 0 8px', fontSize: font.base, fontWeight: weight.medium, outline: 'none', boxSizing: 'border-box' as const, resize: 'none' as const, overflow: 'hidden', display: 'block', wordBreak: 'break-word', lineHeight: 1.45, fontFamily: 'inherit' },
   metaFooter: { marginTop: 2, paddingTop: 12, borderTop: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   subtleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, minWidth: 0 },
-  subtleLabel: { color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 600 },
+  subtleLabel: { color: 'var(--text-muted)', fontSize: font.sm, fontWeight: weight.normal },
   subtleValue: { color: 'var(--text-muted)', fontSize: font.sm, userSelect: 'text' as const, textAlign: 'right' as const, lineHeight: 1.35 },
-  subtleUrlBadge: { minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: font.sm, fontWeight: 600, cursor: 'pointer', textAlign: 'right' as const, lineHeight: 1.35 },
+  subtleUrlBadge: { minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: 0, background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: font.sm, fontWeight: weight.normal, cursor: 'pointer', textAlign: 'right' as const, lineHeight: 1.35 },
   memoLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, minHeight: 16 },
-  memoStatus: { color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: 700, lineHeight: 1 },
+  // **一番薄い文字でよい。** 打てば出る・待てば消えるもので、探して読む文字ではない。
+  // 失敗したときだけ memoStatusError で赤くなり、そこで初めて目を引く。
+  memoStatus: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: weight.normal, lineHeight: 1, opacity: 0.75 },
   memoStatusError: { color: color.danger },
   tagSection: { display: 'flex', flexDirection: 'column', gap: space.x8 },
-  tagLabel: { color: 'var(--text-muted)', fontSize: font.xs, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800 },
+  tagLabel: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: weight.normal },
   tagList: { display: 'flex', flexWrap: 'wrap', gap: space.x8, minHeight: 4 },
   // 「一部にのみ付いている」= coverage:some を表す修飾。由来色(緑/藍)の上に重ね、色相は保ったまま
   // 破線＋減光で「まだ全部には付いていない」を示す。
@@ -673,7 +694,7 @@ const s: Record<string, React.CSSProperties> = {
   multi: { padding: 16, display: 'flex', flexDirection: 'column', gap: space.x12 },
   multiHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8 },
   multiCount: { color: 'var(--text-secondary)', fontSize: font.lg },
-  multiClearBtn: { flexShrink: 0, padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: 700 },
-  showInFolderBtn: { width: '100%', height: control.lg, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
-  deleteActionBtn: { width: '100%', height: control.lg, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: radius.md, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: 800, whiteSpace: 'nowrap' as const },
+  multiClearBtn: { flexShrink: 0, padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium },
+  showInFolderBtn: { width: '100%', height: control.lg, padding: '0 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
+  deleteActionBtn: { width: '100%', height: control.lg, padding: '0 10px', background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, borderRadius: radius.md, color: color.danger, cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
 }

@@ -7,7 +7,7 @@ import {
   WS_PORTS, MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
   MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MIN_SCREEN_SIZE, MAX_SCREEN_SIZE,
   MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
-  MAX_EPOCH_MS,
+  MAX_EPOCH_MS, MAX_PRESENTED_FRAMES,
 } from '../../shared/wire-limits'
 
 // 実際に listen できたポート。どれも確保できなければ null のまま。
@@ -31,7 +31,11 @@ export type ExtensionMessage =
   // 録画中に配信ページ側から届く、素材の1コマぶんの通知。
   // mediaTime は素材自身のタイムライン上の秒、displayAt はそのコマが画面に出る epoch ミリ秒。
   // 画面キャプチャ側の時計とは無関係で、素材の実コマを知る唯一の経路。
-  | { type: 'frame'; mediaTime: number; displayAt: number }
+  //
+  // presentedFrames は rVFC が返す「合成へ送られたコマの累積数」。通知が飛んでも飛んだぶん
+  // 増えているので、前後の差から通知欠落の枚数が**実数で**出る（frame-feed の frameGaps）。
+  // 旧版の拡張・返さないブラウザでは null になり、その場合は従来の推定に落ちる。
+  | { type: 'frame'; mediaTime: number; displayAt: number; presentedFrames: number | null }
   // 録画中にコマ通知が途切れたことの知らせ（値は持たない）。配信ページ側の rVFC ループは
   // <video> が差し替わる（広告挿入・画質切替）と止まるため、その区間のコマは表に入らない。
   // **入らなかったコマは撮り逃しですらなく最初から存在しない**ので、枚数や割合には現れない。
@@ -187,7 +191,12 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   if (msg.type === 'frame') {
     const mediaTime = boundedNumber(msg.mediaTime, 0, MAX_TIMECODE_SECONDS)
     const displayAt = boundedNumber(msg.displayAt, 0, MAX_EPOCH_MS)
-    return mediaTime == null || displayAt == null ? null : { type: 'frame', mediaTime, displayAt }
+    // presentedFrames は無くても通す。**欠けると抜けの枚数が推定に落ちるだけ**で、
+    // コマの対応そのものは mediaTime と displayAt で決まる。
+    const presentedFrames = boundedNumber(msg.presentedFrames, 0, MAX_PRESENTED_FRAMES)
+    return mediaTime == null || displayAt == null
+      ? null
+      : { type: 'frame', mediaTime, displayAt, presentedFrames }
   }
   if (msg.type !== 'timecode') return null
 

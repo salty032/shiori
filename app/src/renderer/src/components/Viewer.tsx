@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ImageRow } from '../types'
 import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
-import { s } from '../styles'
+import { s, weight } from '../styles'
 import { XIcon } from './Icon'
 import VideoPlayer, { type VideoPlayerHandle } from './VideoPlayer'
 import { getMediaActions, useFeatureOverlayOpen } from '../features/registry'
@@ -374,7 +374,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
               （出ない＝このクリップでは保証できない、という一点だけが意味）。 */}
           {timesheet.ready && (
             <button
-              style={{ ...s.viewerClose, color: timesheet.open ? 'rgba(255,255,255,0.92)' : '#999', fontSize: 11, fontWeight: 800 }}
+              style={{ ...s.viewerClose, color: timesheet.open ? 'rgba(255,255,255,0.92)' : '#999', fontSize: 11, fontWeight: weight.medium }}
               onClick={() => timesheet.setOpen(!timesheet.open)}
               title={t('timesheet.toggle')}>
               {t('timesheet.title')}

@@ -78,7 +78,7 @@ const s: Record<string, React.CSSProperties> = {
   tagInputRow: { height: control.lg, display: 'inline-flex', alignItems: 'center', gap: space.x4, flex: '1 1 180px', minWidth: 160, maxWidth: '100%' },
   tagInput: { flex: 1, minWidth: 0, height: control.lg, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none', boxSizing: 'border-box' as const },
   tagAddBtn: { width: 34, height: control.lg, padding: 0, background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), 0.42)', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0 },
-  suggestions: { position: 'absolute' as const, top: '100%', left: 0, right: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, zIndex: 100, marginTop: 4, maxHeight: 180, overflowY: 'auto' as const, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), 0.42)', padding: 4 },
+  suggestions: { position: 'absolute' as const, top: '100%', left: 0, right: 28, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, zIndex: 100, marginTop: 4, maxHeight: 180, overflowY: 'auto' as const, boxShadow: '0 18px 40px rgba(var(--scrim-rgb), var(--shadow-popover))', padding: 4 },
   suggestion: { padding: '6px 8px', fontSize: font.sm, color: 'var(--text-primary)', cursor: 'pointer', borderRadius: radius.md },
   normalizePreview: { position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, fontSize: font.xs, color: 'var(--text-muted)', whiteSpace: 'nowrap' as const, pointerEvents: 'none' as const },
 }

@@ -357,10 +357,11 @@ export default function App() {
   // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
   // **misaligned も必ず一緒に流す。** 落とすと、録画した直後の 1 本だけコマ送りの表示が
   // 赤いのに詳細パネルが黙る（アプリを開き直すまで直らない）。
-  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported, misaligned }) =>
+  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported, misaligned, unreportedMeasured }) =>
     patchImage(id, {
       uncaptured_frames: uncaptured, ambiguous_frames: ambiguous,
-      source_frames: total, unreported_frames: unreported, misaligned_frames: misaligned
+      source_frames: total, unreported_frames: unreported, misaligned_frames: misaligned,
+      unreported_measured: unreportedMeasured ? 1 : 0
     })
   ), [patchImage])
 

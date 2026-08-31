@@ -168,6 +168,8 @@ describe('restoredFrameCounts', () => {
       ambiguous: 1,
       sourceFrames: 3,
       unreported: 0,
+      // 抜けが 1 つも無いので「推定した枚数がそもそも無い」＝裏取り済み扱い。
+      unreportedMeasured: true,
       misaligned: 0,
     })
   })
