@@ -113,6 +113,7 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.captureBlackScreen':
     'The captured frame came out black. Turn off hardware acceleration in your browser settings.',
   'notice.captureSaveFailed': 'Could not save the capture',
+  'notice.tagsNotSaved': 'Could not save the tags. The capture itself was saved.',
   'notice.captureSaved': 'Capture saved',
   'error.captureFailed': 'Capture failed. Please try again.',
   'error.captureRootUnavailable': 'Shiori cannot reach the folder it saves to. Check that the drive is connected, or choose another folder in Settings > Data.',

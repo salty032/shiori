@@ -4,7 +4,8 @@
 import { unlink } from 'fs/promises'
 import { insertImage, getImage } from '../db'
 import { addTagsBulk } from '../db-tags'
-import { sendToRenderer } from '../system/windows'
+import { sendToRenderer, sendNotice } from '../system/windows'
+import { t } from '../system/i18n'
 import { canAutoTag, ensureModel, runTagger } from './tagger'
 import { CH } from '../../shared/api'
 
@@ -28,7 +29,8 @@ interface RegisterCapturedMediaParams {
 }
 
 type RegisterCapturedMediaResult =
-  | { ok: true; id: number }
+  // tagsFailed: 行は作れたが、渡されたタグが付かなかった（画面には警告済み）。
+  | { ok: true; id: number; tagsFailed: boolean }
   | { ok: false; error: unknown }
 
 export async function registerCapturedMedia(
@@ -48,7 +50,25 @@ export async function registerCapturedMedia(
     return { ok: false, error: err }
   }
 
-  if (extraTags && extraTags.length > 0) addTagsBulk(id, extraTags)
+  // **タグが付かなくても、撮ったもの自体は捨てない。**
+  //
+  // ここが投げるのは DB そのものが書けないとき（満杯・破損）。以前はそのまま外へ抜けて
+  // いたので、呼び出し側の後始末で**実体ファイルだけ消えて DB の行が残る**（トリム）か、
+  // **取り込みが途中で止まる**（共有インポート）ことになっていた。
+  //
+  // タグとクリップ本体では釣り合わない——トリムした動画を「タグを引き継げなかったから」で
+  // 捨てるのは損が大きすぎる。行は残し、**付かなかったことを画面に出す**。黙って減らすのが
+  // 一番まずい（タグが消えたことは、後から画面を見ても分からない）。
+  let tagsFailed = false
+  if (extraTags && extraTags.length > 0) {
+    try {
+      addTagsBulk(id, extraTags)
+    } catch (err) {
+      console.error('[captured-media] addTagsBulk failed', err)
+      tagsFailed = true
+      sendNotice('warning', t('notice.tagsNotSaved'))
+    }
+  }
 
   if (broadcastCaptureDone) sendToRenderer(CH.captureDone, { id, imagePath: filePath })
 
@@ -65,5 +85,5 @@ export async function registerCapturedMedia(
     })
   }
 
-  return { ok: true, id }
+  return { ok: true, id, tagsFailed }
 }

@@ -117,6 +117,7 @@ export const ja = {
   'notice.captureBlackScreen':
     '映像が真っ黒に写っています。ブラウザの設定でハードウェアアクセラレーションをオフにしてください。',
   'notice.captureSaveFailed': 'キャプチャの保存に失敗しました',
+  'notice.tagsNotSaved': 'タグを保存できませんでした。撮ったものは保存されています。',
   'notice.captureSaved': 'キャプチャを保存しました',
   'error.captureFailed': 'キャプチャに失敗しました。もう一度お試しください。',
   // 保存先に届かない（外付けを抜いた等）。**「失敗しました」で終わらせない**——
