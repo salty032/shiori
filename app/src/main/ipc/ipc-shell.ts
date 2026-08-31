@@ -99,8 +99,9 @@ export function registerShellHandlers(): void {
   // 抜いてある外付けドライブや書き込めない場所を保存先にすると、撮った瞬間に失敗する。
   // その場では「保存に失敗しました」としか出ず、原因が保存先だと分からない。
   //
-  // **これまでのぶんは移さない。** 元の場所を previousCaptureRoots に控えて、
-  // そのまま開けるようにする（paths.ts の captureBases）。移動は別の作業。
+  // **これまでのぶんを移すかは、その場で聞く。** 実体のコピーなので分単位かかり、移動先には
+  // 2 倍の空きが要る。断られたぶんと移せなかったぶんは元の場所に残るので、元の場所は
+  // previousCaptureRoots に控えて、そのまま開けるようにする（paths.ts の captureBases）。
   handleTrusted(CH.storageChooseRoot, async (): Promise<ChooseCaptureRootResult> => {
     const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
     const options = {

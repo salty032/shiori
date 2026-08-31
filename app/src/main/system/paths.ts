@@ -11,8 +11,9 @@ export function defaultCaptureDir(): string {
 }
 
 // これから撮るものを書く場所。設定で変えられる（設定 > データ > 保存場所）。
-// 静止画も録画もここに入る。**既存のファイルは移動しない**——変更後も元の場所から
-// そのまま読める（allowedBases が過去の保存先も許可している）。
+// 静止画も録画もここに入る。**これまでのぶんを移すかは変更時に聞く**（ipc-shell.ts）。
+// 断られたぶんと移せなかったぶんは元の場所に残り、そこからそのまま読める
+// （allowedBases が過去の保存先も許可している）。
 export function captureDir(): string {
   return loadSettings().captureRoot ?? defaultCaptureDir()
 }
