@@ -66,6 +66,21 @@ describe('フレーム表の直列化', () => {
     expect(back[0].verified).toBe('unknown')
   })
 
+  it('アニメの抜け推定を前の行に保存して読み戻せる', () => {
+    const row: StoredFrame = {
+      mediaTime: 35.243, frameIndex: 683, captured: true, animeGapMissing: 2
+    }
+    expect(decodeFrames(encodeFrames([row]))![0]).toMatchObject({ animeGapMissing: 2 })
+  })
+
+  it('壊れたアニメの抜け推定は表を捨てず、未推定として扱う', () => {
+    // 7要素目。0・小数・文字列はいずれも推定値として採らない。
+    for (const bad of [0, 1.5, '2']) {
+      const back = decodeFrames(JSON.stringify([[0, 0, 1, 0, 0, -1, bad]]))!
+      expect(back[0].animeGapMissing).toBeUndefined()
+    }
+  })
+
   // 検証結果は補助情報。見慣れないコードが入っていても、コマ送りの土台である
   // mediaTime/frameIndex まで巻き添えで捨てない（未検証へ落として使い続ける）。
   it('検証結果のコードが想定外でも表は捨てず、未検証として扱う', () => {

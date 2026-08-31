@@ -25,7 +25,6 @@ export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
       'キャプチャと録画の保存先を変えられるようになりました。設定 > データ > 保存場所 の「変更...」から、C ドライブ以外のドライブも選べます。これまでに撮ったぶんも一緒に新しい場所へ移ります——移す前に「何件・何 GB を、どこへ」が出て、移している間は進み具合が出て、途中で止められます。止めたときも失敗したときも、何も変わりません（保存先も、これまでのファイルもそのままです）。移動先に同じ名前のファイルがあるときは、上書きせずに中止して、その名前を画面に出します。',
       '4K の画面で 1080p の配信を見ていると、絵が実際より 4 倍の大きさで保存されていました。増えていたぶんはブラウザが引き伸ばした水増しで、細かさは増えていません。設定 > データ > 保存する解像度 が「自動」（既定）になり、配信より大きくは保存しなくなります。細かさは 1 ドットも減らずに、ファイルだけ小さくなります。容量を優先するなら 1080p / 720p、これまでどおりに戻すなら「上限なし」を選べます（効くのは画像だけで、録画は変わりません）。',
       '保存先のドライブがつながっていないときに、撮る前・録り始める前に画面へ出るようになりました。これまでは「キャプチャに失敗しました」とだけ出て原因が読めず、録画では 30 秒撮り終えてからそれが分かりました。',
-      '画面の言葉を揃えました。同じ 1 つの数が、画面によって「撮り逃し」と「未取得」の 2 通りで呼ばれていた、といった食い違いを 9 か所直しています。',
       'タイムシートは、この版では開けません。数コマの抜けがあるだけで表そのものが出せない状態を直したところで、打ち込んでもらったものが後から使えなくなるのを避けるため、確かめが済むまで止めています。打ち込み済みのタイムシートは消えずに残っています。',
       'この更新ではブラウザ拡張も新しくなります。アプリを起動すると入れ替わり、通知が出ます。ブラウザの拡張機能ページで拡張を再読み込みするまでは、「保存する解像度」の自動は効きません。',
     ],
@@ -33,7 +32,6 @@ export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
       'You can now change where captures and recordings are stored. Settings > Data > Storage location > “Change...” lets you pick a folder on another drive. What you have already captured moves with it — before anything is copied you are shown how many files, how much space, and where they are going; progress is shown while it runs, and you can stop it. If you stop it, or it fails, nothing changes at all (the location and your existing files stay as they were). If a file of the same name is already in the destination, Shiori stops instead of overwriting it and shows you the name.',
       'On a 4K display, a 1080p stream was being saved four times larger than it really is. The extra pixels were upscaling done by the browser, not extra detail. Settings > Data > Saved resolution is now “Auto” by default, so nothing is saved larger than the stream itself — not a single dot of real detail is lost, only the file gets smaller. Choose 1080p or 720p if you want to save more space, or “No limit” for the old behaviour (this affects images only; recordings are unchanged).',
       'If the drive you save to is not connected, Shiori now tells you before capturing and before recording starts. It used to just say “Capture failed”, with no way to tell why — and with recording you only found out after the full 30 seconds.',
-      'Wording across the app has been made consistent — nine places where the same thing went by two different names from one screen to the next.',
       'Timesheets cannot be opened in this version. Having just fixed the case where a few missing frames hid the sheet entirely, we are holding the feature until that is confirmed, rather than risk you typing in a sheet that later turns out to be unusable. Timesheets you have already typed in are still there.',
       'This update also brings a new browser extension. It is swapped in when the app starts and you get a notification. Until you reload the extension on your browser’s extensions page, “Saved resolution: Auto” has no effect.',
     ],
@@ -66,7 +64,6 @@ export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
       '録画の先頭でコマが欠けにくくなりました。Alt+D を押したあと、記録は準備が整ってから始まります。待っている間は映像の中央に「録画の準備中」と表示され、この表示が消えた時点が記録の開始です（待つのは最長 2 秒です）。',
       'コマ送りの注記を作り直しました。絵が撮れていないコマは「未取得」、コマ自体が届いていない箇所は「8 コマ抜け」、録画全体としてコマ送りが当てにならないものはコマ番号ごと赤で「要注意」と表示されます。それぞれの意味は、コマ番号を押すと一覧で読めます。',
       '以前のバージョンでコマ単位の送りを諦め、黄色い「フレーム 128 / 719」と表示されていたクリップが、素材のコマ単位に戻ることがあります。起動してしばらくすると自動で見直します。',
-      '詳細パネルの表示を整理しました。「未通知」「要確認」をやめ、取れていないコマの合計（「12コマ未取得」）と、録画全体の「要注意」だけを表示します。',
       'データの保護を強めました。新しいバージョンで更新したライブラリを古いバージョンで開こうとした場合は、書き換えずに停止します。ライブラリの構造を変える更新の前には必ずバックアップを取り、取れなかったときは何も変更せず中止します。また、設定ファイルを読み込めなかった起動では、設定の変更をファイルへ書き込まなくなりました（これまでは初期設定で上書きされていました）。',
     ],
     en: [
@@ -74,7 +71,6 @@ export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
       'Fewer frames are lost at the start of a recording. After Alt+D, recording now waits until capture has settled. While it waits, “Preparing to record” appears in the middle of the video, and recording begins the moment it disappears (the wait is at most 2 seconds).',
       'Frame-stepping annotations have been rebuilt. A frame whose picture was not captured is marked “not captured”, a point where the frames themselves never arrived is marked “8 frames missing”, and a clip whose frame stepping cannot be trusted turns the frame number red and reads “unreliable”. Press the frame number to read what each one means.',
       'Clips that earlier versions gave up on — showing a yellow “Frame 128 / 719” instead of source frames — may go back to stepping one source frame at a time. Shiori re-checks them shortly after startup.',
-      'The detail panel has been tidied up. “Unreported” and “needs review” are gone; it now shows the total number of frames that are not there (“12 frames not captured”) and, for the clip as a whole, “unreliable”.',
       'Your data is better protected. A library that a newer version of Shiori has updated will not be opened or rewritten by an older one. A backup is now required before any update that changes the library structure — if it cannot be made, the update is cancelled and nothing is changed. And when the settings file cannot be read at startup, changes are no longer written to it (they used to overwrite it with the defaults).',
     ],
   },
@@ -112,9 +108,110 @@ export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
       'The detail panel now shows the resolution the clip was recorded at. Material shared from someone else is kept separate from your own captures instead of mixing in by date.',
     ],
   },
+  // 1.1.2 は不具合の原因を突き止めるための記録を仕込んだだけで、画面は何も変わっていない。
+  // エントリを置かない＝従来のトーストに落ちる（version-notice.ts）。
+  '1.1.3': {
+    ja: [
+      'アプリが新しくなったことが分かるようになりました。更新後の最初の起動で一度だけお知らせが出ます。今のバージョンは 設定 > データ でも読めます。',
+    ],
+    en: [
+      'You can now tell when the app has been updated. A notice appears once, the first time you start a new version. The version you are on is also shown under Settings > Data.',
+    ],
+  },
+  '1.1.1': {
+    ja: [
+      'Firefox（128 以降）でもブラウザ拡張が使えるようになりました。設定 > 基本 > 拡張機能 の「拡張機能フォルダを開く」で出たフォルダを、Firefox の about:debugging から読み込みます。Firefox では一時的な読み込みになるため、ブラウザを閉じると外れます。',
+      'サムネイルを掴んで、エクスプローラーや他のアプリへそのまま渡せるようになりました。複数選んだままでも掴めます。',
+      '映像が真っ黒のまま保存され続けることを、その場で知らせるようになりました。ブラウザのハードウェアアクセラレーションが有効だと、撮れているように見えて中身が黒いままになります。これまでは「保存しました」と出るだけで、黒い画像が溜まってから気づくことになっていました。',
+      '設定 > 基本 > 拡張機能 に、拡張から情報が届いているか（「受信中」／「未受信」）が出るようになりました。拡張が新しくなったときは「再読み込みが必要」と出ます。',
+      '取り込み・書き出し・AI タグ付けの途中でアプリの更新を当てようとすると、確認が出るようになりました。これまでは黙って終了し、作業が中断していました。',
+      'ログイン時の自動起動でウィンドウが開いてしまうのを直しました。トレイに常駐して待ちます。設定の側で「オフ」に見えていたのも直っています。',
+      'サムネイルが出ない画像を、設定 > データ の「サムネイルを修復...」で作り直せるようになりました。',
+    ],
+    en: [
+      'The browser extension now works in Firefox (128 or later). Open Settings > General > Extension > “Open extension folder”, then load that folder from about:debugging in Firefox. Firefox loads it temporarily, so it is removed when you close the browser.',
+      'You can now drag thumbnails straight out of Shiori into Explorer or another app. A multiple selection can be dragged as it is.',
+      'Shiori now tells you, on the spot, when what it saved is a black picture. With hardware acceleration left on in the browser, captures look like they worked but come out black. It used to just say “Saved”, so you only found out once a pile of black images had built up.',
+      'Settings > General > Extension now shows whether the extension is getting through (“Receiving” / “Not receiving”), and says “Reload required” when the extension has been updated.',
+      'If you apply an app update while an import, an export or AI tagging is running, Shiori now asks first. It used to quit silently and cut the work short.',
+      'Fixed launching at login opening a window instead of waiting quietly in the tray — and the setting looking as though it were off.',
+      'Images with a missing thumbnail can be rebuilt from “Repair thumbnails...” under Settings > Data.',
+    ],
+  },
+  '1.1.0': {
+    ja: [
+      '画面の配色を、ライト／ダーク／システムに合わせる から選べるようになりました（設定 > 基本）。「システムに合わせる」は OS の設定が変わったその場で切り替わります。',
+      '新しいバージョンを裏で受け取り、ボタン一つで再起動して当てられるようになりました。配布ページから手で入れ直す必要がなくなります。',
+      'YouTube Shorts を撮れるようになりました。縦長の絵はサムネイルで切れずに全体が出ます。タイトル末尾の「#shorts」も取り除きます。',
+      'ブラウザ拡張がつながらないとき、その理由（通信に使う番号が他のアプリと重なっている）が画面に出るようになりました。これまでは黙ってつながらないままでした。',
+      '他の人から受け取った素材の取り込みが、中に 1 件おかしなものがあるだけで丸ごと失敗するのを直しました。',
+    ],
+    en: [
+      'You can now choose the colour theme — light, dark, or follow the system (Settings > General). “Follow the system” switches the moment the OS setting changes.',
+      'New versions are now downloaded in the background and applied with a single restart, instead of downloading the installer from the releases page by hand.',
+      'YouTube Shorts can now be captured. Vertical pictures are shown whole in the thumbnail instead of being cropped, and the trailing “#shorts” is stripped from the title.',
+      'When the browser extension cannot connect, the screen now says why (the number Shiori uses to talk to it is taken by another app). It used to just stay disconnected in silence.',
+      'Fixed an import of material received from someone else failing entirely because of a single bad entry inside it.',
+    ],
+  },
+  '1.0.3': {
+    ja: [
+      'サイドバーのタグが勝手に消えなくなりました。これまでは数の多い順に 24 件だけを出していたため、1 枚撮るたびに順位が入れ替わり、さっきまであったタグが押せなくなっていました。5 枚以上に付いているタグを出す形にしたので、撮って増えるぶんでタグが押し出されることはありません。',
+    ],
+    en: [
+      'Tags no longer disappear from the sidebar on their own. It used to show the top 24 by count, so every capture reshuffled the ranking and a tag you had just been using could drop out of reach. It now shows tags that are on at least 5 images, so capturing more can never push a tag out.',
+    ],
+  },
+  '1.0.2': {
+    ja: [
+      'キャプチャが速くなりました。キーを押してから保存されるまでが、およそ 0.9 秒から 0.3〜0.4 秒になります。撮れる絵はこれまでと同じです。',
+      '削除した直後のクリックで、意図していないビューアが開くことがあったのを直しました。',
+    ],
+    en: [
+      'Capturing is faster — about 0.3-0.4 seconds from the key press to the saved shot, down from around 0.9. The picture you get is unchanged.',
+      'Fixed a click right after a delete unexpectedly opening the viewer.',
+    ],
+  },
+  '1.0.1': {
+    ja: [
+      'タスクトレイのアイコンを左クリックすると、ウィンドウが開くようになりました。これまでは右クリックとダブルクリックしか効きませんでした。',
+      'タスクトレイのアイコンがぼやけていたのを直しました。',
+      'ビューアで拡大した画像が、右の詳細パネルにはみ出していたのを直しました。',
+    ],
+    en: [
+      'Left-clicking the tray icon now opens the window. Only right-click and double-click used to do anything.',
+      'Fixed the tray icon looking blurry.',
+      'Fixed a zoomed image in the viewer spilling over into the detail panel on the right.',
+    ],
+  },
 }
 
 // 表示言語に対応する変更点配列を返す。未定義バージョン・未翻訳言語は undefined。
 export function releaseNotesFor(version: string, lang: Lang): string[] | undefined {
   return RELEASE_NOTES[version]?.[lang]
+}
+
+export type ReleaseNoteEntry = { version: string; notes: string[] }
+
+// 収録されている全バージョンを新しい順に返す（設定 > 情報 の「変更点を見る」用）。
+// **オブジェクトのキー順に頼らない。** 数字だけのキーではないので挿入順で並ぶが、
+// 追記位置を間違えれば黙って並びが崩れる（画面には「古い版が上」としか出ない）。
+// 版番号そのもので並べ替える。
+// その言語の文面が無い版は飛ばす——空の見出しだけが並ぶと、「変更が無かった版」と
+// 「まだ訳していない版」の区別が付かない。
+export function allReleaseNotes(lang: Lang): ReleaseNoteEntry[] {
+  return Object.entries(RELEASE_NOTES)
+    .map(([version, byLang]) => ({ version, notes: byLang[lang] ?? [] }))
+    .filter((e) => e.notes.length > 0)
+    .sort((a, b) => compareVersionDesc(a.version, b.version))
+}
+
+function compareVersionDesc(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pb[i] ?? 0) - (pa[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
 }

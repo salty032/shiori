@@ -21,6 +21,7 @@
 // 後者を「たぶん直前のコマだろう」と埋めることはしない。研究用途では、黙って間違った
 // コマ打ちを出すことが最悪の結果になる。特定できないものは特定できないと出す。
 import type { FrameVerify, StoredFrame } from '../db-video-frames'
+import { frameGaps } from './frame-feed'
 
 // 「絵が変わった」と判定するしきい値。
 //
@@ -42,6 +43,106 @@ export function signaturesDiffer(a: Uint8Array, b: Uint8Array): boolean {
     }
   }
   return false
+}
+
+export interface AnimeGapEstimate {
+  /** 左右に残った絵のあいだだけにある、アニメとしてのコマ数（推定） */
+  missing: number
+  /** 中間の絵が始まったファイル内フレーム */
+  startsAtFileFrame: number
+  /** 右側に残った絵が始まったファイル内フレーム（このフレーム自体は missing に含めない） */
+  endsAtFileFrame: number
+}
+
+/**
+ * 通知が途切れた区間について、左右に残った絵のあいだだけにあるコマ数を推定する。
+ *
+ * `frameGaps` が数えるのは「通知の無かった素材フレーム」であり、右側の絵の先頭まで含む。
+ * 2 コマ打ちの実例 id=297 は A=[844,845], B=[846,847], C=[848,849] で、通知された
+ * 845 と 849 のあいだは 3 フレーム空く一方、アニメとして間にある B は 2 コマだった。
+ * この関数は録画に残った A→B と B→C の境界を拾い、B の継続時間だけを素材周期で割る。
+ *
+ * **絵からフレーム対応を決めてはいない。** 左右の `frameIndex` は rVFC と録画時計から既に
+ * 対応済みの値で、この関数はそれを 1 枚も動かさない。署名は固定済み区間の中で「同じ絵が
+ * どこまで続いたか」を分類する補助情報にだけ使う（docs/ANIME-FRAMES.md 2 章）。
+ *
+ * 境界が 2 つ未満なら、中間の絵が無いのか検出できなかったのかを区別できないため推定しない。
+ * 推定値が通知欠落数を超える場合も、別の変化を拾った可能性があるため採用しない。
+ */
+export function estimateAnimeGap(
+  leftFileFrame: number,
+  rightFileFrame: number,
+  technicalMissing: number,
+  sourcePeriodSec: number,
+  filePts: readonly number[],
+  signatures: readonly Uint8Array[]
+): AnimeGapEstimate | null {
+  if (!Number.isInteger(leftFileFrame) || !Number.isInteger(rightFileFrame)) return null
+  if (!Number.isInteger(technicalMissing) || technicalMissing < 1) return null
+  if (!(sourcePeriodSec > 0) || !Number.isFinite(sourcePeriodSec)) return null
+  if (leftFileFrame < 0 || rightFileFrame <= leftFileFrame) return null
+  if (rightFileFrame >= filePts.length || rightFileFrame >= signatures.length) return null
+  if (filePts.length !== signatures.length) return null
+
+  const changes: number[] = []
+  for (let i = leftFileFrame + 1; i <= rightFileFrame; i++) {
+    if (signaturesDiffer(signatures[i - 1], signatures[i])) changes.push(i)
+  }
+  if (changes.length < 2) return null
+
+  const startsAtFileFrame = changes[0]
+  const endsAtFileFrame = changes[changes.length - 1]
+  const duration = filePts[endsAtFileFrame] - filePts[startsAtFileFrame]
+  if (!(duration > 0)) return null
+  const missing = Math.round(duration / sourcePeriodSec)
+  if (missing < 1 || missing > technicalMissing) return null
+  return { missing, startsAtFileFrame, endsAtFileFrame }
+}
+
+export interface AnimeGapEstimates {
+  /** 推定値を付け直した表（入力は変更しない） */
+  frames: StoredFrame[]
+  /** 推定できた抜け区間の数 */
+  estimated: number
+  /** 保存内容が入力から変わったか */
+  changed: boolean
+}
+
+/** 録画後の1回のデコード結果から、表にある全ての通知欠落へアニメの抜け推定を付ける。 */
+export function applyAnimeGapEstimates(
+  input: readonly StoredFrame[],
+  signatures: readonly Uint8Array[],
+  filePts: readonly number[]
+): AnimeGapEstimates {
+  // 古い推定を先に外す。検出器を直して再検証したとき、以前の値だけが残らないようにする。
+  const frames: StoredFrame[] = input.map((source) => {
+    const frame = { ...source }
+    delete frame.animeGapMissing
+    return frame
+  })
+  const diffs: number[] = []
+  for (let i = 1; i < frames.length; i++) {
+    const d = frames[i].mediaTime - frames[i - 1].mediaTime
+    if (d > 0 && Number.isFinite(d)) diffs.push(d)
+  }
+  diffs.sort((a, b) => a - b)
+  const period = diffs[diffs.length >> 1]
+  let estimated = 0
+  if (period > 0 && filePts.length === signatures.length) {
+    for (const gap of frameGaps(frames)) {
+      const left = frames[gap.afterIndex]
+      const right = frames[gap.afterIndex + 1]
+      if (!left || !right || left.misaligned || right.misaligned) continue
+      const result = estimateAnimeGap(
+        left.frameIndex, right.frameIndex, gap.missing, period, filePts, signatures
+      )
+      if (!result) continue
+      left.animeGapMissing = result.missing
+      estimated++
+    }
+  }
+  const changed = frames.some((frame, i) => frame.animeGapMissing !== input[i]?.animeGapMissing)
+  return { frames, estimated, changed }
 }
 
 /**
@@ -247,7 +348,7 @@ export function logVerifyResult(imageId: number, result: VerifyResult | null): v
   )
 }
 
-// 印を付けた表を救えるかの判定（recheckUnusableClips から使う）。
+// 印を付けた表を救えるかの判定（recheckMarkedClips から使う）。
 //
 // **録画時の判定（findFrameDivergence）とは別物。** あちらは供給時刻とファイル内 PTS を
 // 添字で 1 対 1 に突き合わせるので、ファイル側のコマが 1 枚落ちただけで全部ダメと出る。
@@ -302,7 +403,9 @@ export function checkTableAgainstFile(frames: StoredFrame[], pts: number[]): Tab
     for (let j = i - 1; j >= 0 && over[j]; j--) run++
     return run >= MISALIGN_SUSTAIN
   })
-  const out = trimmed.map((f, i) => (sustained[i] ? { ...f, misaligned: true } : f))
+  // **前に付いていた印は引き継がず、毎回この測定だけで決め直す。** 引き継ぐと、判定を直しても
+  // 誤って付いた印が残り続け、見直しても赤いままになる（この関数は救済の入口でもある）。
+  const out = trimmed.map((f, i) => ({ ...f, misaligned: sustained[i] }))
   return {
     frames: out,
     misaligned: out.filter((f) => f.misaligned).length,

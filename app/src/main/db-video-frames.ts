@@ -44,6 +44,13 @@ export interface StoredFrame {
    * 無い行＝旧版の拡張で撮ったクリップ・返さないブラウザ。従来どおり推定に落ちる。
    */
   presentedFrames?: number | null
+  /**
+   * 左右に残った絵のあいだだけにある、アニメとしての抜けコマ数（録画画像からの推定）。
+   *
+   * `presentedFrames` から出る通知欠落数とは別物。値は抜けの手前の行にだけ持たせる。
+   * 推定行を `video_frames` へ挿入すると再集計で抜け自体が消えるため、行数は増やさない。
+   */
+  animeGapMissing?: number | null
 }
 
 // 直列化時のコード。文字列をそのまま並べると1クリップ千数百要素ぶん嵩む。
@@ -55,16 +62,17 @@ const VERIFY_NAME: FrameVerify[] = ['unknown', 'same', 'changed']
 // コマ送りが静かに従来動作へ落ちる箇所なので、ここだけでも検証できる形にしておく。
 //
 // 配列の配列で持つ。1クリップで千数百要素になるため、キー名を繰り返さない。
-// 4 要素目（検証結果）と 5 要素目（対応のずれ）、6 要素目（presentedFrames）は後から
+// 4 要素目（検証結果）と 5 要素目（対応のずれ）、6 要素目（presentedFrames）、7 要素目
+// （animeGapMissing）は後から
 // 足したもの。3 要素しか無い古い行も読めるようにしてあるため（decodeFrames の length
 // チェックは >= 3 のまま）、既存のクリップは未検証・ずれなし・累積数なしとして扱われる。
 //
-// 6 要素目は**無い行では -1**。0 は正当な値（録画開始直後のコマ）なので、欠けを 0 で
-// 表すと「合成へ送られた枚数が 1 枚も進んでいない」と読めてしまう。
+// 6・7 要素目は**無い行では -1**。presentedFrames の 0 は正当な値（録画開始直後のコマ）
+// なので、欠けを 0 で表すと「合成へ送られた枚数が 1 枚も進んでいない」と読めてしまう。
 export function encodeFrames(frames: StoredFrame[]): string {
   return JSON.stringify(frames.map((f) => [
     f.mediaTime, f.frameIndex, f.captured ? 1 : 0, VERIFY_CODE[f.verified ?? 'unknown'], f.misaligned ? 1 : 0,
-    f.presentedFrames ?? -1
+    f.presentedFrames ?? -1, f.animeGapMissing ?? -1
   ]))
 }
 
@@ -99,27 +107,39 @@ export function readUnusableFrames(data: string): StoredFrame[] | null {
 }
 
 // 見直しに使った判定の版。**判定を直したら上げる。** 上げると、前の版で印を付けたまま
-// 救えなかったクリップが起動後にもう一度見直される（recheckUnusableClips）。
+// 救えなかったクリップが起動後にもう一度見直される（recheckMarkedClips）。
 // 2: 表全体の採否をやめ、ずれた行にだけ印を立てる形へ（2026-08-26）。
 //    版 1 で「救えない」と判定したクリップにも、使える行が残っていることがある。
 // 3: 単発の印を無視するようにした（2026-08-26）。版 2 は撮影間隔の揺らぎで 1 コマだけ
 //    立つ印を関係ない場所に散らしていた。
-export const RECHECK_VERSION = 3
+// 4: ずれの印が立っただけのクリップも見直すようにした（2026-08-31）。それまでは「使えない」
+//    印の付いたものだけが対象で、**録画時に誤って赤くなったクリップは戻る口が無かった。**
+export const RECHECK_VERSION = 4
 
-// 印付きの表のうち、まだこの版で見直していないものを列挙する。
-export function listUnusableForRecheck(): RecheckTarget[] {
+// まだこの版で見直していない、印付きのクリップを列挙する。
+//
+// **2 種類ある。** 「使えない」印が付いて表ごと退避されたものと、通常の表のままずれの印だけが
+// 立っているもの。後者は録画時の判定（findFrameDivergence）が誤って立てることがあり、それが
+// 画面では「要注意」として出る。**どちらも同じ判定（checkTableAgainstFile）で見直す。**
+export function listClipsForRecheck(): RecheckTarget[] {
   const rows = prepare(
-    'SELECT v.image_id AS imageId, v.data AS data, i.filepath AS filepath, i.captured_at AS capturedAt' +
+    'SELECT v.image_id AS imageId, v.data AS data, i.filepath AS filepath, i.captured_at AS capturedAt,' +
+    ' i.frames_rechecked_with AS recheckedWith' +
     ' FROM video_frames v JOIN images i ON i.id = v.image_id'
-  ).all() as { imageId: number; data: string; filepath: string; capturedAt: number | null }[]
+  ).all() as {
+    imageId: number; data: string; filepath: string; capturedAt: number | null; recheckedWith: number | null
+  }[]
   const out: RecheckTarget[] = []
   for (const row of rows) {
-    if (!readUnusableReason(row.data)) continue
-    if (readRecheckedWith(row.data) >= RECHECK_VERSION) continue
-    const frames = readUnusableFrames(row.data)
-    if (frames && row.filepath) {
-      out.push({ imageId: row.imageId, filepath: row.filepath, frames, capturedAt: row.capturedAt })
-    }
+    if (!row.filepath) continue
+    if ((row.recheckedWith ?? 0) >= RECHECK_VERSION) continue
+    const unusable = readUnusableReason(row.data) !== null
+    const frames = unusable ? readUnusableFrames(row.data) : decodeFrames(row.data)
+    if (!frames) continue
+    // 通常の表は、ずれの印が 1 つでも立っているものだけ。**印の無い表を見直しても、
+    // 1 本ごとのフル デコードを全クリップぶん払うだけで得るものが無い。**
+    if (!unusable && !frames.some((f) => f.misaligned)) continue
+    out.push({ imageId: row.imageId, filepath: row.filepath, frames, capturedAt: row.capturedAt })
   }
   return out
 }
@@ -132,27 +152,13 @@ export interface RecheckTarget {
   capturedAt: number | null
 }
 
-function readRecheckedWith(data: string): number {
-  try {
-    const parsed = JSON.parse(data) as { recheckedWith?: unknown }
-    return typeof parsed?.recheckedWith === 'number' ? parsed.recheckedWith : 0
-  } catch {
-    return 0
-  }
-}
-
-// 見直したが救えなかった。**同じ版では二度と見直さない**（1 本ごとにフル デコードが要るため）。
+// 見直したので、**同じ版では二度と見直さない**（1 本ごとにフル デコードが要るため）。
+// 救えたときも救えなかったときも呼ぶ。
+//
+// **版を video_frames の JSON ではなく images の列に持つ。** JSON 側は「使えない」印の
+// オブジェクト形にしか書き込めず、通常の表（配列）へ書くと表そのものが読めなくなる。
 export function markRechecked(id: number): void {
-  const row = prepare('SELECT data FROM video_frames WHERE image_id = ?').get(id) as { data: string } | undefined
-  if (!row) return
-  try {
-    const parsed = JSON.parse(row.data)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return
-    parsed.recheckedWith = RECHECK_VERSION
-    prepare('UPDATE video_frames SET data = ? WHERE image_id = ?').run(JSON.stringify(parsed), id)
-  } catch {
-    // 壊れた行は触らない（表が無いものとして扱われるだけで害が無い）
-  }
+  prepare('UPDATE images SET frames_rechecked_with = ? WHERE id = ?').run(RECHECK_VERSION, id)
 }
 
 // 印が付いていればその理由、付いていなければ null（＝通常の表・壊れた行）。
@@ -195,10 +201,14 @@ export function decodeFrames(data: string): StoredFrame[] | null {
     // （落ちる先は従来の推定なので、これまでと同じ動きになる）。
     const presented = item.length >= 6 ? item[5] : -1
     const presentedFrames = Number.isInteger(presented) && presented >= 0 ? (presented as number) : null
+    // アニメの抜け推定も補助情報。1 以上の整数だけを採り、壊れた値は未推定へ戻す。
+    const animeGap = item.length >= 7 ? item[6] : -1
+    const animeGapMissing = Number.isInteger(animeGap) && animeGap >= 1 ? (animeGap as number) : null
     out.push({
       mediaTime, frameIndex, captured: captured === 1, verified,
       ...(misaligned ? { misaligned } : {}),
-      ...(presentedFrames == null ? {} : { presentedFrames })
+      ...(presentedFrames == null ? {} : { presentedFrames }),
+      ...(animeGapMissing == null ? {} : { animeGapMissing })
     })
   }
   return out
@@ -295,7 +305,7 @@ export function markVideoFramesUnusable(id: number, reason: string): void {
 // 実測（2026-08-26）では手元 82 本のうち 25 本が空、5 本が表と食い違っていた。空だと
 // 詳細パネルだけが黙り、コマ送りの表示と食い違う（コマ送りは開くたびに表から数え直す）。
 //
-// 数え直しはコマ表を読むだけで、動画のデコードは要らない（recheckUnusableClips とは別物）。
+// 数え直しはコマ表を読むだけで、動画のデコードは要らない（recheckMarkedClips とは別物）。
 // ambiguous_frames には触らない —— あれは実ファイルとの照合が要るので、ここでは出せない。
 //
 // 戻り値は書き換えた本数（ログ用）。

@@ -9,13 +9,14 @@ import { getVideoFrames, restoreVideoFrames, saveVideoFrames } from '../db-video
 import type { StoredFrame } from '../db-video-frames'
 import { optionalPositiveInteger } from '../ipc/ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../system/paths'
-import { trimWebm, extractThumb, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
+import { trimWebm, extractThumb, getFrameSignatures, getVideoFramePts, getTimelineStrip, getVideoDuration } from './ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
 import type { ClipFrames, ClipGap, FrameQuality, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { sliceFrameTable, countReportDrops, frameGaps, reportDropsMeasured } from './frame-feed'
 import { verifyClipFrames } from './verify-clip'
+import { applyAnimeGapEstimates } from './frame-verify'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
 const trimmingIds = new Set<number>()
@@ -38,7 +39,7 @@ function getCachedClipFrames(id: number): ClipFrames | undefined {
 }
 
 // 表を書き換えたら捨てる。**キャッシュは開いた時点のスナップショット**で、検証（verify-clip）
-// や起動時の見直し（recheckUnusableClips）が裏で表を書き換えても自分では気づかない。
+// や起動時の見直し（recheckMarkedClips）が裏で表を書き換えても自分では気づかない。
 // 捨てないと、印が付いた／外れたクリップを開いたまま古い並びで送り続けることになる。
 export function invalidateClipFrames(id: number): void {
   clipFramesCache.delete(id)
@@ -82,7 +83,10 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
 // **数え方は frame-feed.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
 // 出る合計とコマ送りに出る場所が別の計算から出ることになる（実測 82 本中 5 本で食い違った）。
 export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
-  return frameGaps(frames)
+  return frameGaps(frames).map((gap) => {
+    const animeMissing = frames[gap.afterIndex]?.animeGapMissing
+    return animeMissing != null ? { ...gap, animeMissing } : gap
+  })
 }
 
 // 1 コマの長さ（ファイル側の実測）。**次の「行」ではなく次の「ファイルのコマ」まで。**
@@ -149,10 +153,23 @@ export function registerVideoHandlers(): void {
     try {
       const realPath = await resolveRealCapturePath(image.filepath)
       if (!realPath) return EMPTY
-      const pts = await getVideoFramePts(realPath)
+      let table = getVideoFrames(validId)
+      // 旧クリップにはアニメの抜け推定が保存されていない。開くときは元から全デコードして
+      // PTS を取るので、未推定の抜けがある場合だけ同じ1周で署名も受け取り、遡って付ける。
+      // **デコードを2周しない。** getFrameSignatures は PTS も同時に返す。
+      const unresolvedAnimeGap = table != null && findClipGaps(table).some((gap) => gap.animeMissing == null)
+      let pts: number[]
+      if (unresolvedAnimeGap) {
+        const decoded = await getFrameSignatures(realPath)
+        pts = decoded.pts
+        const estimated = applyAnimeGapEstimates(table!, decoded.signatures, decoded.pts)
+        table = estimated.frames
+        if (estimated.changed) saveVideoFrames(validId, table)
+      } else {
+        pts = await getVideoFramePts(realPath)
+      }
       if (pts.length === 0) return EMPTY   // 失敗・タイムアウトはキャッシュせず再取得の余地を残す
 
-      const table = getVideoFrames(validId)
       const result = buildClipFrames(pts, table)
       // **詳細タイルの枚数を、ここで確定した範囲に合わせ直す。**
       //

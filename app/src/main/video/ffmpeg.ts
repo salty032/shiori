@@ -527,13 +527,36 @@ export async function getTimelineStrip(inputPath: string, duration: number, coun
   }
 }
 
+// サムネイルを頭から少しだけ後ろにずらす秒数。
+//
+// **1 コマ目は「録画の準備中」が写っていることがある。** 札を消してから撮り始めるまでの
+// 猶予（recording.ts の ARMED_CLEAR_MS）を落ち着き待ちと重ねてあるので普段は写らないが、
+// キャプチャ経路の遅れが猶予を超えた録画では頭の数コマに残る。一覧に並ぶ絵がそれだと、
+// 撮れているものまで失敗に見える。0.3 秒あれば 24fps でも 7 コマ先で、写り込みは抜ける。
+//
+// **写り込みそのものを隠す策ではない**（録画の頭に残っているものは残っている）。
+const THUMB_OFFSET_SEC = 0.3
+
 export async function extractThumb(videoPath: string, thumbPath: string): Promise<void> {
   await mkdir(dirname(thumbPath), { recursive: true })
-  await runFfmpeg([
+  const args = (offsetSec: number | null): string[] => [
     '-y',
+    ...(offsetSec === null ? [] : ['-ss', String(offsetSec)]),
     '-i', videoPath,
     '-frames:v', '1',
     '-f', 'image2',
     thumbPath
-  ])
+  ]
+  try {
+    await runFfmpeg(args(THUMB_OFFSET_SEC))
+  } catch (err) {
+    console.warn('[thumb] offset extraction failed, falling back to the first frame', err)
+  }
+  // 尺が THUMB_OFFSET_SEC に届かないクリップでは、ffmpeg は成功で終わりながら 1 枚も
+  // 書かない（0 バイトのまま残ることもある）。**終了コードだけでは判定できない**ので
+  // 中身を見る。書けていなければ頭から作り直す。
+  let written = 0
+  try { written = (await stat(thumbPath)).size } catch { /* 1 枚も書かれなかった */ }
+  if (written > 0) return
+  await runFfmpeg(args(null))
 }

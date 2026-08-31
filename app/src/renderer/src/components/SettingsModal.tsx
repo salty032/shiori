@@ -8,7 +8,7 @@ import { useExportStore } from '../stores/exportStore'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getSettingsSlots } from '../features/registry'
 import { useT } from '../i18n'
-import { releaseNotesFor } from '../../../shared/releaseNotes'
+import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
 
 type Props = {
@@ -36,7 +36,7 @@ type Props = {
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
   /** 「情報」タブから変更点モーダルを開く（設定画面自身は中身を持たない） */
-  onShowWhatsNew: (version: string, notes: string[]) => void
+  onShowWhatsNew: (entries: ReleaseNoteEntry[]) => void
 }
 
 const CLOSE_MS = 110
@@ -101,7 +101,9 @@ export default function SettingsModal(p: Props) {
   }, [])
   // 変更点の文面は shared にあるので main へ問い合わせずに引ける（更新直後の自動表示は
   // bootstrap.ts が push する。**同じ 1 本の RELEASE_NOTES を見ていること**）。
-  const notes = appVersion ? releaseNotesFor(appVersion, p.settings.language) : undefined
+  // 今の版だけでなく収録分すべてを渡す。**今の版に文面が無くても押せる**——ここは
+  // 読み返し用で、押せなくなると過去の版まで道連れに読めなくなる。
+  const history = allReleaseNotes(p.settings.language)
   // 拡張と繋がるポート。候補を全部確保できなかったときは null で、この場合は拡張を入れ直しても
   // ページを再読み込みしても直らない（原因がアプリの外にある）。未取得の undefined と区別する。
   const [wsPort, setWsPort] = useState<number | null | undefined>(undefined)
@@ -221,7 +223,11 @@ export default function SettingsModal(p: Props) {
   // onWheel prop 側では preventDefault が効かない（Viewer.tsx と同じ理由）。
   useEffect(() => {
     const block = (e: WheelEvent): void => {
-      if (panelRef.current?.contains(e.target as Node)) return
+      // 通す条件は「設定のパネルの中か」ではなく「どれかのモーダルの中か」。設定の上に
+      // さらにモーダルが乗ることがあり（「変更点」）、自分のパネルだけを通していると、
+      // その中の一覧がホイールで動かなくなる。目印は data-modal——背後の一覧・サイドバー・
+      // 右パネルには付いていないので、幕の裏が動かないことは変わらない。
+      if ((e.target as HTMLElement | null)?.closest?.('[data-modal]')) return
       e.preventDefault()
     }
     document.addEventListener('wheel', block, { passive: false, capture: true })
@@ -716,11 +722,12 @@ export default function SettingsModal(p: Props) {
                     {/* 変更点はここに置く。版と同じ「このアプリ自体の話」で、性格が揃う。
                         以前はサイドバー下部に常時リンクを出していたが、使い方・報告と 3 つ
                         並ぶと幅に入らず 2 行へ折り返していた。更新直後は勝手に出るので、
-                        ここは読み返し用でしかない。
-                        **文面が無いバージョンでは出さない**——押しても空のモーダルが開く
-                        だけで、「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
-                    {appVersion && notes && notes.length > 0 && (
-                      <button style={s.sizeBtn} onClick={() => p.onShowWhatsNew(appVersion, notes)}>
+                        ここは読み返し用でしかない——だから今の版だけでなく、収録されている
+                        版を全部渡す。
+                        文面が 1 件も無いときだけ出さない。押しても空のモーダルが開くだけで、
+                        「まだ書いていない」と「変更が無かった」の区別も付かない。 */}
+                    {history.length > 0 && (
+                      <button style={s.sizeBtn} onClick={() => p.onShowWhatsNew(history)}>
                         {t('help.whatsNew')}
                       </button>
                     )}

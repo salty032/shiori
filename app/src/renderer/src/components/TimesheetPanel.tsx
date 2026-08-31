@@ -99,16 +99,10 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
   }, [sheet.current, sheet.currentGap])
 
   const { total, rows, marks, current, currentGap, pending } = sheet
-  // いま居る位置が rows の何行目か。抜けの中なら「その行 + 何コマ目か」。
+  // いま居る位置が rows の何行目か。推定抜けの中なら、手前の実測行からその分だけ進める。
   // **current をそのまま行番号に使えない**——rows には抜けの空コマが挟まっている。
-  let currentPosition = -1
-  {
-    let seen = -1
-    for (let k = 0; k < rows.length; k++) {
-      if (rows[k] !== GAP_ROW) seen = rows[k]
-      if (seen === current) { currentPosition = k + currentGap; break }
-    }
-  }
+  const measuredPosition = rows.indexOf(current)
+  const currentPosition = measuredPosition < 0 ? -1 : measuredPosition + currentGap
   const labels = timesheetLabels(marks)
   const labelAt = new Array<string | null>(total).fill(null)
   marks.forEach((mark, i) => { if (mark.frame < total) labelAt[mark.frame] = labels[i] })
@@ -180,14 +174,11 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
           <div style={st.body}>
             {/* **並ぶのは元の動画のコマ**で、表の行ではない（rows）。抜けの位置には空のコマが
                 入っていて、そこには打てない（行が無いので付ける先が無い）。ただし
-                **コマ送りは止まる**——拡張のコマ送りが 1 手＝素材 1 コマで進むので、
-                飛ばすと同じ操作が同じ意味にならない。差し込まないと抜けた枚数だけ下が
-                詰まり、番号が元の動画とずれる。 */}
+                コマ送りは推定位置にも止まるが、対応する画像は無い。差し込まないと抜けた枚数だけ
+                下が詰まり、番号が元の動画とずれるため、表には空行として残す。 */}
             {rows.map((i, position) => {
               const isGap = i === GAP_ROW
               const label = isGap ? null : labelAt[i]
-              // 抜けの行にもカーソルは出る（止まれる場所なので）。ただし打てる場所とは
-              // 見分けが要るので、打鍵欄の反転（c.sel）は実測行のときだけ。
               const isCurrent = position === currentPosition
               const isTypable = isCurrent && !isGap
               const secondIdx = Math.floor(position / perSecond)

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
-import { RELEASE_NOTES, releaseNotesFor } from './releaseNotes'
+import { RELEASE_NOTES, allReleaseNotes, releaseNotesFor } from './releaseNotes'
 
 // 変更点の文面は「日英セットで書く」決まり（SPEC 7章）だが、守られているかを確かめる手段が
 // 無かった。**片方だけ書くと、その言語のユーザーにだけ従来のトーストが出る**（お知らせ
@@ -38,5 +38,18 @@ describe('RELEASE_NOTES', () => {
 
   it('未登録のバージョンは undefined を返す（お知らせモーダルではなくトーストへ落ちる）', () => {
     expect(releaseNotesFor('0.0.0', 'ja')).toBeUndefined()
+  })
+
+  // 設定から開く「変更点を見る」は収録分を全部並べる。**書き足す位置を間違えても画面には
+  // 「古い版が上に来た」としか出ない**ので、並びはここで見る。文字列順に落ちていると
+  // 1.10.0 が 1.9.0 より下へ回る。
+  it('全バージョンが新しい順に並ぶ', () => {
+    const versions = allReleaseNotes('ja').map((e) => e.version)
+    const sorted = [...versions].sort((a, b) => {
+      const pa = a.split('.').map(Number)
+      const pb = b.split('.').map(Number)
+      return pb[0] - pa[0] || pb[1] - pa[1] || pb[2] - pa[2]
+    })
+    expect(versions).toEqual(sorted)
   })
 })

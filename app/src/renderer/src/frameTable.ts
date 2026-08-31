@@ -20,11 +20,11 @@ export { SEVERE_FRAME_RATIO } from '../../shared/api.video'
 // **抜けが 1 つでもあれば赤、にはしない**（docs/ANIME-FRAMES.md 0 章）。ずれ（misaligned）は
 // 崩れた位置から末尾まで続くので 1 コマでもあれば全体の話、抜けは割合で見る。
 export function isClipUnreliable(
-  frames: { pts: number[]; quality?: number[]; gaps?: { missing: number }[] } | null
+  frames: { pts: number[]; quality?: number[]; gaps?: { animeMissing?: number }[] } | null
 ): boolean {
   if (!frames) return false
   if ((frames.quality ?? []).some((q) => q === FRAME_QUALITY.misaligned)) return true
-  const missing = (frames.gaps ?? []).reduce((sum, g) => sum + g.missing, 0)
+  const missing = (frames.gaps ?? []).reduce((sum, g) => sum + (g.animeMissing ?? 0), 0)
   return missing > 0 && missing / (frames.pts.length + missing) > SEVERE_FRAME_RATIO
 }
 

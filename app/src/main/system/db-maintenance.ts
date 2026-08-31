@@ -30,7 +30,8 @@ export interface SqlRunner {
 //    それでも上げるのは、**移行前の退避をこの削除の前に必ず取らせるため**——退避は
 //    「作りが変わる起動」でしか取られないので、据え置きのままだと消す直前の DB が
 //    どこにも残らない。消す理由は db-schema.ts の timesheets を参照。
-export const SCHEMA_VERSION = 5
+// 6: images に frames_rechecked_with を追加（2026-08-31）。コマ表の見直しを済ませた版の記録。
+export const SCHEMA_VERSION = 6
 
 /**
  * 残す退避の世代数。日次で 1 世代取るので、実質「何日前まで戻れるか」になる。

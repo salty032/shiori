@@ -5,6 +5,7 @@ import { s, color, space, THUMB_CHROME } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import WhatsNewModal from './components/WhatsNewModal'
+import type { ReleaseNoteEntry } from '../../shared/releaseNotes'
 import SetupGuideModal from './components/SetupGuideModal'
 import ProductTour from './components/ProductTour'
 import DetailPanel from './components/DetailPanel'
@@ -65,7 +66,7 @@ export default function App() {
   const [manualTagVersion, setManualTagVersion] = useState(0)
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
-  const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string[] } | null>(null)
+  const [whatsNew, setWhatsNew] = useState<ReleaseNoteEntry[] | null>(null)
   const [setupGuide, setSetupGuide] = useState<SetupGuideState>(loadSetupGuideState)
   const [showSetupGuide, setShowSetupGuide] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -351,7 +352,8 @@ export default function App() {
 
   // 更新後の初回起動時、RELEASE_NOTES にそのバージョンの文面があれば「変更点」モーダルを出す
   // （文面が無いバージョンでは main 側が上の app:notice トーストにフォールバックする）。
-  useEffect(() => window.api.onWhatsNew(setWhatsNew), [])
+  // ここは更新直後の 1 版だけ。設定から開いたときだけ収録分すべてを並べる。
+  useEffect(() => window.api.onWhatsNew(({ version, notes }) => setWhatsNew([{ version, notes }])), [])
 
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで終わる。反映しないと
   // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
@@ -735,7 +737,7 @@ export default function App() {
 
         {settings.showSettings && (
           <SettingsModal
-            onShowWhatsNew={(version, notes) => setWhatsNew({ version, notes })}
+            onShowWhatsNew={setWhatsNew}
             settings={settings.settings}
             startup={settings.startup}
             taggerReady={tagger.taggerReady}
@@ -846,11 +848,7 @@ export default function App() {
       )}
 
       {whatsNew && (
-        <WhatsNewModal
-          version={whatsNew.version}
-          notes={whatsNew.notes}
-          onClose={() => setWhatsNew(null)}
-        />
+        <WhatsNewModal entries={whatsNew} onClose={() => setWhatsNew(null)} />
       )}
 
       {showSetupGuide && !isDemoMode() && (

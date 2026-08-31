@@ -65,9 +65,8 @@ export function buildToeiClipboard(marks: readonly TimesheetMark[], total: numbe
 // 全体が詰まり、そこから下のコマ番号が元の動画とずれる——しかも画面には何も出ない。
 // 差し込めば番号は元の動画と一致し、打つ人には「ここは数えられない」場所が見える。
 //
-// 抜けた枚数は、前後のコマ時刻の差をコマ間隔で割った推定値（frame-feed.ts）。だから
-// 抜けが多いクリップほど並び全体が信用できなくなる。**どこまで許すかは
-// canBuildTimesheet が決める**（ここは並べるだけ）。
+// 行数に使うのは録画画像から出したアニメの抜け推定（ClipGap.animeMissing）。通知が無かった
+// フレーム数（missing）をそのまま使うと、後ろの絵の先頭まで灰色に数えてしまう。
 export const GAP_ROW = -1
 
 export function timesheetRows(frames: ClipFrames | null | undefined): number[] {
@@ -75,7 +74,9 @@ export function timesheetRows(frames: ClipFrames | null | undefined): number[] {
   if (total === 0) return []
   const missingAfter = new Map<number, number>()
   for (const gap of frames?.gaps ?? []) {
-    missingAfter.set(gap.afterIndex, (missingAfter.get(gap.afterIndex) ?? 0) + gap.missing)
+    // 未推定の抜けがあれば canBuildTimesheet が表を開かせない。ここでは嘘の行数を作らない。
+    if (gap.animeMissing == null) continue
+    missingAfter.set(gap.afterIndex, (missingAfter.get(gap.afterIndex) ?? 0) + gap.animeMissing)
   }
   const rows: number[] = []
   for (let i = 0; i < total; i++) {
@@ -106,13 +107,13 @@ export function expandMarks(marks: readonly TimesheetMark[], rows: readonly numb
 //
 // ## 出さない（番号が信用できない）
 //
-// **抜け（gaps）は、その位置に空のコマを差し込んで出す。** ページがコマを描かず知らせも
+// **抜け（gaps）は、アニメの枚数を推定できたときだけ空のコマを差し込んで出す。** ページがコマを描かず知らせも
 // 来なかったところは表に行そのものが無く、そのまま並べると抜けた枚数だけ下が詰まって
 // 番号がずれる。以前はこれを理由に 1 コマでも抜けたら出さないことにしていたが、
-// **場所も枚数も分かっている**（frameGaps）以上、差し込めば番号は合う（timesheetRows）。
-// 実際、646 コマ中 3 コマの抜けで表が丸ごと出せないのはただ面倒なだけだった。
+// **場所とアニメの枚数を推定できている**以上、差し込めば番号は合う（timesheetRows）。
+// 通知欠落数しか無い区間は、アニメの枚数が決まらないので表を開かない。
 //
-// ただし抜けた枚数は推定値（前後の時刻の差 ÷ コマ間隔）なので、多いほど並び全体が
+// 抜けた枚数は録画画像からの推定値なので、多いほど並び全体が
 // 信用できない。**線は撮り逃しと同じ割合・同じ定数で引く**——詳細パネルが「要注意」を
 // 出す条件と揃えることで、「赤いのに出せる／出せないのに白い」が起きないようにする。
 //
@@ -147,7 +148,8 @@ export function canBuildTimesheet(frames: ClipFrames | null | undefined, fps: nu
   // 確からしさが分からないということなので、その時点で出さない。
   if (frames.quality.length !== frames.pts.length) return false
   if (frames.quality.some((q) => q === FRAME_QUALITY.misaligned)) return false
-  const missing = (frames.gaps ?? []).reduce((sum, gap) => sum + gap.missing, 0)
+  if ((frames.gaps ?? []).some((gap) => gap.animeMissing == null)) return false
+  const missing = (frames.gaps ?? []).reduce((sum, gap) => sum + (gap.animeMissing ?? 0), 0)
   if (missing / (frames.pts.length + missing) > SEVERE_FRAME_RATIO) return false
   return countReusedFrames(frames) / frames.quality.length <= SEVERE_FRAME_RATIO
 }

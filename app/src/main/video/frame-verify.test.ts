@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 // db.ts は electron の app.getPath を import 時点で読むため、型のみの参照でもモックが要る。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { checkTableAgainstFile, findFrameDivergence, signaturesDiffer, verifyFrameTable } from './frame-verify'
+import {
+  applyAnimeGapEstimates, checkTableAgainstFile, estimateAnimeGap, findFrameDivergence,
+  signaturesDiffer, verifyFrameTable
+} from './frame-verify'
 import type { StoredFrame } from '../db-video-frames'
 
 const GRID = 32 * 32
@@ -43,6 +46,84 @@ describe('signaturesDiffer（絵が変わったかの判定）', () => {
 
   it('しきい値未満のわずかな揺れ（エンコードのノイズ）は変化としない', () => {
     expect(signaturesDiffer(flat(100), withMovedCells(flat(100), GRID, 4))).toBe(false)
+  })
+})
+
+describe('estimateAnimeGap（通知欠落とアニメの抜けを分ける）', () => {
+  const SOURCE_PERIOD = 1 / 23.976
+
+  it('通知は3フレーム欠けても、中間の絵Bが続く2コマだけを返す（id=297）', () => {
+    // id=297 の実測を縮めた並び。表が指す左端はファイル683、右端は691。
+    // 録画内では685で A→B、689で B→C と変わるので、B の表示時間は約80ms＝2コマ。
+    const first = 681
+    const filePts = [
+      13.369, 13.389, 13.404, 13.424, 13.444,
+      13.464, 13.484, 13.504, 13.524, 13.544, 13.559
+    ]
+    const signatures = [
+      flat(20), flat(20), flat(20), flat(20),
+      flat(100), flat(100), flat(100), flat(100),
+      flat(180), flat(180), flat(180)
+    ]
+
+    expect(estimateAnimeGap(683 - first, 691 - first, 3, SOURCE_PERIOD, filePts, signatures))
+      .toEqual({ missing: 2, startsAtFileFrame: 4, endsAtFileFrame: 8 })
+  })
+
+  it('絵の境界を2つ確認できなければ、通知欠落数をアニメのコマ数として流用しない', () => {
+    const pts = [0, 0.02, 0.04, 0.06]
+    expect(estimateAnimeGap(0, 3, 2, SOURCE_PERIOD, pts, [flat(20), flat(20), flat(80), flat(80)]))
+      .toBeNull()
+    expect(estimateAnimeGap(0, 3, 2, SOURCE_PERIOD, pts, pts.map(() => flat(20))))
+      .toBeNull()
+  })
+
+  it('画像ノイズ等で通知欠落数より大きく出た推定は採用しない', () => {
+    const pts = [0, 0.04, 0.08, 0.12, 0.16]
+    const signatures = [flat(0), flat(50), flat(100), flat(150), flat(200)]
+    expect(estimateAnimeGap(0, 4, 2, 1 / 25, pts, signatures)).toBeNull()
+  })
+
+  it('入力の添字・PTS・署名が対応していなければ判定しない', () => {
+    const pts = [0, 0.02, 0.04]
+    const signatures = [flat(0), flat(100)]
+    expect(estimateAnimeGap(0, 2, 2, SOURCE_PERIOD, pts, signatures)).toBeNull()
+    expect(estimateAnimeGap(2, 0, 2, SOURCE_PERIOD, pts, pts.map(() => flat(0)))).toBeNull()
+  })
+})
+
+describe('applyAnimeGapEstimates（表の通知欠落へ推定を付ける）', () => {
+  it('id=297型の区間だけに推定2を保存し、通知の表は増減させない', () => {
+    const table: StoredFrame[] = [
+      { mediaTime: 35.201, frameIndex: 0, captured: true },
+      { mediaTime: 35.243, frameIndex: 2, captured: true },
+      { mediaTime: 35.410, frameIndex: 10, captured: true },
+      { mediaTime: 35.452, frameIndex: 12, captured: true }
+    ]
+    const pts = Array.from({ length: 13 }, (_, i) => 13.369 + i * 0.02)
+    const sigs = [
+      flat(20), flat(20), flat(20), flat(20),
+      flat(100), flat(100), flat(100), flat(100),
+      flat(180), flat(180), flat(180), flat(180), flat(180)
+    ]
+    const result = applyAnimeGapEstimates(table, sigs, pts)
+    expect(result).toMatchObject({ estimated: 1, changed: true })
+    expect(result.frames).toHaveLength(table.length)
+    expect(result.frames[1].animeGapMissing).toBe(2)
+    expect(table[1].animeGapMissing).toBeUndefined()
+  })
+
+  it('再検証で根拠が無くなれば古い推定を残さない', () => {
+    const table: StoredFrame[] = [
+      { mediaTime: 0, frameIndex: 0, captured: true },
+      { mediaTime: 0.04, frameIndex: 1, captured: true, animeGapMissing: 2 },
+      { mediaTime: 0.20, frameIndex: 4, captured: true },
+      { mediaTime: 0.24, frameIndex: 5, captured: true }
+    ]
+    const pts = [0, 0.02, 0.04, 0.06, 0.08, 0.10]
+    const result = applyAnimeGapEstimates(table, pts.map(() => flat(20)), pts)
+    expect(result.frames[1].animeGapMissing).toBeUndefined()
+    expect(result).toMatchObject({ estimated: 0, changed: true })
   })
 })
 
@@ -233,7 +314,7 @@ describe('findFrameDivergence（供給時刻とファイル内 PTS の対応が�
   })
 })
 
-// 印を付けた表を救えるかの判定（recheckUnusableClips が使う）。
+// 印を付けた表を救えるかの判定（recheckMarkedClips が使う）。
 // **録画時の判定とは別の物差し。** あちらは供給枚数とファイル枚数を添字で突き合わせるので
 // ファイル側が 1 枚落ちただけで全部ダメと出るが、録画は素材 1 コマあたり 2 枚以上撮って
 // いるので絵は正しい。こちらは表とファイルだけを見て、ずれが溜まっているかを判定する。
@@ -303,5 +384,15 @@ describe('checkTableAgainstFile（印を付けた表を見直す）', () => {
     const r = checkTableAgainstFile(frames, pts)
     expect(r.frames).toHaveLength(119)
     expect(r.misaligned).toBe(0)
+  })
+
+  // **この関数は救済の入口でもある。** 前に付いた印を引き継ぐと、判定を直しても誤って
+  // 付いた印が残り続け、見直しても画面は赤いままになる（実測 image 307: 303 行のうち
+  // 301 行が誤って印付きだった）。毎回この測定だけで決め直す。
+  it('前に付いていた印は引き継がず、測り直した結果で決め直す', () => {
+    const { frames, pts } = build(120)
+    const r = checkTableAgainstFile(frames.map((f) => ({ ...f, misaligned: true })), pts)
+    expect(r.misaligned).toBe(0)
+    expect(r.frames.every((f) => !f.misaligned)).toBe(true)
   })
 })

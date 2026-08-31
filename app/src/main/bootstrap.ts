@@ -38,7 +38,7 @@ import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
 import { sendBrowserNotice } from './browser/browser-notice'
-import { recheckUnusableClips } from './video/verify-clip'
+import { recheckMarkedClips } from './video/verify-clip'
 import { backfillFrameCounts } from './db-video-frames'
 import { decideVersionNotice } from './system/version-notice'
 import { releaseNotesFor } from '../shared/releaseNotes'
@@ -321,14 +321,23 @@ export function bootstrap(features: MainFeature[] = []): void {
     migrateStartupArgs()
     createTray()
     createWindow(reclaimHotkeysIfFree, isStartupLaunch())
-    // 起動直後は一覧・サムネ読み込みとディスクアクセスが競合する。孤立ファイル掃除は緊急性が
-    // ないため30秒後へ回し、さらに sweepOrphanFilesIfDue 側で週1回までに間引く。
-    setTimeout(() => {
-      sweepOrphanFilesIfDue().catch((err) => console.warn('[sweep] failed', err))
-      // 使えない印を付けた表の見直し（verify-clip.ts の recheckUnusableClips）。
-      // 判定を直したときに、印が付いたままのクリップを救うための後追い。掃除と同じ理由で
-      // 起動直後は避ける（1 本ごとにフル デコードが要る）。
-      recheckUnusableClips().catch((err) => console.warn('[frame-recheck] failed', err))
+    // 起動直後は一覧・サムネ読み込みとディスクアクセスが競合するので、後追いの処理は待たせる。
+    //
+    // **秒数で当てずっぽうに待たず、画面の読み込みが終わった合図を待つ**（2026-08-31 に改めた）。
+    // 固定の 30 秒は、速い環境では待ちすぎ・遅い環境では早すぎるという、理由と逆の効き方をする。
+    // 待つ理由が「読み込みと取り合わない」ことなので、読み込みが終わるのを実際に待つのが
+    // 理由そのままの形になる。**30 秒は保険としてだけ残す**——読み込みに失敗した起動では
+    // 合図が来ず、待つだけでは後追いの処理が永久に走らない（DB の数え直しもここにある）。
+    //
+    // 合図のあとの猶予は、読み込みが終わってからサムネがディスクから届くぶん。
+    // **軽い順に走らせる**（数え直しは DB を読むだけ／見直しはクリップ 1 本ごとに動画を
+    // まるごとデコード／掃除はディスク走査）。
+    const FOLLOWUP_GRACE_MS = 5_000
+    const FOLLOWUP_MAX_WAIT_MS = 30_000
+    let followUpsStarted = false
+    const runFollowUps = (): void => {
+      if (followUpsStarted) return
+      followUpsStarted = true
       // 詳細パネルに出す枚数を、保存済みのコマ表から数え直す（db-video-frames.ts）。
       // **古い録画はここでしか埋まらない**——録画・トリミングの直後にしか書いていないので、
       // その頃に無かった項目（抜けの合計・ずれ）は空のままで、詳細パネルだけが黙る。
@@ -338,7 +347,15 @@ export function bootstrap(features: MainFeature[] = []): void {
       } catch (err) {
         console.warn('[frame-counts] failed', err)
       }
-    }, 30_000)
+      // 印の付いた表の見直し（verify-clip.ts の recheckMarkedClips）。
+      // 判定を直したときに、印が付いたままのクリップを救うための後追い。**普段は DB を
+      // 一瞥して終わり**で、実際に重くなるのは直すものがあるときだけ＝結果を待たれているとき。
+      recheckMarkedClips().catch((err) => console.warn('[frame-recheck] failed', err))
+      // 孤立ファイル掃除は緊急性がないため最後。sweepOrphanFilesIfDue 側で週1回までに間引く。
+      sweepOrphanFilesIfDue().catch((err) => console.warn('[sweep] failed', err))
+    }
+    whenRendererReady(() => setTimeout(runFollowUps, FOLLOWUP_GRACE_MS))
+    setTimeout(runFollowUps, FOLLOWUP_MAX_WAIT_MS)
     for (const feature of features) await feature.onReady?.()
     const settingsProblem = consumeSettingsLoadProblem()
     if (settingsProblem) {

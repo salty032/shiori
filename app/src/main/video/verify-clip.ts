@@ -8,10 +8,12 @@
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
 import { invalidateClipFrames } from './ipc-video'
-import { checkTableAgainstFile, findFrameDivergence, logVerifyResult, verifyFrameTable } from './frame-verify'
+import {
+  applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, verifyFrameTable
+} from './frame-verify'
 import { setAmbiguousFrames, setFrameCounts } from '../db'
 import {
-  listUnusableForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
+  listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
 } from '../db-video-frames'
 import { countReportDrops, reportDropsMeasured } from './frame-feed'
 import { isCurrentlyRecording } from './recording'
@@ -89,62 +91,104 @@ export async function verifyClipFrames(
         const tail = paired > 3
           ? [paired - 3, paired - 2, paired - 1].map((i) => `${i}:${shiftAt(i)}`).join(' ')
           : ''
+        // **段差が見えただけでは印を立てない。その場で測り直して裏を取る。**
+        //
+        // 供給時刻とファイル PTS の段差は、**原点に置いた 1 枚がずれているだけでも出る。**
+        // 実測（2026-08-31・image 307）: ファイル先頭の 2 枚が 1ms 差で入っており、その 1 枚を
+        // 原点にしたせいで残り全域が -19ms の水準に見えた。段差は 3 行目で立ち、303 行のうち
+        // 301 行に印が付いたが、**対応は末尾まで崩れていなかった**（水準は全区間で -19ms
+        // 前後の平坦。崩れていればずれは溜まって戻らない）。同じ日の 24fps の録画はもっと
+        // 大きな水準差（+30〜44ms）を持ちながら、枚数が一致していたので検査自体が走らず
+        // 印ゼロだった——**赤くなるかどうかが、精度ではなく検査が走ったかで決まっていた。**
+        //
+        // checkTableAgainstFile は供給時刻を使わず、素材の時刻の進みと、表が指すファイル内
+        // フレームの時刻の進みだけを比べる。原点のずれは全域へ等しく乗って消え、本当の崩れ
+        // だけがずれの蓄積として残る。**起動時の見直しが使うのと同じ判定**なので、ここで
+        // 印を立てても次の起動で外れる——それなら最初から立てない。
+        //
+        // 代償：見分けられるずれは素材 1 コマぶんまでで、それより小さい崩れ（供給 1 枚ぶん・
+        // 約 20ms）はここを通る。**画面からは気づけない。** 判定を厳しくする側は、正しい表を
+        // 捨てる誤りに直結するため、この幅は起動時の見直しと揃えたままにしてある。
+        const confirmed = checkTableAgainstFile(frames, pts)
         // **崩れた位置より手前は正しいので、そこまでは使う。** 以前は表を丸ごと使わなく
         // していたが、それ自体がコマ精度を失う変更にあたる（docs/ANIME-FRAMES.md 0 章）。
-        // 以降の行には「ずれ」の印を立て、画面ではそのコマだけ赤く出す。
-        const marked = frames
-          .filter((f) => f.frameIndex < signatures.length)
-          .map((f) => (f.frameIndex >= divergeAt ? { ...f, misaligned: true } : f))
+        // ずれた行には印を立て、画面ではそのコマだけ赤く出す。
+        // 測り直せなかったとき（行が 3 つ未満・周期が出ない）だけ、従来どおり段差から先へ印を立てる。
+        const marked = confirmed.frames.length > 0
+          ? confirmed.frames
+          : frames
+              .filter((f) => f.frameIndex < signatures.length)
+              .map((f) => (f.frameIndex >= divergeAt ? { ...f, misaligned: true } : f))
         const misaligned = marked.filter((f) => f.misaligned).length
-        console.error(
-          `[frame-verify] image ${imageId}: frame correspondence breaks at index ${divergeAt}` +
+        const usable = marked.length - misaligned
+        const verdict = marked.length === 0
+          ? 'no row points inside the file'
+          : misaligned === 0
+            ? 'table still tracks the file to the end, so no row was marked'
+            : `keeping the ${usable} usable row(s); ${misaligned} row(s) marked misaligned`
+        const log = usable > 0 && misaligned === 0 ? console.warn : console.error
+        log(
+          `[frame-verify] image ${imageId}: supply/file step at index ${divergeAt}` +
           ` (supplied ${drawnAt.length}, file has ${signatures.length}).` +
           ` head shift [${head}]ms | around break [${around}]ms | tail [${tail}]ms.` +
-          ` Keeping the ${marked.length - misaligned} row(s) before the break;` +
-          ` ${misaligned} row(s) marked misaligned.`
+          ` Re-measured the table against the file: worst ${confirmed.worstMs.toFixed(1)}ms` +
+          ` — ${verdict}.`
         )
-        if (marked.length === 0 || misaligned === marked.length) {
+        if (marked.length === 0 || (misaligned > 0 && misaligned === marked.length)) {
           // 1 行も使えるところが無い。ここだけは表として成立しない。
           markVideoFramesUnusable(imageId, 'correspondence-break')
           notifyVerified(imageId, null, null, null, null, null)
           return
         }
-        saveVideoFrames(imageId, marked)
-        setFrameCounts(
-          imageId,
-          marked.filter((f) => !f.captured).length,
-          marked.length,
-          countReportDrops(marked),
-          misaligned,
-          reportDropsMeasured(marked)
+        if (misaligned > 0) {
+          saveVideoFrames(imageId, marked)
+          setFrameCounts(
+            imageId,
+            marked.filter((f) => !f.captured).length,
+            marked.length,
+            countReportDrops(marked),
+            misaligned,
+            reportDropsMeasured(marked)
+          )
+          notifyVerified(
+            imageId,
+            marked.filter((f) => !f.captured).length,
+            null,
+            marked.length,
+            countReportDrops(marked),
+            misaligned,
+            reportDropsMeasured(marked)
+          )
+          return
+        }
+        // 裏が取れなかった＝表はそのまま使える。範囲外を指す行だけ落として通常の経路へ戻す。
+        frames = marked
+        saveVideoFrames(imageId, frames)
+        setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
+      } else {
+        // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
+        const kept = frames.filter((f) => f.frameIndex < signatures.length)
+        if (kept.length === 0) {
+          markVideoFramesUnusable(imageId, 'no-frame-within-file')
+          notifyVerified(imageId, null, null, null, null, null)
+          return
+        }
+        console.warn(
+          `[frame-verify] image ${imageId}: file is short by ${drawnAt.length - signatures.length} frame(s) at the end` +
+          ` (supplied ${drawnAt.length}, file has ${signatures.length});` +
+          ` correspondence holds up to the end, so ${frames.length - kept.length} trailing frame(s) were trimmed.`
         )
-        notifyVerified(
-          imageId,
-          marked.filter((f) => !f.captured).length,
-          null,
-          marked.length,
-          countReportDrops(marked),
-          misaligned,
-          reportDropsMeasured(marked)
-        )
-        return
+        frames = kept
+        saveVideoFrames(imageId, frames)
+        setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
       }
-      // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
-      const kept = frames.filter((f) => f.frameIndex < signatures.length)
-      if (kept.length === 0) {
-        markVideoFramesUnusable(imageId, 'no-frame-within-file')
-        notifyVerified(imageId, null, null, null, null, null)
-        return
-      }
-      console.warn(
-        `[frame-verify] image ${imageId}: file is short by ${drawnAt.length - signatures.length} frame(s) at the end` +
-        ` (supplied ${drawnAt.length}, file has ${signatures.length});` +
-        ` correspondence holds up to the end, so ${frames.length - kept.length} trailing frame(s) were trimmed.`
-      )
-      frames = kept
-      saveVideoFrames(imageId, frames)
-      setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
     }
+
+    // 通知欠落数とは別に、左右に残った絵のあいだだけにあるアニメのコマ数を推定する。
+    // 署名は上の対応検査と同じ1回のデコード結果を使うので、録画後の負荷は増えない。
+    const animeGaps = applyAnimeGapEstimates(frames, signatures, pts)
+    frames = animeGaps.frames
+    if (animeGaps.changed) saveVideoFrames(imageId, frames)
 
     const missed = frames.filter((f) => !f.captured).length
     // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
@@ -165,20 +209,24 @@ export async function verifyClipFrames(
   }
 }
 
-// 使えない印を付けた表を、もう一度ファイルと突き合わせて救う。
+// 印の付いた表を、もう一度ファイルと突き合わせて救う。
 //
 // **判定は経験則なので、実測を踏むたび調整が入る。** 2026-08-26 は録画時の判定が誤って
 // 231 コマ・撮り逃し 0 の表を捨てていた。直したあとも、既に印が付いたクリップは印が付いた
 // ままで黄色く出続ける——残しただけでは戻らないので、見直す口が要る。
 //
+// **「使えない」印だけでなく、ずれの印が立っただけのクリップも見る**（2026-08-31）。
+// 後者は画面に「要注意」として出るが、それまで見直しの対象外で、**一度赤くなったら
+// 戻る口が無かった**（実測: image 307 は 303 行のうち 301 行が誤って印付き）。
+//
 // 1 本ごとにフル デコードが要るので、同じ版では二度見しない（markRechecked）。
 // 判定を直したときは RECHECK_VERSION を上げれば、次の起動で全部もう一度見直される。
 const RECHECK_YIELD_MS = 2000
 
-export async function recheckUnusableClips(): Promise<void> {
-  const targets = listUnusableForRecheck()
+export async function recheckMarkedClips(): Promise<void> {
+  const targets = listClipsForRecheck()
   if (targets.length === 0) return
-  console.log(`[frame-recheck] ${targets.length} clip(s) marked unusable, re-checking against the files`)
+  console.log(`[frame-recheck] ${targets.length} marked clip(s), re-checking against the files`)
   // 番号だけでは画面のどの録画か探せない。撮影時刻を添える（ASCII のみ——dev.bat の
   // コンソールは Shift-JIS でタイトルの日本語が化ける）。
   const when = (at: number | null): string =>
@@ -210,6 +258,8 @@ export async function recheckUnusableClips(): Promise<void> {
       // 印を外して通常の表へ戻す。ずれた行には印が立っており、そこだけ画面で赤く出る。
       // **全部か全部ダメにしない**——使える行が 1 つでもあれば、その精度は返す。
       saveVideoFrames(target.imageId, match.frames)
+      // 救えたときも版を記録する。**印が残ったクリップを毎回の起動でデコードし直さないため。**
+      markRechecked(target.imageId)
       setFrameCounts(
         target.imageId,
         match.frames.filter((f) => !f.captured).length,

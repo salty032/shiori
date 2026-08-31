@@ -54,10 +54,14 @@ vi.mock('../system/paths', () => ({
 const trimWebm = vi.fn(async () => {})
 const extractThumb = vi.fn(async () => { throw new Error('thumb extraction failed') })
 const getVideoFramePts = vi.fn(async (_path: string): Promise<number[]> => [])
+const getFrameSignatures = vi.fn(async (_path: string): Promise<{ signatures: Uint8Array[]; pts: number[] }> => ({
+  signatures: [], pts: []
+}))
 
 vi.mock('./ffmpeg', () => ({
   trimWebm: (...args: unknown[]) => trimWebm(...(args as [])),
   extractThumb: (...args: unknown[]) => extractThumb(...(args as [])),
+  getFrameSignatures: (path: string) => getFrameSignatures(path),
   getVideoFramePts: (path: string) => getVideoFramePts(path),
   getTimelineStrip: vi.fn(async () => Buffer.from([])),
   getVideoDuration: vi.fn(async () => 10)
@@ -72,13 +76,16 @@ vi.mock('fs/promises', () => ({
   unlink: vi.fn(async () => {})
 }))
 
-import { registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf } from './ipc-video'
+import {
+  registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf, invalidateClipFrames
+} from './ipc-video'
 import { FRAME_QUALITY } from '../../shared/api.video'
 import { VIDEO_CH } from '../../shared/api.video'
 import { CH } from '../../shared/api'
 import type { StoredFrame } from '../db-video-frames'
 import { countReportDrops } from './frame-feed'
 import { unlink } from 'fs/promises'
+import type { ClipFrames } from '../../shared/api.video'
 
 // 表から抜けている区間。**撮り逃し（流用）とは別物で、コマ自体が表に無い。**
 // コマ送りするとその区間が飛ぶのに、枚数にも割合にも現れないので画面に出さないと気づけない。
@@ -129,6 +136,14 @@ describe('findClipGaps（表から抜けている区間）', () => {
     expect(findClipGaps(frames)).toEqual([{ afterIndex: 1, missing: 3, measured: false }])
     expect(countReportDrops(frames)).toBe(3)
   })
+
+  it('通知欠落数とは別に、録画後に付けたアニメの抜け推定を返す', () => {
+    const frames: StoredFrame[] = rows([1, 1, 4, 1])
+    frames[1].animeGapMissing = 2
+    expect(findClipGaps(frames)).toEqual([
+      { afterIndex: 1, missing: 3, measured: false, animeMissing: 2 }
+    ])
+  })
 })
 
 // コマ送りが数えるのは「ファイル内に実在するコマ」だけ。詳細タイルの枚数は表の全行から
@@ -169,6 +184,42 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
     expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, {
       id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0, unreportedMeasured: true
     })
+  })
+})
+
+describe('保存済みクリップのアニメ抜け推定', () => {
+  beforeEach(() => {
+    invalidateClipFrames(1)
+    handlers.clear()
+    getVideoFramePts.mockReset().mockResolvedValue([])
+    getFrameSignatures.mockReset().mockResolvedValue({ signatures: [], pts: [] })
+    getVideoFrames.mockReset()
+    saveVideoFrames.mockReset()
+    registerVideoHandlers()
+  })
+
+  it('未推定の抜けがあれば、PTS取得と同じ1回のデコードで推定2を付ける', async () => {
+    const pts = Array.from({ length: 13 }, (_, i) => 13.369 + i * 0.02)
+    const sig = (v: number): Uint8Array => new Uint8Array(32 * 32).fill(v)
+    const signatures = [
+      sig(20), sig(20), sig(20), sig(20),
+      sig(100), sig(100), sig(100), sig(100),
+      sig(180), sig(180), sig(180), sig(180), sig(180)
+    ]
+    getVideoFrames.mockReturnValue([
+      { mediaTime: 35.201, frameIndex: 0, captured: true },
+      { mediaTime: 35.243, frameIndex: 2, captured: true },
+      { mediaTime: 35.410, frameIndex: 10, captured: true },
+      { mediaTime: 35.452, frameIndex: 12, captured: true }
+    ])
+    getFrameSignatures.mockResolvedValue({ signatures, pts })
+
+    const result = await handlers.get(VIDEO_CH.videoGetClipFrames)!({}, 1) as ClipFrames
+
+    expect(getFrameSignatures).toHaveBeenCalledTimes(1)
+    expect(getVideoFramePts).not.toHaveBeenCalled()
+    expect(result.gaps).toEqual([{ afterIndex: 1, missing: 3, measured: false, animeMissing: 2 }])
+    expect((saveVideoFrames.mock.calls.at(-1)?.[1] as StoredFrame[])[1].animeGapMissing).toBe(2)
   })
 })
 

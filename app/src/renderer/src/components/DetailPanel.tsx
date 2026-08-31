@@ -93,64 +93,39 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   // どのコマで変わったか特定できない」コマだけを出す。撮り逃しの大半は同じ絵が続く区間で
   // 実害が無く、それも並べて数えると本当に数え直しが要る数コマが埋もれるため。
   // 検証済みで0コマなら何も出さない（注記が無い＝確認の要る箇所が無い、と読める）。
-  // 「通知そのものが来なかったコマ」の注記。
-  //
-  // **撮り逃し（下の uncapturedNote）より悪い。** 撮り逃しは「コマはあったが専用の絵が無い」で
-  // 枚数にも割合にも出るが、こちらは表に入っていないので**どの数字の分母にも入らない**。
-  // 実測（60fps 素材）では「9 割撮れています」と出ている裏で、素材の 2 割が表に無かった。
-  //
-  // 表の行数（source_frames）と、素材の fps × 尺から期待される数を突き合わせて出す。
-  // 5% は録画停止のラグで duration が僅かに長く出るぶんの余裕（24/30fps の実測は誤差 1% 未満）。
+  // 対応ずれは 1 コマでもあれば、その位置から先の表が信用できないため全体へ警告する。
+  // 通知欠落数（unreported_frames）はアニメの抜けコマ数ではないので、ここでは使わない。
+  // アニメの枚数は録画画像から推定し、ビューアの該当境界とタイムシートへ反映する。
   const unreliableNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
-    const missing = single.unreported_frames
-    const table = single.source_frames
     const misaligned = single.misaligned_frames ?? 0
-    // ずれは 1 コマでもあれば、その位置から先の対応が崩れている（クリップ全体の話）。
     if (misaligned > 0) return { text: t('detail.unreliable'), title: t('detail.unreliableHint'), severe: true }
-    if (missing == null || table == null || missing <= 0) return null
-    // 穴だらけで、どこを見ても数えられないクリップだけ赤にする。**抜けが 1 つでもあれば赤、
-    // にはしない**——実測（手元 82 本・2026-08-26）では 899 コマに 1 コマの穴と、1500 コマに
-    // 194 か所の穴が同じ「抜けあり」に入っていた。前者を全体不可にすると無傷な境目まで
-    // 捨てることになる。欠落コマの割合は 5.4% と 4.1% の間で分布が切れていた。
-    if (missing / (table + missing) > SEVERE_FRAME_RATIO) {
-      return { text: t('detail.unreliable'), title: t('detail.unreliableHint'), severe: true }
-    }
-    // ここから下は「その穴をまたぐ境目だけが壊れている」クリップ。**注記は出すが、下の
-    // 未取得と合算して 1 つにする**——絵が無いのも、コマ自体が無いのも、使う人から見れば
-    // 「そのコマが取れていない」で同じ重さで、数える前に見分ける必要が無い。
     return null
   }, [single, t])
 
   const uncapturedNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
-    // **抜け（コマ自体が無い）と未取得（絵が無い）を足して 1 つの数にする。**
-    // どちらも「そのコマが取れていない」で、またいでコマ打ちを数えられない点も同じ。
-    // 分けて 2 つ並べても、使う人の判断は変わらない。
-    const missing = (single.uncaptured_frames ?? 0) + (single.unreported_frames ?? 0)
+    // 表に行はあるが専用の絵を撮れなかったコマだけを数える。通知欠落数を足すと、今回の
+    // 「通知3フレーム・アニメ2コマ」のような区間を3コマと誤表示するため混ぜない。
+    const missing = single.uncaptured_frames ?? 0
     if (missing <= 0) return null
-    // 母数は実測（フレーム表の行数＋抜け）を優先する。fps × duration は、duration が録画停止
+    // 母数は実測（フレーム表の行数）を優先する。fps × duration は、duration が録画停止
     // までのラグを含むぶん過大になるうえ、fps の無い行では 0 になって判定が黙って効かなくなる。
     const total = single.source_frames != null
-      ? single.source_frames + (single.unreported_frames ?? 0)
+      ? single.source_frames
       : (single.fps && single.duration ? single.fps * single.duration : 0)
     // **前後の絵が同じかどうかで分けない。** 同じでもそこに 1 コマだけ別の絵が入っていた
     // 可能性は消せず、確定できないことを確定したように見せることになる（コマ送り側と同じ）。
-    // **抜けの枚数が推定なら、そう分かる言い方で出す。** ビューアと同じ切り分け
-    // （ClipGap.measured）を、こちらは列から読む——タイルはコマ表を取りに行かない。
-    // 同じ 1 つの数を、ビューアでは「推定」・ここでは断定、と出さないため。
-    // 絵が無いだけのコマ（uncaptured_frames）は行を数えた実数なので、抜けが 0 なら断定でよい。
-    const estimated = (single.unreported_frames ?? 0) > 0 && single.unreported_measured !== 1
     return {
-      text: t(estimated ? 'detail.uncapturedFramesEstimated' : 'detail.uncapturedFrames', { count: String(missing) }),
-      title: t(estimated ? 'detail.uncapturedFramesEstimatedHint' : 'detail.uncapturedFramesHint', { count: String(missing) }),
+      text: t('detail.uncapturedFrames', { count: String(missing) }),
+      title: t('detail.uncapturedFramesHint', { count: String(missing) }),
       severe: (total > 0 ? missing / total : 0) > SEVERE_FRAME_RATIO
     }
   }, [single, t])
 
   // **並べない。重い方だけを出す。** コマ送りの表示（VideoPlayer）と同じ扱いにする。
   // 要注意が出ている時点でそのクリップは数えられず、未取得を足しても判断は変わらない。
-  // 順は 要注意（数えられない）→ 抜け（その境目だけ数えられない）→ 未取得（絵が無い）。
+  // 順は 要注意（数えられない）→ 撮り逃し（絵が無い）。
   const frameNote = unreliableNote ?? uncapturedNote
 
   const [bulkTagMap, setBulkTagMap] = useState<Map<string, BulkTagEntry>>(new Map())

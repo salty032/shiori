@@ -240,6 +240,11 @@ export function initDb(): void {
   // 同じ 1 つの数を、ビューアでは「推定」・タイルでは断定、と出さないための列。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_measured INTEGER')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN misaligned_frames INTEGER')
+  // コマ表を最後に見直したときの判定の版（db-video-frames の RECHECK_VERSION）。
+  // 見直しは 1 本ごとに動画をまるごとデコードするので、同じ版で二度やらないための記録。
+  // NULL は「まだ一度も見直していない」。**video_frames 側に持てない**——あちらは通常の表が
+  // 配列なので、版を書き込むと表そのものが読めなくなる。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN frames_rechecked_with INTEGER')
   // 取り込んだ素材の、送り主が記録していた取得時間。captured_at は取り込んだ時刻に
   // そろえてしまう（他人の素材が自分のキャプチャと日付順で混ざるのを避けるため）ので、
   // 元の時刻を捨てないためにここへ退避する。NULL は自分で撮った素材。

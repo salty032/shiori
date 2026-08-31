@@ -56,10 +56,13 @@ npm run dev
 ```
 cd app
 npm run typecheck
-node --check ../extension/background.js
-node --check ../extension/content.js
-node --check ../extension/key-guard.js
 ```
+
+`extension/` is plain JavaScript that never goes through a bundler, so it is outside the type
+checker. Its syntax, and the existence of every file the manifest points at, are checked by
+`extension-integrity.test.ts` as part of `npm test` — you do not need to run `node --check` on
+each file yourself. For a more thorough pass, use `npm run ext:lint` (web-ext fetches from the
+network, so it is not part of `verify`; run it once before a release if you changed the extension).
 
 ## Tests
 
