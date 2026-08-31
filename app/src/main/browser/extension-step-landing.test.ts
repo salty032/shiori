@@ -137,6 +137,8 @@ const cancelAnimationFrame = deps.cancelAnimationFrame
 function getFrameSec() { return deps.frameSec() }
 function getSeedFrameSec() { return deps.seedSec() }
 function showStepReadout() { deps.showReadout(pendingSteps, droppedSteps); droppedSteps = 0 }
+// 着地ログ（stepLog）はテストでは黙らせる。Console へ出すだけで進行には関わらない。
+function stepLog() {}
 ${extractFunction(contentJs, 'initialFrameStep')}
 ${extractFunction(contentJs, 'planFrameStep')}
 ${extractFunction(contentJs, 'requestFrameStep')}

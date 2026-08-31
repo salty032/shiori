@@ -243,6 +243,22 @@ const STEP_LANDING_TIMEOUT_MS = 120  // seeked すら来ない場合の最後の
 const STEP_SETTLE_FRAMES = 2         // seeked 後、新しい絵の提示を待つ描画フレーム数
 const STEP_SEEK_START_MS = 40        // シークが始まった気配（seeking）を待つ上限。実測5msに対する余裕
 
+// 【計測用】コマ送りが1手で実際にどこへ着いたかを Console にそのまま出す。
+//
+// なぜ要るか — 通知が来なかった区間の枚数（frameGaps）は、いまも前後の時刻を残りコマの
+// 間隔で割った推定でしかない。1枚違うとそこから下のコマ番号が全部ずれるのに、こちらには
+// 「3コマだ」と言い切る根拠が無い（docs/FRAME-GAPS.md 3 章）。コマ送りは STEP_PROBE_SEC
+// 刻みで下から詰めるのでデコーダーが出せるコマを飛び越さない＝**区間を1手ずつ辿って
+// 止まった回数がそのまま枚数**になる。それを採るための出口。
+//
+// mediaTime は丸めない。3コマ(41.708ms刻み)と4コマ(33.4ms刻み)の判別は桁で決まるので、
+// 画面表示（showStepReadout）のように読める桁へ落とすと答えが出せない。
+//
+// 画面には何も出さない。DevTools の Console を開いている間だけ見える。
+function stepLog(line) {
+  console.log('[Shiori step] ' + line)
+}
+
 // 1ステップの初期計画（純粋関数）。
 //
 // 「1コマ先の表示区間の中央」を一発で狙う方式は、見積もりが実際のコマ長より大きいと
@@ -380,6 +396,7 @@ function stepFrame(video, dir) {
   // 楽観更新で入った推定値は実コマの先頭とは限らないので、currentTime へ落ちたときと同じく
   // 「先頭が未確定」として扱う（着地からコマ長を実測してよいのは先頭が確定しているときだけ）。
   const exact = nearCurrent && !lastFrameTimeEstimated
+  stepLog((dir > 0 ? '前へ' : '後へ') + '  基準=' + base + (exact ? '(実測)' : '(未確定)'))
   // 楽観更新（連打でシーク完了前に次キーが来ても進めるよう移動先フレーム開始を推定）。
   // 着地時に実測 mediaTime で上書き補正される。推定値だと分かるよう印を付け、
   // これを基準にしたステップでは着地差をコマ長の実測値として採用しない。
@@ -396,11 +413,14 @@ function runStepAttempt(video, seq, step) {
   }
   // 尺の端でクランプされて前回と同じ位置になったら、これ以上伸ばしても動かない
   if (step.target !== null && Math.abs(target - step.target) < 1e-6) {
+    stepLog('  試行' + (step.attempt + 1) + ' → ' + target + ' : シークが動かない（尺の端）')
     endStep(video)
     return
   }
   step.target = target
   let settled = false
+  // 着地の presentedFrames（合成へ送られたコマの累積数）。stepLog に添えるためだけに持つ。
+  let landedPresented = null
   let cbId = null
   let landingTimer = null
   let settleRaf = null
@@ -423,6 +443,9 @@ function runStepAttempt(video, seq, step) {
     if (settled) return
     settled = true
     cleanup()
+    stepLog('  試行' + (step.attempt + 1) + ' → ' + target
+      + (landed === null ? ' : 絵は出なかった' : ' : 着地 ' + landed + ' presented=' + landedPresented)
+      + (seq !== stepSeq ? '（追い越されたので捨てる）' : ''))
     if (seq !== stepSeq) return  // 新しいステップに追い越された。この着地は捨てる
     if (landed !== null) { lastFrameTime = landed; lastFrameTimeEstimated = false; confirmedFrameTime = landed }
     const verdict = planFrameStep(step, landed)
@@ -435,12 +458,17 @@ function runStepAttempt(video, seq, step) {
       if (settingsFpsAuto && measuredFrameDur === null) measuredFrameDur = verdict.frameDur
     }
     if (verdict.done) {
+      stepLog('確定 ' + (landed === null ? '(動かなかった)' : landed))
       endStep(video)
       return
     }
     runStepAttempt(video, seq, verdict.next)
   }
-  cbId = video.requestVideoFrameCallback((_now, meta) => { cbId = null; onLand(meta.mediaTime) })
+  cbId = video.requestVideoFrameCallback((_now, meta) => {
+    cbId = null
+    landedPresented = meta.presentedFrames ?? null
+    onLand(meta.mediaTime)
+  })
   // 「新しい絵は出なかった」の判定を、固定待ち時間ではなく実イベントで出す。
   //
   // 前進の初手は狙って同じコマの中へ着けるため、同じコマへのシークで rVFC が発火しない
