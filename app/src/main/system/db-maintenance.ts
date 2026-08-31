@@ -26,7 +26,11 @@ export interface SqlRunner {
 // 3: images に misaligned_frames を追加（2026-08-26）。
 // 4: images に unreported_measured を追加（2026-08-30）。抜けの枚数が推定なのか実測なのかを
 //    区別する列。従来は推定しか無く、枚数が 1 違うだけで下のコマ番号が全部ずれていた。
-export const SCHEMA_VERSION = 4
+// 5: 打ち込み済みのタイムシートを消す（2026-08-31）。**列は増えていない。**
+//    それでも上げるのは、**移行前の退避をこの削除の前に必ず取らせるため**——退避は
+//    「作りが変わる起動」でしか取られないので、据え置きのままだと消す直前の DB が
+//    どこにも残らない。消す理由は db-schema.ts の timesheets を参照。
+export const SCHEMA_VERSION = 5
 
 /**
  * 残す退避の世代数。日次で 1 世代取るので、実質「何日前まで戻れるか」になる。

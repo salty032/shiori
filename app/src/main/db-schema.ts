@@ -377,6 +377,33 @@ export function initDb(): void {
     ).run(String(SEARCH_NORMALIZE_VERSION))
   }
 
+  // 配った版で打ち込まれたタイムシートを消す（2026-08-31 の指示）。
+  //
+  // **なぜ消すのか。** 表が並べているコマ番号は、抜けた区間の枚数が推定のまま組み立てて
+  // いる（docs/FRAME-GAPS.md 3 章は未解決）。枚数が 1 違えば、そこから下の打鍵は全部
+  // 別のコマを指す。**画面からは正しく見える**ので、残しておくと次に開いたときに
+  // 「前に打ったもの」として通ってしまう。配る版では表そのものを閉じてある
+  // （timesheetLock.ts）ので、中身も残さない。
+  //
+  // **開発版では消さない。** 消す対象は配った先の打ち込みで、こちらの手元にあるのは
+  // 実装を確かめるために打ったもの。開発版でも消すと、直している最中の材料が起動のたびに
+  // 無くなる（開発版は従来どおり表を開ける）。
+  //
+  // **戻せなくはない。** 日次の退避が 7 世代あり（db-maintenance.ts）、消える前の DB は
+  // そこに残っている。SCHEMA_VERSION を 5 に上げてあるので、移行前の退避もこの削除より
+  // 先に取られる。
+  //
+  // 一度だけ実行する。app_meta に印を置くのは search_normalize_version と同じやり方で、
+  // 途中で落ちれば印が残らず次回起動でやり直す。**印が置いてあれば二度と消さない**——
+  // 毎起動で消すと、機能を開け直した後に打ったものまで消える。
+  const timesheetsCleared = (prepare("SELECT value FROM app_meta WHERE key = 'timesheets_cleared'").get() as
+    { value?: string } | undefined)?.value
+  if (app.isPackaged && !timesheetsCleared) {
+    const cleared = prepare('DELETE FROM timesheets').run()
+    if (cleared.changes > 0) console.warn('[db] cleared saved timesheets:', cleared.changes)
+    prepare("INSERT INTO app_meta (key, value) VALUES ('timesheets_cleared', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run()
+  }
+
   // 既存レコードの host を backfill（初回のみ実行される）
   const rows = prepare("SELECT id, url FROM images WHERE host IS NULL AND url IS NOT NULL").all() as { id: number; url: string }[]
   const setHost = prepare('UPDATE images SET host = ? WHERE id = ?')

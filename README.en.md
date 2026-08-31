@@ -22,7 +22,11 @@ WD Tagger and filtering by tag or date.
 - **Grid and timeline views**: organize in bulk with drag-rectangle selection, Shift/Ctrl-click, and arrow keys
 - **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer); `M` mutes
 - **Timesheet** (**cannot be opened in v1.4.0**): type numbers while stepping through frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet.
-  Which recordings can and cannot produce a usable sheet is still being confirmed, so the feature is held for now rather than risk a sheet you typed becoming unusable (sheets already typed in are kept)
+  Which recordings can and cannot produce a usable sheet is still being confirmed, so the feature is held for now rather than risk a sheet you typed becoming unusable.
+  **Sheets you have already typed in are cleared once, the first time you start this version.**
+  The frame numbers a sheet lists are built on an estimate of how many frames went unreported by the
+  streaming page. If that estimate is off by one, everything you typed below it points one frame over —
+  and **it still looks correct on screen**. Rather than let those pass as "what you typed before", they are not kept
 - **Export as mp4**: choose “mp4” under Settings > Data > Video conversion and Shiori converts to H.264 on export (webm stays the default)
 - **Local import**: paste a clipboard image with `Ctrl+V`, or drop a folder of images and videos (`.webm` / `.mp4`, up to 30 seconds) to import them in bulk
 - **Delete**: press `Delete`. The toast that appears has an "Undo" you can use for a few seconds
