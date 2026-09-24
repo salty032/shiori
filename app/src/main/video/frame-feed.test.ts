@@ -162,7 +162,7 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
     // 飽和した録画ほど位相が systematically 片側へ寄っていた。
     //
     // **飽和は録画ごとの供給分布で決まる**（実測で幅 2〜6ms の録画と 200ms の録画の両方が出た）。
-    // 「実機では起きない」と書いていた時期があるが外れている。docs/ANIME-FRAMES.md「誤りだった指摘の記録」。
+    // 「実機では起きない」と書いていた時期があるが外れている。docs/SPEC.md「誤りだった指摘の記録」。
     const result = matchFrames(makeSource(120), makeDrawn(400, 0))!
     expect(result.capturedRatio).toBe(1)
     // 窓の全域が同点になる
