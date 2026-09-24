@@ -137,9 +137,9 @@ every source frame gets its own picture (measured: zero missed frames).
 apart, shorter than the capture interval, so some frames inevitably have no picture of
 their own. Recording still works, but those frames show the previous frame's picture.
 
-The capture rate follows your display's refresh rate, up to 120 frames per second. On a
-120Hz display, 60fps sources may well be captured in full — but this is **untested, so it is
-not guaranteed.**
+A higher refresh rate does not help: capture tops out at roughly 50 frames per second
+(measured on a 200Hz display). **Frame accuracy for 60fps sources is not
+guaranteed on any display.**
 
 **Nothing unreliable is passed off silently.** A frame whose picture was not captured reads
 "not captured", a point where the frames themselves never arrived reads "8 frames missing",
