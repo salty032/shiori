@@ -161,7 +161,7 @@ export function countReusedFrames(frames: ClipFrames | null | undefined): number
 }
 
 // 打った内容。**記録するのは素材コマの添字だけで、秒は持たない**——秒で持つと再生位置の
-// 丸めでコマ境界を跨ぐ（docs/SPEC.md「タイムシートの画面」）。母数はクリップのフレーム表（video_frames）。
+// 丸めでコマ境界を跨ぐ（docs/SPEC.md「画面（UI）」のタイムシートの項）。母数はクリップのフレーム表（video_frames）。
 export interface TimesheetMark {
   /** 新しい絵が始まる素材コマの添字（0 起点） */
   frame: number
