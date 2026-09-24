@@ -27,7 +27,7 @@ function clip(quality: FrameQuality[], sourceBased = true): ClipFrames {
 }
 const captured = (n: number): FrameQuality[] => Array.from({ length: n }, () => FRAME_QUALITY.captured)
 
-// 貼り付け先が受け取る形は実測でしか分かっていない（docs/TIMESHEET.md 2-6）。
+// 貼り付け先が受け取る形は実測でしか分かっていない（docs/TIMESHEET.md「クリップボード形式」）。
 // 「読めるが黙って別の場所に入る」が一番怖い壊れ方なので、値そのものを固定する。
 function parse(text: string): { fieldId: number; layers: { frames: { data: unknown[]; frame: number }[]; inlineNo: number; trackNo: number }[] } {
   const nl = text.indexOf('\n')

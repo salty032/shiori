@@ -111,7 +111,7 @@ export async function verifyClipFrames(
         // 捨てる誤りに直結するため、この幅は起動時の見直しと揃えたままにしてある。
         const confirmed = checkTableAgainstFile(frames, pts)
         // **崩れた位置より手前は正しいので、そこまでは使う。** 以前は表を丸ごと使わなく
-        // していたが、それ自体がコマ精度を失う変更にあたる（docs/ANIME-FRAMES.md 0 章）。
+        // していたが、それ自体がコマ精度を失う変更にあたる（docs/ANIME-FRAMES.md「コマ送りの精度は命」）。
         // ずれた行には印を立て、画面ではそのコマだけ赤く出す。
         // 測り直せなかったとき（行が 3 つ未満・周期が出ない）だけ、従来どおり段差から先へ印を立てる。
         const marked = confirmed.frames.length > 0

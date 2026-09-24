@@ -75,7 +75,7 @@ export async function installMockApi(): Promise<void> {
   // db.ts の buildImageFilter を写した絞り込み。FTS は持たないので検索は
   // title / memo の部分一致に統一する（デモ規模では体感差が出ない）。search_text 相当を
   // その場で組み立て、db.ts と同じ normalizeSearchText を通してから当てる
-  // （docs/SPEC.md 5章）。
+  // （docs/SPEC.md「タイトル/メモ検索」）。
   function matches(row: ImageRow, f: ImageQuery): boolean {
     if (f.search) {
       // 空白区切りは「すべて含む」（db.ts の searchTerms と同じ扱い。語順は問わない）。

@@ -1,6 +1,6 @@
 // ビューアのコマ表示（番号と注記）を決める部分。**DOM は触らない。**
 //
-// **なぜ切り出すか。** ここはこのアプリの存在理由そのもの（docs/ANIME-FRAMES.md 0 章）で、
+// **なぜ切り出すか。** ここはこのアプリの存在理由そのもの（docs/ANIME-FRAMES.md「コマ送りの精度は命」）で、
 // かつ間違えても画面からは正しく見える。「同じコマなのにビューアとタイムシートで違う番号が
 // 出る」「抜けの手前で番号と違う絵が映る」は、どちらも実際にここで起きた。
 // VideoPlayer.tsx の中に置いたままだと、映像要素と React の描画を用意しないと 1 行も
@@ -12,7 +12,7 @@ import type { MessageKey, Translate } from '../i18n'
 
 /**
  * コマ表示が今どの土台で動いているか。**コマ送りの結果をどう読んでよいかが変わる**ので、
- * 内部で分岐するだけでなく画面にも出す（docs/ANIME-FRAMES.md 3章「保証できないときは
+ * 内部で分岐するだけでなく画面にも出す（docs/ANIME-FRAMES.md「コマ送りが保証すべきこと」の「保証できないときは
  * 保証できないと出す」）。
  *
  *   off       … コマ表示をしない（詳細パネル。表を取りに行かないので何も言えない）
@@ -46,7 +46,7 @@ export const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; c
 }
 
 // 実測行の後ろにある抜け。**通知欠落数（technicalMissing）と、録画画像から推定した
-// アニメの抜けコマ数（missing）を混ぜない**（docs/FRAME-GAPS.md 0 章）。コマ送りと番号に
+// アニメの抜けコマ数（missing）を混ぜない**（docs/FRAME-GAPS.md「通知フレーム数とアニメのコマ数を混ぜない」）。コマ送りと番号に
 // 使うのは後者だけで、推定できなければ known:false のまま 0 にする。
 export interface GapInfo {
   missing: number

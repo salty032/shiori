@@ -3,7 +3,7 @@ import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import { RELEASE_NOTES, allReleaseNotes, releaseNotesFor } from './releaseNotes'
 
-// 変更点の文面は「日英セットで書く」決まり（SPEC 7章）だが、守られているかを確かめる手段が
+// 変更点の文面は「日英セットで書く」決まり（docs/SPEC.md「画面（UI）」）だが、守られているかを確かめる手段が
 // 無かった。**片方だけ書くと、その言語のユーザーにだけ従来のトーストが出る**（お知らせ
 // モーダルは notes が空だとフォールバックする）。リリース作業の最中に気付ける形にしておく。
 

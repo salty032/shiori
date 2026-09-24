@@ -84,7 +84,7 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
   it('真の遅延が窓の外でも、オフセットは窓の中に収まる（コマ単位は定数が決める）', () => {
     // 遅延が窓の外なら、探索が引くのは 1 コマぶん離れた複製。**それでよい** — 何コマぶん
     // ずれるかは実測した定数（CAPTURE_LATENCY_MS）が決め、探索は 1 コマ内の位相だけを決める。
-    // 探索に決めさせると、決められないものを決めさせることになる（docs/ANIME-FRAMES.md 2章）。
+    // 探索に決めさせると、決められないものを決めさせることになる（docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」）。
     for (const lag of [-40, 0, 60, 80]) {
       const result = matchFrames(makeSource(120), makeDrawn(400, lag))!
       const [lo, hi] = result.searchRangeMs
@@ -162,7 +162,7 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
     // 飽和した録画ほど位相が systematically 片側へ寄っていた。
     //
     // **飽和は録画ごとの供給分布で決まる**（実測で幅 2〜6ms の録画と 200ms の録画の両方が出た）。
-    // 「実機では起きない」と書いていた時期があるが外れている。docs/ANIME-FRAMES.md 4章。
+    // 「実機では起きない」と書いていた時期があるが外れている。docs/ANIME-FRAMES.md「誤りだった指摘の記録」。
     const result = matchFrames(makeSource(120), makeDrawn(400, 0))!
     expect(result.capturedRatio).toBe(1)
     // 窓の全域が同点になる
@@ -193,7 +193,7 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
     // 一方でフレーム表の中身は素材コマ 1 つぶん丸ごとずれる。
     //
     // 供給を不均一にして（＝スコアにピークが立つ条件で）も成立することを固定する。
-    // tiedOffsets が狭くても「決まっている」ことにはならない、の根拠。docs/ANIME-FRAMES.md 2章。
+    // tiedOffsets が狭くても「決まっている」ことにはならない、の根拠。docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
     const result = matchFrames(makeSource(240), makeDrawnUneven(700, 0))!
     // 240 コマ中、1 コマずらしても数コマしか変わらない
     for (const r of result.replicas) {

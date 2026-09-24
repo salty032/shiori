@@ -64,7 +64,7 @@ export interface AnimeGapEstimate {
  *
  * **絵からフレーム対応を決めてはいない。** 左右の `frameIndex` は rVFC と録画時計から既に
  * 対応済みの値で、この関数はそれを 1 枚も動かさない。署名は固定済み区間の中で「同じ絵が
- * どこまで続いたか」を分類する補助情報にだけ使う（docs/ANIME-FRAMES.md 2 章）。
+ * どこまで続いたか」を分類する補助情報にだけ使う（docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」）。
  *
  * 境界が 2 つ未満なら、中間の絵が無いのか検出できなかったのかを区別できないため推定しない。
  * 推定値が通知欠落数を超える場合も、別の変化を拾った可能性があるため採用しない。
@@ -372,7 +372,7 @@ export interface TableFileMatch {
 
 // **表全体の採否を返さない。** 以前は「ずれた行が 5% を超えたら全部捨てる」だったが、
 // 95% が正しくても捨てることになる。取れた精度を切り捨てる方が損失は大きい
-// （docs/ANIME-FRAMES.md 0 章）。ずれた行にだけ印を立てて、残りはそのまま使う。
+// （docs/ANIME-FRAMES.md「コマ送りの精度は命」）。ずれた行にだけ印を立てて、残りはそのまま使う。
 export function checkTableAgainstFile(frames: StoredFrame[], pts: number[]): TableFileMatch {
   const trimmed = frames.filter((f) => f.frameIndex < pts.length)
   if (trimmed.length < 3) return { frames: [], misaligned: 0, worstMs: 0 }

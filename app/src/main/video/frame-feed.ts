@@ -107,7 +107,7 @@ export interface FrameMatch {
  *
  * ページが素材のコマを画面に出してから、画面キャプチャがその絵を取り込むまでの時間。
  * **録画ごとに探索して当てにいくものではなく、実測して固定する定数**
- * （理由は docs/ANIME-FRAMES.md 2章。スコアは素材の周期について周期的なので、
+ * （理由は docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。スコアは素材の周期について周期的なので、
  * 何コマぶんずれているかは探索では原理的に決まらない）。
  *
  * 2026-08-10 の実測 4 本（位相が決まっていたものだけ）で 14 / 16.1 / 19.1 / 28.7ms。
@@ -182,7 +182,7 @@ export interface MatchResult {
  * `tiedOffsets`（隣接する同点の数）ではこの構造は見えない。複製どうしは谷を挟んだ別の山なので、
  * 同点は狭いまま「一意に決まった」ように見える（実測で candidates 3〜5・幅 2〜6ms と出ていた）。
  * 採用値と ±1〜2 コマ先のスコア差を持ち帰り、決まっていないなら必ず知らせる。
- * 詳細は docs/ANIME-FRAMES.md 2章。
+ * 詳細は docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
  */
 interface OffsetReplica {
   /** ずらした素材コマ数（-2..+2。0＝採用値そのものは含めない） */
@@ -322,7 +322,7 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   // 同じ位相の複製が複数入り、**どれを引くかが端の数コマの差（＝雑音）で決まってしまう**。
   // 実測では 447 コマ中 0 コマの差で選ばれ、録画ごとに -38〜-90ms と 1 コマ以上振れていた。
   // 幅を 1 コマに閉じれば複製は 1 つしか入らず、**何コマぶんずれるかは定数（物理）が決め、
-  // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md 2章。
+  // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
   const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
   const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
 
@@ -679,7 +679,7 @@ export function offsetVerdict(result: MatchResult): string[] {
   //
   // **測れていないことを隠すわけではない**：同点の数と幅は実測の行（logMatchResult）に
   // 毎回出ているので、定数を測り直すときはそちらを読む。定数の較正は撮り逃しの出る録画
-  // （60fps 素材）で行うこと（SPEC 7章）。
+  // （60fps 素材）で行うこと（docs/SPEC.md「キャプチャ経路の遅延」）。
   if (result.capturedRatio >= 1) return problems
 
   // 窓の中で位相が決まらないこと（同点が広いこと）は警告にしない。**窓が 1 コマ幅なので

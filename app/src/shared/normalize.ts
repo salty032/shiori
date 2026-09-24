@@ -1,6 +1,6 @@
 // 検索の表記ゆれ吸収。SQLite には NFKC も Unicode プロパティ判定も無いため、正規化は
 // 書き込み側の JS（main の db.ts）で行い、結果を search_text 列へ格納する
-// （設計・実測の根拠と、意識的に外した案は docs/SPEC.md 5章）。
+// （設計・実測の根拠と、意識的に外した案は docs/SPEC.md「タイトル/メモ検索」）。
 //
 // 落とすのは「ユーザーが正しく打っているのに、配信サイト側の表記（半角カナ・全角英数等）
 // のせいで無言で0件になる」失敗。タイポ耐性やスコアリングは対象外。
@@ -33,7 +33,7 @@ export const SEARCH_NORMALIZE_VERSION = 1
 
 // search_text 列の中身。title/memo それぞれを正規化して1列にまとめる（アプリは列を
 // 指定した検索をしていないため分ける意味が無い）。挿入・タイトル/メモ更新の3経路から
-// 呼ぶ（詳細は docs/SPEC.md 5章）。
+// 呼ぶ（詳細は docs/SPEC.md「タイトル/メモ検索」）。
 export function buildSearchText(title: string | null | undefined, memo: string | null | undefined): string {
   return `${normalizeSearchText(title ?? '')}\n${normalizeSearchText(memo ?? '')}`
 }

@@ -3,7 +3,7 @@ import { FRAME_QUALITY, SEVERE_FRAME_RATIO, type ClipFrames } from './api.video'
 // 東映アニメーション デジタルタイムシートへ貼り付けるためのクリップボード形式。
 //
 // **公開されている xdts の仕様とは別物**（根が timeTables ではなく layers、絵が続くコマの
-// 表し方も違う）。実測で採った形式なので、値の根拠はすべて docs/TIMESHEET.md 2-6 / 2-7 にある。
+// 表し方も違う）。実測で採った形式なので、値の根拠はすべて docs/TIMESHEET.md「クリップボード形式」「Shiori が出すもの」 にある。
 // ファイル書き出しは作らない——渡し方はクリップボードだけ。
 
 // 1 行目に必ず付ける固定文字列。これが無いと貼り付け先が受け取らない。
@@ -16,7 +16,7 @@ export const TOEI_FRAME_BASE = 24
 // 実測サンプルに合わせただけの値。**この 2 つは貼り付け先を決めない**——欄も列も、貼る前に
 // 選んでいるマスで決まる（動画欄のデータを原画欄へ貼っても、そのまま正しく表示される）。
 // コピーしたときに「今どこにあるか」を答えるための値なので、**意味を持たせないこと。**
-// 絶対値で効くのは frame（縦位置）だけ。詳細は docs/TIMESHEET.md 2-6。
+// 絶対値で効くのは frame（縦位置）だけ。詳細は docs/TIMESHEET.md「クリップボード形式」。
 export const TOEI_FIELD = 4
 export const TOEI_TRACK = 0
 
@@ -129,7 +129,7 @@ export function expandMarks(marks: readonly TimesheetMark[], rows: readonly numb
 // 素材と一致している**——直前のコマの絵が出ているだけ。以前はこれも 1 コマで止めていたが、
 // それは壊れていないものまで止めていた（実際、数コマの流用でタイムシートが出せないのは
 // ただ面倒なだけだった）。**取れた精度を「完全でないから」と切り捨てる方が損失は大きい**
-// （docs/ANIME-FRAMES.md 0 章）。
+// （docs/ANIME-FRAMES.md「コマ送りの精度は命」）。
 //
 // 割合の上限は**コマ送りの赤と同じ定数**を読む。別の数字にすると「赤いのに出せる／出せない
 // のに白い」が起きる（api.video.ts の注記）。この線で 60fps 素材は従来どおり外れる——
@@ -161,7 +161,7 @@ export function countReusedFrames(frames: ClipFrames | null | undefined): number
 }
 
 // 打った内容。**記録するのは素材コマの添字だけで、秒は持たない**——秒で持つと再生位置の
-// 丸めでコマ境界を跨ぐ（docs/PENDING.md 5）。母数はクリップのフレーム表（video_frames）。
+// 丸めでコマ境界を跨ぐ（docs/SPEC.md「タイムシートの画面」）。母数はクリップのフレーム表（video_frames）。
 export interface TimesheetMark {
   /** 新しい絵が始まる素材コマの添字（0 起点） */
   frame: number

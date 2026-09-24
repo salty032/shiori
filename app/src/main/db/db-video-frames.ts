@@ -31,7 +31,7 @@ export interface StoredFrame {
    *
    * **表全体を捨てる代わりに、ずれた行にだけ立てる印。** 以前は途中で対応が崩れると表を
    * 丸ごと使わなくしていたが、崩れた位置より手前は正しいので、そこまで失うのは割に合わない
-   * （docs/ANIME-FRAMES.md 0 章）。立っているコマだけ画面で赤く出す。
+   * （docs/ANIME-FRAMES.md「コマ送りの精度は命」）。立っているコマだけ画面で赤く出す。
    */
   misaligned?: boolean
   /**

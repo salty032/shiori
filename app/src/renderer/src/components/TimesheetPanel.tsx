@@ -32,7 +32,7 @@ import { XIcon } from './Icon'
 // 差し替わって見える。
 //
 // Shiori が打つのは **CELL（動画）の a 列**だけ。映像から分かるのは「絵が変わった位置」
-// だけで、原画か中割りかも層の分離も分からない（docs/TIMESHEET.md 3-4）。
+// だけで、原画か中割りかも層の分離も分からない（docs/TIMESHEET.md「Shiori が埋められるのは実質 1 欄」）。
 
 const ROW_H = 15
 

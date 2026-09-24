@@ -16,7 +16,7 @@ export { SEVERE_FRAME_RATIO } from '../../../shared/api.video'
 
 // このクリップのコマ送りが、どこを見ても当てにならないか。
 //
-// **抜けが 1 つでもあれば赤、にはしない**（docs/ANIME-FRAMES.md 0 章）。ずれ（misaligned）は
+// **抜けが 1 つでもあれば赤、にはしない**（docs/ANIME-FRAMES.md「コマ送りの精度は命」）。ずれ（misaligned）は
 // 崩れた位置から末尾まで続くので 1 コマでもあれば全体の話、抜けは割合で見る。
 export function isClipUnreliable(
   frames: { pts: number[]; quality?: number[]; gaps?: { animeMissing?: number }[] } | null

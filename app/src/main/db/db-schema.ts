@@ -211,7 +211,7 @@ export function initDb(): void {
   addColumnIfMissing('ALTER TABLE images ADD COLUMN uncaptured_frames INTEGER')
   // 検索用の正規化済みテキスト（"normalize(title)\nnormalize(memo)"）。SQLite に NFKC も
   // Unicode プロパティ判定も無いため、正規化は書き込み側（insertImage/updateImageTitle/
-  // updateImageMemo）の JS で行い、結果をここへ書く（docs/SPEC.md 5章）。
+  // updateImageMemo）の JS で行い、結果をここへ書く（docs/SPEC.md「タイトル/メモ検索」）。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN search_text TEXT')
   // 上記のうち「前後で絵が変わっており、どのコマで変わったか特定できない」枚数。
   // 撮り逃したコマの大半は同じ絵が続く区間に当たっており実害が無い。それを区別せず
@@ -263,7 +263,7 @@ export function initDb(): void {
   // なり部分一致検索が壊れるため、文字3-gram単位でインデックスする trigram の方が、日本語混じりの
   // タイトル/メモに対しても従来の LIKE 部分一致に近い挙動を保てる。
   //
-  // 索引する列は title/memo ではなく search_text（正規化済み・詳細は docs/SPEC.md 5章）。
+  // 索引する列は title/memo ではなく search_text（正規化済み・詳細は docs/SPEC.md「タイトル/メモ検索」）。
   // 旧スキーマ（title/memo を直接索引していた版、テーブル名 images_fts）は列構成が違うので使わない。
   //
   // 新スキーマを images_fts_v2 という別名にしてあるのは、**旧トリガーと新テーブルの食い違いを
@@ -385,7 +385,7 @@ export function initDb(): void {
   // 配った版で打ち込まれたタイムシートを消す（2026-08-31 の指示）。
   //
   // **なぜ消すのか。** 表が並べているコマ番号は、抜けた区間の枚数が推定のまま組み立てて
-  // いる（docs/FRAME-GAPS.md 3 章は未解決）。枚数が 1 違えば、そこから下の打鍵は全部
+  // いる（docs/FRAME-GAPS.md「通知フレーム数とアニメのコマ数を混ぜない」）。枚数が 1 違えば、そこから下の打鍵は全部
   // 別のコマを指す。**画面からは正しく見える**ので、残しておくと次に開いたときに
   // 「前に打ったもの」として通ってしまう。配る版では表そのものを閉じてある
   // （timesheetLock.ts）ので、中身も残さない。

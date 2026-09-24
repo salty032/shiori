@@ -38,7 +38,7 @@ describe('buildGapIndex - 抜けの積み上げ', () => {
     expect(idx.totalWithGaps).toBe(6)
   })
 
-  // **通知欠落数（missing）とアニメの抜け（animeMissing）を混ぜない**（FRAME-GAPS.md 0 章）。
+  // **通知欠落数（missing）とアニメの抜け（animeMissing）を混ぜない**（docs/FRAME-GAPS.md「通知フレーム数とアニメのコマ数を混ぜない」）。
   // 番号に使うのは animeMissing だけ。
   it('推定できなかった抜けは 0 コマ扱いで、known が false になる', () => {
     const idx = buildGapIndex(frames({ gaps: [gap(1, 3)] }))
@@ -77,7 +77,7 @@ describe('walkFrames - 実測行と推定した抜けをまたいで歩く', () 
     expect(walkFrames(1, 1, -1, 4, missingAfter)).toEqual({ idx: 1, gap: 0 })
   })
 
-  // 「1 つずつ、飛ばさず・戻らず」（ANIME-FRAMES.md 3 章）。まとめて送っても
+  // 「1 つずつ、飛ばさず・戻らず」（docs/ANIME-FRAMES.md「コマ送りが保証すべきこと」）。まとめて送っても
   // 1 コマずつ送ったのと同じ場所に着く。
   it('まとめて送っても 1 コマずつ送ったのと同じ場所に着く', () => {
     expect(walkFrames(1, 0, 3, 4, missingAfter)).toEqual({ idx: 2, gap: 0 })
