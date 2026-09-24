@@ -46,7 +46,7 @@ export const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; c
 }
 
 // 実測行の後ろにある抜け。**通知欠落数（technicalMissing）と、録画画像から推定した
-// アニメの抜けコマ数（missing）を混ぜない**（docs/FRAME-GAPS.md「通知フレーム数とアニメのコマ数を混ぜない」）。コマ送りと番号に
+// アニメの抜けコマ数（missing）を混ぜない**（docs/ANIME-FRAMES.md「抜けの数え方」）。コマ送りと番号に
 // 使うのは後者だけで、推定できなければ known:false のまま 0 にする。
 export interface GapInfo {
   missing: number

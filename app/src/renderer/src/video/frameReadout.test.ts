@@ -38,7 +38,7 @@ describe('buildGapIndex - 抜けの積み上げ', () => {
     expect(idx.totalWithGaps).toBe(6)
   })
 
-  // **通知欠落数（missing）とアニメの抜け（animeMissing）を混ぜない**（docs/FRAME-GAPS.md「通知フレーム数とアニメのコマ数を混ぜない」）。
+  // **通知欠落数（missing）とアニメの抜け（animeMissing）を混ぜない**（docs/ANIME-FRAMES.md「抜けの数え方」）。
   // 番号に使うのは animeMissing だけ。
   it('推定できなかった抜けは 0 コマ扱いで、known が false になる', () => {
     const idx = buildGapIndex(frames({ gaps: [gap(1, 3)] }))
