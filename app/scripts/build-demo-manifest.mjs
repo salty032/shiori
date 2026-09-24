@@ -73,7 +73,7 @@ function buildItem(file, index, meta) {
       ? new Date(override.capturedAt).getTime()
       : BASE_AT - day * DAY_MS - slot * STEP_MS,
     // 動画の尺は静的解析では出せない。null のままにしておくと、起動時にブラウザが
-    // メタデータから解決する（src/renderer/src/web/manifest.ts）。
+    // メタデータから解決する（src/renderer/src/demo/manifest.ts）。
     duration: override.duration ?? null,
     fps: override.fps ?? null,
     memo: override.memo ?? null,

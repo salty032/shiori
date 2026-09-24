@@ -59,7 +59,7 @@ vi.mock('better-sqlite3', async () => {
   return { default: Shim }
 })
 
-import { SCHEMA_VERSION, DatabaseVersionTooNewError } from './system/db-maintenance'
+import { SCHEMA_VERSION, DatabaseVersionTooNewError } from './db-maintenance'
 import { initDb, databasePath } from './db-schema'
 import { getDb, prepare } from './db-core'
 

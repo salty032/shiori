@@ -2,11 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { color, control, font, radius, space, weight } from '../styles'
 import { cleanTitle, mediaUrl } from '../utils'
-import { FRAME_EPS, findFrameIdx, frameSeekTarget } from '../frameTable'
+import { FRAME_EPS, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
-import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from '../components/videoControls'
-import { videoApi } from './api'
+import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from './videoControls'
 import type { TrimProgress } from '../../../shared/api.video'
 import { useT, type MessageKey } from '../i18n'
 
@@ -116,7 +115,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     setPtsLoading(true)
     setPtsError(false)
     ptsLoadedRef.current = false
-    videoApi.getClipFrames(image.id)
+    window.api.getClipFrames(image.id)
       .then(({ pts, dur: frameDur }) => {
         ptsLoadedRef.current = true
         if (pts.length === 0) {
@@ -141,7 +140,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   }, [image.id, fps])
 
   useEffect(() => {
-    videoApi.getTimelineStrip(image.id, 15)
+    window.api.getTimelineStrip(image.id, 15)
       .then((b64) => { if (b64 && mountedRef.current) setStripUrl(`data:image/jpeg;base64,${b64}`) })
       .catch(() => {})
   }, [image.id])
@@ -594,9 +593,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     setTrimProgress({ ratio: 0, phase: 'encode' })
     setError(null)
     // 進み具合の購読は、走っている間だけ張る（閉じたあとに届いても捨てる）。
-    const offProgress = videoApi.onTrimProgress((p) => { if (mountedRef.current) setTrimProgress(p) })
+    const offProgress = window.api.onTrimProgress((p) => { if (mountedRef.current) setTrimProgress(p) })
     try {
-      const result = await videoApi.trimVideo(image.id, inSec, exportOutSec)
+      const result = await window.api.trimVideo(image.id, inSec, exportOutSec)
       if (result.ok) {
         onTrimmed()
         onClose()

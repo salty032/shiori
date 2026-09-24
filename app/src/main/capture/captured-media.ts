@@ -2,8 +2,8 @@
 // 「insertImage → 失敗時unlink巻き戻し → captureDone送信 → autotag起動」を1箇所にまとめる。
 // サムネ生成はベストエフォート可否が呼び出し側で異なるため、呼び出し側の責務のまま。
 import { unlink } from 'fs/promises'
-import { insertImage, getImage } from '../db'
-import { addTagsBulk } from '../db-tags'
+import { insertImage, getImage } from '../db/db'
+import { addTagsBulk } from '../db/db-tags'
 import { sendToRenderer, sendNotice } from '../system/windows'
 import { t } from '../system/i18n'
 import { canAutoTag, ensureModel, runTagger } from './tagger'

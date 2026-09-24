@@ -11,6 +11,7 @@ import { startFrameFeed, stopFrameFeed, waitForSteadyFrames } from './frame-feed
 import { setTrayRecording } from '../system/tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/timecode'
 import { sendBrowserNotice } from '../browser/browser-notice'
+import type { PrepareData, StartData } from '../../shared/recorder-api'
 import { t } from '../system/i18n'
 
 interface RecordingMeta {
@@ -347,7 +348,7 @@ export async function startRecording(): Promise<void> {
       // それ以上はエンコード負荷とファイルサイズが増えるだけで精度には効かない。
       fps: Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60))),
       sessionId
-    })
+    } satisfies PrepareData)
     const prepared = await waitForRecorderPrepared(RECORDER_PREPARE_TIMEOUT_MS)
     if (startCanceled) {
       console.log('[clip] canceled while the capture was starting up')
@@ -427,7 +428,7 @@ export async function startRecording(): Promise<void> {
       maxSeconds
       // sessionId は載せない。**セッションは準備の時点で決まっている**ので、レコーダーは
       // recorder:prepare で受け取った値を使う。ここでも渡すと 2 つの出どころができる。
-    })
+    } satisfies StartData)
     setTrayRecording(true)
 
     // V-1: レコーダーがクラッシュ以外の形でハングし、recorder:done/error のどちらも

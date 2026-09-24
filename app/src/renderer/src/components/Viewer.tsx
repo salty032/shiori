@@ -3,8 +3,8 @@ import type { ImageRow } from '../types'
 import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
 import { s, weight } from '../styles'
 import { XIcon } from './Icon'
-import VideoPlayer, { type VideoPlayerHandle } from './VideoPlayer'
-import { getMediaActions, useFeatureOverlayOpen } from '../features/registry'
+import VideoPlayer, { type VideoPlayerHandle } from '../video/VideoPlayer'
+import { useOverlayOpen } from '../overlaySignal'
 import { useT } from '../i18n'
 import type { Timesheet } from '../hooks/useTimesheet'
 
@@ -42,8 +42,8 @@ type Props = {
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
 export default function Viewer({ images, index, setIndex, total, titleStrip, frameFps, onToggleDetailPanel, timesheet }: Props) {
   const { t } = useT()
-  // トリミング等のオーバーレイに覆われている間は再生を止める（registry の注記を参照）。
-  const overlayOpen = useFeatureOverlayOpen()
+  // トリミング等のオーバーレイに覆われている間は再生を止める（overlaySignal の注記を参照）。
+  const overlayOpen = useOverlayOpen()
   const [closing, setClosing] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -369,7 +369,6 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
           {/* U-6: End は読み込み済み分の末尾（images.length-1）までしか移動しないため、
               未読み込みが残る間はカウンタと End の到達点がズレる。実害は小さい
               （後続ロードで辿れる）ため、挙動は変えずツールチップで補足するに留める。 */}
-          {getMediaActions(img, { close })}
           {/* 撮り逃し 0 のクリップでしか出ない。出ていない理由を説明する文言は置かない
               （出ない＝このクリップでは保証できない、という一点だけが意味）。 */}
           {timesheet.ready && (

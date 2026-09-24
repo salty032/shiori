@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import type { StoredFrame } from '../db-video-frames'
+import type { StoredFrame } from '../db/db-video-frames'
 
 // 検証（verifyClipFrames）は保存の後にバックグラウンドで走り、「N コマ未取得」（未検証）を
 // 「N コマ要確認」へ変える。一覧は保存時点のスナップショットなので、**確定した枚数を
@@ -15,13 +15,13 @@ const sendToRenderer = vi.fn()
 vi.mock('../system/windows', () => ({ sendToRenderer: (...args: unknown[]) => sendToRenderer(...args) }))
 
 const markVideoFramesUnusable = vi.fn()
-vi.mock('../db', () => ({
+vi.mock('../db/db', () => ({
   setAmbiguousFrames: vi.fn(),
   setFrameCounts: vi.fn()
 }))
 
 const saveVideoFrames = vi.fn()
-vi.mock('../db-video-frames', () => ({
+vi.mock('../db/db-video-frames', () => ({
   markVideoFramesUnusable: (...args: unknown[]) => markVideoFramesUnusable(...args),
   saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
   listClipsForRecheck: vi.fn(() => []),

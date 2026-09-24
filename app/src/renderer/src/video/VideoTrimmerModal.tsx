@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { ImageRow, Settings } from '../types'
-import { markFeatureOverlayOpen } from '../features/registry'
+import { markOverlayOpen } from '../overlaySignal'
 import { useTrimStore } from './trimStore'
 import VideoTrimmer from './VideoTrimmer'
 
-// App からは自身の状態を一切受け取らない自己完結モーダル（features/registry 経由で描画される）。
+// App からは自身の状態を一切受け取らない自己完結モーダル（App が常に描画し、開くかどうかは trimStore が決める）。
 // 対象 id は trimStore、image/settings は自分で IPC から取得する。
 export default function VideoTrimmerModal() {
   const trimImageId = useTrimStore((s) => s.trimImageId)
@@ -24,12 +24,12 @@ export default function VideoTrimmerModal() {
     return () => { cancelled = true }
   }, [trimImageId, close])
 
-  // 開いている間はコアへ合図を出し、背後のプレーヤー（ビューア・詳細パネル）を止めてもらう。
+  // 開いている間は合図を出し、背後のプレーヤー（ビューア・詳細パネル）を止めてもらう。
   // image/settings の読み込み完了ではなく trimImageId が入った時点で立てる——
   // 取得を待つ間も画面はもうトリミングに移っているので、そこで鳴っていては同じこと。
   useEffect(() => {
     if (trimImageId === null) return
-    return markFeatureOverlayOpen()
+    return markOverlayOpen()
   }, [trimImageId])
 
   if (trimImageId === null || !image || !settings) return null

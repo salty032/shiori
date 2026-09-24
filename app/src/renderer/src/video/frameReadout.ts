@@ -7,8 +7,8 @@
 // 確かめられない。判定だけをここへ出し、書き込み（el.textContent / style）は呼び出し側に残す。
 //
 // **表示の見え方は変えていない。** 文言・色・優先順位はすべて元のまま。
-import { FRAME_QUALITY, type ClipFrames } from '../../shared/api.video'
-import type { MessageKey, Translate } from './i18n'
+import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
+import type { MessageKey, Translate } from '../i18n'
 
 /**
  * コマ表示が今どの土台で動いているか。**コマ送りの結果をどう読んでよいかが変わる**ので、

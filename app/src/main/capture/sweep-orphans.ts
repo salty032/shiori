@@ -2,7 +2,7 @@ import { readFile, readdir, stat, unlink, writeFile } from 'fs/promises'
 import { extname, join, resolve } from 'path'
 import { app } from 'electron'
 import { thumbnailDir } from '../system/paths'
-import { countImages, listReferencedPaths } from '../db'
+import { countImages, listReferencedPaths } from '../db/db'
 
 // 削除は「DB 行を消す → 実ファイルを消す」の順で行う（ipc-images.ts の設計）。
 // 後半が失敗すると DB から参照されないファイルが残る。この掃除で自動削除するのは

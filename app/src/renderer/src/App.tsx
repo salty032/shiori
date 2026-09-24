@@ -37,7 +37,8 @@ import { useLatestRef } from './hooks/useLatestRef'
 import { useCaptureSync } from './hooks/useCaptureSync'
 import { useGlobalKeys } from './hooks/useGlobalKeys'
 import { useConfirmActions, type ConfirmDialogState } from './hooks/useConfirmActions'
-import { getModals, isDemoMode } from './features/registry'
+import { isDemoMode } from './demoMode'
+import VideoTrimmerModal from './video/VideoTrimmerModal'
 import { useT } from './i18n'
 import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, saveSetupGuideState, type SetupGuideState } from './setupGuideState'
 
@@ -866,7 +867,7 @@ export default function App() {
         <ProductTour step={productTourStep} onAdvance={advanceProductTour} onExit={exitProductTour} />
       )}
 
-      {getModals().map((Modal, i) => <Modal key={i} />)}
+      <VideoTrimmerModal />
     </div>
   )
 }

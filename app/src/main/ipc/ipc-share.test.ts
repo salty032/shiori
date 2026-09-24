@@ -37,11 +37,11 @@ const decodeFramesMock = vi.fn((data: string) => {
   }
 })
 
-vi.mock('../db', () => ({
+vi.mock('../db/db', () => ({
   listImagesForExport: () => listImagesForExportMock(),
 }))
 
-vi.mock('../db-video-frames', () => ({
+vi.mock('../db/db-video-frames', () => ({
   getVideoFrames: (id: number) => getVideoFramesMock(id),
   restoreVideoFrames: (...args: unknown[]) => restoreVideoFramesMock(...args),
   encodeFrames: (frames: Parameters<typeof encodeFramesMock>[0]) => encodeFramesMock(frames),
@@ -75,6 +75,10 @@ vi.mock('./ipc-import', () => ({
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))
+vi.mock('../video/ffmpeg', () => ({
+  extractThumb: (videoPath: string, thumbPath: string) => extractThumbMock(videoPath, thumbPath),
+  getVideoMeta: (videoPath: string) => getVideoMetaMock(videoPath),
+}))
 vi.mock('../capture/captured-media', () => ({
   registerCapturedMedia: (params: unknown) => registerCapturedMedia(params)
 }))
@@ -107,10 +111,9 @@ let metadataContent = ''
 let frameTableContent = ''
 
 import { registerShareHandlers } from './ipc-share'
-import { setVideoThumbProvider } from '../capture/video-thumb-provider'
 
-const extractThumbMock = vi.fn(async () => {})
-const getVideoMetaMock = vi.fn(async (): Promise<{ duration: number | null; fps: number | null }> => ({ duration: null, fps: null }))
+const extractThumbMock = vi.fn(async (_videoPath: string, _thumbPath: string) => {})
+const getVideoMetaMock = vi.fn(async (_videoPath: string): Promise<{ duration: number | null; fps: number | null }> => ({ duration: null, fps: null }))
 
 describe('share:import - 動画の30秒上限（著作権対策）', () => {
   beforeEach(() => {
@@ -134,7 +137,6 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     encodeFramesMock.mockClear()
     decodeFramesMock.mockClear()
     getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
-    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoMeta: getVideoMetaMock })
     metadataContent = JSON.stringify({ version: 1, file: 'clip.webm', captured_at: 1700000000000 })
     frameTableContent = ''
     registerShareHandlers()
@@ -291,7 +293,6 @@ describe('share:import - 1件の失敗で残りを巻き添えにしない', () 
     unlinkMock.mockClear()
     registerCapturedMedia.mockClear()
     registerCapturedMedia.mockResolvedValue({ ok: true, id: 1 })
-    setVideoThumbProvider({ extractThumb: extractThumbMock, getVideoMeta: getVideoMetaMock })
     metadataContent = [
       JSON.stringify({ version: 1, file: 'a.png', captured_at: 1700000000000 }),
       JSON.stringify({ version: 1, file: 'b.png', captured_at: 1700000000000 }),

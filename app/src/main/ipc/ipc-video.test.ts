@@ -25,21 +25,21 @@ const mockImage = {
   ambiguous_frames: 2
 }
 
-const getVideoFrames = vi.fn(() => null as import('../db-video-frames').StoredFrame[] | null)
+const getVideoFrames = vi.fn(() => null as import('../db/db-video-frames').StoredFrame[] | null)
 const saveVideoFrames = vi.fn()
 const restoreVideoFrames = vi.fn()
 const setFrameCounts = vi.fn()
 
-vi.mock('../db', () => ({
+vi.mock('../db/db', () => ({
   getImage: vi.fn(() => mockImage),
   setFrameCounts: (...args: unknown[]) => setFrameCounts(...args),
 }))
 
-vi.mock('../db-tags', () => ({
+vi.mock('../db/db-tags', () => ({
   getImageTags: vi.fn(() => []),
 }))
 
-vi.mock('../db-video-frames', () => ({
+vi.mock('../db/db-video-frames', () => ({
   getVideoFrames: () => getVideoFrames(),
   saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
   restoreVideoFrames: (...args: unknown[]) => restoreVideoFrames(...args),
@@ -58,7 +58,7 @@ const getFrameSignatures = vi.fn(async (_path: string): Promise<{ signatures: Ui
   signatures: [], pts: []
 }))
 
-vi.mock('./ffmpeg', () => ({
+vi.mock('../video/ffmpeg', () => ({
   trimWebm: (...args: unknown[]) => trimWebm(...(args as [])),
   extractThumb: (...args: unknown[]) => extractThumb(...(args as [])),
   getFrameSignatures: (path: string) => getFrameSignatures(path),
@@ -82,8 +82,8 @@ import {
 import { FRAME_QUALITY } from '../../shared/api.video'
 import { VIDEO_CH } from '../../shared/api.video'
 import { CH } from '../../shared/api'
-import type { StoredFrame } from '../db-video-frames'
-import { countReportDrops } from './frame-feed'
+import type { StoredFrame } from '../db/db-video-frames'
+import { countReportDrops } from '../video/frame-feed'
 import { unlink } from 'fs/promises'
 import type { ClipFrames } from '../../shared/api.video'
 

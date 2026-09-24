@@ -4,10 +4,9 @@ import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { font, color, space } from '../styles'
 import { s, ToggleSwitch } from '../components/SettingsModal'
 import { useSettingsStore } from '../stores/settingsStore'
-import { videoApi } from './api'
 import { useT } from '../i18n'
 
-// SettingsModal の「キャプチャ」タブへ features/registry 経由で挿入される、録画専用の設定。
+// SettingsModal の「キャプチャ」タブに出す、録画専用の設定。
 // 設定の読み書きは settingsStore（zustand）を購読する。以前は自前で getSettings() を
 // fetch しており、hotkey/notification の2スロットがそれぞれ独立スナップショットを持つ
 // ことでモーダルを開くたび IPC が2回走っていた（R-6）。
@@ -75,7 +74,7 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
             </div>
             <button style={s.sizeBtn} disabled={!capturedAccel} onClick={async () => {
               if (!capturedAccel) return
-              const ok = await videoApi.setClipHotkey(capturedAccel)
+              const ok = await window.api.setClipHotkey(capturedAccel)
               if (ok) {
                 setCapturing(false)
                 setHotkeyError(null)

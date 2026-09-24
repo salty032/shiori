@@ -4,12 +4,12 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { buildSearchText, SEARCH_NORMALIZE_VERSION } from '../shared/normalize'
+import { buildSearchText, SEARCH_NORMALIZE_VERSION } from '../../shared/normalize'
 import {
   DatabaseCorruptError, DatabaseMigrationBackupError, SCHEMA_VERSION, assertSchemaCompatible,
   backupDatabase, backupIsDue, integrityProblem, pruneBackups, readSchemaVersion,
   writeSchemaVersion, type SqlRunner
-} from './system/db-maintenance'
+} from './db-maintenance'
 import { prepare, setDatabase } from './db-core'
 
 let db: Database.Database

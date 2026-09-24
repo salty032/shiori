@@ -7,7 +7,7 @@ import {
   applyAnimeGapEstimates, checkTableAgainstFile, estimateAnimeGap, findFrameDivergence,
   signaturesDiffer, verifyFrameTable
 } from './frame-verify'
-import type { StoredFrame } from '../db-video-frames'
+import type { StoredFrame } from '../db/db-video-frames'
 
 const GRID = 32 * 32
 

@@ -231,7 +231,7 @@ export function formatBytes(bytes: number): string {
 
 // メディア URL の解決口。既定は Electron の capfile:// プロトコル（bootstrap.ts が処理する）。
 // Web デモ版は capfile:// を持てないため、起動時に web/mockApi.ts が同梱アセットの URL を
-// 返す関数へ差し替える。features/registry.ts と同じく「コアは差し替え口だけ知る」形にして、
+// 返す関数へ差し替える。差し替え口だけを置く形にして、
 // 呼び出し側（ThumbCell / Viewer / VideoPlayer）は分岐を持たない。
 type MediaUrlResolver = (id: number, kind: 'media' | 'thumb') => string
 let mediaUrlResolver: MediaUrlResolver | null = null

@@ -3,7 +3,7 @@ import { extname } from 'path'
 import { stat } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { Readable } from 'stream'
-import { getImage } from '../db'
+import { getImage } from '../db/db'
 import { resolveRealCapturePath } from './paths'
 
 // renderer が撮影済みのファイルを読むための独自プロトコル（`capfile://`）。

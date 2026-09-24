@@ -3,7 +3,7 @@
 // 手動タグ（source='manual'）と AI タグ（source='ai'）が同じ表に同居し、**手動が 1 件でも
 // あれば手動として扱う**という規則がこのファイル全体に効いている（昇格はするが降格はしない）。
 // 規則を破ると、ユーザーが手で付けたタグが AI 由来として一覧から消える。
-import type { ImageTag, TagWithCount } from '../shared/types'
+import type { ImageTag, TagWithCount } from '../../shared/types'
 import { getDb, prepare } from './db-core'
 
 // どの画像にも付かなくなった tags 行を落とす。image_tags は画像削除で消えるが tags 自体は

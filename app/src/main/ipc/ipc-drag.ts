@@ -11,7 +11,7 @@
 import { app, nativeImage } from 'electron'
 import { copyFileSync, mkdirSync, rmSync, statSync } from 'fs'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'path'
-import { getImage } from '../db'
+import { getImage } from '../db/db'
 import { resolveRealCapturePathSync } from '../system/paths'
 import { onTrusted, sendToRenderer } from '../system/windows'
 import {

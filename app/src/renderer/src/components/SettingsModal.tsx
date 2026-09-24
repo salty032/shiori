@@ -6,7 +6,7 @@ import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { XIcon } from './Icon'
 import { useExportStore } from '../stores/exportStore'
 import { useFocusTrap } from '../hooks/useFocusTrap'
-import { getSettingsSlots } from '../features/registry'
+import ClipHotkeySettings from '../video/ClipHotkeySettings'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
@@ -83,7 +83,7 @@ export default function SettingsModal(p: Props) {
   const captureRef = useRef<HTMLDivElement>(null)
   // 登録スロット（録画ホットキー変更など）が独自にキー入力キャプチャ中かどうか。
   // SettingsModal 自身の capturing とは独立に管理し、Escape 自動クローズの抑止に使う。
-  const [slotCapturing, setSlotCapturing] = useState(false)
+  const [clipCapturing, setClipCapturing] = useState(false)
   // extensionStatus は最後に受信したイベントのスナップショットなので、拡張を無効化したり
   // ブラウザを閉じたりしても「受信中」のまま変わらない。モーダル表示中は定期的に
   // lastSeenAt からの経過時間を見て、タイムコード送信間隔（5秒）の3回分途絶えたら
@@ -120,11 +120,11 @@ export default function SettingsModal(p: Props) {
   useEffect(() => {
     const block = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape' && !capturing && !slotCapturing) closeSettings()
+      if (e.key === 'Escape' && !capturing && !clipCapturing) closeSettings()
     }
     document.addEventListener('keydown', block)
     return () => document.removeEventListener('keydown', block)
-  }, [capturing, slotCapturing])
+  }, [capturing, clipCapturing])
 
   useEffect(() => {
     if (!capturing) return
@@ -358,9 +358,7 @@ export default function SettingsModal(p: Props) {
                     )}
                   </div>
                   {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
-                  {getSettingsSlots('capture').map((Slot, i) => (
-                    <Slot key={i} onCapturingChange={setSlotCapturing} placement="hotkey" />
-                  ))}
+                  <ClipHotkeySettings onCapturingChange={setClipCapturing} placement="hotkey" />
                 </div>
                 {/* UX-8: コマ送り(, / .)もキャプチャ体験の設定のため「基本」タブから移動 */}
                 <div style={s.group}>
@@ -418,9 +416,7 @@ export default function SettingsModal(p: Props) {
                     <span style={s.label}>{t('settings.notifyOnCapture')}</span>
                     <ToggleSwitch checked={p.settings.captureNotify ?? true} onChange={p.onUpdateCaptureNotify} />
                   </div>
-                  {getSettingsSlots('capture').map((Slot, i) => (
-                    <Slot key={i} onCapturingChange={setSlotCapturing} placement="notification" />
-                  ))}
+                  <ClipHotkeySettings onCapturingChange={setClipCapturing} placement="notification" />
                 </div>
               </>
             )}

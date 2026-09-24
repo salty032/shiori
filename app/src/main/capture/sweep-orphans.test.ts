@@ -14,7 +14,7 @@ const { readFile, readdir, stat, unlink, writeFile } = vi.hoisted(() => ({
 }))
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
-vi.mock('../db', () => ({ countImages, listReferencedPaths }))
+vi.mock('../db/db', () => ({ countImages, listReferencedPaths }))
 vi.mock('fs/promises', () => ({ readFile, readdir, stat, unlink, writeFile }))
 
 import { isOrphanSweepDue, ORPHAN_SWEEP_INTERVAL_MS, selectOrphans, sweepOrphanFiles, sweepOrphanFilesIfDue, type SweepCandidate } from './sweep-orphans'

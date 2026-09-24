@@ -5,15 +5,14 @@
 // 「間隔より刻みが小さければ同じコマに留まり、大きければ 2 コマ飛ぶ」ことになり、
 // コマを数えたい用途では使い物にならない。実 PTS を辿ることでその両方を防ぐ。
 //
-// トリマー（video/）とビューアのプレーヤー（components/）の双方から使うため、
-// どちらにも寄せずコア側の独立モジュールに置く。
-import { FRAME_QUALITY, SEVERE_FRAME_RATIO } from '../../shared/api.video'
+// トリマーとビューアのプレーヤー（VideoPlayer）の双方から使う。
+import { FRAME_QUALITY, SEVERE_FRAME_RATIO } from '../../../shared/api.video'
 
 export const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
 
 // 実体は shared/api.video.ts。タイムシートの可否（shared 側）が同じ数字で決まるよう
 // 共通側へ移したが、読み手はここを見ているのでそのまま出し直す。
-export { SEVERE_FRAME_RATIO } from '../../shared/api.video'
+export { SEVERE_FRAME_RATIO } from '../../../shared/api.video'
 
 // このクリップのコマ送りが、どこを見ても当てにならないか。
 //

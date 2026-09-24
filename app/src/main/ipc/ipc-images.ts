@@ -8,8 +8,8 @@ import {
   getImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
   listImagesMissingThumb, listImagesForThumbCheck, setThumbPath,
   getTimesheet, saveTimesheet
-} from '../db'
-import { listAllTags } from '../db-tags'
+} from '../db/db'
+import { listAllTags } from '../db/db-tags'
 import { decodeTimesheet, encodeTimesheet } from '../../shared/timesheet'
 import {
   MAX_EXPORT_IDS,
@@ -22,12 +22,11 @@ import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../../shared/constants'
 import type { DeleteImageResult } from '../../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from '../system/paths'
 import { createImageThumb } from '../capture/image-thumb'
-import { getVideoThumbProvider } from '../capture/video-thumb-provider'
 import { createProgressThrottle } from '../system/progress-throttle'
 import { beginTask, endTask } from '../system/busy'
 import { t } from '../system/i18n'
 import { loadSettings } from '../system/settings'
-import { getVideoMeta, transcodeToH264 } from '../video/ffmpeg'
+import { extractThumb, getVideoMeta, transcodeToH264 } from '../video/ffmpeg'
 // 削除を並列投入しすぎると Windows のファイル操作が一時的に失敗するため絞る
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
 const DELETE_CONCURRENCY = 4
@@ -67,15 +66,15 @@ async function removeImageFiles(
   if (image.thumb_path) await removeOne(image.thumb_path, 'thumb')
 }
 
-// 1 枚分のサムネを生成して DB に記録する。成功したら true。動画は video-thumb-provider
-// （動画機能が登録する ffmpeg 経由の抽出）、それ以外は既存の createImageThumb を使う。
+// 1 枚分のサムネを生成して DB に記録する。成功したら true。動画は ffmpeg で抽出し、
+// それ以外は createImageThumb を使う。
 async function generateThumb(id: number, filepath: string, mediaType: 'image' | 'video' | null): Promise<boolean> {
   try {
     const resolved = await resolveRealCapturePath(filepath)
     if (!resolved) throw new Error('path not resolvable')
     if (mediaType === 'video') {
       const thumbPath = thumbPathFor(resolved, '.png')
-      await getVideoThumbProvider().extractThumb(resolved, thumbPath)
+      await extractThumb(resolved, thumbPath)
       setThumbPath(id, thumbPath)
     } else {
       const thumbPath = thumbPathFor(resolved)

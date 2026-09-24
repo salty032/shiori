@@ -4,12 +4,12 @@ import { stat, copyFile, writeFile, readdir, unlink } from 'fs/promises'
 import { join, basename, extname } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted } from '../system/windows'
-import { getImage } from '../db'
+import { getImage } from '../db/db'
 import { ensureCaptureSubDir, thumbPathFor, resolveRealCapturePath } from '../system/paths'
 import { MAX_TEXT_LENGTH } from './ipc-validation'
 import { isDragTempPath } from './ipc-drag'
 import { createImageThumb } from '../capture/image-thumb'
-import { getVideoThumbProvider } from '../capture/video-thumb-provider'
+import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { CH } from '../../shared/api'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { beginTask, endTask } from '../system/busy'
@@ -165,7 +165,7 @@ export function registerImportHandlers(): void {
         let importedFps: number | null = null
         if (isVideo) {
           try {
-            const meta = await getVideoThumbProvider().getVideoMeta(rawPath)
+            const meta = await getVideoMeta(rawPath)
             importedDuration = meta.duration
             importedFps = meta.fps
           } catch { importedDuration = null }
@@ -214,7 +214,7 @@ export function registerImportHandlers(): void {
           }
         } else {
           const tf = thumbPathFor(destFile, '.png')
-          try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbFile = tf } catch (err) {
+          try { await extractThumb(destFile, tf); thumbFile = tf } catch (err) {
             console.warn('[import] extractThumb failed', err)
           }
           // 尺・fps はコピー前に元ファイルで判定済み（上の尺上限チェック）。再プローブしない。

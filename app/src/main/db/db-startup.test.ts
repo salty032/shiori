@@ -9,11 +9,11 @@ vi.mock('electron', () => ({
   app: { relaunch: vi.fn(), exit: vi.fn() },
   dialog: { showErrorBox, showMessageBoxSync: vi.fn() },
 }))
-vi.mock('../db-schema', () => ({
+vi.mock('./db-schema', () => ({
   initDb,
   databasePath: () => '/mock/userData/Shiori.db',
 }))
-vi.mock('./i18n', () => ({
+vi.mock('../system/i18n', () => ({
   currentLang: () => 'ja',
   t: (key: string, params?: Record<string, unknown>) => `${key}:${JSON.stringify(params ?? {})}`,
 }))

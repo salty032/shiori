@@ -1,13 +1,13 @@
 // 右クリックメニューの項目組み立て。App.tsx から切り出した。
 //
 // 出る項目は選択の状態で変わる：**単一選択のときだけ**「コピー」「エクスプローラーで表示」と
-// 機能側の追加項目（トリミング等）が出る。複数選択では書き出しと削除だけ。
+// 動画のトリミングが出る。複数選択では書き出しと削除だけ。
 // 「コピー」は静止画のみ（動画をクリップボードへ置く手段が無い）。
 import { useMemo } from 'react'
 import type { MenuItem } from '../components/ContextMenu'
 import type { ImageRow } from '../types'
 import type { ShowToast } from './useToast'
-import { getExtraContextMenuItems } from '../features/registry'
+import { useTrimStore } from '../video/trimStore'
 import { t } from '../i18n'
 
 export interface UseContextMenuItemsOptions {
@@ -39,7 +39,9 @@ export function useContextMenuItems({ open, single, onExport, onDelete, showToas
     if (single) {
       items.push({ label: t('action.showInFolder'), onClick: () => window.api.showInFolder(single.id) })
     }
-    if (single) items.push(...getExtraContextMenuItems(single))
+    if (single && single.media_type === 'video') {
+      items.push({ label: t('video.trim'), onClick: () => useTrimStore.getState().open(single.id) })
+    }
     items.push({ label: t('action.export'), onClick: onExport })
     items.push({ label: t('action.delete'), onClick: onDelete, danger: true })
     return items

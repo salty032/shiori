@@ -1,12 +1,12 @@
 import { app, dialog } from 'electron'
 import { statSync } from 'fs'
-import { initDb, databasePath } from '../db-schema'
+import { initDb, databasePath } from './db-schema'
 import {
   DatabaseMigrationBackupError, DatabaseVersionTooNewError, isDatabaseDamaged, listBackups,
   restoreDatabase, setAsideBrokenDatabase, writeRestoreMarker
 } from './db-maintenance'
-import { describeStartupError } from './startup-error'
-import { t, currentLang } from './i18n'
+import { describeStartupError } from '../system/startup-error'
+import { t, currentLang } from '../system/i18n'
 import { LOCALE_TAG } from '../../shared/i18n'
 
 // 起動時に DB を開くところだけを持つ。**開けなかったときに何を出すか**が本題で、

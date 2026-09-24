@@ -9,9 +9,10 @@ import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
-import VideoPlayer from './VideoPlayer'
-import { SEVERE_FRAME_RATIO } from '../frameTable'
-import { getMediaActions, useFeatureOverlayOpen } from '../features/registry'
+import VideoPlayer from '../video/VideoPlayer'
+import { SEVERE_FRAME_RATIO } from '../video/frameTable'
+import { useOverlayOpen } from '../overlaySignal'
+import TrimButton from '../video/TrimButton'
 import { useT } from '../i18n'
 
 type Props = {
@@ -60,9 +61,9 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
 
 export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { t, tp, locale } = useT()
-  // トリミング等のオーバーレイに覆われている間も再生を止める（registry の注記を参照）。
+  // トリミング等のオーバーレイに覆われている間も再生を止める（overlaySignal の注記を参照）。
   // ここはビューアと違い、ビューアを開かずに詳細パネルから直接トリミングへ入る経路のため。
-  const overlayOpen = useFeatureOverlayOpen()
+  const overlayOpen = useOverlayOpen()
   const windowWidth = useWindowWidth()
   const { width: panelWidth, handleResizeStart } = usePanelResize({
     storageKey: 'shiori-detail-width',
@@ -505,7 +506,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
           </div>
           </div>
           <div style={s.actions}>
-            {getMediaActions(single)}
+            {single.media_type === 'video' && <TrimButton imageId={single.id} />}
             <button style={s.showInFolderBtn} onClick={onExport}>{t('action.export')}</button>
             <button style={s.deleteActionBtn} onClick={onDelete}>{t('action.delete')}</button>
           </div>

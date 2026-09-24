@@ -2,7 +2,7 @@
 //
 // electron.vite.config.ts（main / preload / renderer の 3 層）とは別物で、こちらは
 // renderer だけを素の Vite でビルドする。エントリは app/web/index.html、window.api の
-// 実体は src/renderer/src/web/mockApi.ts が用意する。
+// 実体は src/renderer/src/demo/mockApi.ts が用意する。
 //
 // base はプロジェクトページ（https://<user>.github.io/shiori/）を既定にしつつ、
 // 環境変数 DEMO_BASE で上書きできる（独自ドメインやローカル確認用）。

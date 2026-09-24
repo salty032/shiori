@@ -38,7 +38,7 @@ vi.mock('fs/promises', () => ({
   unlink: (...args: unknown[]) => unlinkMock(...args),
 }))
 
-vi.mock('../db', () => ({ getImage: vi.fn(() => null) }))
+vi.mock('../db/db', () => ({ getImage: vi.fn(() => null) }))
 
 vi.mock('../system/paths', () => ({
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
@@ -53,11 +53,9 @@ vi.mock('../capture/image-thumb', () => ({
   createImageThumb: (...args: unknown[]) => createImageThumbMock(...args),
 }))
 
-vi.mock('../capture/video-thumb-provider', () => ({
-  getVideoThumbProvider: () => ({
-    getVideoMeta: vi.fn(async () => ({ duration: 5, fps: 30 })),
-    extractThumb: vi.fn(async () => undefined),
-  }),
+vi.mock('../video/ffmpeg', () => ({
+  getVideoMeta: vi.fn(async () => ({ duration: 5, fps: 30 })),
+  extractThumb: vi.fn(async () => undefined),
 }))
 
 const registerCapturedMediaMock = vi.fn(async (_arg: unknown) => ({ ok: true as const, id: 1 }))

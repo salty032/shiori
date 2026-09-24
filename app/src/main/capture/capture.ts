@@ -428,7 +428,7 @@ async function captureScreen(): Promise<string> {
 export function registerHotkey(hotkey: string, onError?: (message: string) => void): boolean {
   const ok = globalShortcut.register(hotkey, () => {
     captureScreen().catch((err) => {
-      // 通知不要な中断（連打による再入・Shioriフォーカス中・機能側ガードでの中断等）は無視。
+      // 通知不要な中断（連打による再入・Shioriフォーカス中・録画中ガードでの中断等）は無視。
       // preCaptureHook が既に具体的な警告（動画未検出）を送信済みのケースもここに含まれる。
       if (err instanceof SilentCaptureAbort) return
       if (err instanceof CaptureRootUnavailable) {

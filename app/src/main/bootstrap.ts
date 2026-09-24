@@ -8,9 +8,9 @@ import {
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, SilentCaptureAbort
 } from './capture/capture'
-import { databasePath, consumeDbBackupFailure } from './db-schema'
+import { databasePath, consumeDbBackupFailure } from './db/db-schema'
 import { registerCapturedMedia } from './capture/captured-media'
-import type { MainFeature } from './feature'
+import { registerVideoIpc, startVideo } from './video'
 import { loadSettings, saveSettings, flushSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, stripDedicatedSettingKeys } from './system/settings'
 import { activeTaskLabels } from './system/busy'
 import { checkExtensionUpdate, installedExtensionPath } from './browser/extension-updater'
@@ -39,15 +39,15 @@ import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
 import { sendBrowserNotice } from './browser/browser-notice'
 import { recheckMarkedClips } from './video/verify-clip'
-import { backfillFrameCounts } from './db-video-frames'
+import { backfillFrameCounts } from './db/db-video-frames'
 import { decideVersionNotice } from './system/version-notice'
 import { releaseNotesFor } from '../shared/releaseNotes'
 import { CH } from '../shared/api'
 import { waitForPreferredTimecode, type CaptureTimecode } from './browser/timecode-request'
 import { t } from './system/i18n'
 import { describeStartupError } from './system/startup-error'
-import { consumeRestoreMarker } from './system/db-maintenance'
-import { openDatabaseOrRecover, backupDateLabel } from './system/db-startup'
+import { consumeRestoreMarker } from './db/db-maintenance'
+import { openDatabaseOrRecover, backupDateLabel } from './db/db-startup'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
 // 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
@@ -89,7 +89,7 @@ async function confirmUpdateWhileBusy(): Promise<boolean> {
 
 // ブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
 // settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
-export function bootstrap(features: MainFeature[] = []): void {
+export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
 
@@ -176,7 +176,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     registerTaggerHandlers()
     registerShareHandlers()
     registerImportHandlers()
-    for (const feature of features) feature.registerIpc?.()
+    registerVideoIpc()
 
     registerShellHandlers()
 
@@ -356,7 +356,7 @@ export function bootstrap(features: MainFeature[] = []): void {
     }
     whenRendererReady(() => setTimeout(runFollowUps, FOLLOWUP_GRACE_MS))
     setTimeout(runFollowUps, FOLLOWUP_MAX_WAIT_MS)
-    for (const feature of features) await feature.onReady?.()
+    startVideo()
     const settingsProblem = consumeSettingsLoadProblem()
     if (settingsProblem) {
       // 「壊れていた」と「読めなかった」で、この後ユーザーが取るべき行動が違う。
@@ -453,7 +453,6 @@ export function bootstrap(features: MainFeature[] = []): void {
     // preventDefault → flush → app.quit() で再入するため、後片付けは初回だけ。
     if (teardownDone) return
 
-    for (const feature of features) feature.onBeforeQuit?.()
     globalShortcut.unregisterAll()
     stopWsServer()
     // ドラッグ用の複製は次回ドラッグ時にも作り直されるが、終了時に残すと temp が

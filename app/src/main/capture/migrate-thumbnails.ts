@@ -3,7 +3,7 @@ import { existsSync } from 'fs'
 import { app } from 'electron'
 import { basename, dirname, join, resolve } from 'path'
 import { captureDir, thumbnailDir } from '../system/paths'
-import { listImagesWithThumb, setThumbPath } from '../db'
+import { listImagesWithThumb, setThumbPath } from '../db/db'
 
 // 移行が一度完了したことを示すマーカー。これがあれば毎起動の全件スキャンを丸ごと省く。
 // Settings（renderer 公開契約）を汚さないよう userData 直下の専用ファイルで持つ。

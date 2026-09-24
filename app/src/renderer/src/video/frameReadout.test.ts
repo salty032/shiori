@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FRAME_QUALITY, type ClipFrames, type ClipGap } from '../../shared/api.video'
+import { FRAME_QUALITY, type ClipFrames, type ClipGap } from '../../../shared/api.video'
 import {
   buildGapIndex, frameReadout, sourceFrameNo, walkFrames, FRAME_COLOR,
 } from './frameReadout'

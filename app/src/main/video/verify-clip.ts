@@ -7,14 +7,14 @@
 // ffmpeg でフレームの署名と表示時刻を取り出し、結果を DB へ書き戻すところだけを受け持つ。
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
-import { invalidateClipFrames } from './ipc-video'
+import { invalidateClipFrames } from '../ipc/ipc-video'
 import {
   applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, verifyFrameTable
 } from './frame-verify'
-import { setAmbiguousFrames, setFrameCounts } from '../db'
+import { setAmbiguousFrames, setFrameCounts } from '../db/db'
 import {
   listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
-} from '../db-video-frames'
+} from '../db/db-video-frames'
 import { countReportDrops, reportDropsMeasured } from './frame-feed'
 import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'

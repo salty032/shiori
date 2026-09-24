@@ -4,14 +4,14 @@ import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
 import { join, basename } from 'path'
 import { randomUUID } from 'crypto'
 import { getMainWindow, handleTrusted, sendToRenderer, safeExternalUrl } from '../system/windows'
-import { listImagesForExport } from '../db'
-import { decodeFrames, encodeFrames, getVideoFrames, restoreVideoFrames } from '../db-video-frames'
+import { listImagesForExport } from '../db/db'
+import { decodeFrames, encodeFrames, getVideoFrames, restoreVideoFrames } from '../db/db-video-frames'
 import { loadSettings, saveSettings, smartFolders } from '../system/settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from '../system/paths'
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../../shared/api'
 import { MAX_SHARE_FRAME_TABLE_BYTES, parseShareEntry } from './share-entry'
-import { getVideoThumbProvider } from '../capture/video-thumb-provider'
+import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { MAX_IMPORT_VIDEO_SECONDS, IMPORT_VIDEO_SECONDS_EPS } from './ipc-import'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { createProgressThrottle } from '../system/progress-throttle'
@@ -255,12 +255,12 @@ export function registerShareHandlers(): void {
             // エクスポートで欠けている/不正な場合の保険）。
             if (!thumbDest) {
               const tf = thumbPathFor(destFile, '.png')
-              try { await getVideoThumbProvider().extractThumb(destFile, tf); thumbDest = tf } catch (err) {
+              try { await extractThumb(destFile, tf); thumbDest = tf } catch (err) {
                 console.warn('[share:import] extractThumb failed', err)
               }
             }
             try {
-              const meta = await getVideoThumbProvider().getVideoMeta(destFile)
+              const meta = await getVideoMeta(destFile)
               duration = meta.duration
               // duration が実体不一致で再取得されるのに対し、fps はバンドル値が検証済みなら
               // 優先する。バンドルに無ければ実体からの値で補う。

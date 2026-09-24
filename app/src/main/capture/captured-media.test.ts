@@ -7,11 +7,11 @@ const sendToRenderer = vi.fn((..._args: unknown[]) => {})
 const sendNotice = vi.fn((..._args: unknown[]) => {})
 const unlink = vi.fn(async (..._args: unknown[]) => {})
 
-vi.mock('../db', () => ({
+vi.mock('../db/db', () => ({
   insertImage: (params: unknown) => insertImage(params),
   getImage: (id: number) => getImage(id),
 }))
-vi.mock('../db-tags', () => ({ addTagsBulk: (...args: unknown[]) => addTagsBulk(...args) }))
+vi.mock('../db/db-tags', () => ({ addTagsBulk: (...args: unknown[]) => addTagsBulk(...args) }))
 vi.mock('../system/windows', () => ({
   sendToRenderer: (...args: unknown[]) => sendToRenderer(...args),
   sendNotice: (...args: unknown[]) => sendNotice(...args),

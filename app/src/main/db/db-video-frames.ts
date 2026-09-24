@@ -17,7 +17,7 @@
 // captured=true のコマでは意味を持たない（常に 'unknown'）。
 import { getDb, prepare } from './db-core'
 import { setFrameCounts } from './db'
-import { countReportDrops, reportDropsMeasured } from './video/frame-feed'
+import { countReportDrops, reportDropsMeasured } from '../video/frame-feed'
 
 export type FrameVerify = 'unknown' | 'same' | 'changed'
 
@@ -81,7 +81,7 @@ export function encodeFrames(frames: StoredFrame[]): string {
 //
 // 印の付いた行は decodeFrames が null を返す。配列でない形は元から null なので、
 // 読み出し側は 1 行も変えずに「表が無い」と同じ扱いになる。**この性質に頼っているので、
-// decodeFrames の入口で配列かどうかを見るのをやめてはいけない**（video-frames.test.ts が固定）。
+// decodeFrames の入口で配列かどうかを見るのをやめてはいけない**（db-video-frames.test.ts が固定）。
 interface UnusableRow {
   unusable: string
   frames: unknown

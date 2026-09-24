@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
-import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from '../frameTable'
+import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from './frameTable'
 import {
   buildGapIndex, frameReadout, walkFrames, FRAME_COLOR,
   type GapIndex, type ReadoutKind
-} from '../frameReadout'
-import { getClipFramesResolver } from '../features/registry'
+} from './frameReadout'
 import { useT, type Translate, type MessageKey } from '../i18n'
 import { font, radius, weight } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
@@ -117,7 +116,7 @@ type Props = {
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
-  // このクリップのコマ情報。取得できるまで（および動画機能を落とした構成）は null のまま。
+  // このクリップのコマ情報。取得できるまでは null のまま。
   const framesRef = useRef<ClipFrames | null>(null)
   // 通知欠落数と、録画画像から推定したアニメの抜けコマ数を混ぜない。コマ送りと番号に使う
   // missing は後者だけ。推定できなければ 0 のままにし、境界で「未確認」と表示する。
@@ -184,9 +183,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     pendingStepsRef.current = 0
     setFrameEnd(null)
     if (!preloadFrameTable) { setReadoutKind('off'); return }
-    const resolve = getClipFramesResolver()
-    // 解決役が未登録（video 機能ごと落とした構成）。コマの位置は分からないので fps 換算になる。
-    if (!resolve) { setReadoutKind('estimated'); return }
     setReadoutKind('loading')
     let canceled = false
     // 取得の成否どちらでも、保留していたコマ送りをそこで解放する。
@@ -209,7 +205,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       if (pending !== 0) moveFrames(pending)
       else refreshFrameReadout()
     }
-    resolve(id)
+    window.api.getClipFrames(id)
       .then(settle)
       .catch((err) => { console.warn('[video] clip frames unavailable', err); settle(null) })
     return () => { canceled = true }

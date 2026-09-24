@@ -7,7 +7,7 @@ import type { DemoManifest } from './manifest'
 // Web デモ版の起動経路（window.api を用意 → App を読み込む）が壊れていないことを見る。
 // ShioriApi にメソッドが増えたのにモック側へ足し忘れると typecheck が落ちるが、
 // 「読み込み順が逆転して window.api を undefined で掴む」類の事故は型では防げない
-// （main.web.tsx が bootApp を動的 import している理由がこれ）。
+// （web/main.tsx が App を動的 import している理由がこれ）。
 //
 // グリッドのサムネイルまでは検証しない。@tanstack/react-virtual は実寸から表示範囲を
 // 決めるので、要素サイズが常に 0 の jsdom ではセルが 1 つも描画されないため。
@@ -39,7 +39,7 @@ afterEach(() => {
 })
 
 it('App がマウントでき、デモ素材が UI まで届く', async () => {
-  const { default: App } = await import('./bootApp')
+  const { default: App } = await import('../App')
   const { container } = render(<App />)
   // サイドバーのタグ一覧（listAllTags）とツールバーの件数（countImages）。
   // どちらも window.api 経由でデモ素材の目録から組み立てられるので、

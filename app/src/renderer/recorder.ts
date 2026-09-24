@@ -1,121 +1,8 @@
 import fixWebmDuration from 'fix-webm-duration'
 import { createFrameSink } from './frame-sink'
+import type { BenchResult, BenchVariant, RecorderApi, StartData } from '../shared/recorder-api'
 
 export {}
-
-type CropRect = { x: number; y: number; w: number; h: number }
-
-// 供給の内訳（main の capture-diag.ts が受け取って1行のログにする）。
-// 「キャプチャ本体が寄越していないのか、寄越しているのに rVFC が観測を飛ばしたのか」を
-// 切り分けるための計測値で、録画の成否には一切関与しない。
-type CaptureDiag = {
-  callbacks: number
-  presented: number
-  skippedByCallback: number
-  duplicateSuppressed: number
-  /**
-   * captureTime が rVFC のメタデータに載らず Date.now() へ退避した枚数。
-   *
-   * 素材のコマとファイル内フレームの対応付けは「ページ側がコマを出した時刻」と
-   * 「こちらがそのコマを取り込んだ時刻」の差を一定と見なして補正している
-   * （frame-feed.ts の offsetMs）。captureTime はフレームが取り込まれた時刻そのものだが、
-   * getDisplayMedia 経由で載るかは実装依存で、載らなければコールバック実行時刻へ落ちる。
-   * この2つは意味が違うので、混在すると「遅延が一定」という前提自体が崩れる。
-   * 0 か全数かのどちらかであることを確かめるために数える。
-   */
-  captureTimeMissing: number
-  /**
-   * このウィンドウの performance 時刻を epoch へ直した値と、壁時計との差（ミリ秒）。
-   * `(performance.timeOrigin + performance.now()) - Date.now()`。
-   *
-   * drawnAt はここの `timeOrigin + captureTime`、配信ページ側の displayAt は Chrome 側の
-   * `timeOrigin + expectedDisplayTime` で、**別プロセスの単調時計を各々の epoch へ直した値**。
-   * timeOrigin は文書の生成時刻で固定される一方 now() は単調時計で進むので、壁時計との差は
-   * 文書の寿命ぶん開く。両プロセスでこの差が違えば、差はそのまま offsetMs に乗る
-   * （録画ごとにオフセットが振れる理由の候補。frame-feed.ts の ReportDelay と対で読む）。
-   */
-  clockSkewMs: number
-  totalVideoFrames: number | null
-  droppedVideoFrames: number | null
-  /** ティッカーが画面を書き換えた回数。供給の天井の切り分けに使う（main の CaptureDiag 参照） */
-  tickerTicks: number | null
-  /** MediaRecorder に要求した映像ビットレート（bps） */
-  videoBitsPerSecond: number | null
-  /**
-   * キャプチャストリームが実際に返したフレームの画素数。
-   *
-   * getDisplayMedia には解像度の制約を付けていない（frameRate だけ）ので、Chromium が
-   * 画面の物理解像度より小さいストリームを返しても**こちらは気付けない**——クロップ計算は
-   * `screenshotDpr = frameW / bounds.width` で吸収してしまうため、黙って低解像度で
-   * 録れてしまう。画面の物理解像度と並べて出すためにここで測る。
-   *
-   * **`track.getSettings()` ではなく `<video>` の実寸を使うこと。** 前者が返すのは
-   * 実フレームではなく公称の最大枠で、実測では 1920x1080 の画面に対し **1920x1920**
-   * （回転を許す正方形の枠）が返った。そのまま比べると毎回「画面と違う」と言うことになる。
-   */
-  streamWidth: number | null
-  streamHeight: number | null
-  /**
-   * 実際に記録した画素数（クロップ後）。**画質を語るときの母数**。
-   *
-   * プレーヤーの動画領域そのものなので、全画面かウィンドウか・モニタの DPI で大きく変わる。
-   * 要求ビットレートはこれに連動していないため、同じ 12Mbps でも 1 画素あたりは何倍も違う。
-   */
-  cropWidth: number | null
-  cropHeight: number | null
-}
-
-// 供給レートの計測（開発時のみ。supply-bench.ts 参照）。
-// 「キャプチャ本体」「canvas への描画」「エンコード」のどれが上限を決めているかを
-// 切り分けるため、段階を変えながら一定時間の供給枚数を数える。
-type BenchStage = 'capture' | 'draw' | 'encode'
-// ticker: 画面の隅を毎フレーム書き換えてキャプチャを誘発する。透明度だけを変えた3段階を
-// 比べることで、「キャプチャが反応するのは目に見える変化なのか、ウィンドウ内容の書き換え
-// そのものなのか」を切り分ける。invisible で効くなら、記録に一切写り込まずに供給を増やせる。
-type TickerMode = 'visible' | 'faint' | 'invisible'
-type BenchVariant = { name: string; stage: BenchStage; maxWidth?: number; maxFrameRate?: number; ticker?: TickerMode }
-type BenchResult = {
-  name: string
-  seconds: number
-  /** rVFC が呼ばれた回数 */
-  frames: number
-  /** そのうち mediaTime が直前と異なったもの＝別フレームとして届いた枚数 */
-  distinct: number
-  /** video 要素が受け取った総数（getVideoPlaybackQuality） */
-  totalVideoFrames: number | null
-  /** 実際に得られたストリームの解像度 */
-  width: number
-  height: number
-  error?: string
-}
-
-// 画面キャプチャの立ち上げに要るぶんだけ（recorder:prepare）。
-interface PrepareData {
-  sourceId: string
-  fps: number
-  sessionId: number
-}
-
-// 記録を始めるときに決まっているもの（recorder:start）。**ビットレートの根拠は準備時点では
-// 確定していない**ので、こちらで受ける。
-interface StartData {
-  supplyFps: number
-  sourceFps: number | null
-  maxSeconds: number
-}
-
-interface RecorderApi {
-  onPrepare: (cb: (data: PrepareData) => void) => void
-  onStart: (cb: (data: StartData) => void) => void
-  reportReady: (sessionId: number) => void
-  onStop: (cb: () => void) => void
-  getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
-  sendDone: (webm: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
-  reportStopped: (sessionId: number) => void
-  reportError: (msg: string, sessionId: number) => void
-  onBench: (cb: (data: { variants: BenchVariant[]; seconds: number }) => void) => void
-  sendBenchResult: (results: BenchResult[]) => void
-}
 
 declare global {
   interface Window {
@@ -522,7 +409,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   let presentedLast: number | null = null
   let skippedByCallback = 0
   let duplicateSuppressed = 0
-  const scheduleFrame = (now?: number, meta?: CaptureFrameMeta): void => {
+  const scheduleFrame = (_now?: number, meta?: CaptureFrameMeta): void => {
     if (!rVfcRunning) return
     callbacks++
     const presented = meta?.presentedFrames
@@ -617,10 +504,12 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     //
     // **単位はコマ数**（時間ではない）。決めたいのは「最悪どれだけデコードするか」で、
     // それはコマ数そのものだから。供給レートが変わっても意味が変わらない。
-    rec = new MediaRecorder(recordStream, {
+    // videoKeyFrameIntervalCount は Chromium 独自の指定で、標準の MediaRecorderOptions に無い。
+    const options: MediaRecorderOptions & { videoKeyFrameIntervalCount: number } = {
       mimeType, videoBitsPerSecond, audioBitsPerSecond: 192_000,
       videoKeyFrameIntervalCount: KEYFRAME_INTERVAL_FRAMES,
-    })
+    }
+    rec = new MediaRecorder(recordStream, options)
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
     cleanup(stream, cs, token)

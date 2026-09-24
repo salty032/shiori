@@ -1,7 +1,7 @@
 // 画像行の読み書き（images）と、そこにぶら下がるタイムシート。
 // スキーマと起動処理は db-schema.ts、タグは db-tags.ts、フレーム表は db-video-frames.ts。
-import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase } from '../shared/types'
-import { buildSearchText, normalizeSearchText } from '../shared/normalize'
+import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase } from '../../shared/types'
+import { buildSearchText, normalizeSearchText } from '../../shared/normalize'
 import { getDb, prepare } from './db-core'
 import { pruneOrphanTags } from './db-tags'
 

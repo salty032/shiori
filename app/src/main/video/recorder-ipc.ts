@@ -17,8 +17,8 @@ import {
 } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { setFrameCounts } from '../db'
-import { saveVideoFrames } from '../db-video-frames'
+import { setFrameCounts } from '../db/db'
+import { saveVideoFrames } from '../db/db-video-frames'
 import { t } from '../system/i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策

@@ -23,7 +23,7 @@ import { t } from '../i18n'
 import { setMediaUrlResolver } from '../utils'
 import { normalizeSearchText } from '../../../shared/normalize'
 import { loadDemoLibrary } from './manifest'
-import { markDemoMode } from '../features/registry'
+import { markDemoMode } from '../demoMode'
 
 // vite.web.config.ts の define がビルド時に app/package.json の version を埋める。
 declare const __APP_VERSION__: string
@@ -274,7 +274,7 @@ export async function installMockApi(): Promise<void> {
   }
 
   window.api = api
-  // コア（App.tsx）がデモ専用の空画面へ切り替えるための印。window.api を差すのと同じ
+  // App.tsx がデモ専用の空画面へ切り替えるための印。window.api を差すのと同じ
   // タイミングで立てる——App のマウントより前でなければ、初回描画がデスクトップ版の
   // 初回案内（押しても断られるボタン付き）になる。
   markDemoMode()

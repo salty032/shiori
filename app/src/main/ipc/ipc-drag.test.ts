@@ -7,7 +7,7 @@ vi.mock('electron', () => ({
   app: { getPath: vi.fn().mockReturnValue(MOCK_TEMP) },
   nativeImage: { createFromPath: vi.fn(), createEmpty: vi.fn() },
 }))
-vi.mock('../db', () => ({ getImage: vi.fn() }))
+vi.mock('../db/db', () => ({ getImage: vi.fn() }))
 vi.mock('../system/windows', () => ({ onTrusted: vi.fn() }))
 
 import { isDragTempPath } from './ipc-drag'

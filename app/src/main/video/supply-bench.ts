@@ -17,23 +17,10 @@ import { getBrowserWindowRect } from '../capture/capture'
 import { screen as electronScreen } from 'electron'
 import { getRecorderWindow, isTrustedRecorderSender, setPendingDisplaySource } from './recorder-window'
 import { isCurrentlyRecording } from './recording'
+import type { BenchRequest, BenchResult, BenchVariant } from '../../shared/recorder-api'
 
 const BENCH_HOTKEY = 'Alt+Shift+D'
 const BENCH_SECONDS = 5
-
-type BenchStage = 'capture' | 'draw' | 'encode'
-type TickerMode = 'visible' | 'faint' | 'invisible'
-type BenchVariant = { name: string; stage: BenchStage; maxWidth?: number; maxFrameRate?: number; ticker?: TickerMode }
-type BenchResult = {
-  name: string
-  seconds: number
-  frames: number
-  distinct: number
-  totalVideoFrames: number | null
-  width: number
-  height: number
-  error?: string
-}
 
 // 比較する条件。
 //
@@ -141,7 +128,7 @@ export function registerSupplyBench(): void {
       `[supply-bench] running ${VARIANTS.length} variants x ${BENCH_SECONDS}s.` +
       ' Keep the video playing until the results appear.'
     )
-    win.webContents.send('recorder:bench', { variants: VARIANTS, seconds: BENCH_SECONDS })
+    win.webContents.send('recorder:bench', { variants: VARIANTS, seconds: BENCH_SECONDS } satisfies BenchRequest)
   })
   if (!ok) console.warn(`[supply-bench] hotkey ${BENCH_HOTKEY} registration failed`)
   else console.log(`[supply-bench] press ${BENCH_HOTKEY} while a video is playing to measure the capture supply`)
