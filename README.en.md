@@ -21,15 +21,8 @@ WD Tagger and filtering by tag or date.
 - **Search and filter**: search titles and notes, and filter by tag (AND/OR), date, or service
 - **Grid and timeline views**: organize in bulk with drag-rectangle selection, Shift/Ctrl-click, and arrow keys
 - **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer); `M` mutes
-- **Timesheet** (**cannot be opened in v1.4.0**): type numbers while stepping through frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet.
-  Which recordings can and cannot produce a usable sheet is still being confirmed, so the feature is held for now rather than risk a sheet you typed becoming unusable.
-  **Sheets you have already typed in are cleared once, the first time you start this version.**
-  Older sheets laid out one row per *frame* the streaming page failed to report, treating that count as
-  the number of animation frames. If that count is off by one, everything you typed below it points one
-  frame over — and **it still looks correct on screen**. Rather than let those pass as "what you typed
-  before", they are not kept. (The two counts are now kept apart: how many animation frames are missing
-  is estimated from the pictures left in the recording, and where that cannot be estimated Shiori says
-  so and does not open the sheet at all.)
+- **Timesheet** (**cannot be opened for now**): type numbers while stepping through frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet.
+  It stays closed until the sheet's frame numbers can be confirmed to match the source video's frames.
 - **Export as mp4**: choose “mp4” under Settings > Data > Video conversion and Shiori converts to H.264 on export (webm stays the default)
 - **Local import**: paste a clipboard image with `Ctrl+V`, or drop a folder of images and videos (`.webm` / `.mp4`, up to 30 seconds) to import them in bulk
 - **Delete**: press `Delete`. The toast that appears has an "Undo" you can use for a few seconds
@@ -142,10 +135,10 @@ A higher refresh rate does not help: capture tops out at roughly 50 frames per s
 guaranteed on any display.**
 
 **Nothing unreliable is passed off silently.** A frame whose picture was not captured reads
-"not captured", a point where the frames themselves never arrived reads "8 frames missing",
+"missed", a point where the frames themselves never arrived reads "8 frames missing",
 and a clip whose frame stepping cannot be trusted turns the frame number red and reads
 "unreliable" (press the frame number to read what each one means). The detail panel shows
-"{n} frames not captured" and "unreliable". **You can tell on the spot whether the picture
+"3 frames missed" or "unreliable". **You can tell on the spot whether the picture
 staying the same is evidence of the animation's frame timing.**
 
 ### Import your own images and videos
