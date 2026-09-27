@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fra
 import { mediaUrl } from '../utils'
 import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from './frameTable'
 import {
-  buildGapIndex, frameReadout, walkFrames, FRAME_COLOR,
+  buildGapIndex, frameReadout, unreliableReasons, walkFrames, FRAME_COLOR,
   type GapIndex, type ReadoutKind
 } from './frameReadout'
 import { useT, type Translate, type MessageKey } from '../i18n'
@@ -792,6 +792,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
                 <span style={{ opacity: 0.85 }}>{t(`${key}.desc` as MessageKey)}</span>
               </Fragment>
             ))}
+            {/* 要注意のときだけ、この録画で何が起きているかを足す（unreliableReasons）。
+                意味の一覧だけでは、どちらの理由で・どこから当てにならないのかが読めない。 */}
+            {unreliableRef.current && (() => {
+              const reasons = unreliableReasons(framesRef.current, gapIndexRef.current, t)
+              return reasons.length > 0 && (
+                <>
+                  <span style={{ color: FRAME_COLOR.alert, fontWeight: weight.medium, whiteSpace: 'nowrap' }}>{t('viewer.legendThisClip')}</span>
+                  <span>{reasons.join(' ')}</span>
+                </>
+              )
+            })()}
           </div>
         )}
         {/* 映像の内側（下端）に重ねる。通常フローで下に積むと動画だけ VC_BAR_HEIGHT 分

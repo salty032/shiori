@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FRAME_QUALITY, type ClipFrames, type ClipGap } from '../../../shared/api.video'
 import {
-  buildGapIndex, frameReadout, sourceFrameNo, walkFrames, FRAME_COLOR,
+  buildGapIndex, frameReadout, sourceFrameNo, unreliableReasons, walkFrames, FRAME_COLOR,
 } from './frameReadout'
 
 // 文言そのものではなく「どのキーがどの値で選ばれたか」を見る。訳文を変えてもテストは
@@ -205,5 +205,45 @@ describe('frameReadout - 何を出すか', () => {
   it('添字が範囲の外でも端に丸める', () => {
     expect(frameReadout({ ...base, kind: 'source', idx: 99 }, tr)?.cur).toBe(3)
     expect(frameReadout({ ...base, kind: 'source', idx: -5 }, tr)?.cur).toBe(0)
+  })
+})
+
+describe('unreliableReasons - 要注意の中身', () => {
+  const M = FRAME_QUALITY.misaligned
+  const C = FRAME_QUALITY.captured
+
+  it('問題が無ければ何も返さない', () => {
+    const f = frames()
+    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual([])
+  })
+
+  it('ずれは、最初にずれた行の番号と行数を出す', () => {
+    const f = frames({ quality: [C, M, M, M] })
+    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual(['viewer.unreliableMisaligned(from=2,count=3)'])
+  })
+
+  it('番号は画面と同じく抜けを数える（言われた番号へ送れば、そのコマに着く）', () => {
+    // 行 0 の後ろに 5 コマ抜け。行 1 は画面では 7 番。
+    const f = frames({ quality: [C, M, M, M], gaps: [gap(0, 5, 5)] })
+    expect(unreliableReasons(f, buildGapIndex(f), tr)[0]).toBe('viewer.unreliableMisaligned(from=7,count=3)')
+  })
+
+  it('欠けは、元の動画のコマ数に対する数と割合を出す', () => {
+    const f = frames({ gaps: [gap(1, 1, 1)] })
+    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual(['viewer.unreliableMissing(count=1,total=5,pct=20)'])
+  })
+
+  it('欠けが少なければ要注意の理由にしない（isClipUnreliable と同じ線）', () => {
+    const pts = Array.from({ length: 100 }, (_, i) => i * 0.04)
+    const f = frames({ pts, gaps: [gap(10, 1, 1)] })
+    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual([])
+  })
+
+  it('両方あれば両方出す（ずれ → 欠けの順）', () => {
+    const f = frames({ quality: [C, C, M, M], gaps: [gap(0, 2, 2)] })
+    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual([
+      'viewer.unreliableMisaligned(from=5,count=2)',
+      'viewer.unreliableMissing(count=2,total=6,pct=33)',
+    ])
   })
 })

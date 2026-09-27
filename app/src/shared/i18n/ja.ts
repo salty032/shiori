@@ -320,6 +320,10 @@ export const ja = {
   'viewer.legendUnreliable.label': '要注意',
   'viewer.legendUnreliable.desc': '映っている絵が元の動画のコマと対応していないか、元の動画のコマが広く欠けています。この録画ではコマ打ちを数えられません。',
   'viewer.frameUnreliable': '要注意',
+  // 「要注意」の中身（frameReadout.ts の unreliableReasons）。注記の一覧にだけ出す。
+  'viewer.legendThisClip': 'この録画',
+  'viewer.unreliableMisaligned': 'コマ {from} 以降の {count} コマで、映っている絵と元の動画のコマの対応がずれています。',
+  'viewer.unreliableMissing': '元の動画の {total} コマのうち {count} コマ（{pct}%）が録画にありません。',
   // 抜けが少ないクリップで、穴の直前のコマまで来たときだけ出る。**場所を指す注記。**
   // 壊れているのはこの境目だけで、残りの境目は無傷なので、クリップ全体は赤くしない。
   // **ビューアでは未取得と区別する。** 押した先で何が起きるかが違う——未取得は止まれて
@@ -511,7 +515,7 @@ export const ja = {
   // コマ送りの注記と同じ括り。抜け（コマ自体が無い）もずれ（絵が別のコマ）も、
   // そのコマだけの問題ではなくクリップ全体の話なので**枚数を出さない**。
   'detail.unreliable': '要注意',
-  'detail.unreliableHint': 'この録画は、映っている絵と元の動画のコマの対応が途中からずれています。コマ打ちを数える用途には使えません。',
+  'detail.unreliableHint': '{total} コマのうち {count} コマで、映っている絵と元の動画のコマの対応がずれています。どこからかは、ビューアでコマ番号を押すと出ます。コマ打ちを数える用途には使えません。',
   'detail.uncapturedFrames': '撮り逃し {count}コマ',
   'detail.uncapturedFramesHint': '専用の絵を撮れず、直前のコマの絵が表示されている箇所が {count} コマあります。通知が届かなかったフレーム数とは別の値です。',
   'detail.memo': 'メモ',

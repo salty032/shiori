@@ -7,7 +7,7 @@
 // 確かめられない。判定だけをここへ出し、書き込み（el.textContent / style）は呼び出し側に残す。
 //
 // **表示の見え方は変えていない。** 文言・色・優先順位はすべて元のまま。
-import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
+import { FRAME_QUALITY, SEVERE_FRAME_RATIO, type ClipFrames } from '../../../shared/api.video'
 import type { MessageKey, Translate } from '../i18n'
 
 /**
@@ -93,6 +93,37 @@ export function buildGapIndex(frames: ClipFrames | null): GapIndex {
 // 切るかで、抜けたコマはそもそも切る対象に無い。
 export function sourceFrameNo(idx: number, gapBefore: number[], gap = 0): number {
   return idx + (gapBefore[idx] ?? 0) + gap + 1
+}
+
+// 「要注意」の中身。**この録画では何が起きているか**を、理由ごとに 1 文ずつ返す。
+//
+// 「要注意」とだけ出しても、何に気をつければいいのか読めない。理由は 2 つあり
+// （frameTable の isClipUnreliable と同じ切り方）、どちらも箇所と量で言える。
+//   ずれ … 対応が崩れた最初のコマの番号と、崩れた行の数
+//   欠け … 元の動画のコマのうち、録画に無いコマの数と割合
+// 番号は画面のコマ番号と同じ数え方（sourceFrameNo）にする。**違う数え方で出すと、
+// 言われた番号へコマ送りしても別の場所に着く。**
+export function unreliableReasons(frames: ClipFrames | null, index: GapIndex, tr: Translate['t']): string[] {
+  if (!frames || frames.pts.length === 0) return []
+  const out: string[] = []
+  const first = frames.quality.findIndex((q) => q === FRAME_QUALITY.misaligned)
+  if (first >= 0) {
+    const count = frames.quality.filter((q) => q === FRAME_QUALITY.misaligned).length
+    out.push(tr('viewer.unreliableMisaligned', {
+      from: String(sourceFrameNo(first, index.gapBefore)),
+      count: String(count),
+    }))
+  }
+  const total = index.totalWithGaps
+  const missing = total - frames.pts.length
+  if (missing > 0 && missing / total > SEVERE_FRAME_RATIO) {
+    out.push(tr('viewer.unreliableMissing', {
+      count: String(missing),
+      total: String(total),
+      pct: String(Math.round((missing / total) * 100)),
+    }))
+  }
+  return out
 }
 
 // 実測行と、その間に推定した仮想コマを合わせて delta コマ歩く。
