@@ -96,7 +96,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const unreliableNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
     const misaligned = single.misaligned_frames ?? 0
-    // 説明には量を出す（ビューアの注記の一覧と同じ中身）。どこからかは表を読まないと
+    // 説明には量を出す（ビューアで開く、この録画の状態の一覧と同じ中身）。どこからかは表を読まないと
     // 分からないので、ビューアへ案内する。
     if (misaligned > 0) {
       const title = t('detail.unreliableHint', { count: String(misaligned), total: String(single.source_frames ?? '—') })

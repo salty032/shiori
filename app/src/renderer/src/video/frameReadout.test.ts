@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FRAME_QUALITY, type ClipFrames, type ClipGap } from '../../../shared/api.video'
 import {
-  buildGapIndex, frameReadout, sourceFrameNo, unreliableReasons, walkFrames, FRAME_COLOR,
+  buildGapIndex, clipStatus, frameReadout, sourceFrameNo, walkFrames, FRAME_COLOR,
 } from './frameReadout'
 
 // 文言そのものではなく「どのキーがどの値で選ばれたか」を見る。訳文を変えてもテストは
@@ -208,42 +208,54 @@ describe('frameReadout - 何を出すか', () => {
   })
 })
 
-describe('unreliableReasons - 要注意の中身', () => {
+describe('clipStatus - この録画の状態', () => {
   const M = FRAME_QUALITY.misaligned
+  const R = FRAME_QUALITY.reused
   const C = FRAME_QUALITY.captured
+  const texts = (f: ClipFrames): string[] => clipStatus(f, buildGapIndex(f), tr).map((l) => `${l.label}:${l.text}`)
 
-  it('問題が無ければ何も返さない', () => {
+  it('何も見つからなければ、ラベルの無い 1 行だけ', () => {
     const f = frames()
-    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual([])
+    expect(clipStatus(f, buildGapIndex(f), tr)).toEqual([
+      { label: null, color: FRAME_COLOR.ok, text: 'viewer.statusClean' },
+    ])
   })
 
-  it('ずれは、最初にずれた行の番号と行数を出す', () => {
-    const f = frames({ quality: [C, M, M, M] })
-    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual(['viewer.unreliableMisaligned(from=2,count=3)'])
+  it('ずれは要注意で、最初にずれたコマの番号と行数を出す', () => {
+    expect(texts(frames({ quality: [C, M, M, M] }))).toEqual([
+      'viewer.frameUnreliable:viewer.statusMisaligned(from=2,count=3)',
+    ])
   })
 
   it('番号は画面と同じく抜けを数える（言われた番号へ送れば、そのコマに着く）', () => {
-    // 行 0 の後ろに 5 コマ抜け。行 1 は画面では 7 番。
-    const f = frames({ quality: [C, M, M, M], gaps: [gap(0, 5, 5)] })
-    expect(unreliableReasons(f, buildGapIndex(f), tr)[0]).toBe('viewer.unreliableMisaligned(from=7,count=3)')
+    // 行 0 の後ろに 5 コマ抜け（6 コマ中 5 コマ＝欠けも要注意になる）。行 1 は画面では 7 番。
+    expect(texts(frames({ quality: [C, M, M, M], gaps: [gap(0, 5, 5)] }))[0])
+      .toBe('viewer.frameUnreliable:viewer.statusMisaligned(from=7,count=3)')
   })
 
-  it('欠けは、元の動画のコマ数に対する数と割合を出す', () => {
-    const f = frames({ gaps: [gap(1, 1, 1)] })
-    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual(['viewer.unreliableMissing(count=1,total=5,pct=20)'])
+  it('欠けが多ければ要注意で数と割合を出し、同じ抜けを「抜け」で重ねて言わない', () => {
+    expect(texts(frames({ gaps: [gap(1, 1, 1)] }))).toEqual([
+      'viewer.frameUnreliable:viewer.statusMissingSevere(count=1,total=5,pct=20)',
+    ])
   })
 
-  it('欠けが少なければ要注意の理由にしない（isClipUnreliable と同じ線）', () => {
+  it('欠けが少なければ「抜け」で、か所・合計・最初の位置を出す', () => {
     const pts = Array.from({ length: 100 }, (_, i) => i * 0.04)
-    const f = frames({ pts, gaps: [gap(10, 1, 1)] })
-    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual([])
+    expect(texts(frames({ pts, gaps: [gap(40, 2, 2), gap(10, 1, 1)] }))).toEqual([
+      'viewer.statusLabelGap:viewer.statusGap(places=2,count=3,from=11)',
+    ])
   })
 
-  it('両方あれば両方出す（ずれ → 欠けの順）', () => {
-    const f = frames({ quality: [C, C, M, M], gaps: [gap(0, 2, 2)] })
-    expect(unreliableReasons(f, buildGapIndex(f), tr)).toEqual([
-      'viewer.unreliableMisaligned(from=5,count=2)',
-      'viewer.unreliableMissing(count=2,total=6,pct=33)',
+  it('コマ数の分からない抜けは別の行で出す', () => {
+    const pts = Array.from({ length: 100 }, (_, i) => i * 0.04)
+    expect(texts(frames({ pts, gaps: [gap(20, 3)] }))).toEqual([
+      'viewer.statusLabelGap:viewer.statusGapUnknown(places=1,from=21)',
+    ])
+  })
+
+  it('撮り逃しは数と最初の位置を出す', () => {
+    expect(texts(frames({ quality: [C, C, R, R] }))).toEqual([
+      'viewer.frameNeedsReview:viewer.statusReused(count=2,from=3)',
     ])
   })
 })

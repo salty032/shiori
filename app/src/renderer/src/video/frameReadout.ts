@@ -95,34 +95,80 @@ export function sourceFrameNo(idx: number, gapBefore: number[], gap = 0): number
   return idx + (gapBefore[idx] ?? 0) + gap + 1
 }
 
-// 「要注意」の中身。**この録画では何が起きているか**を、理由ごとに 1 文ずつ返す。
+// この録画の状態。コマ番号を押すと出る一覧の中身（VideoPlayer）。
 //
-// 「要注意」とだけ出しても、何に気をつければいいのか読めない。理由は 2 つあり
-// （frameTable の isClipUnreliable と同じ切り方）、どちらも箇所と量で言える。
-//   ずれ … 対応が崩れた最初のコマの番号と、崩れた行の数
-//   欠け … 元の動画のコマのうち、録画に無いコマの数と割合
-// 番号は画面のコマ番号と同じ数え方（sourceFrameNo）にする。**違う数え方で出すと、
-// 言われた番号へコマ送りしても別の場所に着く。**
-export function unreliableReasons(frames: ClipFrames | null, index: GapIndex, tr: Translate['t']): string[] {
+// **意味の説明は出さない。この録画のどこがダメか、あるいは大丈夫かだけを出す。** 以前は
+// 注記の意味の一覧に録画の状態を足していて、一般的な説明とこの録画の話が混ざって読めなかった。
+// 注記の意味は、コマ番号にマウスを載せたときの説明で読める。
+//
+// 見つかった問題ごとに 1 行。ラベルはコマ番号の横に出る注記と同じ語にする（同じものを
+// 別の名前で呼ばない）。番号は画面のコマ番号と同じ数え方（sourceFrameNo）——違う数え方で
+// 出すと、言われた番号へコマ送りしても別の場所に着く。
+// 何も見つからなければ label の無い 1 行。「完全」とは言わない（素材 1 コマ未満のずれは
+// 検査で見つけられない）。
+export interface ClipStatusLine {
+  label: string | null
+  color: string
+  text: string
+}
+
+export function clipStatus(frames: ClipFrames | null, index: GapIndex, tr: Translate['t']): ClipStatusLine[] {
   if (!frames || frames.pts.length === 0) return []
-  const out: string[] = []
-  const first = frames.quality.findIndex((q) => q === FRAME_QUALITY.misaligned)
-  if (first >= 0) {
-    const count = frames.quality.filter((q) => q === FRAME_QUALITY.misaligned).length
-    out.push(tr('viewer.unreliableMisaligned', {
-      from: String(sourceFrameNo(first, index.gapBefore)),
-      count: String(count),
+  const out: ClipStatusLine[] = []
+  const no = (i: number): string => String(sourceFrameNo(i, index.gapBefore))
+  const alert = (text: string): void => { out.push({ label: tr('viewer.frameUnreliable'), color: FRAME_COLOR.alert, text }) }
+
+  const firstMisaligned = frames.quality.findIndex((q) => q === FRAME_QUALITY.misaligned)
+  if (firstMisaligned >= 0) {
+    alert(tr('viewer.statusMisaligned', {
+      from: no(firstMisaligned),
+      count: String(frames.quality.filter((q) => q === FRAME_QUALITY.misaligned).length),
     }))
   }
+
+  // 欠けが多ければ要注意（frameTable の isClipUnreliable と同じ線）。そのときは同じ抜けを
+  // 「抜け」の行で重ねて言わない。
   const total = index.totalWithGaps
   const missing = total - frames.pts.length
-  if (missing > 0 && missing / total > SEVERE_FRAME_RATIO) {
-    out.push(tr('viewer.unreliableMissing', {
-      count: String(missing),
-      total: String(total),
-      pct: String(Math.round((missing / total) * 100)),
+  const severe = missing > 0 && missing / total > SEVERE_FRAME_RATIO
+  if (severe) {
+    alert(tr('viewer.statusMissingSevere', {
+      count: String(missing), total: String(total), pct: String(Math.round((missing / total) * 100)),
     }))
   }
+
+  const gaps = [...index.gaps.entries()].sort((x, y) => x[0] - y[0])
+  const known = gaps.filter(([, g]) => g.known && g.missing > 0)
+  if (!severe && known.length > 0) {
+    out.push({
+      label: tr('viewer.statusLabelGap'), color: FRAME_COLOR.warn,
+      text: tr('viewer.statusGap', {
+        places: String(known.length),
+        count: String(known.reduce((n, [, g]) => n + g.missing, 0)),
+        from: no(known[0][0]),
+      }),
+    })
+  }
+  const unknown = gaps.filter(([, g]) => !g.known)
+  if (unknown.length > 0) {
+    out.push({
+      label: tr('viewer.statusLabelGap'), color: FRAME_COLOR.warn,
+      text: tr('viewer.statusGapUnknown', { places: String(unknown.length), from: no(unknown[0][0]) }),
+    })
+  }
+
+  const firstReused = frames.quality.findIndex((q) => q === FRAME_QUALITY.reused)
+  if (firstReused >= 0) {
+    out.push({
+      label: tr('viewer.frameNeedsReview'), color: FRAME_COLOR.warn,
+      text: tr('viewer.statusReused', {
+        count: String(frames.quality.filter((q) => q === FRAME_QUALITY.reused).length),
+        from: no(firstReused),
+      }),
+    })
+  }
+
+  if (out.length === 0) out.push({ label: null, color: FRAME_COLOR.ok, text: tr('viewer.statusClean') })
   return out
 }
 

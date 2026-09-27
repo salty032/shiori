@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fra
 import { mediaUrl } from '../utils'
 import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from './frameTable'
 import {
-  buildGapIndex, frameReadout, unreliableReasons, walkFrames, FRAME_COLOR,
+  buildGapIndex, clipStatus, frameReadout, walkFrames,
   type GapIndex, type ReadoutKind
 } from './frameReadout'
-import { useT, type Translate, type MessageKey } from '../i18n'
+import { useT, type Translate } from '../i18n'
 import { font, radius, weight } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
@@ -51,7 +51,7 @@ const CONTROLS_IDLE_MS = 2500
 // コマ表示の置き場所。コントロールバー（ホバー時だけ出る）の上に重ねる。
 // **バーの中に入れないのは、バーがホバー中しか出ないため** —— キーボードでコマ送りして
 // いる間はポインタが映像の上に無いことが多く、肝心の番号が見えない。
-// 注記の意味の一覧（コマ番号を押すと開く）。コマ表示のすぐ上に、同じ調子で重ねる。
+// この録画の状態の一覧（コマ番号を押すと開く）。コマ表示のすぐ上に、同じ調子で重ねる。
 const frameLegendStyle: React.CSSProperties = {
   position: 'absolute', left: 10, bottom: VC_OVERLAY_HEIGHT + 30, zIndex: 4,
   pointerEvents: 'auto', cursor: 'pointer',
@@ -775,34 +775,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
             onClick={(e) => { e.stopPropagation(); setLegendOpen((v) => !v) }}
           />
         )}
-        {/* 注記の意味の一覧。**普段は出さず、コマ番号を押したときだけ開く。**
-            常設すると映像の邪魔になり、マウスを載せたときだけの説明では気づけない。
-            押せば出る／押せば消える、の 1 か所に置く。 */}
+        {/* この録画の状態（clipStatus）。**普段は出さず、コマ番号を押したときだけ開く。**
+            常設すると映像の邪魔になる。押せば出る／押せば消える、の 1 か所に置く。 */}
         {readout !== 'off' && legendOpen && !playing && (
           <div
             style={frameLegendStyle}
             onClick={(e) => { e.stopPropagation(); setLegendOpen(false) }}>
-            {([
-              ['viewer.legendUnreliable', FRAME_COLOR.alert],
-              ['viewer.legendGap', FRAME_COLOR.warn],
-              ['viewer.legendMissing', FRAME_COLOR.warn],
-            ] as const).map(([key, color]) => (
-              <Fragment key={key}>
-                <span style={{ color, fontWeight: weight.medium, whiteSpace: 'nowrap' }}>{t(`${key}.label` as MessageKey)}</span>
-                <span style={{ opacity: 0.85 }}>{t(`${key}.desc` as MessageKey)}</span>
-              </Fragment>
+            {clipStatus(framesRef.current, gapIndexRef.current, t).map((line, i) => (
+              line.label === null
+                ? <span key={i} style={{ gridColumn: '1 / -1' }}>{line.text}</span>
+                : (
+                  <Fragment key={i}>
+                    <span style={{ color: line.color, fontWeight: weight.medium, whiteSpace: 'nowrap' }}>{line.label}</span>
+                    <span>{line.text}</span>
+                  </Fragment>
+                )
             ))}
-            {/* 要注意のときだけ、この録画で何が起きているかを足す（unreliableReasons）。
-                意味の一覧だけでは、どちらの理由で・どこから当てにならないのかが読めない。 */}
-            {unreliableRef.current && (() => {
-              const reasons = unreliableReasons(framesRef.current, gapIndexRef.current, t)
-              return reasons.length > 0 && (
-                <>
-                  <span style={{ color: FRAME_COLOR.alert, fontWeight: weight.medium, whiteSpace: 'nowrap' }}>{t('viewer.legendThisClip')}</span>
-                  <span>{reasons.join(' ')}</span>
-                </>
-              )
-            })()}
           </div>
         )}
         {/* 映像の内側（下端）に重ねる。通常フローで下に積むと動画だけ VC_BAR_HEIGHT 分

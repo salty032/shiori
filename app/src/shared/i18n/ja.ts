@@ -305,25 +305,22 @@ export const ja = {
   // 対応がずれているコマ（StoredFrame.misaligned）。表全体を捨てる代わりの印。
   // **流用より重い**——流用は「絵が無いので直前を出している」と分かっているが、
   // こちらは今出ている絵が何なのか分からない。
-  // 注記の意味の一覧（コマ番号を押すと開く）。**常設しない**——映像の邪魔になるし、
-  // マウスを載せたときだけの説明では気づけない。押せば出る 1 か所にまとめる。
-  'viewer.legendMissing.label': '撮り逃し',
-  'viewer.legendMissing.desc': 'このコマの絵が撮れておらず、直前のコマの絵が映っています。別の絵が入っていた可能性を消せません。',
-  'viewer.legendGap.label': '抜け',
-  'viewer.legendGap.desc': 'その境目だけ、元の動画のコマが表にありません。推定位置にも1コマずつ止まりますが対応する絵は無く、手前の絵を表示します。',
+  // この録画の状態（コマ番号を押すと開く一覧。frameReadout.ts の clipStatus）。
+  // **意味の説明は出さない**——この録画のどこがダメか・大丈夫かだけ。混ぜると読めない。
+  'viewer.statusLabelGap': '抜け',
+  'viewer.statusMisaligned': 'コマ {from} 以降の {count} コマで、絵と元の動画のコマの対応がずれています。',
+  'viewer.statusMissingSevere': '元の動画の {total} コマのうち {count} コマ（{pct}%）が録画にありません。',
+  'viewer.statusGap': '{places} か所で、合わせて {count} コマ抜けています（最初はコマ {from} の次）。',
+  'viewer.statusGapUnknown': 'コマ数の分からない抜けが {places} か所あります（最初はコマ {from} の次）。',
+  'viewer.statusReused': '{count} コマで絵が撮れず、直前の絵が出ています（最初はコマ {from}）。',
+  'viewer.statusClean': '撮り逃し・抜け・ずれは見つかっていません。',
   // 抜け（コマ自体が無い）とずれ（絵が別のコマのもの）をまとめた注記。
   // **コマ単位で「数えられる」と請け合わない。** どちらも周りを巻き込むので、当てに
   // ならない場所だと示すだけにする（理由は説明で読める）。
   // クリップ全体の注記。**抜け・ずれは箇所を指さない**——ずれは崩れた位置から末尾まで
   // 続き、抜けは前後の関係が壊れるので、そのコマだけの問題ではない。1 つでもあれば
   // そのクリップのコマ送り自体が当てにならないので、番号ごと赤で通す。
-  'viewer.legendUnreliable.label': '要注意',
-  'viewer.legendUnreliable.desc': '映っている絵が元の動画のコマと対応していないか、元の動画のコマが広く欠けています。この録画ではコマ打ちを数えられません。',
   'viewer.frameUnreliable': '要注意',
-  // 「要注意」の中身（frameReadout.ts の unreliableReasons）。注記の一覧にだけ出す。
-  'viewer.legendThisClip': 'この録画',
-  'viewer.unreliableMisaligned': 'コマ {from} 以降の {count} コマで、映っている絵と元の動画のコマの対応がずれています。',
-  'viewer.unreliableMissing': '元の動画の {total} コマのうち {count} コマ（{pct}%）が録画にありません。',
   // 抜けが少ないクリップで、穴の直前のコマまで来たときだけ出る。**場所を指す注記。**
   // 壊れているのはこの境目だけで、残りの境目は無傷なので、クリップ全体は赤くしない。
   // **ビューアでは未取得と区別する。** 押した先で何が起きるかが違う——未取得は止まれて
