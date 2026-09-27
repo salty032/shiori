@@ -20,6 +20,34 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.5.0': {
+    ja: [
+      '録画のコマ送りで、1 つ前に取り込んだ絵が出ていることがありました。同じコマ番号でも、止め方によって違う絵が出ていたのはこのためです。この版で撮る録画から直ります（これまでに撮った録画はそのままです）。',
+      '録画の一覧に並ぶ絵に「録画の準備中」が写っていました。一覧の絵は録画の少し後ろから作るようにしました。この版で撮る録画からです。',
+      '撮り逃した区間があると、それより後ろのコマ番号が、その分だけ小さく出ていました。元の動画のコマで数えるようにしました。',
+      '撮り逃した区間の直前のコマで、番号と違う絵が出ていました。',
+      'ずれていない録画に「要注意」が出ることがありました。',
+      'ビューアでコマ番号を押すと、この録画に撮り逃し・抜け・ずれがあるか、あればどこからかが出るようになりました。これまでは注記の意味の説明だけで、「要注意」がこの録画のどこのことなのか読めませんでした。',
+      '文字の太さを整理しました。これまでは画面のほとんどが太字で、どこを見ればいいのか分かりにくくなっていました。あわせて詳細パネルの「元の位置」「長さ」を「再生位置」「動画時間」に改めました。',
+      'ライブラリのインポートが途中の 1 枚でつまずくと、残りが取り込まれず、何枚入ったかも分かりませんでした。つまずいた分は飛ばして続け、その枚数を出すようにしました。',
+      'トリミングでタグを引き継げなかったとき、トリミングした動画ごと消えていました。動画は残し、タグが付かなかったことを画面に出すようにしました。',
+      'この版に更新すると、打ち込み済みのタイムシートが一度だけ消えます。撮り逃した枚数を推定で数えていたため、打ったものが 1 つ隣のコマを指している恐れがあり、残すとまた開けるようになったときに正しいものとして通ってしまうためです。タイムシートは引き続き開けません。',
+      'この更新ではブラウザ拡張も新しくなります。アプリを起動すると入れ替わり、通知が出ます。ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'Frame stepping in a recording could show the picture captured one step earlier. That is why the same frame number could show a different picture depending on how you stopped. Fixed for recordings made with this version (earlier recordings stay as they are).',
+      'Recording thumbnails in the library showed “Getting ready to record”. Thumbnails are now taken from slightly into the recording, for recordings made with this version.',
+      'After a stretch of missed frames, every later frame number was too small by that amount. Frames are now counted as frames of the original video.',
+      'The frame just before a stretch of missed frames showed a picture that did not match its number.',
+      'Recordings that were not out of step could still be marked “unreliable”.',
+      'Clicking the frame number in the viewer now shows whether this recording has missed frames, gaps or misalignment, and where they start. It used to show only what each mark means, so “unreliable” did not tell you where the problem was.',
+      'Text weights have been tidied up. Most of the screen was bold, which made it hard to tell where to look. In the details panel, “Source” and “Length” are now “Position” and “Duration”.',
+      'If Import library tripped over one file partway, the rest were not imported and you could not tell how many had made it in. It now skips that file, carries on, and tells you how many were skipped.',
+      'If tags could not be carried over when trimming, the trimmed video itself was lost. The video is now kept, and the screen tells you the tags were not added.',
+      'Updating to this version clears typed-in timesheets once. Missed frames were counted by estimate, so entries may point one frame off, and keeping them would let them pass as correct once sheets can be opened again. Timesheets still cannot be opened.',
+      'This update also brings a new browser extension. It is swapped in when the app starts and you get a notification. Please reload the extension on your browser’s extensions page.',
+    ],
+  },
   '1.4.0': {
     ja: [
       'キャプチャと録画の保存先を、C ドライブ以外にも変えられるようになりました（設定 > データ > 保存場所）。これまでに撮ったぶんも一緒に移ります。移す前に「何件・何 GB を、どこへ」が出て、途中で止められます。止めても失敗しても、保存先もファイルもそのままです。',

@@ -38,9 +38,9 @@ export const FRAME_COLOR = {
 
 // コマごとの確からしさに添える注記。null（撮れているコマ）のときは番号だけを出す——
 // **問題が無いときに何も足さない**のが要点で、常に何か表示していると注記が背景になる。
-export const FRAME_NOTE: Record<number, { label: MessageKey; hint: MessageKey; color: string } | null> = {
+export const FRAME_NOTE: Record<number, { label: MessageKey; color: string } | null> = {
   [FRAME_QUALITY.captured]: null,
-  [FRAME_QUALITY.reused]: { label: 'viewer.frameNeedsReview', hint: 'viewer.frameReusedHint', color: FRAME_COLOR.warn },
+  [FRAME_QUALITY.reused]: { label: 'viewer.frameNeedsReview', color: FRAME_COLOR.warn },
   // misaligned はここに入れない。**箇所を指さずクリップ全体を赤で通す**（frameReadout）。
   [FRAME_QUALITY.misaligned]: null,
 }
@@ -99,7 +99,7 @@ export function sourceFrameNo(idx: number, gapBefore: number[], gap = 0): number
 //
 // **意味の説明は出さない。この録画のどこがダメか、あるいは大丈夫かだけを出す。** 以前は
 // 注記の意味の一覧に録画の状態を足していて、一般的な説明とこの録画の話が混ざって読めなかった。
-// 注記の意味は、コマ番号にマウスを載せたときの説明で読める。
+// 注記の意味の説明はどこにも出さない（利用者に要るのは、この録画がどうかだけ）。
 //
 // 見つかった問題ごとに 1 行。ラベルはコマ番号の横に出る注記と同じ語にする（同じものを
 // 別の名前で呼ばない）。番号は画面のコマ番号と同じ数え方（sourceFrameNo）——違う数え方で
@@ -226,11 +226,13 @@ export interface FrameReadoutResult {
    */
   cur: number | null
   text: string
-  title: string
   color: string
 }
 
-// コマ表示に出す文字・説明・色を決める。
+// コマ表示に出す文字・色を決める。
+//
+// **マウスを載せたときの説明は出さない。** OS 標準の吹き出しに長い文を入れても読めず、
+// この録画のどこがダメかはコマ番号を押して出す一覧（clipStatus）で読める。
 //
 // **番号だけでは足りない。** コマ送りで絵が変わらないこと自体が測定結果（コマ打ち）なので、
 // 変わらなかった理由が「素材がその絵を保持していた」のか「こちらが撮り逃して直前の絵を
@@ -246,7 +248,6 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
     return {
       cur: null,
       text: tr('viewer.frameLoading'),
-      title: tr('viewer.frameLoadingHint'),
       color: FRAME_COLOR.muted,
     }
   }
@@ -254,7 +255,6 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
     return {
       cur: null,
       text: tr('viewer.frameEstimated', { fps: String(estimatedFps) }),
-      title: tr('viewer.frameEstimatedHint'),
       color: FRAME_COLOR.warn,
     }
   }
@@ -275,7 +275,6 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
     return {
       cur,
       text: tr(isImport ? 'viewer.frameIndex' : 'viewer.frameIndexFile', params),
-      title: tr(isImport ? 'viewer.frameFileHint' : 'viewer.frameFileCaptureHint'),
       color: isImport ? FRAME_COLOR.ok : FRAME_COLOR.warn,
     }
   }
@@ -289,10 +288,6 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
     return {
       cur,
       text: `${tr('viewer.frameIndex', params)} · ${tr('viewer.frameInGapEstimated')}`,
-      title: tr('viewer.frameInGapEstimatedHint', {
-        cur: String(sourceFrameNo(cur, index.gapBefore)),
-        count: String(gapNext?.missing ?? gap),
-      }),
       color: FRAME_COLOR.warn,
     }
   }
@@ -317,13 +312,6 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
       : missingNext > 0
         ? tr('viewer.frameGapAfterEstimated', { count: String(missingNext) })
       : note ? tr(note.label) : null
-  const title = unreliable
-    ? tr('viewer.frameUnreliableHint')
-    : unknownNext
-      ? tr('viewer.frameGapUnknownHint', { count: String(gapNext.technicalMissing) })
-      : missingNext > 0
-        ? tr('viewer.frameGapAfterEstimatedHint', { count: String(missingNext) })
-      : tr(note ? note.hint : 'viewer.frameSourceHint')
   // 未取得は、そのクリップで多いときだけ赤へ上げる（詳細パネルと同じ 5%）。
   const color = unreliable
     ? FRAME_COLOR.alert
@@ -334,7 +322,6 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
   return {
     cur,
     text: label ? `${tr('viewer.frameIndex', params)} · ${label}` : tr('viewer.frameIndex', params),
-    title,
     color,
   }
 }

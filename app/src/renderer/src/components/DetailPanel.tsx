@@ -96,12 +96,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const unreliableNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
     const misaligned = single.misaligned_frames ?? 0
-    // 説明には量を出す（ビューアで開く、この録画の状態の一覧と同じ中身）。どこからかは表を読まないと
-    // 分からないので、ビューアへ案内する。
-    if (misaligned > 0) {
-      const title = t('detail.unreliableHint', { count: String(misaligned), total: String(single.source_frames ?? '—') })
-      return { text: t('detail.unreliable'), title, severe: true }
-    }
+    if (misaligned > 0) return { text: t('detail.unreliable'), severe: true }
     return null
   }, [single, t])
 
@@ -120,7 +115,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
     // 可能性は消せず、確定できないことを確定したように見せることになる（コマ送り側と同じ）。
     return {
       text: t('detail.uncapturedFrames', { count: String(missing) }),
-      title: t('detail.uncapturedFramesHint', { count: String(missing) }),
       severe: (total > 0 ? missing / total : 0) > SEVERE_FRAME_RATIO
     }
   }, [single, t])
@@ -385,7 +379,6 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                 {frameNote && (
                   <div style={s.frameNotes}>
                     <span
-                      title={frameNote.title}
                       style={{ ...s.frameNote, ...(frameNote.severe ? s.frameNoteAlert : s.frameNoteQuiet) }}>
                       {frameNote.text}
                     </span>

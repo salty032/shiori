@@ -280,7 +280,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       }
     }
     el.textContent = out.text
-    el.title = out.title
     el.style.color = out.color
   }
 

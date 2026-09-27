@@ -172,7 +172,6 @@ describe('frameReadout - 何を出すか', () => {
     const f = frames({ gaps: [gap(1, 3)] })
     const out = frameReadout({ ...base, kind: 'source', frames: f, index: buildGapIndex(f), idx: 1 }, tr)
     expect(out?.text).toBe('viewer.frameIndex(cur=2,total=4) · viewer.frameGapUnknown')
-    expect(out?.title).toBe('viewer.frameGapUnknownHint(count=3)')
     expect(out?.color).toBe(FRAME_COLOR.warn)
   })
 
