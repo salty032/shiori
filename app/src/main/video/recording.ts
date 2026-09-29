@@ -44,6 +44,12 @@ export function isCurrentlyRecording(): boolean {
   return isRecording
 }
 
+// 終了確認では、実際の記録中だけでなく画面キャプチャの準備中も未完了の録画として扱う。
+// 準備中に終了しても保存されるクリップは無く、隠したプレーヤー UI の復帰処理も走れない。
+export function isRecordingInProgress(): boolean {
+  return isRecording || isRecordingStarting
+}
+
 export function isCurrentRecordingSession(sessionId: number): boolean {
   return sessionId === currentRecordingSessionId
 }

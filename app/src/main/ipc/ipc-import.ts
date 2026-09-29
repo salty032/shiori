@@ -29,6 +29,10 @@ export const MAX_IMPORT_VIDEO_SECONDS = 30
 // 尺の丸め誤差で 30.0x 秒の動画を弾かないための許容幅。
 export const IMPORT_VIDEO_SECONDS_EPS = 0.5
 
+// nativeImage のデコードと動画プローブは main プロセスで動く。大量取り込み中にもう一度
+// ドロップされても二重に走らせず、DB・ディスク・イベントループへの負荷を重ねない。
+let isImporting = false
+
 // 上限到達で列挙を打ち切った場合、呼び出し元がユーザーに「一部のみ取り込んだ」と
 // 伝えられるよう truncated を返す（200件超のドロップ・フォルダ展開の両方で判定）。
 async function collectImportFiles(inputPaths: string[]): Promise<{ files: string[]; truncated: boolean }> {
@@ -125,9 +129,11 @@ export function registerImportHandlers(): void {
 
   handleTrusted(CH.importFiles, async (_event, filePaths: unknown) => {
     if (!Array.isArray(filePaths)) return { count: 0, errors: ['invalid input'], truncated: false }
+    if (isImporting) return { count: 0, errors: ['import already in progress'], truncated: false }
 
     // 大量ドロップは数分かかることがある。途中でアップデート適用（プロセス終了）が
     // 走ると取り込みが尻切れになるため、実行中であることを busy レジストリへ知らせる。
+    isImporting = true
     beginTask('import')
     try {
       const inputPaths = (filePaths as unknown[])
@@ -259,6 +265,7 @@ export function registerImportHandlers(): void {
       return { count, errors, truncated }
     } finally {
       endTask('import')
+      isImporting = false
     }
   })
 }

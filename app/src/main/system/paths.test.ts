@@ -11,7 +11,7 @@ const { settings } = vi.hoisted(() => ({
 }))
 vi.mock('./settings', () => ({ loadSettings: () => settings }))
 
-import { resolveCapturePath } from './paths'
+import { captureRootProblem, resolveCapturePath } from './paths'
 
 // resolveCapturePath 内部は resolve() で絶対化するため、期待値も resolve() を通す
 // （Windows では resolve('/mock/userData') がカレントドライブを補って C:\mock\userData になる）。
@@ -73,6 +73,12 @@ describe('resolveCapturePath', () => {
 
   it('空文字は拒否', () => {
     expect(resolveCapturePath('')).toBeNull()
+  })
+})
+
+describe('captureRootProblem', () => {
+  it('userData そのものを保存先に選べない', () => {
+    expect(captureRootProblem(resolve(MOCK_USER_DATA))).toBe('contains-app-data')
   })
 })
 

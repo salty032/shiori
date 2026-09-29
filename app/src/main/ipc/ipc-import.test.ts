@@ -145,4 +145,28 @@ describe('importFiles: 画像の中身を確かめる', () => {
     expect(result.count).toBe(2)
     expect(result.errors).toEqual([])
   })
+
+  it('取り込み中の二度目の呼び出しは並行実行しない', async () => {
+    decodableAs({ width: 1920, height: 1080 })
+    createImageThumbMock.mockResolvedValue(undefined)
+
+    let releaseCopy!: () => void
+    const copyMayFinish = new Promise<void>((resolve) => { releaseCopy = resolve })
+    let signalCopyStarted!: () => void
+    const copyStarted = new Promise<void>((resolve) => { signalCopyStarted = resolve })
+    copyFileMock.mockImplementationOnce(async () => {
+      signalCopyStarted()
+      await copyMayFinish
+    })
+
+    const first = importFiles(['C:/src/first.png'])
+    await copyStarted
+    const second = await importFiles(['C:/src/second.png'])
+
+    expect(second).toEqual({ count: 0, errors: ['import already in progress'], truncated: false })
+    expect(copyFileMock).toHaveBeenCalledTimes(1)
+
+    releaseCopy()
+    expect((await first).count).toBe(1)
+  })
 })

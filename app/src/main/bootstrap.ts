@@ -1,7 +1,7 @@
 import { app, dialog, globalShortcut, Menu, session } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
-import { stopWsServer, broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse } from './browser/ws-server'
+import { broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse } from './browser/ws-server'
 import { WS_PORTS } from '../shared/wire-limits'
 import {
   registerHotkey, changeHotkey, onCaptureDone, setSourceVideoSize,
@@ -11,8 +11,7 @@ import {
 import { databasePath, consumeDbBackupFailure } from './db/db-schema'
 import { registerCapturedMedia } from './capture/captured-media'
 import { registerVideoIpc, startVideo } from './video'
-import { loadSettings, saveSettings, flushSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, stripDedicatedSettingKeys } from './system/settings'
-import { activeTaskLabels } from './system/busy'
+import { loadSettings, saveSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, stripDedicatedSettingKeys } from './system/settings'
 import { checkExtensionUpdate, installedExtensionPath } from './browser/extension-updater'
 import { startExtensionBridge, browserStepLabels } from './browser/extension-bridge'
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
@@ -23,7 +22,7 @@ import { registerCapfileScheme, registerCapfileProtocol } from './system/capfile
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
 import { createImageThumb } from './capture/image-thumb'
 import {
-  getMainWindow, setQuitting,
+  getMainWindow,
   sendToRenderer, sendNotice, showMainWindow, isMainWindowFocused,
   handleTrusted,
   createWindow
@@ -32,7 +31,7 @@ import { createTray, rebuildTrayMenu } from './system/tray'
 import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './system/startup'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from './browser/timecode'
 import { registerImageHandlers, backfillThumbnails } from './ipc/ipc-images'
-import { registerDragHandlers, cleanupDragTempDir } from './ipc/ipc-drag'
+import { registerDragHandlers } from './ipc/ipc-drag'
 import { registerTaggerHandlers } from './ipc/ipc-tagger'
 import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
@@ -48,6 +47,7 @@ import { t } from './system/i18n'
 import { describeStartupError } from './system/startup-error'
 import { consumeRestoreMarker } from './db/db-maintenance'
 import { openDatabaseOrRecover, backupDateLabel } from './db/db-startup'
+import { registerShutdownGuard } from './system/shutdown'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
 // 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
@@ -63,35 +63,12 @@ function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', messag
   whenRendererReady(() => sendNotice(level, message))
 }
 
-// 更新を適用するとプロセスが終了するため、取り込み・書き出し・AIタグ付け等が
-// 走っていると途中で止まる（DB は書けたところまで残るので破損はしないが、
-// 「取り込み途中」「書き出し途中」の状態にはなる）。バナーは進行中でも押せるので、
-// ここで引き止める。renderer に busy 状態を配らずに済むよう main 側で確認する。
-async function confirmUpdateWhileBusy(): Promise<boolean> {
-  const labels = activeTaskLabels()
-  if (labels.length === 0) return true
-
-  const options = {
-    type: 'warning' as const,
-    buttons: [t('dialog.updateBusy.proceed'), t('dialog.updateBusy.cancel')],
-    defaultId: 1,
-    cancelId: 1,
-    title: t('dialog.updateBusy.title'),
-    message: t('dialog.updateBusy.message', { tasks: labels.join(t('list.separator')) }),
-    detail: t('dialog.updateBusy.detail')
-  }
-  const win = getMainWindow()
-  const { response } = win
-    ? await dialog.showMessageBox(win, options)
-    : await dialog.showMessageBox(options)
-  return response === 0
-}
-
 // ブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
 // settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
 export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
+  const shutdown = registerShutdownGuard()
 
   // 開発時は userData をインストール版から分離する。
   //
@@ -408,8 +385,7 @@ export function bootstrap(): void {
 
     initAutoUpdater(getMainWindow)
     handleTrusted(CH.updaterQuitAndInstall, async () => {
-      if (!(await confirmUpdateWhileBusy())) return
-      await quitAndInstallUpdate()
+      await shutdown.runUpdate(quitAndInstallUpdate)
     })
 
     app.on('activate', () => {
@@ -446,27 +422,4 @@ export function bootstrap(): void {
     // トレイに残す
   })
 
-  let teardownDone = false
-
-  app.on('before-quit', (event) => {
-    setQuitting(true)
-    // preventDefault → flush → app.quit() で再入するため、後片付けは初回だけ。
-    if (teardownDone) return
-
-    globalShortcut.unregisterAll()
-    stopWsServer()
-    // ドラッグ用の複製は次回ドラッグ時にも作り直されるが、終了時に残すと temp が
-    // 溜まり続けるため掃除する（失敗しても致命的ではない）。
-    cleanupDragTempDir()
-
-    // saveSettings は永続化を待たずに返るので、キューが残ったまま終了すると最後の
-    // 設定変更が巻き戻る。before-quit は非同期を待ってくれないため、一度 quit を
-    // 止めてフラッシュしてから quit し直す。トレイ終了・ウィンドウ終了・アップデート
-    // 適用のすべてがこの経路を通るので、ここ1箇所で全終了経路をカバーできる。
-    event.preventDefault()
-    flushSettings().finally(() => {
-      teardownDone = true
-      app.quit()
-    })
-  })
 }

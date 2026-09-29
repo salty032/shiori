@@ -86,7 +86,8 @@ export function captureRootProblem(dir: string): 'not-absolute' | 'filesystem-ro
   if (typeof dir !== 'string' || !dir.trim() || !isAbsolute(dir)) return 'not-absolute'
   const target = resolve(dir)
   if (target === parse(target).root) return 'filesystem-root'
-  if (isChildPath(target, resolve(app.getPath('userData')))) return 'contains-app-data'
+  const userData = resolve(app.getPath('userData'))
+  if (target === userData || isChildPath(target, userData)) return 'contains-app-data'
   return null
 }
 

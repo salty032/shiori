@@ -33,6 +33,9 @@ export const en: Record<keyof typeof ja, string> = {
   'dialog.updateBusy.detail': 'Updating restarts Shiori and cancels anything in progress.',
   'dialog.updateBusy.proceed': 'Stop and update',
   'dialog.updateBusy.cancel': 'Cancel',
+  'dialog.quitBusy.title': 'Confirm quit',
+  'dialog.quitBusy.detail': 'Quitting cancels anything in progress.',
+  'dialog.quitBusy.proceed': 'Stop and quit',
   'dialog.exportFolder': 'Choose a folder to export to',
   'dialog.moveCaptures.title': 'Change save location',
   'dialog.moveCaptures.message': 'Move {count} files ({size}) to {dest}?',
@@ -43,7 +46,8 @@ export const en: Record<keyof typeof ja, string> = {
   'dialog.importFolder': 'Choose a folder to import',
   'list.separator': ', ',
 
-  // ── Running task labels (shown in the update dialog) ─────────
+  // ── Running task labels (shown in update/quit dialogs) ───────
+  'busy.recording': 'Recording',
   'busy.import': 'Import',
   'busy.libraryImport': 'Library import',
   'busy.export': 'Export',

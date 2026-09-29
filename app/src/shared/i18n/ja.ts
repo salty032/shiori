@@ -18,6 +18,9 @@ export const ja = {
   'dialog.updateBusy.detail': '更新するとアプリが再起動し、進行中の処理は中断されます。',
   'dialog.updateBusy.proceed': '処理を中止して更新',
   'dialog.updateBusy.cancel': 'キャンセル',
+  'dialog.quitBusy.title': '終了の確認',
+  'dialog.quitBusy.detail': '終了すると、進行中の処理は中断されます。',
+  'dialog.quitBusy.proceed': '処理を中止して終了',
   'dialog.exportFolder': 'エクスポート先フォルダを選択',
   // 保存先の変更で、これまでのぶんを移す前の確認。**件数・容量・移す先を必ず出す。**
   // 実体のコピーなので分単位かかるうえ、移動中は移す先に 2 倍の空きが要る。
@@ -29,10 +32,11 @@ export const ja = {
     '途中で止めても、失敗しても、何も変わりません（保存先も記録もそのままです）。',
   'dialog.moveCaptures.proceed': '移動する',
   'dialog.importFolder': 'インポートするフォルダを選択',
-  // activeTaskLabels() を dialog.updateBusy.message へ差し込むときの区切り文字。
+  // 実行中タスクを確認ダイアログへ差し込むときの区切り文字。
   'list.separator': '・',
 
-  // ── 実行中タスクのラベル（更新確認ダイアログに出る） ──────────
+  // ── 実行中タスクのラベル（更新・終了確認ダイアログに出る） ─────
+  'busy.recording': '録画',
   'busy.import': '取り込み',
   'busy.libraryImport': 'インポート',
   'busy.export': 'エクスポート',
