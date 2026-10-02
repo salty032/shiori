@@ -127,6 +127,10 @@ type ImageFilter = ImageQuery & {
 export function buildImageFilter(f: ImageFilter): { where: string; params: unknown[] } {
   const conds: string[] = []
   const params: unknown[] = []
+  if (f.excludeIds?.length) {
+    conds.push('id NOT IN (SELECT value FROM json_each(?))')
+    params.push(JSON.stringify(f.excludeIds))
+  }
   if (f.search) {
     // 検索語も保存側と同じ normalizeSearchText を通してから当てる。長さ判定は正規化後の
     // 長さで行う（正規化前が3文字以上でも、空白や記号が落ちて trigram を作れない長さに

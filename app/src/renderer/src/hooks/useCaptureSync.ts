@@ -43,6 +43,8 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
         // フィルタ表示中に楽観的 prepend するとフィルタ非該当の画像が紛れ件数もズレる。
         // 再クエリして「条件に合致するキャプチャだけ」が現れるようにする（タイムラインと同方針）。
         store.reloadGrid(showToast)
+      } else {
+        store.refreshGridCount()
       }
       // Timeline の取得済みページに新規キャプチャが含まれないため再取得が必要だが（フィルタも反映される）、
       // グリッド表示中（非表示）はこのクエリが無駄なので省略する（P-1）。
@@ -83,7 +85,7 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
       // 再クエリに倒す。先頭より古いキャプチャを先頭挿入すると、カーソルページングが後で
       // その captured_at 位置まで進んだときに同じ行を再取得して二重表示になる。
       const top = store.gridImages[0]
-      if (!filtered && sortOrder === 'date_desc' && (!top || img.captured_at >= top.captured_at)) {
+      if (!store.gridReloading && !filtered && sortOrder === 'date_desc' && (!top || img.captured_at >= top.captured_at)) {
         store.prependToGrid(img)
       } else {
         needsGridReload = true

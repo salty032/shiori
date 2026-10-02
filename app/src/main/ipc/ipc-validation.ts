@@ -72,6 +72,9 @@ export function imageQuery(raw: unknown): ImageQuery {
   const o = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
   return {
     search: optionalText(o.search),
+    excludeIds: Array.isArray(o.excludeIds)
+      ? [...new Set(o.excludeIds.filter((id): id is number => optionalPositiveInteger(id) !== undefined))].slice(0, 100000)
+      : undefined,
     after: optionalNumber(o.after),
     site: optionalText(o.site),
     tags: tagsFilter(o.tags),

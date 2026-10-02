@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useImageStore } from './imageStore'
+import { useImageStore, markPendingDelete, unmarkPendingDelete } from './imageStore'
 import { useFilterStore } from './filterStore'
 import type { ImageRow } from '../types'
 
@@ -29,6 +29,7 @@ function img(id: number, over: Partial<ImageRow> = {}): ImageRow {
 // 一元化されている。ここではその「両リスト同時反映」と件数整合をテストする。
 describe('imageStore mutations', () => {
   beforeEach(() => {
+    useFilterStore.setState({ sortOrder: 'date_asc', committedSearch: '', tagFilters: [] })
     useImageStore.setState({
       gridImages: [img(1), img(2), img(3)],
       gridHasMore: true,
@@ -89,6 +90,27 @@ describe('imageStore mutations', () => {
     expect(s.timelineImages.map((i) => i.id)).toEqual([1, 2, 3, 4])
   })
 
+  it('再取得で先に表示された画像のキャプチャ通知では、行も件数も増やさない', async () => {
+    useFilterStore.setState({ sortOrder: 'date_desc', committedSearch: '', tagFilters: [] })
+    ;(window as unknown as { api: unknown }).api = {
+      listImages: vi.fn(async () => [img(99), img(1)]),
+      countImages: vi.fn(async () => 2),
+    }
+    let finishCapture!: (image: ImageRow) => void
+    const delayedCapture = new Promise<ImageRow>((resolve) => { finishCapture = resolve })
+      .then((image) => useImageStore.getState().prependToGrid(image))
+
+    useImageStore.getState().reloadGrid(vi.fn())
+    await vi.waitFor(() => {
+      expect(useImageStore.getState().gridImages.map((i) => i.id)).toEqual([99, 1])
+      expect(useImageStore.getState().gridTotalCount).toBe(2)
+    })
+    finishCapture(img(99))
+    await delayedCapture
+    expect(useImageStore.getState().gridImages.map((i) => i.id)).toEqual([99, 1])
+    expect(useImageStore.getState().gridTotalCount).toBe(2)
+  })
+
   it('restoreImages は snapshot 未ロード分（grid/timelineどちらにも無かった id）の件数も戻す', () => {
     // id:5 は grid にも timeline にも存在しない（Ctrl+A で選択されたが未ロードの行を想定）。
     const snapshot = useImageStore.getState().removeImages(new Set([2, 5]))
@@ -108,6 +130,79 @@ describe('imageStore mutations', () => {
     useImageStore.setState({ gridTotalCount: null })
     useImageStore.getState().adjustGridTotalCount(5)
     expect(useImageStore.getState().gridTotalCount).toBeNull()
+  })
+})
+
+describe('一覧更新と削除Undoの競合', () => {
+  beforeEach(() => {
+    useFilterStore.setState({ sortOrder: 'date_desc', committedSearch: '', tagFilters: [] })
+    useImageStore.setState({ gridImages: [img(3), img(2), img(1)], gridTotalCount: 3,
+      timelineImages: [img(3), img(2), img(1)], timelineTotalCount: 3 })
+  })
+
+  it('削除後に新着が追加されてもUndoの並びは撮影日時順になる', () => {
+    const snapshot = useImageStore.getState().removeImages(new Set([2]))
+    useImageStore.getState().prependToGrid(img(4))
+    useImageStore.getState().restoreImages(snapshot)
+    expect(useImageStore.getState().gridImages.map((row) => row.id)).toEqual([4, 3, 2, 1])
+    expect(useImageStore.getState().gridTotalCount).toBe(4)
+  })
+
+  it('削除猶予中の再取得は行と件数の両方から保留IDを除く', async () => {
+    markPendingDelete([2])
+    try {
+      ;(window as unknown as { api: unknown }).api = {
+        listImages: vi.fn(async () => [img(3), img(2), img(1)]),
+        countImages: vi.fn(async (query: { excludeIds: number[] }) => 3 - query.excludeIds.length),
+      }
+      useImageStore.getState().reloadGrid(vi.fn())
+      useImageStore.getState().reloadTimeline(vi.fn())
+      await vi.waitFor(() => {
+        expect(useImageStore.getState().gridImages.map((row) => row.id)).toEqual([3, 1])
+        expect(useImageStore.getState().gridTotalCount).toBe(2)
+        expect(useImageStore.getState().timelineTotalCount).toBe(2)
+      })
+    } finally { unmarkPendingDelete([2]) }
+  })
+
+  it('フィルター変更後のUndoでは古い行を挿入せず、今の条件で取得する', async () => {
+    const snapshot = useImageStore.getState().removeImages(new Set([2]))
+    useFilterStore.setState({ committedSearch: 'different' })
+    const listImages = vi.fn(async () => [img(10)])
+    ;(window as unknown as { api: unknown }).api = { listImages, countImages: vi.fn(async () => 1) }
+    useImageStore.setState({ gridImages: [img(10)], gridTotalCount: 1,
+      timelineImages: [img(10)], timelineTotalCount: 1 })
+    useImageStore.getState().restoreImages(snapshot)
+    expect(useImageStore.getState().gridImages.map((row) => row.id)).toEqual([10])
+    await vi.waitFor(() => expect(useImageStore.getState().gridLoading).toBe(false))
+    expect(listImages).toHaveBeenCalledWith(expect.objectContaining({ search: 'different' }))
+    expect(useImageStore.getState().gridTotalCount).toBe(1)
+  })
+
+  it('キャプチャ中に古い件数が届いても、最新の件数を取り直す', async () => {
+    let finish!: (count: number) => void
+    const countImages = vi.fn().mockImplementationOnce(() => new Promise<number>((resolve) => { finish = resolve }))
+      .mockResolvedValue(4)
+    ;(window as unknown as { api: unknown }).api = { countImages }
+    useImageStore.getState().refreshGridCount()
+    useImageStore.getState().prependToGrid(img(4))
+    finish(3)
+    await vi.waitFor(() => expect(countImages).toHaveBeenCalledTimes(2))
+    expect(useImageStore.getState().gridTotalCount).toBe(4)
+  })
+
+  it('古い検索の取得結果は、新しい検索結果を上書きしない', async () => {
+    let finish!: (rows: ImageRow[]) => void
+    const listImages = vi.fn().mockImplementationOnce(() => new Promise<ImageRow[]>((resolve) => { finish = resolve }))
+      .mockResolvedValue([img(10)])
+    ;(window as unknown as { api: unknown }).api = { listImages, countImages: vi.fn(async () => 1) }
+    useImageStore.getState().reloadGrid(vi.fn())
+    useFilterStore.setState({ committedSearch: 'different' })
+    useImageStore.getState().reloadGrid(vi.fn())
+    await vi.waitFor(() => expect(useImageStore.getState().gridImages[0]?.id).toBe(10))
+    finish([img(99)])
+    await Promise.resolve()
+    expect(useImageStore.getState().gridImages.map((row) => row.id)).toEqual([10])
   })
 })
 

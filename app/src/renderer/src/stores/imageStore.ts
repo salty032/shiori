@@ -1,12 +1,15 @@
 import { create } from 'zustand'
 import type { ImageRow } from '../types'
 import type { ShowToast } from '../hooks/useToast'
-import { getCommitted, useFilterStore } from './filterStore'
+import { getCommitted, selectQueryKey, useFilterStore } from './filterStore'
 import { buildImageQuery } from './imageQuery'
 import { t } from '../i18n'
 
 const PAGE_SIZE = 50
 const TIMELINE_PAGE_SIZE = 200
+let mutationVersion = 0
+let gridShowToast: ShowToast = () => 0
+let timelineShowToast: ShowToast = () => 0
 
 // グリッドとタイムラインはページサイズ・並びの組み立て方が異なるため、配列は 2 本持つ。
 // どちらもカーソルページングだが、Timeline は作品別グループへ古い項目を継ぎ足す。
@@ -27,6 +30,7 @@ const grid = {
 }
 const timeline = {
   generation: 0,
+  countGeneration: 0,
   loading: false,
   hasMore: true,
   totalCount: null as number | null,
@@ -41,9 +45,11 @@ const timeline = {
 // ゴースト行として残り続ける。再取得結果からこの集合の id を除外することでそれを防ぐ。
 const pendingDeleteIds = new Set<number>()
 export function markPendingDelete(ids: Iterable<number>): void {
+  mutationVersion++
   for (const id of ids) pendingDeleteIds.add(id)
 }
 export function unmarkPendingDelete(ids: Iterable<number>): void {
+  mutationVersion++
   for (const id of ids) pendingDeleteIds.delete(id)
 }
 
@@ -55,6 +61,7 @@ let newClearTimer: ReturnType<typeof setTimeout> | null = null
 const NEW_BADGE_DURATION_MS = 5000
 
 export type RemovedImagesSnapshot = {
+  queryKey?: string
   grid: { index: number; image: ImageRow }[]
   timeline: { index: number; image: ImageRow }[]
   gridTotalCount: number | null
@@ -96,6 +103,8 @@ type ImageState = {
   reloadGrid: (showToast: ShowToast) => void
   loadMoreTimeline: (showToast: ShowToast) => Promise<void>
   reloadTimeline: (showToast: ShowToast) => void
+  refreshGridCount: () => void
+  refreshTimelineCount: () => void
 
   // --- 変更操作（両リストに反映する単一の入口） ---
   // タイトル/メモ編集などの部分更新。グリッド・タイムライン双方に反映する
@@ -188,6 +197,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
   // 一覧は即座に空にせず、新しい1ページ目が届いた瞬間に丸ごと差し替える
   // （loadMoreGrid の isFirstPage 分岐）。空にしてから出し直すと一瞬空白になってチラつくため。
   reloadGrid: (showToast) => {
+    gridShowToast = showToast
     grid.listGeneration++
     grid.lastCapturedAt = null
     grid.lastId = null
@@ -197,9 +207,18 @@ export const useImageStore = create<ImageState>((set, get) => ({
 
     get().loadMoreGrid(showToast)
 
+    get().refreshGridCount()
+  },
+
+  refreshGridCount: () => {
     const generation = ++grid.countGeneration
-    window.api.countImages(buildImageQuery(getCommitted(useFilterStore.getState())))
-      .then((count) => { if (generation === grid.countGeneration) set({ gridTotalCount: count }) })
+    const version = mutationVersion
+    window.api.countImages({ ...buildImageQuery(getCommitted(useFilterStore.getState())), excludeIds: [...pendingDeleteIds] })
+      .then((count) => {
+        if (generation !== grid.countGeneration) return
+        if (version !== mutationVersion) { get().refreshGridCount(); return }
+        set({ gridTotalCount: count })
+      })
       .catch((err) => console.error('[images] count failed', err))
   },
 
@@ -251,6 +270,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
   },
 
   reloadTimeline: (showToast) => {
+    timelineShowToast = showToast
     timeline.generation++
     timeline.loading = false
     timeline.hasMore = true
@@ -260,10 +280,16 @@ export const useImageStore = create<ImageState>((set, get) => ({
     set({ timelineLoading: true, timelineHasMore: true, timelineTotalCount: null, timelineLoadFailed: false })
     get().loadMoreTimeline(showToast)
 
-    const generation = timeline.generation
-    window.api.countImages(buildImageQuery(getCommitted(useFilterStore.getState())))
+    get().refreshTimelineCount()
+  },
+
+  refreshTimelineCount: () => {
+    const generation = ++timeline.countGeneration
+    const version = mutationVersion
+    window.api.countImages({ ...buildImageQuery(getCommitted(useFilterStore.getState())), excludeIds: [...pendingDeleteIds] })
       .then((count) => {
-        if (generation !== timeline.generation) return
+        if (generation !== timeline.countGeneration) return
+        if (version !== mutationVersion) { get().refreshTimelineCount(); return }
         timeline.totalCount = count
         timeline.hasMore = get().timelineImages.length < count
         set((s) => ({
@@ -283,8 +309,10 @@ export const useImageStore = create<ImageState>((set, get) => ({
   // 削除対象は必ず現在のフィルタ一致（=件数に含まれる）ものなので、グリッド未ロード分も
   // 含めて ids.size ぶん件数を減らす（旧 onCountChange(-deletedIds.size) と同じ挙動）。
   removeImages: (ids) => {
+    mutationVersion++
     const s = get()
     const snapshot: RemovedImagesSnapshot = {
+      queryKey: selectQueryKey(useFilterStore.getState()),
       grid: s.gridImages
         .map((image, index) => ({ index, image }))
         .filter(({ image }) => ids.has(image.id)),
@@ -305,37 +333,58 @@ export const useImageStore = create<ImageState>((set, get) => ({
     return snapshot
   },
 
-  restoreImages: (snapshot, ids) => set((s) => {
-    const shouldRestore = (id: number): boolean => !ids || ids.has(id)
-    const restoreList = (
-      current: ImageRow[],
-      entries: { index: number; image: ImageRow }[],
-    ): ImageRow[] => {
-      const next = [...current]
-      const currentIds = new Set(next.map((img) => img.id))
-      for (const { index, image } of entries.filter(({ image }) => shouldRestore(image.id)).sort((a, b) => a.index - b.index)) {
-        if (currentIds.has(image.id)) continue
-        next.splice(Math.min(index, next.length), 0, image)
-        currentIds.add(image.id)
-      }
-      return next
+  restoreImages: (snapshot, ids) => {
+    mutationVersion++
+    if (snapshot.queryKey !== undefined && snapshot.queryKey !== selectQueryKey(useFilterStore.getState())) {
+      // 削除時とは違う検索・並び順へ、古い行と件数を戻さない。
+      get().reloadGrid(gridShowToast)
+      get().reloadTimeline(timelineShowToast)
+      return
     }
-    // 件数の復元は snapshot に積まれたロード済み行ではなく removeImages 時点の ids 全体から
-    // 数える。グリッドが1ページしか読み込んでいない状態で大量選択→削除→Undo すると、
-    // 未ロード分がロード済み行の集計から漏れて件数が戻り切らないため。
-    const restoredCount = snapshot.removedIds.filter(shouldRestore).length
+    set((s) => {
+      const shouldRestore = (id: number): boolean => !ids || ids.has(id)
+      const restoreList = (
+        current: ImageRow[],
+        entries: { index: number; image: ImageRow }[],
+        sortOrder: 'date_asc' | 'date_desc' | 'random',
+      ): ImageRow[] => {
+        const next = [...current]
+        const currentIds = new Set(next.map((img) => img.id))
+        for (const { index, image } of entries.filter(({ image }) => shouldRestore(image.id)).sort((a, b) => a.index - b.index)) {
+          if (currentIds.has(image.id)) continue
+          next.splice(Math.min(index, next.length), 0, image)
+          currentIds.add(image.id)
+        }
+        if (sortOrder !== 'random') {
+          const direction = sortOrder === 'date_asc' ? 1 : -1
+          next.sort((a, b) => direction * (a.captured_at - b.captured_at || a.id - b.id))
+        }
+        return next
+      }
+      // 件数の復元は snapshot に積まれたロード済み行ではなく removeImages 時点の ids 全体から
+      // 数える。グリッドが1ページしか読み込んでいない状態で大量選択→削除→Undo すると、
+      // 未ロード分がロード済み行の集計から漏れて件数が戻り切らないため。
+      const restoredCount = snapshot.removedIds.filter(shouldRestore).length
+      return {
+        gridImages: restoreList(s.gridImages, snapshot.grid, useFilterStore.getState().sortOrder),
+        timelineImages: restoreList(s.timelineImages, snapshot.timeline,
+          useFilterStore.getState().sortOrder === 'date_asc' ? 'date_asc' : 'date_desc'),
+        gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount + restoredCount : snapshot.gridTotalCount,
+        timelineTotalCount: s.timelineTotalCount !== null ? s.timelineTotalCount + restoredCount : snapshot.timelineTotalCount,
+      }
+    })
+  },
+
+  prependToGrid: (img) => set((s) => {
+    // 再取得がキャプチャ通知の画像取得より先に終わると、既に一覧へ入っている。
+    // 同じ行を二度追加したり、件数を二度数えたりしない。
+    if (s.gridImages.some((image) => image.id === img.id)) return s
+    mutationVersion++
     return {
-      gridImages: restoreList(s.gridImages, snapshot.grid),
-      timelineImages: restoreList(s.timelineImages, snapshot.timeline),
-      gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount + restoredCount : snapshot.gridTotalCount,
-      timelineTotalCount: s.timelineTotalCount !== null ? s.timelineTotalCount + restoredCount : snapshot.timelineTotalCount,
+      gridImages: [img, ...s.gridImages],
+      gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount + 1 : null,
     }
   }),
-
-  prependToGrid: (img) => set((s) => ({
-    gridImages: [img, ...s.gridImages],
-    gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount + 1 : null,
-  })),
 
   adjustGridTotalCount: (delta) => set((s) => ({
     gridTotalCount: s.gridTotalCount !== null ? s.gridTotalCount + delta : null,

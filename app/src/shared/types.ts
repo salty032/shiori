@@ -135,6 +135,7 @@ export type Settings = {
 // 一覧のフィルタ条件。renderer が組み立て、main が検証し、SQL に落とすまでの
 // 「フィルタとは何か」を表す唯一の契約。位置引数で各層に散らさず、この型で受け渡す。
 export type ImageQuery = {
+  excludeIds?: number[]
   search?: string
   after?: number
   site?: string

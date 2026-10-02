@@ -108,10 +108,23 @@ export default function App() {
   // 新規ユーザーだけ、ライブラリの初回読込が終わって空だと確定してから案内を出す。
   // 一度閉じた後は自動再表示せず、サイドバーの「セットアップ」からいつでも確認できる。
   useEffect(() => {
-    if (!isDemoMode() && !imageList.loading && imageList.images.length === 0 && !setupGuide.tutorialSeen) {
+    if (
+      !isDemoMode()
+      && !imageList.loading
+      && !imageList.reloading
+      && !imageList.loadFailed
+      && imageList.totalCount === 0
+      && imageList.images.length === 0
+      && filters.search.trim() === ''
+      && filters.committedSearch.trim() === ''
+      && filters.tagFilters.length === 0
+      && !setupGuide.tutorialSeen
+    ) {
       setShowSetupGuide(true)
     }
-  }, [imageList.loading, imageList.images.length, setupGuide.tutorialSeen])
+  }, [imageList.loading, imageList.reloading, imageList.loadFailed, imageList.totalCount,
+    imageList.images.length, filters.search, filters.committedSearch, filters.tagFilters.length,
+    setupGuide.tutorialSeen])
 
   // 対応ページから一度でも受信できれば、拡張のサイドロードは成功している。ページを閉じた後も
   // 「未完了」へ戻さないため、現在の接続表示とは別に成功実績を保存する。

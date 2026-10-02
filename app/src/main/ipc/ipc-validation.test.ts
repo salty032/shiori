@@ -203,3 +203,6 @@ describe('formatTimecodeForFilename', () => {
     expect(formatTimecodeForFilename(65.9)).toBe('0105')
   })
 })
+it('除外IDは正の安全な整数だけを受け付け、重複を除く', () => {
+  expect(imageQuery({ excludeIds: [1, 1, 2, -1, 0, 1.5, '3', Infinity, null] }).excludeIds).toEqual([1, 2])
+})

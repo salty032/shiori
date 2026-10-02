@@ -100,7 +100,7 @@ Disable it in each browser's settings (restart the browser after changing this):
 
 1. Play anime on a video page where the browser extension is active
 2. Press `Alt+S` on the frame you want
-3. The thumbnail, title, and tags appear in your Shiori gallery automatically
+3. The thumbnail and title appear in your Shiori gallery. If automatic tagging is set up, tags are added after analysis
 
 ### Record a video clip
 
@@ -110,6 +110,9 @@ Disable it in each browser's settings (restart the browser after changing this):
    and **recording starts the moment it disappears** (up to about 2 seconds). The wait is there to keep frames from
    being lost at the head of the clip; pressing `Alt+D` while it is showing cancels the recording
 3. The clip is added to your gallery; open it to play and trim it inside the app
+
+In the video viewer, `Space` plays or pauses, `M` mutes or unmutes, and `↑` / `↓` adjust the volume by 5%.
+Use `←` / `→` to move to the previous or next image or clip, and `Enter` / `Escape` to close the viewer.
 
 > While recording, the tray icon shows the status (there's no on-screen indicator over the
 > recording area, since it would end up in the recording itself).

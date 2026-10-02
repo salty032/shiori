@@ -193,6 +193,7 @@ export const ja = {
   'shortcuts.closeViewer': 'ビューアを閉じる',
   'shortcuts.viewerSpace': '動画の再生 / 一時停止（画像では何も起きません）',
   'shortcuts.toggleMute': '音を消す / 戻す（動画）',
+  'shortcuts.viewerVolume': '音量を5%上げる / 下げる（動画。タイムシート表示中はコマ送り）',
   'shortcuts.toggleZoom': 'ズームのオン・オフ切り替え（画像のみ）',
   'shortcuts.zoomInOutReset': 'ズームイン / アウト / リセット',
   'shortcuts.toggleDetails': '詳細パネルの表示切り替え',
@@ -487,6 +488,8 @@ export const ja = {
 
   // ── 詳細パネル ──
   'detail.titleHint': 'クリックで展開 / ダブルクリックまたは F2 で編集',
+  'detail.titleSaveFailed': 'タイトルを保存できませんでした',
+  'detail.titleRetry': '再試行',
   'detail.editTitle': 'タイトルを編集',
   // 元の動画の中での位置。隣の「長さ」と対にして読ませる。
   // **「動画時刻」では何の時刻か読めなかった**——「動画」はライブラリのファイルを

@@ -100,6 +100,13 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       // デジタルタイムシートの操作系をそのまま持ってくるには、ここで先に通すしかない
       // （譲る範囲は useTimesheet の handleKey が持つ。コマ送りと再生はこちらに残る）。
       if (timesheet.handleKey(e)) return
+      if (images[index].media_type === 'video'
+        && (e.key === 'ArrowUp' || e.key === 'ArrowDown')
+        && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault()
+        videoPlayerRef.current?.adjustVolume(e.key === 'ArrowUp' ? 0.05 : -0.05)
+        return
+      }
       if (e.code === 'Space') {
         // **Space は「再生/一時停止」だけに使う。** 画像では再生するものが無いので何もしない
         // （閉じるのは Enter / Escape）。以前は画像で閉じていたが、そうすると ← → で画像と

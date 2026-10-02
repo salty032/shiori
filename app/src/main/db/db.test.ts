@@ -199,3 +199,8 @@ describe('restoredFrameCounts', () => {
     expect(restoredFrameCounts(withGap, { ambiguous: null })).toMatchObject({ unreported: 2, misaligned: 2 })
   })
 })
+it('削除猶予中のIDを、件数と一覧が共有するフィルターから除外する', () => {
+  const filter = buildImageFilter({ excludeIds: [2, 5] })
+  expect(filter.where).toBe('WHERE id NOT IN (SELECT value FROM json_each(?))')
+  expect(filter.params).toEqual(['[2,5]'])
+})

@@ -75,6 +75,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   })
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
+  const [titleSaveFailed, setTitleSaveFailed] = useState(false)
   const [titleExpanded, setTitleExpanded] = useState(false)
   const [memoDraft, setMemoDraft] = useState('')
   const [memoStatus, setMemoStatus] = useState<MemoSaveStatus>('idle')
@@ -83,6 +84,8 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const memoStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const memoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingMemoSaveRef = useRef<PendingMemoSave | null>(null)
+  const memoSaveQueueRef = useRef(new Map<number, Promise<void>>())
+  const memoSaveRequestsRef = useRef(new WeakMap<PendingMemoSave, Promise<void>>())
   const activeImageIdRef = useRef<number | null>(single?.id ?? null)
   const prevTaggerDoneKeyRef = useRef(taggerDoneKey)
 
@@ -154,14 +157,16 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   // 自動タグ付けが完了しただけ）でここが再実行されると、入力中のタイトル・メモ・タグ欄が
   // 破棄されてしまうため、タグ再取得（下の effect）とは意図的に分離している。
   useEffect(() => {
+    activeImageIdRef.current = single?.id ?? null
+    setTitleSaveFailed(false)
     if (!single) return
-    activeImageIdRef.current = single.id
     savingRef.current = true   // cancel any in-progress edit on image change
     if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
     setEditingTitle(false)
     setTitleExpanded(false)
     setMemoDraft(single.memo ?? '')
     setMemoStatus('idle')
+    pendingMemoSaveRef.current = null
     return () => {
       if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current)
       const pending = pendingMemoSaveRef.current
@@ -233,6 +238,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   function startEditingTitle(): void {
     if (!single) return
     savingRef.current = false
+    setTitleSaveFailed(false)
     setTitleDraft(single.title ?? '')
     setEditingTitle(true)
     setTimeout(() => {
@@ -244,28 +250,34 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   }
 
   async function persistMemo(pending: PendingMemoSave, showStatus: boolean): Promise<void> {
-    if (pending.value === pending.base) {
-      if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
-      if (activeImageIdRef.current === pending.id) setMemoStatus('idle')
-      pendingMemoSaveRef.current = null
-      return
-    }
-    try {
-      if (memoStatusTimerRef.current) clearTimeout(memoStatusTimerRef.current)
-      if (showStatus && activeImageIdRef.current === pending.id) setMemoStatus('saving')
-      await window.api.updateImageMemo(pending.id, pending.value)
-      onMemoChanged(pending.id, pending.value)
-      if (pendingMemoSaveRef.current?.id === pending.id && pendingMemoSaveRef.current.value === pending.value) {
-        pendingMemoSaveRef.current = null
+    const existing = memoSaveRequestsRef.current.get(pending)
+    if (existing) return existing
+    const isCurrent = (): boolean => activeImageIdRef.current === pending.id && pendingMemoSaveRef.current === pending
+    // 同じ画像への保存は入力順に実行する。blur・画像切替による同じ依頼の再送も防ぐ。
+    const previous = memoSaveQueueRef.current.get(pending.id) ?? Promise.resolve()
+    const request = previous.then(async () => {
+      try {
+        if (showStatus && isCurrent()) setMemoStatus('saving')
+        await window.api.updateImageMemo(pending.id, pending.value)
+        onMemoChanged(pending.id, pending.value)
+        if (isCurrent()) {
+          pendingMemoSaveRef.current = null
+          if (showStatus) {
+            setMemoStatus('saved')
+            memoStatusTimerRef.current = setTimeout(() => setMemoStatus('idle'), 1600)
+          }
+        }
+      } catch (err) {
+        if (showStatus && isCurrent()) setMemoStatus('error')
+        console.error('[memo] save failed', err)
       }
-      if (showStatus && activeImageIdRef.current === pending.id) {
-        setMemoStatus('saved')
-        memoStatusTimerRef.current = setTimeout(() => setMemoStatus('idle'), 1600)
-      }
-    } catch (err) {
-      if (showStatus && activeImageIdRef.current === pending.id) setMemoStatus('error')
-      console.error('[memo] save failed', err)
-    }
+    }).finally(() => {
+      if (memoSaveQueueRef.current.get(pending.id) === request) memoSaveQueueRef.current.delete(pending.id)
+      memoSaveRequestsRef.current.delete(pending)
+    })
+    memoSaveQueueRef.current.set(pending.id, request)
+    memoSaveRequestsRef.current.set(pending, request)
+    return request
   }
 
   function scheduleMemoSave(pending: PendingMemoSave): void {
@@ -281,28 +293,33 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
     if (!single) return
     if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current)
     memoSaveTimerRef.current = null
-    const pending = pendingMemoSaveRef.current ?? { id: single.id, value: memoDraft, base: single.memo ?? '' }
-    await persistMemo(pending, true)
+    const pending = pendingMemoSaveRef.current
+    if (pending) await persistMemo(pending, true)
   }
 
   async function saveTitle(): Promise<void> {
     if (savingRef.current) return
     savingRef.current = true
     setEditingTitle(false)
+    setTitleSaveFailed(false)
     if (!single || titleDraft === (single.title ?? '')) return
     try {
       await window.api.updateImageTitle(single.id, titleDraft)
       onTitleChanged(single.id, titleDraft)
     } catch (err) {
-      savingRef.current = false
-      setEditingTitle(true)
+      // 前の画像の保存失敗で、切り替え先の編集欄を開かない。
+      if (activeImageIdRef.current === single.id) {
+        savingRef.current = false
+        setEditingTitle(true)
+        setTitleSaveFailed(true)
+      }
       console.error('[title] save failed', err)
     }
   }
 
   function handleTitleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
     if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); saveTitle() }
-    if (e.key === 'Escape') { savingRef.current = true; setEditingTitle(false) }
+    if (e.key === 'Escape') { savingRef.current = true; setEditingTitle(false); setTitleSaveFailed(false) }
   }
 
   function handleBulkConfirm(val: string): void {
@@ -360,6 +377,16 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     {cleanTitle(single.title, settings.titleStrip)}
                   </span>
                   <button style={s.titleEditBtn} onClick={startEditingTitle} title={t('detail.editTitle')}><PencilIcon size={13} /></button>
+                </div>
+              )}
+              {titleSaveFailed && (
+                <div>
+                  <span role="alert" style={{ ...s.memoStatus, ...s.memoStatusError }}>{t('detail.titleSaveFailed')}</span>
+                  <button
+                    style={s.titleEditBtn}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => void saveTitle()}
+                  >{t('detail.titleRetry')}</button>
                 </div>
               )}
             </div>
@@ -432,8 +459,10 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                   const nextMemo = e.target.value
                   const baseMemo = single.memo ?? ''
                   setMemoDraft(nextMemo)
-                  setMemoStatus(nextMemo === baseMemo ? 'idle' : 'dirty')
-                  if (nextMemo === baseMemo) {
+                  // 保存中に元の文字へ戻した場合は、戻した文字を保存し直すまで「未保存」と出す。
+                  const reverted = nextMemo === baseMemo && !memoSaveQueueRef.current.has(single.id)
+                  setMemoStatus(reverted ? 'idle' : 'dirty')
+                  if (reverted) {
                     pendingMemoSaveRef.current = null
                     if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current)
                   } else {
@@ -447,7 +476,11 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current)
                     pendingMemoSaveRef.current = null
                     setMemoDraft(single.memo ?? '')
-                    setMemoStatus('idle')
+                    const saving = memoSaveQueueRef.current.has(single.id)
+                    setMemoStatus(saving ? 'dirty' : 'idle')
+                    if (saving) {
+                      scheduleMemoSave({ id: single.id, value: single.memo ?? '', base: single.memo ?? '' })
+                    }
                   }
                 }}
               />

@@ -77,6 +77,7 @@ export async function installMockApi(): Promise<void> {
   // その場で組み立て、db.ts と同じ normalizeSearchText を通してから当てる
   // （docs/SPEC.md「タイトル/メモ検索」）。
   function matches(row: ImageRow, f: ImageQuery): boolean {
+    if (f.excludeIds?.includes(row.id)) return false
     if (f.search) {
       // 空白区切りは「すべて含む」（db.ts の searchTerms と同じ扱い。語順は問わない）。
       const needles = f.search.split(/\s+/).map(normalizeSearchText).filter(Boolean)

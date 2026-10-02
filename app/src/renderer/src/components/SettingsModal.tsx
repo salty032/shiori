@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode, StorageInfo } from '../types'
-import { color, control, font, modal, radius, space, weight } from '../styles'
+import { color, font, space } from '../styles'
 import { buildAccelerator, formatBytes } from '../utils'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
 import { XIcon } from './Icon'
-import { useExportStore } from '../stores/exportStore'
+import SettingsDataTab from './SettingsDataTab'
+import { s } from './settingsStyles'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import ClipHotkeySettings from '../video/ClipHotkeySettings'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
+
+export { s } from './settingsStyles'
 
 type Props = {
   settings: Settings
@@ -64,19 +67,7 @@ export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange
 }
 
 export default function SettingsModal(p: Props) {
-  const { t, tp } = useT()
-  const [shareExportStatus, setShareExportStatus] = useState<{ text: string; error?: boolean } | null>(null)
-  const [shareImportStatus, setShareImportStatus] = useState<{ text: string; error?: boolean } | null>(null)
-  const [shareExporting, setShareExporting] = useState(false)
-  const [repairStatus, setRepairStatus] = useState<{ text: string; error?: boolean } | null>(null)
-  const [repairing, setRepairing] = useState(false)
-  const [shareImporting, setShareImporting] = useState(false)
-  // D-2/UX-3: 進捗の購読自体は App.tsx が全体で行い exportStore に一元化している
-  // （モーダルを閉じても進捗・中止ボタンが見え続けるようにするため）。ここではそれを読むだけ。
-  const shareImportProgress = useExportStore((st) => st.shareImportProgress)
-  // export:progress・中止ボタンは images/share の1系統しか持たないため、選択エクスポートが
-  // 進行中は共有書き出しを disabled にして混線を防ぐ（B-6）。
-  const otherExportActive = useExportStore((st) => st.exportKind === 'images')
+  const { t } = useT()
   const [capturing, setCapturing] = useState(false)
   const [capturedAccel, setCapturedAccel] = useState<string | null>(null)
   const [hotkeyError, setHotkeyError] = useState<string | null>(null)
@@ -154,11 +145,6 @@ export default function SettingsModal(p: Props) {
   // 走らせると「基本」タブだけ見て閉じる人にも毎回コストがかかるため、実際に数字を出す
   // タブ（データ・タグ）へ切り替わった最初の一回だけ取りに行く。
   const [storage, setStorage] = useState<StorageInfo | null>(null)
-  const [captureRootStatus, setCaptureRootStatus] = useState<{ text: string; error?: boolean } | null>(null)
-  // 移動の進み具合。total が 0 なら動いていない。**押している間ずっと出す**——実体の
-  // コピーで分単位かかるので、何も出ないと固まったようにしか見えない。
-  const [moveProgress, setMoveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 })
-  useEffect(() => window.api.onCaptureMoveProgress(setMoveProgress), [])
   const [storageLoading, setStorageLoading] = useState(false)
   const [storageFailed, setStorageFailed] = useState(false)
   const storageRequested = useRef(false)
@@ -483,228 +469,19 @@ export default function SettingsModal(p: Props) {
               </>
             )}
 
-            {activeTab === 'data' && (
-              <>
-                {/* 撮ったものの置き場所は、これまでアプリのどこにも出ていなかった。拡張のフォルダは
-                    開けるのに自分の何百枚には辿り着けない状態だったので、パスをそのまま出して開ける
-                    ようにする。保存先の変更は既存ファイルの移動と DB のパス書き換えを伴うため別件。 */}
-                <div style={{ ...s.group, ...s.groupFirst }}>
-                  <div style={s.section}>{t('settings.storage')}</div>
-                  <div style={s.actionRow}>
-                    <div style={s.pathBox}>{storage?.captureDir ?? '—'}</div>
-                    {/* 変更したら使用量も出し直す。**古い場所のぶんは新しい場所の数字に
-                        入らない**ので、変えた直後に容量が減って見えるのが正しい。 */}
-                    <button style={s.addBtn} disabled={moveProgress.total > 0} onClick={async () => {
-                        setCaptureRootStatus(null)
-                        const result = await window.api.chooseCaptureRoot()
-                        if (result.ok) {
-                          // 元が既に無くて飛ばしたぶんは、黙って減らさず件数を出す
-                          // （アプリの外で消されたファイルがあった、という手掛かりになる）。
-                          setCaptureRootStatus({
-                            text: t('settings.captureRootChanged', { count: String(result.moved) })
-                              + (result.missing > 0 ? t('settings.captureRootMissingSuffix', { count: String(result.missing) }) : ''),
-                          })
-                          setStorage(await window.api.getStorageInfo())
-                          return
-                        }
-                        // 選ばなかった・移動をやめたときは何も出さない。何も起きていないので。
-                        if (result.reason === 'canceled' || result.reason === 'move-canceled') return
-                        setCaptureRootStatus({
-                          text: result.reason === 'move-conflict'
-                            ? t('settings.captureMoveConflict', { path: result.conflictPath })
-                            : t(result.reason === 'invalid' ? 'settings.captureRootInvalid'
-                              : result.reason === 'unwritable' ? 'settings.captureRootUnwritable'
-                              : 'settings.captureMoveFailed'),
-                          error: true,
-                        })
-                      }}>
-                      {t('settings.changeCapturesFolder')}
-                    </button>
-                  </div>
-                  <div style={s.hint}>{t('settings.storageHint')}</div>
-                  {moveProgress.total > 0 && (
-                    <div style={s.actionRow}>
-                      <div style={s.hint}>
-                        {t('settings.captureMoving', { current: String(moveProgress.current), total: String(moveProgress.total) })}
-                      </div>
-                      <button style={s.addBtn} onClick={() => window.api.cancelCaptureMove()}>{t('action.stop')}</button>
-                    </div>
-                  )}
-                  {captureRootStatus && <div style={{ ...s.statusLine, ...(captureRootStatus.error ? s.statusLineError : s.statusLineOk) }}>{captureRootStatus.text}</div>}
-                </div>
-                {/* 書き出し・読み込み・修復はどれも分単位の作業なのに、「今どれだけあるか」が
-                    無いまま押すことになっていた。作業ボタンより先に現状を出す。 */}
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.usage')}</div>
-                  {storageLoading ? (
-                    <div style={s.hint}>{t('settings.usageCalculating')}</div>
-                  ) : storageFailed || !storage ? (
-                    <div style={s.hint}>{t('settings.usageFailed')}</div>
-                  ) : (
-                    <>
-                      <div style={s.label}>
-                        {t('settings.usageCounts', {
-                          images: storage.imageCount.toLocaleString(),
-                          videos: storage.videoCount.toLocaleString(),
-                        })}
-                      </div>
-                      {([
-                        ['settings.usageCaptures', formatBytes(storage.captureBytes)],
-                        ['settings.usageThumbnails', formatBytes(storage.thumbnailBytes)],
-                        ['settings.usageDatabase', formatBytes(storage.dbBytes)],
-                        ['settings.usageModel', storage.modelBytes > 0 ? formatBytes(storage.modelBytes) : t('settings.usageModelAbsent')],
-                      ] as const).map(([labelKey, value]) => (
-                        <div key={labelKey} style={s.row}>
-                          <span style={s.hint}>{t(labelKey)}</span>
-                          <span style={s.usageValue}>{value}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-                {/* 撮った静止画をどの解像度まで保存するか。**容量の話なので使用量のすぐ下に置く**
-                    （4K 環境で C ドライブが埋まる、という声から入れた設定なので、今どれだけ使って
-                    いるかを見た直後に目に入る位置でないと結び付かない）。行の名前を「画像」に
-                    しているのは、録画には効かないことを説明を読まずに読み取らせるため。 */}
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.captureResize')}</div>
-                  <div style={s.row}>
-                    <span style={s.label}>{t('settings.captureResizeTarget')}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
-                      {([['source', t('settings.captureResize.source')], ['fhd', t('settings.captureResize.fhd')], ['hd', t('settings.captureResize.hd')], ['screen', t('settings.captureResize.screen')]] as const).map(([value, label]) => {
-                        const active = p.settings.captureResize === value
-                        return (
-                          <button key={value} onClick={() => p.onUpdateCaptureResize(value)} data-current={active ? 'true' : undefined}
-                            style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
-                            {label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <div style={s.hint}>{t('settings.captureResizeHint')}</div>
-                </div>
-                {/* 選んだものを書き出すときの動画の形式。**すぐ下の「エクスポート」はライブラリの共有
-                    書き出しで、この設定を見ない。** 見出しに「書き出し」を使うと同じ語が隣り合って
-                    見分けられなくなるため、こちらは「変換」と呼ぶ。 */}
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.videoExport')}</div>
-                  <div style={s.row}>
-                    <span style={s.label}>{t('settings.videoExportFormat')}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
-                      {([['original', t('settings.videoExportFormat.original')], ['h264', t('settings.videoExportFormat.h264')]] as const).map(([value, label]) => {
-                        const active = p.settings.videoExportFormat === value
-                        return (
-                          <button key={value} onClick={() => p.onUpdateVideoExportFormat(value)} data-current={active ? 'true' : undefined}
-                            style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
-                            {label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <div style={s.hint}>{t('settings.videoExportFormatHint')}</div>
-                </div>
-                <div style={s.group}>
-                  <div style={s.section}>{t('action.export')}</div>
-                  <div style={s.actionRow}>
-                    <div style={s.hint}>{t('settings.exportHint')}</div>
-                    <button style={s.addBtn} disabled={shareExporting || otherExportActive} onClick={async () => {
-                      setShareExporting(true)
-                      setShareExportStatus(null)
-                      useExportStore.getState().startExport('share')
-                      try {
-                        const result = await p.onShareExport()
-                        if (result.canceled) {
-                          if (result.count != null) setShareExportStatus({ text: tp('settings.stoppedCount', result.count) })
-                          // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
-                        } else {
-                          setShareExportStatus({ text: tp('toast.exported', result.count ?? 0) })
-                        }
-                      } catch (err) {
-                        console.error('[settings] share export failed', err)
-                        setShareExportStatus({ text: t('settings.exportFailed'), error: true })
-                      } finally {
-                        setShareExporting(false)
-                        // 通常は onExportProgress 側（current>=total）でクリアされるが、途中キャンセル・
-                        // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
-                        useExportStore.getState().clearExport()
-                      }
-                    }}>
-                      {shareExporting ? t('settings.exporting') : t('settings.exportLibrary')}
-                    </button>
-                  </div>
-                  {shareExportStatus && <div style={{ ...s.statusLine, ...(shareExportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareExportStatus.text}</div>}
-                </div>
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.import')}</div>
-                  <div style={s.actionRow}>
-                    <div style={s.hint}>{t('settings.importHint')}</div>
-                    {shareImportProgress ? (
-                      <div style={{ ...s.progressWrap, flex: '0 0 220px' }}>
-                        <div style={s.progressBar}>
-                          <div style={{ ...s.progressFill, width: `${shareImportProgress.total > 0 ? Math.round(shareImportProgress.current / shareImportProgress.total * 100) : 0}%` }} />
-                        </div>
-                        <span style={s.progressLabel}>{shareImportProgress.current}/{shareImportProgress.total}</span>
-                        <button style={s.cancelBtn} onClick={() => window.api.shareImportCancel()}>{t('action.stop')}</button>
-                      </div>
-                    ) : (
-                      <button style={s.addBtn} disabled={shareImporting} onClick={async () => {
-                        setShareImporting(true)
-                        setShareImportStatus(null)
-                        try {
-                          const result = await p.onShareImport()
-                          if (result.canceled) {
-                            if (result.count != null) setShareImportStatus({ text: tp('settings.stoppedCount', result.count) })
-                            // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
-                          } else {
-                            const errMsg = result.errors && result.errors.length > 0 ? t('settings.importErrorSuffix', { count: result.errors.length }) : ''
-                            const folderMsg = result.importedFolders ? t('settings.importFolderSuffix', { count: result.importedFolders }) : ''
-                            setShareImportStatus({ text: tp('settings.importedCount', result.count ?? 0) + folderMsg + errMsg })
-                          }
-                        } catch (err) {
-                          console.error('[settings] share import failed', err)
-                          setShareImportStatus({ text: t('settings.importFailed'), error: true })
-                        } finally {
-                          setShareImporting(false)
-                          // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
-                          // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
-                          useExportStore.getState().setShareImportProgress(null)
-                        }
-                      }}>
-                        {shareImporting ? t('settings.importing') : t('settings.importLibrary')}
-                      </button>
-                    )}
-                  </div>
-                  {shareImportStatus && <div style={{ ...s.statusLine, ...(shareImportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareImportStatus.text}</div>}
-                </div>
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.thumbRepair')}</div>
-                  <div style={s.actionRow}>
-                    <div style={s.hint}>{t('settings.thumbRepairHint')}</div>
-                    <button style={s.addBtn} disabled={repairing} onClick={async () => {
-                      setRepairing(true)
-                      setRepairStatus(null)
-                      try {
-                        const { repaired, failed } = await window.api.imagesRepairThumbs()
-                        const failMsg = failed > 0 ? t('settings.repairFailSuffix', { count: failed }) : ''
-                        setRepairStatus({
-                          text: repaired > 0 ? tp('settings.repairedCount', repaired) + failMsg : t('settings.repairNoIssues') + failMsg,
-                        })
-                      } catch (err) {
-                        console.error('[settings] thumbnail repair failed', err)
-                        setRepairStatus({ text: t('settings.repairFailed'), error: true })
-                      } finally {
-                        setRepairing(false)
-                      }
-                    }}>
-                      {repairing ? t('settings.repairing') : t('settings.repairButton')}
-                    </button>
-                  </div>
-                  {repairStatus && <div style={{ ...s.statusLine, ...(repairStatus.error ? s.statusLineError : s.statusLineOk) }}>{repairStatus.text}</div>}
-                </div>
-              </>
-            )}
+            {/* タブ切替で実行中の状態・結果を失わないよう、非表示でもマウントを保つ。 */}
+            <SettingsDataTab
+              active={activeTab === 'data'}
+              settings={p.settings}
+              storage={storage}
+              storageLoading={storageLoading}
+              storageFailed={storageFailed}
+              onStorageChanged={setStorage}
+              onUpdateVideoExportFormat={p.onUpdateVideoExportFormat}
+              onUpdateCaptureResize={p.onUpdateCaptureResize}
+              onShareExport={p.onShareExport}
+              onShareImport={p.onShareImport}
+            />
 
             {activeTab === 'about' && (
               <>
@@ -750,93 +527,4 @@ export default function SettingsModal(p: Props) {
       </div>
     </div>
   )
-}
-
-// 各種設定スロットが見た目を揃えるために再利用する共通スタイル。
-//
-// ── 崩すと「統一感がない」に戻る約束 ─────────────────────────────
-// 1. 器はひとつ。タブの中身は必ず group（区切り線＋余白）で組む。背景付きのカードは使わない。
-//    以前は「データ」タブだけが背景付きカード(dataBlock)で、他3タブの区切り線と別物に見えていた。
-// 2. 文字は 3 段だけ: section(xs/secondary) > label(base/primary) > hint(sm/secondary)。
-//    label を section より大きくしないこと。以前は label が lg(15) で見出し xs(12) より
-//    目立ち、階層が反転していた。
-// 3. 角丸は radius トークンのみ。操作部品(ボタン・入力・バッジ)= sm、器(パネル・タイル)= md。
-//    以前は 3 と 4 が根拠なく混在していた。
-// 4. ボタンは btnBase で高さ・角丸・字送りを固定し、色だけで役割を分ける。
-//    以前は addBtn/sizeBtn/cancelBtn/deleteBtn が全部別の padding と font-size を持っていた。
-const btnBase: React.CSSProperties = {
-  height: control.lg, boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  flexShrink: 0, padding: '0 14px', borderRadius: radius.md, fontSize: font.base, fontWeight: weight.medium,
-  cursor: 'pointer', whiteSpace: 'nowrap' as const,
-}
-
-export const s: Record<string, React.CSSProperties> = {
-  overlay: { ...modal.overlay, background: 'rgba(var(--scrim-rgb), 0.88)', zIndex: 2000, padding: 0 },
-  panel: { ...modal.panel, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
-  sidebar: { width: 124, padding: '8px 10px', gap: space.x2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
-  tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: weight.medium, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: radius.md, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
-  tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: weight.medium },
-  // overscrollBehavior: タブの中身を端まで送ったあと、続きのホイールが背後の一覧へ
-  // 渡って**設定を開いたまま裏がスクロールしていた**。contain で連鎖を止める。
-  tabContent: { overflowY: 'auto' as const, overscrollBehavior: 'contain' as const, flex: 1, padding: '0 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
-  title: { fontSize: font.xxl, fontWeight: weight.medium, color: 'var(--text-bright)' },
-  close: { ...btnBase, width: 32, padding: 0, background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', color: 'var(--text-secondary)' },
-  // 区切り線は 2 つ目以降の group にだけ出す。1 つ目に出すとヘッダーの下線と重なって
-  // 二重線に見えるため、各タブの先頭 group には groupFirst を重ねること。
-  // **タブごとに構造を変えない。** どのタブも「group を縦に並べるだけ」の 1 段で揃える。
-  // 一度データタブだけカテゴリの段を足したが、他のタブは中身が 2〜4 つしかなく、同じ形に
-  // すると子が 1 つだけのカテゴリができる。優先度の問題（バージョン・クレジットが
-  // ライブラリへの操作と同列に並んでいた）は、それらを情報タブへ分けたことで解いている。
-  group: { borderTop: '1px solid var(--border-default)', padding: '22px 0', display: 'flex', flexDirection: 'column', gap: space.x12, width: '100%', maxWidth: 620 },
-  groupFirst: { borderTop: 'none' },
-  // **章・項目・説明を、濃さで 3 段の階段にする。** 以前は章が 12px の灰色、説明が 13px の
-  // 灰色で、1px しか違わなかった。濃い行は項目だけなので、どの灰色が見出しでどれが補足か
-  // 読めない（「章だけ小さくて薄い」＝親より子が目立つ状態だった）。
-  //   章   = 項目と同じ大きさ・一番濃い・中太
-  //   項目 = 濃い・普通の太さ
-  //   説明 = 一番薄い・小さい
-  // 大きさで分けるのは説明だけにする。章と項目まで大きさを変えると、章が見出しではなく
-  // 「大きい項目」に見えて、同じ列に並んでいるように読めてしまう。
-  section: { fontSize: font.base, color: 'var(--text-bright)', fontWeight: weight.medium },
-  toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
-  // row と toggleRow は同一。外部の設定スロットが両方の名前を使っているため別名で残す。
-  row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
-  label: { fontSize: font.base, color: 'var(--text-primary)', fontWeight: weight.normal },
-  sizeBtn: { ...btnBase, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', fontWeight: weight.medium, transition: 'all 0.1s' },
-  hint: { fontSize: font.xs, color: 'var(--text-muted)', lineHeight: 1.7 },
-  creditLink: { padding: 0, background: 'none', border: 'none', color: 'var(--accent-text)', fontSize: font.sm, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' },
-  hotkeyBadge: { ...btnBase, cursor: 'default', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', fontFamily: 'monospace', fontWeight: weight.normal },
-  // hotkeyBadge と同じ「値そのものを見せる枠」。パスは省略すると意味を失う（どこか分からなく
-  // なるのが元の問題）ので、切らずに折り返して全文を出し、選択してコピーできるようにする。
-  pathBox: { flex: 1, minWidth: 0, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: font.sm, lineHeight: 1.5, wordBreak: 'break-all' as const, userSelect: 'text' as const },
-  // 使用量の数値。行の左は hint（説明側）なので、右の数字だけ primary で拾えるようにする。
-  usageValue: { fontSize: font.base, fontWeight: weight.medium, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' as const },
-  hotkeyCapture: { ...btnBase, cursor: 'text', padding: '0 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--accent-text)', fontFamily: 'monospace', fontWeight: weight.normal, minWidth: 140, outline: 'none' },
-  toggleSwitch: { width: 44, height: control.md, padding: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', flexShrink: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 999, cursor: 'pointer', transition: 'background 0.16s ease, border-color 0.16s ease' },
-  toggleSwitchOn: { background: 'rgba(var(--accent-rgb), 0.24)', borderColor: 'rgba(var(--accent-rgb), 0.6)' },
-  toggleKnob: { width: 20, height: 20, borderRadius: 999, background: 'var(--text-secondary)', boxShadow: '0 1px 3px rgba(var(--scrim-rgb), 0.45)', transition: 'transform 0.16s cubic-bezier(.22,1,.36,1), background 0.16s ease' },
-  toggleKnobOn: { background: 'var(--accent-text)' },
-  statusBadge: { display: 'inline-flex', alignItems: 'center', height: 22, padding: '0 8px', borderRadius: 999, fontSize: font.xs, fontWeight: weight.strong, border: '1px solid', whiteSpace: 'nowrap' as const },
-  statusOk: { color: 'var(--success)', background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.35)' },
-  statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'var(--border-soft)' },
-  statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
-  inputRow: { display: 'flex', gap: space.x8 },
-  input: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
-  actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
-  addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)' },
-  patternEmpty: { color: 'var(--text-secondary)', fontSize: font.base },
-  patternList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: space.x4 },
-  patternItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: radius.md, padding: '6px 10px' },
-  code: { fontFamily: 'monospace', fontSize: font.sm, color: 'var(--text-secondary)', flex: 1 },
-  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 },
-  deleteBtn: { ...btnBase, background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, color: color.danger },
-  cancelBtn: { ...btnBase, background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' },
-  progressWrap: { display: 'flex', alignItems: 'center', gap: space.x8 },
-  progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: radius.md, overflow: 'hidden' },
-  progressFill: { height: '100%', background: 'var(--accent)', borderRadius: radius.md, transition: 'width 0.3s' },
-  progressLabel: { color: 'var(--text-secondary)', fontSize: font.sm, width: 36, textAlign: 'right' as const },
-  statusLine: { fontSize: font.sm, fontWeight: weight.normal },
-  statusLineOk: { color: 'var(--success)' },
-  statusLineError: { color: color.danger },
 }

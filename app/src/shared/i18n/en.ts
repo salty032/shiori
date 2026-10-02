@@ -181,6 +181,7 @@ export const en: Record<keyof typeof ja, string> = {
   'shortcuts.closeViewer': 'Close the viewer',
   'shortcuts.viewerSpace': 'Play / pause video (does nothing for images)',
   'shortcuts.toggleMute': 'Mute / unmute (video)',
+  'shortcuts.viewerVolume': 'Volume up / down by 5% (video; steps frames while the timesheet is open)',
   'shortcuts.toggleZoom': 'Toggle zoom (images only)',
   'shortcuts.zoomInOutReset': 'Zoom in / out / reset',
   'shortcuts.toggleDetails': 'Show or hide the details panel',
@@ -428,6 +429,8 @@ export const en: Record<keyof typeof ja, string> = {
 
   // ── Details panel ──
   'detail.titleHint': 'Click to expand / double-click or F2 to edit',
+  'detail.titleSaveFailed': 'Could not save the title',
+  'detail.titleRetry': 'Retry',
   'detail.editTitle': 'Edit title',
   'detail.timecode': 'Position',
   'detail.duration': 'Duration',

@@ -11,6 +11,7 @@ import type { ImageRow, DeleteImageResult } from '../types'
 import type { DismissToast, ShowToast, UpdateToast } from './useToast'
 import type { RemovedImagesSnapshot } from '../stores/imageStore'
 import { markPendingDelete, unmarkPendingDelete } from '../stores/imageStore'
+import { selectQueryKey, useFilterStore } from '../stores/filterStore'
 import { MAX_BULK_IDS } from '../../../shared/constants'
 import { t, tp } from '../i18n'
 
@@ -148,8 +149,8 @@ export function usePendingDeletion({
       updateToast,
       dismissToast,
       (failedIds) => {
-        restoreImages(pending.snapshot, failedIds)
         unmarkPendingDelete(failedIds)
+        restoreImages(pending.snapshot, failedIds)
       },
       showProgress,
     ).then(() => {
@@ -158,8 +159,8 @@ export function usePendingDeletion({
       unmarkPendingDelete(pending.ids)
     }).catch((err) => {
       console.error('[delete] failed', err)
-      restoreImages(pending.snapshot)
       unmarkPendingDelete(pending.ids)
+      restoreImages(pending.snapshot)
       showToast(t('toast.deleteFailed'), 'error')
     }).then(() => {
       // 成否によらず取り直す。一部だけ削除できた場合も集計は変わっており、全滅した場合も
@@ -175,14 +176,16 @@ export function usePendingDeletion({
     if (!pending) return false
     window.clearTimeout(pending.timer)
     unmarkPendingDelete(pending.ids)
+    const sameQuery = pending.snapshot.queryKey === undefined
+      || pending.snapshot.queryKey === selectQueryKey(useFilterStore.getState())
     if (pending.toastId != null) dismissToast(pending.toastId)
     // ビューアを開いたまま削除して Undo したなら、その画像へ戻す（復元で一覧に戻るため、
     // id を指し直すだけで表示位置は自動的に付いてくる）。
-    if (pending.viewerRestoreId != null && latestRef.current.viewerIdx !== null) {
+    if (sameQuery && pending.viewerRestoreId != null && latestRef.current.viewerIdx !== null) {
       setViewerId(pending.viewerRestoreId)
     }
     restoreImages(pending.snapshot)
-    restoreSelectionAfterUndo(pending.selectedBefore)
+    if (sameQuery) restoreSelectionAfterUndo(pending.selectedBefore)
     showToast(t('toast.deleteUndone'), 'info')
     return true
   }

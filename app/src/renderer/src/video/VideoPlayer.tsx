@@ -22,6 +22,7 @@ export type VideoPlayerHandle = {
   goToFrame: (idx: number) => void
   /** 音を消す / 戻す。バーのミュートボタンと同じ状態を触る（直近の値はクリップをまたいで残る）。 */
   toggleMute: () => void
+  adjustVolume: (delta: number) => void
   /**
    * 映像要素そのもの。**ズーム/パンの計算にだけ使う**（表示枠の矩形と映像の実寸が要る）。
    * 再生制御をここから触らないこと——それは上の 2 つの役目で、両方から触ると
@@ -367,6 +368,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     // muted を変えると onVolumeChange が state と lastMuted へ反映するので、
     // バーのミュートボタンと表示が食い違うことはない。
     toggleMute: () => { const v = videoRef.current; if (v) v.muted = !v.muted },
+    adjustVolume: (delta: number) => {
+      const v = videoRef.current
+      if (!v) return
+      // 消音中は消音を解き、消す前の音量から上げ下げする（0 から数えると 50% が 5% に落ちる）。
+      v.muted = false
+      v.volume = Math.max(0, Math.min(1, v.volume + delta))
+    },
     element: () => videoRef.current,
   }), [])
   // 掴んで動かしている間の、まだ出していない行き先（handleSeekPointerDown の注記）。
