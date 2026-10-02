@@ -3,6 +3,7 @@ import { join } from 'path'
 import { mkdir, readFile, access, unlink, rename } from 'fs/promises'
 import { createWriteStream, createReadStream } from 'fs'
 import { createHash } from 'crypto'
+import { taggerProcessOrt } from './tagger-process'
 
 const MODEL_URL = 'https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/model.onnx'
 const TAGS_URL = 'https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/selected_tags.csv'
@@ -71,8 +72,9 @@ async function unloadModel(): Promise<void> {
 }
 
 async function getOrt(): Promise<any> {
+  // 推論は別プロセス（tagger-host.ts）で回す。理由は tagger-host.ts の冒頭。
   if (!ortModule) {
-    ortModule = require('onnxruntime-node')
+    ortModule = taggerProcessOrt
   }
   return ortModule
 }
@@ -242,7 +244,10 @@ async function loadModel(onProgress?: ProgressCallback, options: DownloadSignal 
   const csv = await readFile(tp, 'utf-8')
   tagList = parseTagsCSV(csv)
   if (tagList.length === 0) throw new Error('selected_tags.csv is empty or invalid')
-  session = await ort.InferenceSession.create(mp)
+  const created = await ort.InferenceSession.create(mp)
+  session = created
+  // 推論プロセスが落ちたら捨てる。残すと以後のタグ付けが全部「終了済み」で失敗し続ける。
+  created.onExit?.(() => { if (session === created) session = null })
   scheduleIdleUnload()
 }
 

@@ -7,7 +7,9 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/main/index.ts')
+          index: resolve('src/main/index.ts'),
+          // 自動タグ付けの推論を回す utilityProcess（capture/tagger-process.ts が起動する）
+          'tagger-host': resolve('src/main/capture/tagger-host.ts')
         }
       }
     },
