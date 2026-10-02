@@ -4,6 +4,7 @@ import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { ensureCaptureSubDir, captureRootReachable } from '../system/paths'
+import { captureDisplayGdi } from './gdi-capture'
 import { t } from '../system/i18n'
 import { loadSettings } from '../system/settings'
 import type { CaptureResize } from '../../shared/types'
@@ -308,6 +309,12 @@ async function captureDisplayImage(edisp: Display): Promise<NativeImage | null> 
   return source.thumbnail
 }
 
+function videoAreaLooksBlack(image: NativeImage, display: Display): boolean {
+  const { width, height } = image.getSize()
+  const crop = computeVideoCrop(width, height, display)
+  return crop !== null && isLikelyBlackFrame(image.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h }))
+}
+
 export async function writeCaptureFile(dir: string, data: Buffer, ext = '.png'): Promise<string> {
   for (let i = 0; i < 5; i++) {
     const filepath = join(dir, `cap_${Date.now()}_${randomUUID()}${ext}`)
@@ -380,7 +387,16 @@ async function captureScreen(): Promise<string> {
     const { left: wl, top: wt, width: ww, height: wh } = browserWindow!
     const electronDisplay = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
 
-    let native = await captureDisplayImage(electronDisplay)
+    // 先に BitBlt（約 20ms）で写し、だめなら desktopCapturer（約 350ms）へ。理由は gdi-capture.ts。
+    // **映像部分が黒く写ったら、プレーヤーUIを戻す前に撮り直す。** BitBlt だけが黒くなる環境が
+    // 配布先にあっても、今までの写り方より悪くはならない（本当に黒い場面なら撮り直しても黒い
+    // ままで、下の黒画面の警告に進む）。
+    let native = captureDisplayGdi(electronDisplay)
+    if (native && videoAreaLooksBlack(native, electronDisplay)) {
+      console.warn('[capture] GDI capture looked black, retrying with desktopCapturer')
+      native = null
+    }
+    if (!native) native = await captureDisplayImage(electronDisplay)
     if (!native) {
       // display_id が取れない環境向けのフォールバック（従来の screenshot-desktop 経路）。
       const display = await resolveDisplay()
