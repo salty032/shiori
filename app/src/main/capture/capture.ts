@@ -337,8 +337,19 @@ async function notifyCaptureDone(
 async function captureScreen(): Promise<string> {
   // ホットキー連打による並行実行を防ぐ。並行すると pendingTimecode・setOpacity・
   // pre/post-capture のグローバル状態が競合し、復元順や保存メタデータがズレる。
+  //
+  // **守るのは撮るところまで。** 保存（ファイル書き込み・サムネ・DB 登録）まで握ると、
+  // その間に押した次の 1 枚が画面に何も出ないまま捨てられる。グローバル状態を読むのは
+  // 最初の await（保存フォルダ作成）より前で終わるので、そこで次の撮影に明け渡す。
+  // 解除は 1 回だけ——明け渡した後の finally が、次の撮影の旗まで下ろさないように。
   if (isCapturing) throw new SilentCaptureAbort('Capture already in progress')
   isCapturing = true
+  let lockReleased = false
+  const releaseCaptureLock = (): void => {
+    if (lockReleased) return
+    lockReleased = true
+    isCapturing = false
+  }
 
   let context: CaptureContext = null
   // 前回の撮影で入った値を持ち越さない。preCaptureHook が今回の返事から入れ直す。
@@ -407,6 +418,7 @@ async function captureScreen(): Promise<string> {
           : cropped
         // 有効なクロップが確定してから保存先サブフォルダを作る。前面/動画未検出/クロップ不正で
         // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
+        releaseCaptureLock()
         const dir = await ensureCaptureSubDir(Date.now())
         const filepath = await writeCaptureFile(dir, output.toPNG())
         const size = output.getSize()
@@ -421,7 +433,7 @@ async function captureScreen(): Promise<string> {
     throw new Error('Browser video crop area is invalid')
   } finally {
     runPostCapture()
-    isCapturing = false
+    releaseCaptureLock()
   }
 }
 
