@@ -37,6 +37,17 @@ describe('parseExtensionMessage — ping', () => {
     // 余計な値が付いていても持ち込まない
     expect(parseExtensionMessage(str({ type: 'frame-gap', at: 12345 }))).toEqual({ type: 'frame-gap' })
   })
+  it('準備表示を消した描画完了 ACK は requestId と時刻を検証して通す', () => {
+    expect(parseExtensionMessage(str({
+      type: 'clip-armed-painted', requestId: 'clear-1', paintedAt: 1_700_000_000_000
+    }))).toEqual({ type: 'clip-armed-painted', requestId: 'clear-1', paintedAt: 1_700_000_000_000 })
+    expect(parseExtensionMessage(str({
+      type: 'clip-armed-painted', requestId: '', paintedAt: 1_700_000_000_000
+    }))).toBeNull()
+    expect(parseExtensionMessage(str({
+      type: 'clip-armed-painted', requestId: 'clear-1', paintedAt: 'bad'
+    }))).toBeNull()
+  })
 })
 
 describe('parseExtensionMessage — timecode 正常系', () => {

@@ -428,9 +428,8 @@ describe('transcodeToH264', () => {
   }, 120_000)
 })
 
-// サムネイルは録画の 1 コマ目から作っていたが、**その 1 コマ目には「録画の準備中」の札が
-// 写っていることがある**（2026-08-31 実機。recording.ts の ARMED_CLEAR_MS の項）。
-// 少し後ろの絵から作ることで、一覧に札入りの絵が並ぶのを避ける。
+// 準備表示の写り込みは録画開始境界で防ぐ。サムネイルだけ後ろへずらすと、一覧と動画を
+// 開いた直後の絵が別物になるため、ファイルの 1 コマ目をそのまま使う。
 describe('extractThumb', () => {
   let dir: string
   let clipPath: string
@@ -439,15 +438,12 @@ describe('extractThumb', () => {
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'shiori-ffmpeg-thumb-test-'))
     clipPath = join(dir, 'clip.webm')
-    // testsrc は絵が時間で変わるので、頭とずらした先が別の絵になっているかを見られる。
     await runFfmpegSync([
       '-y',
       '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=10',
       '-c:v', 'libvpx',
       clipPath
     ])
-    // ずらす先（0.3 秒）に届かないクリップ。**録画は最短でもこれより長いが、取り込みには
-    // 短いものが来うる**ので、サムネが 1 枚も作られない形にはしない。
     shortPath = join(dir, 'short.webm')
     await runFfmpegSync([
       '-y',
@@ -461,19 +457,17 @@ describe('extractThumb', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('1 コマ目ではなく、少し後ろの絵から作る', async () => {
+  it('動画の 1 コマ目から作る', async () => {
     const thumbPath = join(dir, 'thumb.jpg')
     await extractThumb(clipPath, thumbPath)
     const firstPath = join(dir, 'first.jpg')
     await runFfmpegSync(['-y', '-i', clipPath, '-frames:v', '1', '-f', 'image2', firstPath])
     const [thumb, first] = await Promise.all([readFile(thumbPath), readFile(firstPath)])
     expect(thumb.length).toBeGreaterThan(0)
-    expect(thumb.equals(first)).toBe(false)
+    expect(thumb.equals(first)).toBe(true)
   }, 60_000)
 
-  // ずらした先にコマが無ければ ffmpeg は成功したまま 1 枚も書かない。**終了コードだけを
-  // 見ていると、空のサムネを「作れた」として登録することになる。**
-  it('ずらす先まで尺が無いクリップでも、頭から作る', async () => {
+  it('短いクリップでも作れる', async () => {
     const thumbPath = join(dir, 'short_thumb.jpg')
     await extractThumb(shortPath, thumbPath)
     expect((await readFile(thumbPath)).length).toBeGreaterThan(0)

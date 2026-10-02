@@ -1,5 +1,6 @@
 import fixWebmDuration from 'fix-webm-duration'
 import { createFrameSink } from './frame-sink'
+import { createCaptureBoundary } from './capture-boundary'
 import type { BenchResult, BenchVariant, RecorderApi, StartData } from '../shared/recorder-api'
 
 export {}
@@ -365,11 +366,10 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     return
   }
 
-  // captureStream(0) disables automatic sampling. We request frames manually so
-  // the cropped output follows the captured source frame timing.
-  const cs = canvas.captureStream(0)
-  canvasStream = cs
-  const csTrack = cs.getVideoTracks()[0] as any
+  // 録画用の canvas ストリームは、準備中の札が消えたフレームを確認するまで作らない。
+  // ここで作ると captureStream が現在の canvas（札が写った絵）を初期フレームとして保持し、
+  // 後で canvas を描き直しても MediaRecorder の冒頭へ残る環境がある。
+  let csTrack: { requestFrame(): void } | null = null
 
   rVfcRunning = true
   // 供給を引き上げるティッカーを回す。録画中だけで十分なのでここで開始し、cleanup で止める。
@@ -381,13 +381,15 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   // ちょうど同じだけ数える**（記録開始の時点で描いてあった 1 枚は数え、それより前は数えない）
   // という一点は frame-sink.ts が持つ（そこだけはテストから駆動できる）。
   const sink = createFrameSink()
+  const captureBoundary = createCaptureBoundary()
   // **絵は準備中から作り続ける。** 記録に送るのと数えるのだけを開始まで止める——
   // 描画を止めると準備中の負荷が本番と変わってしまい、落ち着き待ちが見ている状態が
   // 記録中の状態とずれる（それでは待つ意味が無い）。
   const drawFrame = (captureTime?: number): void => {
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
+    captureBoundary.observe(captureTime)
     if (!sink.record(captureTime)) return
-    csTrack.requestFrame()
+    csTrack?.requestFrame()
   }
   // 直前に供給した動画フレームの mediaTime。同じ値なら供給しない。
   //
@@ -445,7 +447,21 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   // 停止を押された／main が見切った。片付けと中断の通知は onStop 側が済ませている
   // （ここで二重に送ると、始まったばかりの次の録画を巻き込む）。
   if (!startData || token !== recordingToken) return
-  const { supplyFps, sourceFps, maxSeconds } = startData
+  const { supplyFps, sourceFps, maxSeconds, cleanAfter, cleanFrameDeadline } = startData
+
+  const cleanFrameConfirmed = cleanAfter !== null
+    ? await captureBoundary.wait(cleanAfter, cleanFrameDeadline)
+    : false
+  if (token !== recordingToken) return
+  window.recorderApi.reportStartBoundary(sessionId, cleanFrameConfirmed)
+
+  // captureStream(0) disables automatic sampling. 準備中の札が消えた後の canvas から
+  // ストリームを作る。現在の canvas は MediaRecorder が開始時に 1 枚目として書くため、
+  // ここでは requestFrame() しない（二重に入る可能性を作らない）。ここから rec.start() と
+  // sink.open() までは await を挟まず、映像とコマ表の先頭を一致させる。
+  const cs = canvas.captureStream(0)
+  canvasStream = cs
+  csTrack = cs.getVideoTracks()[0] as MediaStreamTrack & { requestFrame(): void }
 
   const mimeType = pickMimeType()
 

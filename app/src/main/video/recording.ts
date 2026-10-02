@@ -1,6 +1,6 @@
 // 動画クリップ録画のステートマシン。録画状態（isRecording / isRecordingStarting /
 // recordingMeta）を保持し、開始・停止・状態リセット・ホットキー処理を提供する。
-import { shell, desktopCapturer, screen as electronScreen } from 'electron'
+import { desktopCapturer, screen as electronScreen } from 'electron'
 import { broadcastMessage, onExtensionMessage, type ExtensionMessage } from '../browser/ws-server'
 import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRect } from '../capture/capture'
 import { loadSettings } from '../system/settings'
@@ -169,20 +169,30 @@ const UI_HOLD_MARGIN_SEC = 10
 // 見切りは 2.0 秒（1.5 秒から引き上げ・2026-08-26）。これを超えるのは荒れが収まって
 // いない録画で、そのときは画面に出す。
 const CLIP_SETTLE_TIMEOUT_MS = 2000
-// 「準備中」の表示が消えるのを待つ時間。ローカルの WS 往復は数 ms だが、消える前に
-// 撮り始めると表示が録画に写る。**録画そのものを汚すので、ここは余裕を取る。**
-//
-// 120ms では足りず、録画の頭に札が 1 コマ写った（2026-08-31 実機。1 コマ目から作る
-// サムネイルにもそれが並び、撮れている録画まで失敗に見えた）。効いていなかったのは往復
-// ではなく、**札が消えた画面が画面キャプチャを通って録画側へ届くまでの遅れ**。
-//
-// **写り込みが 1 コマで収まっていた**ことから、超過は供給 1 回ぶん（実測 p50 17.6ms）程度と
-// 読み、その 4 倍の余裕を見て 200ms とする。
-//
-// **これ以上延ばさない。** 延ばしたぶんは押してから録り始まるまでが丸ごと遅れる（＝撮り逃す）。
-// 写り込みは頭の数コマで済むが、撮り逃した場面は戻らない。
-const ARMED_CLEAR_MS = 200
+const ARMED_CLEAR_TIMEOUT_MS = 200
+const ARMED_CAPTURE_MARGIN_MS = 34
 
+type ArmingClearResult = { paintedAt: number | null; deadline: number }
+
+function clearArmingOverlay(): Promise<ArmingClearResult> {
+  const requestId = `${Date.now()}-${Math.random()}`
+  const deadline = Date.now() + ARMED_CLEAR_TIMEOUT_MS
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (paintedAt: number | null): void => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      off()
+      resolve({ paintedAt, deadline })
+    }
+    const off = onExtensionMessage((msg) => {
+      if (msg.type === 'clip-armed-painted' && msg.requestId === requestId) finish(msg.paintedAt)
+    })
+    const timer = setTimeout(() => finish(null), ARMED_CLEAR_TIMEOUT_MS)
+    broadcastMessage({ type: 'clip-armed', requestId })
+  })
+}
 // レコーダーウィンドウを生成し、ロード完了まで待つ。
 // 既存ウィンドウ（起動時生成）がまだロード中でも待つことで、起動直後の初回録画で
 // recorder:start が未ロードのページに送られて取りこぼされるのを防ぐ。
@@ -315,12 +325,10 @@ export async function startRecording(): Promise<void> {
     // 前提の長さなので、録画では途中で UI が戻ってしまう。録画の長さ＋停止処理のぶんを
     // 明示して渡し、正常に撮り切るまで隠したままにする。
     broadcastMessage({ type: 'pre-capture', holdMs: (maxSeconds + UI_HOLD_MARGIN_SEC) * 1000, video: true })
-    shell.beep()
 
     // **キャプチャの立ち上がりでページがコマを描き落とすので、落ち着くまで記録を始めない**
     // （frame-feed.ts の waitForSteadyFrames にコメント）。待っている間だけ映像の上に
-    // 「準備中」を出す —— まだ記録していないので写り込まないし、全画面でも見える。
-    // 消えた瞬間が記録開始の合図になる。
+    // 「準備中」を出し、消去後のフレームがキャプチャ側へ届いたことを確認してから始める。
     broadcastMessage({ type: 'clip-arming', label: t('video.clipArming') })
     awaitingStart = true
     startCanceled = false
@@ -375,7 +383,7 @@ export async function startRecording(): Promise<void> {
     }
 
     const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)
-    broadcastMessage({ type: 'clip-armed' })
+    const armingClear = await clearArmingOverlay()
     // 待っている間に停止を押されていたら、ここで畳む（記録は始めず、キャプチャは解放する）。
     if (startCanceled) {
       console.log(`[clip] canceled during settle (${settle.waitedMs}ms)`)
@@ -383,23 +391,6 @@ export async function startRecording(): Promise<void> {
       return
     }
     console.log(`[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`)
-    // 表示が実際に消えてから撮り始める。往復はローカルの WS で数 ms だが、消える前に
-    // 記録を始めると「準備中」が数コマ写る——**録画そのものを汚す**ので余裕を持たせる。
-    //
-    // **この待ちを落ち着き待ちと重ねてはいけない**（札を先に消せば開始を遅らせずに猶予が
-    // 取れる、と一度そう変えた）。重ねると空白が落ち着き待ちの残りぶん＝録画ごとに 0.2〜2 秒と
-    // 変わり、**「札が消えた＝ここから録れている」が読めなくなる。** 固定でないと合図にならない。
-    await new Promise((resolve) => setTimeout(resolve, ARMED_CLEAR_MS))
-    // **この待ちも「まだ始めていない」区間。** 以前は落ち着き待ちが明けた時点で
-    // awaitingStart を下ろしており、ここで停止を押すと recorder:stop だけが先に飛んだ。
-    // レコーダーには止めるものがまだ無いので空振りし、直後に recorder:start が送られて
-    // 録画が始まる——押した人からは「止めたのに撮り続けている」に見えた。
-    // 印を下ろすのは実際に開始を送る直前（下）まで遅らせ、ここでもう一度見る。
-    if (startCanceled) {
-      console.log('[clip] canceled while the arming overlay was clearing')
-      cancelBeforeStart()
-      return
-    }
     // 落ち着きを確認できないまま始めたことは、ログではなくその場の画面に出す。
     // 黙って始めると「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。
     if (!settle.settled) sendBrowserNotice('warning', t('notice.recordingNotSettled'))
@@ -431,7 +422,11 @@ export async function startRecording(): Promise<void> {
       // ページ側が再生中ずっと rVFC で測っている値。測れていなければ null にして、従来どおりの
       // 固定ビットレートで録る。**推定で埋めない**（images.fps を供給レートで埋めないのと同じ）。
       sourceFps: target?.frameDurMs ? 1000 / target.frameDurMs : null,
-      maxSeconds
+      maxSeconds,
+      cleanAfter: armingClear.paintedAt === null
+        ? null
+        : armingClear.paintedAt + ARMED_CAPTURE_MARGIN_MS,
+      cleanFrameDeadline: armingClear.deadline
       // sessionId は載せない。**セッションは準備の時点で決まっている**ので、レコーダーは
       // recorder:prepare で受け取った値を使う。ここでも渡すと 2 つの出どころができる。
     } satisfies StartData)

@@ -40,6 +40,7 @@ export type ExtensionMessage =
   // <video> が差し替わる（広告挿入・画質切替）と止まるため、その区間のコマは表に入らない。
   // **入らなかったコマは撮り逃しですらなく最初から存在しない**ので、枚数や割合には現れない。
   | { type: 'frame-gap' }
+  | { type: 'clip-armed-painted'; requestId: string; paintedAt: number }
 
 // バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
 // セキュリティ上重要な値ではなく、拡張側とのパリティ対象にもしない（UX-9）。
@@ -188,6 +189,15 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   const msg = parsed as Record<string, unknown>
   if (msg.type === 'ping') return { type: 'ping' }
   if (msg.type === 'frame-gap') return { type: 'frame-gap' }
+  if (msg.type === 'clip-armed-painted') {
+    const requestId = typeof msg.requestId === 'string'
+      ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH)
+      : ''
+    const paintedAt = boundedNumber(msg.paintedAt, 0, MAX_EPOCH_MS)
+    return requestId && paintedAt !== null
+      ? { type: 'clip-armed-painted', requestId, paintedAt }
+      : null
+  }
   if (msg.type === 'frame') {
     const mediaTime = boundedNumber(msg.mediaTime, 0, MAX_TIMECODE_SECONDS)
     const displayAt = boundedNumber(msg.displayAt, 0, MAX_EPOCH_MS)

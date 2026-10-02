@@ -28,6 +28,12 @@ vi.mock('../browser/ws-server', () => ({
         windowLeft: 0, windowTop: 0, windowWidth: 800, windowHeight: 600,
         innerWidth: 800, innerHeight: 600
       }))
+    } else if (m.type === 'clip-armed') {
+      // content.js は札を消して 2 回の rAF を越えてから返す。少し遅らせ、開始前に停止する
+      // 窓も実物どおり残す。
+      setTimeout(() => extensionListener?.({
+        type: 'clip-armed-painted', requestId: m.requestId, paintedAt: Date.now()
+      }), 32)
     }
   },
   onExtensionMessage: (cb: (msg: unknown) => void) => {
@@ -47,7 +53,6 @@ const recorderSend = vi.fn((channel: string, data?: { sessionId?: number }) => {
   void Promise.resolve().then(() => replyReady?.(sessionId))
 })
 vi.mock('electron', () => ({
-  shell: { beep: vi.fn() },
   desktopCapturer: { getSources: vi.fn(async () => [{ id: 'screen:0:0', display_id: '1' }]) },
   screen: { getDisplayNearestPoint: vi.fn(() => ({ id: 1, displayFrequency: 60 })) }
 }))
@@ -104,8 +109,7 @@ function postCaptureCount(): number {
   return broadcastMessage.mock.calls.filter(([msg]) => (msg as { type: string }).type === 'post-capture').length
 }
 
-// startRecording は「準備中」の表示が消えるのを待ってから撮り始める（ARMED_CLEAR_MS）。
-// ここは実時間を止めているので、進めてやらないと録画が始まらない。
+// startRecording は「準備中」が描画から消えた ACK を待ってから撮り始める。
 async function startRecordingSettled(): Promise<void> {
   const started = startRecording()
   if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(500)
@@ -145,14 +149,12 @@ describe('落ち着くのを待っている間に停止したとき', () => {
     expect(broadcastMessage.mock.calls.some((c) => (c[0] as { type: string }).type === 'post-capture')).toBe(true)
   })
 
-  // 落ち着き待ちが明けてから実際に撮り始めるまでの ARMED_CLEAR_MS（200ms）。**ここも
+  // 落ち着き待ちが明けてから消去 ACK が返るまで。**ここも
   // まだ録画は始まっていない。** 直す前はこの窓で押すと recorder:stop だけが空振りし、
   // 直後に recorder:start が送られて録画が始まっていた。
-  it('「準備中」が消えた直後（開始を送るまでの 200ms）に押しても始めない', async () => {
-    // 落ち着き待ちは即座に明ける（既定のモック）。以降の待ちは ARMED_CLEAR_MS だけ。
+  it('「準備中」を消している途中（ACK前）に押しても始めない', async () => {
     const started = startRecording()
-    // 待ちに入るまで進める。0 では clip-armed へ到達していない。
-    await vi.advanceTimersByTimeAsync(50)
+    await vi.advanceTimersByTimeAsync(10)
     expect(broadcastMessage.mock.calls.some((c) => (c[0] as { type: string }).type === 'clip-armed')).toBe(true)
     expect(recorderSend.mock.calls.map((c) => c[0])).not.toContain('recorder:start')
     handleClipHotkey()
@@ -164,7 +166,7 @@ describe('落ち着くのを待っている間に停止したとき', () => {
   })
 
   // 押していなければ従来どおり。**窓を閉じるために開始そのものを遅らせていないこと。**
-  it('押さなければ 200ms 後に開始を送る', async () => {
+  it('押さなければ消去 ACK 後に開始を送る', async () => {
     const started = startRecording()
     await vi.advanceTimersByTimeAsync(3000)
     await started

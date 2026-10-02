@@ -60,8 +60,9 @@ vi.mock('../system/settings', () => ({
   loadSettings: vi.fn(() => ({ clipNotify: true, language: 'ja' }))
 }))
 
+const sendBrowserNotice = vi.fn()
 vi.mock('../browser/browser-notice', () => ({
-  sendBrowserNotice: vi.fn()
+  sendBrowserNotice: (...args: unknown[]) => sendBrowserNotice(...args)
 }))
 
 vi.mock('./ffmpeg', () => ({
@@ -105,6 +106,7 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
     isCurrentRecordingSession.mockClear()
     isCurrentRecordingSession.mockReturnValue(true)
     sendNotice.mockClear()
+    sendBrowserNotice.mockClear()
     registerCapturedMedia.mockClear()
     registerRecorderIpc()
   })
@@ -121,6 +123,22 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
     const handler = handlers.get('recorder:error')!
     handler({}, 'aborted', 1)
     expect(finishRecordingState).toHaveBeenCalled()
+  })
+
+  it('開始境界を確認できなくても録画は止めず、写り込みの可能性だけを知らせる', () => {
+    const handler = handlers.get('recorder:startBoundary')!
+    handler({}, 1, false)
+    expect(sendBrowserNotice).toHaveBeenCalledWith(
+      'warning',
+      '録画準備中の表示が消えたことを確認しきれないまま録画を始めました。冒頭に表示が写っている可能性があります。'
+    )
+    expect(finishRecordingState).not.toHaveBeenCalled()
+  })
+
+  it('開始境界を確認できたら警告しない', () => {
+    const handler = handlers.get('recorder:startBoundary')!
+    handler({}, 1, true)
+    expect(sendBrowserNotice).not.toHaveBeenCalled()
   })
 
   it('recorder:done: sessionId が一致しなければ無視する（新しい録画を保存確定させない）', async () => {
@@ -144,7 +162,7 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
 //
 // **ホットキーを押した時刻ではなく、実際に記録された先頭のコマから決める。** 押してから
 // 記録が始まるまでには、画面キャプチャの立ち上げ・落ち着き待ち（最大 2 秒）・「準備中」が
-// 消えるのを待つ 120ms が入る。押した時刻を保存すると、その全部ぶん古い値が詳細パネルにも
+// 消えたフレームを確認する待ちが入る。押した時刻を保存すると、その全部ぶん古い値が詳細パネルにも
 // ファイル名にも出るのに、**何秒ずれているかは画面からは分からない。**
 describe('recorder:done - 再生時刻は実際に撮れた先頭のコマから決める', () => {
   beforeEach(() => {

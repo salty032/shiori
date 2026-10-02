@@ -45,12 +45,18 @@ export interface StartData {
   supplyFps: number
   sourceFps: number | null
   maxSeconds: number
+  /** 準備表示の消去が画面合成まで届くよう、ページ描画 ACK に余裕を足した境界。 */
+  cleanAfter: number | null
+  /** cleanAfter より後のキャプチャフレームを待つ絶対期限（epoch ミリ秒）。 */
+  cleanFrameDeadline: number
 }
 
 export interface RecorderApi {
   onPrepare: (cb: (data: PrepareData) => void) => void
   onStart: (cb: (data: StartData) => void) => void
   reportReady: (sessionId: number) => void
+  /** 動画の先頭に使う、準備表示消去後のフレームを確認できたかを main へ返す。 */
+  reportStartBoundary: (sessionId: number, confirmed: boolean) => void
   onStop: (cb: () => void) => void
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
   sendDone: (webm: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void

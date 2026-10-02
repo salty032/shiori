@@ -14,6 +14,9 @@ const recorderApi: RecorderApi = {
   reportReady: (sessionId: number) => {
     ipcRenderer.send('recorder:ready', sessionId)
   },
+  reportStartBoundary: (sessionId: number, confirmed: boolean) => {
+    ipcRenderer.send('recorder:startBoundary', sessionId, confirmed)
+  },
   onStart: (cb: (data: StartData) => void) => {
     ipcRenderer.on('recorder:start', (_e, data) => cb(data))
   },

@@ -36,7 +36,7 @@ const MAX_FRAME_RATE_FOR_VALIDATION = 240
 //
 // **ホットキーを押した時刻ではなく、実際に記録された先頭のコマから決める。** 押してから
 // 記録が始まるまでには、画面キャプチャの立ち上げ・コマ通知が落ち着くのを待つ時間
-// （最大 2 秒）・「準備中」の表示が消えるのを待つ 120ms が入る（recording.ts）。押した
+// （最大 2 秒）・「準備中」の消去をキャプチャ側で確認する待ちが入る（recording.ts）。押した
 // 時刻をそのまま保存すると、その全部ぶん古い値が残る——**表示にもファイル名にも出るのに、
 // 何秒ずれているかは画面からは分からない。**
 //
@@ -67,6 +67,13 @@ export function registerRecorderIpc(): void {
   ipcMain.on('recorder:ready', (event, sessionId: number) => {
     if (!isTrustedRecorderSender(event)) return
     notifyRecorderPrepared(sessionId)
+  })
+
+  ipcMain.on('recorder:startBoundary', (event, sessionId: number, confirmed: boolean) => {
+    if (!isTrustedRecorderSender(event) || !isCurrentRecordingSession(sessionId)) return
+    if (confirmed !== true) {
+      sendBrowserNotice('warning', t('notice.recordingStartUnconfirmed'))
+    }
   })
 
   // 録画が実際に止まった合図。**保存の完了ではない**ので録画状態は触らず、隠している

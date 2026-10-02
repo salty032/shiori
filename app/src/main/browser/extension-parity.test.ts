@@ -128,7 +128,7 @@ return restoreDelayFor`)() as (host: string, immediate: boolean) => number
 describe('録画の準備中表示（clip-arming / clip-armed）', () => {
   it('background.js の検疫を通る', () => {
     expect(backgroundJs).toContain("{ type: 'clip-arming', label: stepLabel(msg.label) }")
-    expect(backgroundJs).toContain("{ type: 'clip-armed' }")
+    expect(backgroundJs).toContain("type: 'clip-armed'")
   })
 
   // **文言は app 側（ja.ts）が原本で、拡張は 1 語も持たない。** 途中の段で落ちると
@@ -153,16 +153,19 @@ describe('録画の準備中表示（clip-arming / clip-armed）', () => {
 
   it('content.js の検疫を通り、表示の出し／消しに繋がっている', () => {
     expect(contentJs).toContain("{ type: 'clip-arming', label: stepLabel(msg.label) }")
-    expect(contentJs).toContain("{ type: 'clip-armed' }")
+    expect(contentJs).toContain("type: 'clip-armed'")
     expect(contentJs).toContain('showArmingOverlay(safeMsg.label)')
     expect(contentJs).toContain('hideArmingOverlay()')
+    expect(contentJs).toContain("type: 'clip-armed-painted'")
+    expect(contentJs).toContain('requestAnimationFrame(() => requestAnimationFrame(')
   })
 
   it('録画側が出して、消してから撮り始める（順序が逆だと録画に写る）', () => {
     const recordingTs = readFileSync(join(__dirname, '../video/recording.ts'), 'utf-8')
-    const arming = recordingTs.indexOf("broadcastMessage({ type: 'clip-arming'")
-    const armed = recordingTs.indexOf("broadcastMessage({ type: 'clip-armed' })")
-    const start = recordingTs.indexOf("send('recorder:start'")
+    const startRecording = recordingTs.slice(recordingTs.indexOf('export async function startRecording'))
+    const arming = startRecording.indexOf("broadcastMessage({ type: 'clip-arming'")
+    const armed = startRecording.indexOf('await clearArmingOverlay()')
+    const start = startRecording.indexOf("send('recorder:start'")
     expect(arming).toBeGreaterThan(-1)
     expect(armed).toBeGreaterThan(arming)
     expect(start).toBeGreaterThan(armed)

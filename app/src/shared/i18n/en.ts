@@ -130,6 +130,7 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.recordingNoAudio': 'Recording without audio — the audio device could not be started.',
   'notice.videoRegionNotFound': 'Could not find the video area. Reload the page and try again.',
   'notice.recordingNotSettled': 'Recording started while frames were still being dropped. The beginning may be missing frames.',
+  'notice.recordingStartUnconfirmed': 'Recording started before the preparation message was confirmed clear. It may appear at the beginning.',
   'notice.recordingEmpty': 'The recording was empty. Very short recordings are not saved.',
   'notice.screenCapturePermission':
     'Shiori does not have screen recording permission. Turn off hardware acceleration in Chrome and try again.',

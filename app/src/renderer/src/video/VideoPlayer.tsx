@@ -727,6 +727,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           ref={videoRef}
           key={id}
           src={mediaUrl(id)}
+          poster={mediaUrl(id, 'thumb')}
           style={{ display: 'block', cursor: 'pointer', ...videoStyle }}
           preload="auto"
           autoPlay={autoPlay && speed === null}

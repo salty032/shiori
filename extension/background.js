@@ -123,6 +123,13 @@ function normalizePortMessage(msg) {
   // <video> の差し替えなどで止まると送られる。落とすと「表が録画の途中で終わっているのに
   // 誰も気づかない」状態に戻るので、そのまま中継する。
   if (msg.type === 'frame-gap') return { type: 'frame-gap' }
+  if (msg.type === 'clip-armed-painted') {
+    const requestId = typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : ''
+    const paintedAt = boundedNumber(msg.paintedAt, 0, MAX_EPOCH_MS)
+    return requestId && paintedAt != null
+      ? { type: 'clip-armed-painted', requestId, paintedAt }
+      : null
+  }
   // 録画中に content.js が送る素材のコマ通知。mediaTime は素材のタイムライン上の秒、
   // displayAt はそのコマが画面に出る epoch ミリ秒。録画のコマ供給を駆動する値なので、
   // 欠けた値・範囲外は中継せず落とす（黙って 0 を送ると全コマの対応がずれる）。
@@ -209,7 +216,12 @@ function normalizeServerMessage(data) {
   // —— 全ポートへ配ると、裏のタブにも準備中が出たまま残る。
   // 文言は app 側が持つ（拡張は言語を知らない）。stepLabels と同じ渡し方。
   if (msg.type === 'clip-arming') return { type: 'clip-arming', label: stepLabel(msg.label) }
-  if (msg.type === 'clip-armed') return { type: 'clip-armed' }
+  if (msg.type === 'clip-armed') {
+    return {
+      type: 'clip-armed',
+      requestId: typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : undefined
+    }
+  }
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'

@@ -1754,7 +1754,12 @@ function normalizePortMessage(msg) {
     }
   }
   if (msg.type === 'clip-arming') return { type: 'clip-arming', label: stepLabel(msg.label) }
-  if (msg.type === 'clip-armed') return { type: 'clip-armed' }
+  if (msg.type === 'clip-armed') {
+    return {
+      type: 'clip-armed',
+      requestId: typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : undefined
+    }
+  }
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
@@ -1836,6 +1841,14 @@ function connectPort() {
       showArmingOverlay(safeMsg.label)
     } else if (safeMsg.type === 'clip-armed') {
       hideArmingOverlay()
+      // remove() は DOM を変えるだけで、まだペイントされていない。2 回目の rAF を越えて
+      // から返し、録画側が captureTime でも消去後のフレームを確認できるようにする。
+      const requestId = safeMsg.requestId
+      if (requestId && port) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          try { port?.postMessage({ type: 'clip-armed-painted', requestId, paintedAt: Date.now() }) } catch {}
+        }))
+      }
     } else if (safeMsg.type === 'post-capture') {
       stopFrameReporting()
       hideArmingOverlay()
