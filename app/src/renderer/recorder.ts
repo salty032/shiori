@@ -23,6 +23,8 @@ type CaptureFrameMeta = {
 }
 
 let recorder: MediaRecorder | null = null
+// 供給を止めた後、エンコード待ちの絵が書き終わるのを待ってから閉じる（STOP_FLUSH_MS 参照）。
+let finishRecorder: (() => void) | null = null
 let rVfcRunning = false
 // 供給を引き上げるためのティッカー（下の startCaptureTicker 参照）。
 let tickerRaf: number | null = null
@@ -92,6 +94,13 @@ function stopCaptureTicker(): void {
   tickerEl = null
 }
 
+// 供給を止めてから記録を閉じるまでの待ち。
+//
+// **供給を止めた直後に stop() すると、エンコード待ちの絵が書かれずに捨てられる。** 2026-10-04 の
+// 実測では 31 本中 20 本でファイルが 1〜4 枚足りず、8 本で素材の最後の 1〜2 コマが表から落ちていた。
+// 録画用の canvas ストリーム（自動取り込み 0）は requestFrame しない限り絵を出さないので、待つあいだに余計な絵は入らない。
+const STOP_FLUSH_MS = 300
+
 // 停止を決めた瞬間に、コマの供給と記録を止める。
 //
 // **cleanup（onstop の中）まで待ってはいけない。** MediaRecorder は stop() を呼んでから
@@ -128,6 +137,7 @@ function resetState(): void {
   mediaStream = null
   canvasStream = null
   recorder = null
+  finishRecorder = null
 }
 
 // 画面キャプチャの取得。撮る対象（main が選んだディスプレイ）はどの経路でも同じ。
@@ -542,6 +552,13 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   const localChunks: Blob[] = []
   const sessionStartedAt = Date.now()
   let recorderFailed = false
+  // 尺は供給を止めた時点まで。閉じるまでの待ち（STOP_FLUSH_MS）を含めると、ファイルの絵より長くなる。
+  let supplyStoppedAt: number | null = null
+  const finishAfterFlush = (): void => {
+    supplyStoppedAt ??= Date.now()
+    setTimeout(() => { if (rec.state === 'recording') rec.stop() }, STOP_FLUSH_MS)
+  }
+  finishRecorder = finishAfterFlush
 
   rec.ondataavailable = (e) => {
     if (e.data.size > 0) localChunks.push(e.data)
@@ -558,7 +575,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   }
 
   rec.onstop = async () => {
-    const duration = (Date.now() - sessionStartedAt) / 1000
+    const duration = ((supplyStoppedAt ?? Date.now()) - sessionStartedAt) / 1000
     cleanup(stream, cs, token)
     // resetState はモジュール変数（recorder/mediaStream/canvasStream）を消す。
     // 既に次のセッションが始まっていて recorder が入れ替わっていたら、
@@ -642,7 +659,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
       stopTimer = null
       if (rec.state === 'recording') {
         stopFrameSupply(token)
-        rec.stop()
+        finishAfterFlush()
       }
     }, maxSeconds * 1000)
   }
@@ -795,7 +812,8 @@ window.recorderApi.onStop(() => {
   waiting?.(null)
   if (recorder?.state === 'recording') {
     stopFrameSupply(recordingToken)
-    recorder.stop()
+    if (finishRecorder) finishRecorder()
+    else recorder.stop()
   } else {
     // V-1: 録画開始処理中（MediaRecorder.start() 到達前）に停止が来たケース。recorder が
     // まだ無いため onstop も発火せず、ここで main へ aborted を送らないと main 側の

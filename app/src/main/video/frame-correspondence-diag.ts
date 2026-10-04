@@ -7,7 +7,7 @@ import type { StoredFrame } from '../db/db-video-frames'
 
 export const CORRESPONDENCE_DIAG_VERSION = 1
 // Experimental bounds, not a measured guarantee of timestamp accuracy.
-const TOLERANCE_MS = 3
+const TOLERANCE_MS = 10
 const MIN_SIDE_FRAMES = 5
 
 export interface CorrespondenceDiagnosis {
