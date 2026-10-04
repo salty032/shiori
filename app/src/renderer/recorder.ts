@@ -556,6 +556,10 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   let supplyStoppedAt: number | null = null
   const finishAfterFlush = (): void => {
     supplyStoppedAt ??= Date.now()
+    // 音声は待たずにここで止める。待つあいだも録り続けると、止めた後の音がファイルに入り、
+    // 供給を止めた時点で測った尺より音声がはみ出す。映像は requestFrame しない限り増えないので、
+    // 両方ともこの時点で終わり、待つのはエンコード待ちの絵の書き出しだけになる。
+    audioTracks.forEach((t) => t.stop())
     setTimeout(() => { if (rec.state === 'recording') rec.stop() }, STOP_FLUSH_MS)
   }
   finishRecorder = finishAfterFlush
