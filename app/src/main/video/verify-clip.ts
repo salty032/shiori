@@ -19,6 +19,7 @@ import { countReportDrops, reportDropsMeasured } from './frame-feed'
 import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
+import { writeCorrespondenceDiagnostic } from './frame-correspondence-diag'
 
 // 検証で確定した枚数を画面へ反映させる。
 //
@@ -58,6 +59,7 @@ export async function verifyClipFrames(
 ): Promise<void> {
   try {
     const { signatures, pts } = await getFrameSignatures(videoPath)
+    if (drawnAt !== null) await writeCorrespondenceDiagnostic(imageId, drawnAt, pts, table)
     if (signatures.length === 0) {
       logVerifyResult(imageId, null)
       return

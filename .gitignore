@@ -27,3 +27,6 @@ CLAUDE.md
 # 開発用ハンドオフ/レビューメモ・ローカル専用ドキュメント（公開リポジトリ・配布物には不要）
 # SPEC.md / SERVICES.md / superpowers プラン等はここに置いてローカル限定にする
 docs/
+
+# 対応検査の評価用に書き出した録画の時刻列（dev-diag.bat）
+frame-diag/
