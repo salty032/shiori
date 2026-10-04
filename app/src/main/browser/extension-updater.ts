@@ -1,8 +1,7 @@
-import { app, Notification } from 'electron'
+import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs'
 import { compareVersions } from '../system/version'
-import { t } from '../system/i18n'
 
 export function bundledExtPath(): string {
   return app.isPackaged
@@ -79,15 +78,11 @@ export function checkExtensionUpdate(): void {
 
     const installedVersion = readVersion(installed)
 
+    // 再読み込みの案内はここでは出さない。ブラウザがこのコピーを読んでいるとは限らず
+    // （開発版と製品版は別々のコピーを持つ）、読んでいない側の更新でも案内が出てしまう。
+    // 案内は、実際に動いている拡張が古いと報告してきたときに extension-bridge が出す。
     if (!installedVersion || compareVersions(bundledVersion, installedVersion) > 0) {
       copyExtensionUpdate(bundled, installed)
-
-      if (installedVersion) {
-        new Notification({
-          title: 'Shiori',
-          body: t('notice.extensionUpdated', { from: installedVersion, to: bundledVersion })
-        }).show()
-      }
     }
   } catch (err) {
     console.warn('[ext-update] failed (non-fatal)', err)

@@ -6,6 +6,7 @@
 // 送り返すのは設定（コマ送りの fps・キャプチャキー・コマ送りの文言）。接続してきた拡張へは
 // **listen 開始より前に登録したコールバックから**返す。後に回すと、起動直後に繋いだ拡張が
 // 設定の無いまま動く。
+import { Notification } from 'electron'
 import { startWsServer, onExtensionMessage, onWsClientConnect } from './ws-server'
 import { bundledExtPath, readVersion } from './extension-updater'
 import { loadSettings } from '../system/settings'
@@ -24,10 +25,12 @@ export function browserStepLabels(): { blocked: string; dropped: string } {
 }
 
 export function startExtensionBridge(): void {
-  // OS通知（checkExtensionUpdate）は起動直後の1回しか出ず見逃しやすいため、以後は
-  // 拡張から届く timecode の version と比較し続け、設定画面に「再読み込みが必要」の
-  // バッジを出せるようにする（UX-9）。
+  // 拡張から届く timecode の version とバンドル版を比べ、古い拡張が動いていれば
+  // 「再読み込みが必要」を出す。OS 通知は起動ごとに 1 回、見逃した後のために設定画面にも
+  // バッジを出し続ける（UX-9）。ファイルのコピー時ではなくここで判定するのは、ブラウザが
+  // 実際に動かしている版だけが確かなため。
   const bundledExtVersion = readVersion(bundledExtPath())
+  let staleNotified = false
   const wsSettings = loadSettings()
   onWsClientConnect((send) => {
     const s = loadSettings()
@@ -51,6 +54,13 @@ export function startExtensionBridge(): void {
       }
       // バンドル版の方が新しければ「拡張の再読み込みが必要」（UX-9）。
       const versionMismatch = !!bundledExtVersion && !!msg.version && compareVersions(bundledExtVersion, msg.version) > 0
+      if (versionMismatch && !staleNotified) {
+        staleNotified = true
+        new Notification({
+          title: 'Shiori',
+          body: t('notice.extensionUpdated', { from: msg.version!, to: bundledExtVersion! })
+        }).show()
+      }
       sendToRenderer(CH.extensionTimecode, { ...msg, versionMismatch })
     }
   })
