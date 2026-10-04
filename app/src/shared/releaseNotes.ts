@@ -20,6 +20,28 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.5.1': {
+    ja: [
+      '録画を止めると、最後のコマが 1〜2 枚消えていることがありました。この版で撮る録画から直ります。',
+      '録画の冒頭に「録画の準備中」の表示が写ることがありました。表示が消えたのを確かめてから録り始めるようにしました。確かめきれなかったときは、その旨を画面に出します。',
+      '静止画のホットキーを押してから「保存しました」が出るまでが速くなりました。撮った直後や、しばらく空けた後の 1 枚目で反応が遅れることもなくなりました。',
+      '1 枚を保存している間に押したホットキーが、何も出ずに捨てられていました。',
+      '削除を取り消したとき、一覧の並びが崩れたり、前の検索の画像が混ざったりすることがありました。メモやタイトルの保存でも、保存できていないのに「保存済み」と出ることがありました。',
+      '動画ビューアで ↑↓ キーで音量を変えられるようになりました（5% ずつ）。',
+      '録画中や処理中にアプリを終了しようとすると、確認が出るようになりました。',
+      'この更新ではブラウザ拡張も新しくなります。アプリを起動すると入れ替わり、通知が出ます。ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'Stopping a recording could lose the last one or two frames. Fixed for recordings made with this version.',
+      'The start of a recording could show “Getting ready to record”. Recording now starts only after that message is confirmed gone; if it cannot be confirmed, the screen tells you.',
+      'The “Saved” message now appears sooner after the screenshot hotkey. The first shot right after another, or after a long pause, no longer reacts late.',
+      'Pressing the hotkey while a shot was still being saved could be silently ignored.',
+      'Undoing a delete could scramble the library order or mix in results from a previous search. Notes and titles could also show “Saved” when they had not been saved.',
+      'In the video viewer, the ↑/↓ keys now change the volume (5% per press).',
+      'Quitting while recording or while work is in progress now asks for confirmation.',
+      'This update also brings a new browser extension. It is swapped in when the app starts and you get a notification. Please reload the extension on your browser’s extensions page.',
+    ],
+  },
   '1.5.0': {
     ja: [
       '録画のコマ送りで、1 つ前に取り込んだ絵が出ていることがありました。同じコマ番号でも、止め方によって違う絵が出ていたのはこのためです。この版で撮る録画から直ります（これまでに撮った録画はそのままです）。',
