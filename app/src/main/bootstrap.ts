@@ -96,7 +96,10 @@ export function bootstrap(): void {
     return
   }
 
-  app.setAppUserModelId('com.shiori.app')
+  // 開発版は ID を分ける。開発版の起動時に Electron がこの ID でスタートメニューへ
+  // Electron.lnk（electron.exe を指す）を作り、同じ ID だと製品版のタスクバーのアイコンと
+  // 通知のクリック先がそちらに奪われる。
+  app.setAppUserModelId(app.isPackaged ? 'com.shiori.app' : 'com.shiori.app.dev')
 
   app.on('second-instance', () => {
     showMainWindow()
