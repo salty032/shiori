@@ -32,6 +32,8 @@ SOFTWARE.`
 // These npm tarballs declare MIT but omit the upstream LICENSE file.
 // Keep the upstream copyright notice here; unknown omissions must fail below.
 const missingLicenseFallbacks = {
+  // 本体の koffi は LICENSE.txt を持つが、プラットフォーム別のバイナリ包みが持たない。
+  '@koromix/koffi-win32-x64': mitLicense('2026  Niels Martignène <niels.martignene@protonmail.com>'),
   'lazy-val': mitLicense('Vladimir Krivosheev'),
   'onnxruntime-common': mitLicense('Microsoft Corporation'),
   'onnxruntime-node': mitLicense('Microsoft Corporation'),
