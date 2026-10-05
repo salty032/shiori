@@ -797,9 +797,15 @@ function hidePlayerUI(holdMs, isVideo) {
   hideStepReadout()   // コマ送りの読み取り表示は撮影範囲に入る。合図が来たら即消す
   // 失敗・早期 return・post-capture 未達のいずれでも UI が固着しないよう、実際に隠す前に
   // 最後の砦の強制復元を仕込む（隠した要素が 0 でも restorePlayerUI は安全な no-op）。
+  // 録画の後始末（コマ通知・準備中の表示）も post-capture でしか片付かないので、ここで
+  // 一緒に片付ける。アプリが録画中に落ちると、準備中の表示が映像の上に残り続け、
+  // コマ送りの読み取り表示も「録画中」扱いのまま出なくなっていた。holdMs は録画の長さ＋
+  // 余裕なので、続いている録画のコマ通知をここで切ることはない。
   hiddenWatchdogTimer = setTimeout(() => {
     hiddenWatchdogTimer = null
     restorePlayerUI()
+    stopFrameReporting()
+    hideArmingOverlay()
   }, holdMs || HIDDEN_UI_WATCHDOG_MS)
   if (isVideo) hideCursor()
   const host = location.hostname.replace(/^www\./, '')
@@ -1827,6 +1833,9 @@ function connectPort() {
       // （タブの数だけ）。SW が死んだときは onDisconnect 側で張り直す。
       console.log('[Shiori] disconnected')
       clearInterval(timecodeInterval)
+      // 準備中の表示を消す合図（clip-armed / post-capture）はもう来ない。残すと映像の上に
+      // 出たままになる。コマ通知は止めない——アプリは繋ぎ直した後も録画を続けうる。
+      hideArmingOverlay()
     } else if (safeMsg.type === 'request-timecode') {
       sendTimecodeNow(safeMsg.requestId, safeMsg.immediate)
     } else if (safeMsg.type === 'settings') {
@@ -1864,6 +1873,7 @@ function connectPort() {
   port.onDisconnect.addListener(() => {
     port = null
     clearInterval(timecodeInterval)
+    hideArmingOverlay()
     clearInterval(pingInterval)
     scheduleReconnect()  // SW が死んだ → 同様に再接続
   })
