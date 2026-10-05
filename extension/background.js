@@ -14,7 +14,9 @@ let ws = null
 let reconnectTimer = null
 let reconnectDelay = 2000
 const RECONNECT_DELAY_MIN = 2000
-const RECONNECT_DELAY_MAX = 30000
+// アプリを後から起動したとき、繋がるまでに待たせる最長時間でもある。ローカルの接続拒否は
+// 即座に返り負荷は無いので、長く取るより「起動したのに繋がらない」時間を短くする方を採る。
+const RECONNECT_DELAY_MAX = 5000
 // 候補から候補へ移るときの待ち。ローカルの接続拒否は即座に返るので短くてよい。
 // ここに指数バックオフをかけると、開いているポートに辿り着くまで分単位かかる。
 const RECONNECT_DELAY_NEXT_PORT = 300
@@ -388,7 +390,7 @@ chrome.runtime.onConnect.addListener((port) => {
     port.postMessage({ type: 'ws-connected' })
     if (cachedSettings) port.postMessage(cachedSettings)
   } else if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
-    // WS 切断中に新しいタブが接続してきたら、バックオフ満了（最大 30 秒）を待たずに即再接続する。
+    // WS 切断中に新しいタブが接続してきたら、バックオフ満了を待たずに即再接続する。
     // 「アプリを起動し直したのに拡張がしばらく繋がらない」体感を短縮する。
     // connectWS() は CONNECTING/OPEN のときは何もしないので、多重接続にはならない。
     reconnectDelay = RECONNECT_DELAY_MIN

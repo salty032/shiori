@@ -1821,9 +1821,12 @@ function connectPort() {
       timecodeInterval = setInterval(sendTimecode, TIMECODE_POLL_MS)
       sendTimecode({ force: true })
     } else if (safeMsg.type === 'ws-disconnected') {
+      // **ポートは張り直さない。** これが届く＝SW は生きているので、WS の再接続は SW の
+      // バックオフに任せる。以前はここで張り直しており、SW の onConnect が待ちを最短に
+      // 戻すため、アプリを起動していない間ずっと約 1 秒ごとに接続を試し続けていた
+      // （タブの数だけ）。SW が死んだときは onDisconnect 側で張り直す。
       console.log('[Shiori] disconnected')
       clearInterval(timecodeInterval)
-      scheduleReconnect()  // SW の WS が切れた → ポートを張り直して SW を再起動
     } else if (safeMsg.type === 'request-timecode') {
       sendTimecodeNow(safeMsg.requestId, safeMsg.immediate)
     } else if (safeMsg.type === 'settings') {
