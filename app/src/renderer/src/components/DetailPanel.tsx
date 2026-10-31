@@ -648,9 +648,8 @@ const s: Record<string, React.CSSProperties> = {
   // 値の開始位置がラベルの文字数に左右され、項目ごとに揃わなくなる。
   // ペアの分離は距離ではなく metaHalf の列間で取ること。
   // **maxWidth は広がりの上限。** パネルは幅を変えられるので、上限が無いと広げるほど
-  // 「元の位置 …… 0:34」が離れていく。**ただし時刻は折り返さない**（minWidth が maxWidth に勝つ）。
-  // 1 時間を超えた「1:27:31」は 100 に収まらず、末尾の桁だけ次の行へ落ちていた。
-  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8, maxWidth: 100, minWidth: 'max-content', whiteSpace: 'nowrap' },
+  // 「元の位置 …… 0:34」が離れていく。
+  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8, maxWidth: 100 },
   // **ラベルの枠は固定幅。文字数で隙間を変えない。** 値は右端に揃えてあるので、枠が
   // 中身なりだと「長さ」(2文字)の側だけ 2 文字ぶん余計に空く。4em＝全角4文字ぶんを
   // 常に確保し、短いラベルは枠の中で余らせる。**ラベルの語を変えても隙間は動かない。**
