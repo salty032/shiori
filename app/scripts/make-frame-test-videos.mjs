@@ -1,5 +1,6 @@
 // コマ送りの精度を測るテスト動画と、それを localhost で再生する一式を作る。
-// Usage: node scripts/make-frame-test-videos.mjs [秒数=90]
+// Usage: node scripts/make-frame-test-videos.mjs [秒数=30]
+//   30 秒を超えると Shiori に取り込めない（MAX_IMPORT_VIDEO_SECONDS。著作権対策で緩めない）。
 //
 // 出力先はリポジトリ直下の frame-test/（gitignore 対象）:
 //   *.mp4        各コマに答え（frame-test-code.cjs の帯）を焼き込んだ動画
@@ -24,7 +25,7 @@ const ffmpeg = join(appDir, 'resources', 'ffmpeg.exe')
 
 const W = 1280
 const H = 720
-const seconds = Number(process.argv[2] ?? 90)
+const seconds = Number(process.argv[2] ?? 30)
 
 // 実際のアニメ配信に多い 23.976 を軸に、供給が足りなくなる 29.97・59.94 も並べる
 // （docs/ANIME-FRAMES.md「供給レートと素材 fps の関係」）。
