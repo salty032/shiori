@@ -434,6 +434,17 @@ export function matchFrames(
     matches.push(picked[k])
     if (picked[k].captured) captured++
   }
+  // **先頭の行は、絵があれば絵でも範囲内かを確かめる。** 録画が始まる直前に出たコマは、表示区間が
+  // 録画と数 ms しか重ならず、時刻の揺らぎで範囲内と判定される。実際にはその絵は撮れておらず、
+  // ファイルの 1 枚目にはもう次のコマの絵が写っている——注記なしで次のコマの絵を出していた
+  // （テスト動画 13 本のうち 6 本で、外れは先頭の行だけだった）。
+  // 1 枚目を指し、次の行とも同じ絵なら、自分の絵を持っていると確かめられないので範囲外とみなす。
+  // コマ打ちで本当に同じ絵だった場合も外れるが、失うのは先頭の 1 行だけ。
+  while (usablePicture && matches.length > 1 && matches[0].frameIndex === 0 && !pictureChangedBetween(usablePicture, 0, matches[1].frameIndex)) {
+    if (matches[0].captured) captured--
+    matches.shift()
+    outsideRecording++
+  }
   if (matches.length === 0) return null
 
   return {
@@ -551,6 +562,12 @@ function changeBounds(
     out.push([drawnAt[s - 1] - frames[k].displayAt, drawnAt[s - 1] - frames[k - 1].displayAt])
   }
   return out
+}
+
+// ファイルの a 枚目から b 枚目までのあいだで絵が変わったか。
+function pictureChangedBetween(changed: readonly boolean[], a: number, b: number): boolean {
+  for (let s = a + 1; s <= b; s++) if (changed[s]) return true
+  return false
 }
 
 // 時刻で選んだ 1 枚が区切りをまたいだ行を、隣の区間へ移す。

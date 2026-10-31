@@ -522,6 +522,17 @@ describe('matchFrames（絵で位相を決める）', () => {
       .toBeLessThan(s.wrong(matchFrames(s.source, s.drawnAt)))
   })
 
+  it('録画の直前に出たコマは、1 枚目に次のコマの絵しか無ければ表に入れない', () => {
+    const s = scene(120, (i) => i)
+    // 録画の 1 枚目は、2 コマ目の絵が写った直後から始まる（1 コマ目の絵は撮れていない）
+    const drawnAt = Array.from({ length: 200 }, (_, i) => T0 + P + LAG + 1 + i * CAP_PERIOD)
+    const shown = drawnAt.map((t) => Math.floor((t - LAG - T0) / P))
+    const changed = shown.map((v, k) => k > 0 && v !== shown[k - 1])
+    const result = matchFrames(s.source, drawnAt, changed)!
+    const first = result.matches[0]
+    expect(shown[first.frameIndex]).toBe(Math.round(first.mediaTime * 1000 / P))
+  })
+
   it('絵の数が撮影の数と合わなければ使わない', () => {
     const s = scene(120, (i) => i)
     const byTime = matchFrames(s.source, s.drawnAt)!
