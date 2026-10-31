@@ -60,6 +60,12 @@ function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', messag
 // settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
 export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+  // **Shiori 自身は GPU を使わない。** 使うのは Electron の既定だっただけで、GPU プロセスは一度画面を
+  // 開くと約 130MB を持ったまま閉じても戻らない。切ると開いた後に閉じた状態で 226MB → 112MB になり、
+  // 録画の精度・毎秒撮れる枚数・コマ送りの速さ・一覧のスクロール・等倍再生（落ちコマ・CPU）は
+  // どれも変わらなかった（2026-10-31 実測）。使う人はブラウザも CPU 描画が前提なので、CPU で
+  // 動画を再生できる PC であることは決まっている。
+  app.commandLine.appendSwitch('disable-gpu')
   app.enableSandbox()
 
   // 開発時は userData をインストール版から分離する。
