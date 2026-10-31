@@ -101,6 +101,15 @@ export function getRecordingDisplayPixels(): { width: number; height: number } |
   return lastDisplayPixels
 }
 
+// 直近の録画の落ち着き待ちの結果（ログ 1 行）。録画の見出しの下に出すために覚えておく。
+let lastSettleNote: string | null = null
+
+export function takeSettleNote(): string | null {
+  const note = lastSettleNote
+  lastSettleNote = null
+  return note
+}
+
 // 直近の解決で「どの画面を録るか確定できなかった」か。getDesktopSourceId が立て、
 // 録画開始時に警告として画面へ出す（診断ログではなくその場で読めること）。
 let lastDisplayAmbiguous = false
@@ -390,7 +399,9 @@ export async function startRecording(): Promise<void> {
       cancelBeforeStart()
       return
     }
-    console.log(`[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`)
+    // ログは録画の見出しの下に出す（recorder-ipc.ts）。ここで出すと見出しより上に来て、
+    // どの録画の行か読めない。
+    lastSettleNote = `[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`
     // 落ち着きを確認できないまま始めたことは、ログではなくその場の画面に出す。
     // 黙って始めると「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。
     if (!settle.settled) sendBrowserNotice('warning', t('notice.recordingNotSettled'))

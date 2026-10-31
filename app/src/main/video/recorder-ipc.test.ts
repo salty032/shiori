@@ -34,7 +34,9 @@ vi.mock('./recording', () => ({
   notifyRecorderPrepared: () => {},
   // ログ（[clip-bitrate]）で「ストリームが画面より縮んでいないか」を並べるためだけの値。
   // 保存経路には関与しないので測っていない扱いで返す。
-  getRecordingDisplayPixels: () => null
+  getRecordingDisplayPixels: () => null,
+  // 見出しの下に出すログ 1 行。保存経路には関与しない。
+  takeSettleNote: () => null
 }))
 
 const sendNotice = vi.fn()
@@ -83,7 +85,8 @@ vi.mock('./frame-feed', () => ({
   buildFrameTable: (drawnAt: number[]) => buildFrameTable(drawnAt),
   logMatchResult: vi.fn(),
   getReportDelay: vi.fn(() => null),
-  logReportInterruptions: vi.fn()
+  logReportInterruptions: vi.fn(),
+  getSourceFrameTimes: vi.fn(() => [])
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))

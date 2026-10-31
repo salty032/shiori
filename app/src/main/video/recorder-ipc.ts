@@ -10,10 +10,10 @@ import { sendBrowserNotice } from '../browser/browser-notice'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
-import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi } from './recording'
+import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi, takeSettleNote } from './recording'
 import {
   logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions,
-  countReportDrops, reportDropsMeasured
+  countReportDrops, reportDropsMeasured, getSourceFrameTimes
 } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
@@ -162,6 +162,8 @@ export function registerRecorderIpc(): void {
     // （供給が均一な録画ほどコマ精度を失う副作用の方が大きい）。疑わしい点の判定と警告は
     // frame-feed 側（offsetVerdict / logMatchResult）に集約してある。
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
+    // 診断の書き出し（dev-diag.bat）用。後の検証は非同期なので、次の録画で消える前に写しておく。
+    const sourceTimes = process.env['SHIORI_FRAME_DIAGNOSTICS_DIR'] ? getSourceFrameTimes() : []
     const parsedDiag = parseCaptureDiag(diag)
     const supply = usableDrawnAt
       ? summarizeSupply(drawnAt, duration, sourceFps ? 1000 / sourceFps : null)
@@ -184,6 +186,8 @@ export function registerRecorderIpc(): void {
       // 供給の天井がキャプチャ側かレコーダーウィンドウ側かの切り分け（CaptureDiag.tickerTicks）。
       `  |  window redrawn at ${parsedDiag?.tickerTicks != null ? `${(parsedDiag.tickerTicks / duration).toFixed(1)}/s` : 'n/a'}`
     )
+    const settleNote = takeSettleNote()
+    if (settleNote) console.log(settleNote)
 
     logMatchResult(frameTable)
     // 通知が途切れていた区間は表に入らず、割合にも枚数にも現れない（logReportInterruptions 参照）。
@@ -268,7 +272,7 @@ export function registerRecorderIpc(): void {
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、
           // それだと「最も精度が良く見えるクリップ」ほど照合されないことになる。
           // 待たずに投げっぱなしにする — 保存の完了通知を遅らせないため。
-          void verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt)
+          void verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceTimes)
         } catch (err) {
           console.error('[clip] saveVideoFrames failed', err)
         }
