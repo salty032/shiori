@@ -319,7 +319,10 @@ export function registerVideoHandlers(): void {
           if (sliced.length > 0) {
             saveVideoFrames(result.id, sliced)
             const missed = sliced.filter((f) => !f.captured).length
-            setFrameCounts(result.id, missed, sliced.length, countReportDrops(sliced), 0, reportDropsMeasured(sliced))
+            // ずれの印は元の表から行ごと引き継がれるので、件数も表から数える。0 で書くと、次の起動で
+            // 数え直されるまで詳細の件数とコマ送りの赤い表示が食い違う。
+            const misaligned = sliced.filter((f) => f.misaligned).length
+            setFrameCounts(result.id, missed, sliced.length, countReportDrops(sliced), misaligned, reportDropsMeasured(sliced))
             // 撮り逃しの検証は元クリップの結果を流用せず、新しいファイルで取り直す。
             // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
             // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。

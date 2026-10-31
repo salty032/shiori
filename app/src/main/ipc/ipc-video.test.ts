@@ -352,4 +352,20 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     ])
     expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0, 0, true)
   })
+
+  // 印は行ごと引き継がれるので、件数も表から数える（0 で書くと詳細の件数と赤い表示が食い違う）。
+  it('ずれの印が付いた行を引き継いだら、その件数も書く', async () => {
+    getVideoFrames.mockReturnValue([
+      { mediaTime: 2, frameIndex: 2, captured: true },
+      { mediaTime: 4, frameIndex: 4, captured: true, misaligned: true },
+    ])
+    getVideoFramePts.mockImplementation(async (path) =>
+      path === mockImage.filepath
+        ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : [0, 1, 2, 3, 4, 5, 6])
+
+    await handlers.get('video:trim')!({}, 1, 2, 8)
+
+    expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0, 1, true)
+  })
 })
