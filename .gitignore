@@ -30,3 +30,6 @@ docs/
 
 # 対応検査の評価用に書き出した録画の時刻列（dev-diag.bat）
 frame-diag/
+
+# コマ送りの精度を測るテスト動画と、localhost で動く拡張のコピー（app/scripts/make-frame-test-videos.mjs）
+frame-test/
