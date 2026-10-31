@@ -66,14 +66,13 @@ const c = {
 
 const CELL_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 
-// マスの幅は**パネルの幅に合わせて伸びる**。cell は詳細パネルの最小幅（300）に縦スクロールバーと
-// 並んで収まる下限で、これより狭く詰めたときだけ横スクロールになる。cellMax は実物のマス幅
-// （実物のマスは横長。パネルを広げればそこまで伸びる）。
-const W = { counter: 44, cell: 34, cellMax: 45 }
+// マスの幅は**パネルの幅いっぱいに伸びる**（実物のマスは横長）。上限は付けない——付けると
+// 広げたときに表の右へ白い余りが出る。cell は詳細パネルの最小幅（300）に縦スクロールバーと
+// 並んで収まる下限で、これより狭く詰めたときだけ横スクロールになる。
+const W = { counter: 44, cell: 34 }
 // 見出し 2 段の高さ。現在行へ寄せるとき、貼り付いた見出しの下に隠さないために使う。
 const HEAD_H = 32
 const TOTAL_W = CELL_COLS.length * W.cell + W.counter
-const TOTAL_MAX_W = CELL_COLS.length * W.cellMax + W.counter
 // A〜G のマス。見出しと本体で同じ指定を使う（違えると列がずれる）。
 const cellFlex: React.CSSProperties = { flex: '1 1 0', minWidth: W.cell }
 
@@ -178,7 +177,7 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
           **縦も同じ枠で流し、見出しは上に貼り付ける。** 本体だけを縦に流すと、本体の中に
           出るスクロールバーのぶん本体の列だけが詰められ、見出しと列がずれる。 */}
       <div style={st.scroll}>
-        <div style={{ minWidth: TOTAL_W, maxWidth: TOTAL_MAX_W }}>
+        <div style={{ minWidth: TOTAL_W }}>
           <div style={st.stickyHead}>
             <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
               {/* 帯は目盛りの上までつなげる（実物で目盛りの上が隣の欄の帯に含まれるのと同じ）。 */}
