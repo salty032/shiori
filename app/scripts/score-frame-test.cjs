@@ -13,13 +13,17 @@
 const path = require('node:path')
 
 // better-sqlite3 は Electron の ABI でビルドされているので、素の Node なら Electron で起動し直す。
+// 出力はこちらで受けて書き直す。Electron がそのままコンソールへ書くと、PowerShell では日本語が化ける。
 if (!process.versions.electron) {
-  const { spawnSync } = require('node:child_process')
+  const { spawn } = require('node:child_process')
   const electron = require('electron')
-  const r = spawnSync(electron, [__filename, ...process.argv.slice(2)], {
-    stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+  const child = spawn(electron, [__filename, ...process.argv.slice(2)], {
+    stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
   })
-  process.exit(r.status ?? 1)
+  child.stdout.setEncoding('utf8').on('data', (s) => process.stdout.write(s))
+  child.stderr.setEncoding('utf8').on('data', (s) => process.stderr.write(s))
+  child.on('close', (code) => process.exit(code ?? 1))
+  return
 }
 
 const fs = require('node:fs')
