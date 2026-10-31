@@ -60,7 +60,8 @@
         "*://*.primevideo.com/*",
         "*://*.disneyplus.com/*",
         "*://*.bilibili.com/*",
-        "*://*.bilibili.tv/*"
+        "*://*.bilibili.tv/*",
+        "http://localhost/*"
       ],
       "js": ["key-guard.js"],
       "run_at": "document_start"
@@ -80,7 +81,8 @@
         "*://*.primevideo.com/*",
         "*://*.disneyplus.com/*",
         "*://*.bilibili.com/*",
-        "*://*.bilibili.tv/*"
+        "*://*.bilibili.tv/*",
+        "http://localhost/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

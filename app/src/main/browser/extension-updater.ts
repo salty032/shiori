@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs'
 import { compareVersions } from '../system/version'
 
 export function bundledExtPath(): string {
@@ -56,22 +56,10 @@ function pruneExtras(src: string, dest: string): void {
 // manifest は更新完了のコミットマーカーとして最後に置く。途中でコピーに失敗しても
 // installedVersion は旧版のままなので、次回起動時に更新を再試行できる。
 // prune も manifest 配置より前に済ませ、中断時は次回起動でまるごとやり直させる。
-export function copyExtensionUpdate(src: string, dest: string, forDev = false): void {
+export function copyExtensionUpdate(src: string, dest: string): void {
   copyDir(src, dest, true)
   pruneExtras(src, dest)
-  if (!forDev) {
-    copyFileSync(join(src, 'manifest.json'), join(dest, 'manifest.json'))
-    return
-  }
-  // 開発版のコピーは localhost でも動かす（scripts/frame-test.cjs serve のテスト動画を録るため）。
-  // 配る拡張には入れない。
-  const manifest = JSON.parse(readFileSync(join(src, 'manifest.json'), 'utf-8')) as {
-    content_scripts?: { matches?: string[] }[]
-  }
-  for (const cs of manifest.content_scripts ?? []) {
-    if (cs.matches?.includes('*://*.youtube.com/*')) cs.matches.push('http://localhost/*')
-  }
-  writeFileSync(join(dest, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
+  copyFileSync(join(src, 'manifest.json'), join(dest, 'manifest.json'))
 }
 
 export function checkExtensionUpdate(): void {
@@ -93,11 +81,7 @@ export function checkExtensionUpdate(): void {
     // 再読み込みの案内はここでは出さない。ブラウザがこのコピーを読んでいるとは限らず
     // （開発版と製品版は別々のコピーを持つ）、読んでいない側の更新でも案内が出てしまう。
     // 案内は、実際に動いている拡張が古いと報告してきたときに extension-bridge が出す。
-    // 開発版は版番号を見ずに毎回配る。拡張を直すたびに版を上げるか手でコピーするかしないと、
-    // 直した拡張がブラウザに届かなかった。
-    if (!app.isPackaged) {
-      copyExtensionUpdate(bundled, installed, true)
-    } else if (!installedVersion || compareVersions(bundledVersion, installedVersion) > 0) {
+    if (!installedVersion || compareVersions(bundledVersion, installedVersion) > 0) {
       copyExtensionUpdate(bundled, installed)
     }
   } catch (err) {

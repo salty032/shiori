@@ -7,7 +7,7 @@
 //   diag <dir|file.json> [...]
 //                     録画時の対応検査（diagnoseCorrespondence）を、集めた診断ファイルの時刻列で採点する
 //
-// localhost で録るのに要る拡張は、開発版のアプリが起動時に配る（extension-updater.ts）。
+// 拡張はリポジトリの extension/ をそのまま読み込めば localhost でも動く（manifest に入れてある）。
 // 診断ファイル（frame-diag/）は dev.bat で起動すると録画ごとに書き出される。
 const path = require('node:path')
 
