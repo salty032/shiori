@@ -79,6 +79,17 @@ describe('refineByThumbnails（控えの絵と録画の画像の照合）', () =
     expect(shown[2]).not.toBe(4)
   })
 
+  it('そのコマの絵がどこにも写っていなければ、撮り逃しとして出す', () => {
+    // コマ 2 の画像が無い。時刻ではコマ 2 にコマ 1 の画像を「撮れた」として選んでいる
+    const files = [0, 1, 3, 4]
+    const signatures = files.map((d) => captured(d))
+    const thumbs = new Map([0, 1, 2, 3, 4].map((n) => [n / 24, b64(picture(n))]))
+    const r = refineByThumbnails(rows([0, 1, 1, 2, 3]), thumbs, signatures)
+    expect(r.matches[2].captured).toBe(false)
+    expect(r.matches[1].captured).toBe(true)
+    expect(r.matches[3].captured).toBe(true)
+  })
+
   it('控えの無いコマは時刻で選んだまま。並びは逆戻りさせない', () => {
     const s = scene([0, 1, 2, 3])
     s.thumbs.delete(2 / 24)

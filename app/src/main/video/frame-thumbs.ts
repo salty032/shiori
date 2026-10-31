@@ -113,7 +113,18 @@ export function refineByThumbnails<T extends FrameMatch>(
         best = c
       }
     }
-    if (best < 0 || bestMargin <= DECIDE_MARGIN) continue
+    if (best < 0 || bestMargin <= DECIDE_MARGIN) {
+      // どの候補にもこのコマの絵が無く、時刻で選んだ画像ははっきり隣のコマの絵なら、このコマは撮れていない。
+      // 時刻の判定では「撮れた」になり、注記なしで隣のコマの絵を出していた（59.94fps のテスト動画で、
+      // 注記なしの外れ 35 コマすべてがこれ。そのコマの絵は録画のどこにも写っていなかった）。
+      if (out[k].captured && marginAt(cur) < -DECIDE_MARGIN) {
+        decided++
+        out[k].captured = false
+        if (k > 0) out[k].frameIndex = out[k - 1].frameIndex
+        moved++
+      }
+      continue
+    }
     decided++
     if (best !== cur || !out[k].captured) {
       out[k].frameIndex = best
