@@ -294,10 +294,12 @@ export function matchFrames(
   // 実測では 447 コマ中 0 コマの差で選ばれ、録画ごとに -38〜-90ms と 1 コマ以上振れていた。
   // 幅を 1 コマに閉じれば複製は 1 つしか入らず、**何コマぶんずれるかは定数（物理）が決め、
   // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
-  const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
-  const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
-
   const usablePicture = pictureChanged && pictureChanged.length === drawnAt.length ? pictureChanged : null
+  // 絵があれば、窓の下端をその録画で絵が実際に変わり始めた遅れ（appearanceLatency）に置く。
+  const appeared = usablePicture ? appearanceLatency(frames, drawnAt, usablePicture, periodMs) : null
+  const windowLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
+  const searchHi = windowLo + Math.max(1, Math.round(periodMs)) - 1
+  const searchLo = appeared == null ? windowLo : Math.min(searchHi, Math.max(windowLo, appeared))
   const runs = usablePicture
     ? pictureRuns(usablePicture, everyFrameRows(frames, drawnAt, usablePicture, periodMs))
     : null
@@ -562,6 +564,37 @@ function changeBounds(
     out.push([drawnAt[s - 1] - frames[k].displayAt, drawnAt[s - 1] - frames[k - 1].displayAt])
   }
   return out
+}
+
+/**
+ * 絵が変わった時刻（変わる前後 2 枚の中間）が、その直前に表示されたコマの表示時刻から何 ms 後かの中央値。
+ *
+ * **窓を「定数 ± 素材コマの半分」に置くと、コマの長い素材で 1 コマ前の絵を選ぶ。** 窓の下半分が
+ * 「まだ絵が変わる前」のタイミングになるため。18fps の YouTube 動画で、絵は表示時刻の 10〜35ms 後に
+ * 変わっていたのに、-7ms を選んで全コマが注記なしで 1 つ前の絵を指した。この値より前を選ぶと、
+ * 半分以上の変わり目で変わる前の絵を拾うので、窓の下端に置く。
+ *
+ * 「直前に表示されたコマ」から測るので、遅れが素材 1 コマより長いと 1 コマぶん短く出る。60fps
+ * （コマ長 16.7ms）は遅れ（実測 14〜28ms）がコマより長いので測らず、定数の窓のままにする
+ * （定数の窓の理由は CAPTURE_LATENCY_MS）。変わり目が少ないときも測らない。
+ */
+const APPEARANCE_MIN_CHANGES = 10
+
+function appearanceLatency(
+  frames: SourceFrame[], drawnAt: number[], changed: readonly boolean[], periodMs: number
+): number | null {
+  if (periodMs <= 2 * CAPTURE_LATENCY_MS) return null
+  const lat: number[] = []
+  let k = 0
+  for (let s = 1; s < drawnAt.length; s++) {
+    if (!changed[s]) continue
+    const mid = (drawnAt[s] + drawnAt[s - 1]) / 2
+    while (k + 1 < frames.length && frames[k + 1].displayAt <= mid) k++
+    if (frames[k].displayAt <= mid) lat.push(mid - frames[k].displayAt)
+  }
+  if (lat.length < APPEARANCE_MIN_CHANGES) return null
+  lat.sort((a, b) => a - b)
+  return Math.round(lat[lat.length >> 1])
 }
 
 // ファイルの a 枚目から b 枚目までのあいだで絵が変わったか。

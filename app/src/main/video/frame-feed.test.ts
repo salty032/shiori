@@ -533,6 +533,29 @@ describe('matchFrames（絵で位相を決める）', () => {
     expect(shown[first.frameIndex]).toBe(Math.round(first.mediaTime * 1000 / P))
   })
 
+  it('コマの長い素材（18fps）で、絵が変わる前のタイミングを選ばない', () => {
+    // 窓を「定数 ± 素材コマの半分」に置くと、下半分が絵の変わる前になる（実録画で全コマ 1 つ前の絵）
+    const P18 = 1000 / 18
+    let seed = 99
+    const jitter = (): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return ((seed / 0x7fffffff) * 2 - 1) * 8
+    }
+    const source: SourceFrame[] = Array.from({ length: 180 }, (_, i) => {
+      const displayAt = T0 + i * P18 + jitter()
+      return { mediaTime: i * (P18 / 1000), displayAt, receivedAt: displayAt }
+    })
+    const drawnAt = makeDrawnUneven(560, 0)
+    const shown = drawnAt.map((t) => Math.floor((t - LAG - T0) / P18))
+    const changed = shown.map((v, k) => k > 0 && v !== shown[k - 1])
+    const wrong = (r: ReturnType<typeof matchFrames>): number =>
+      r!.matches.filter((m) => m.captured && shown[m.frameIndex] !== Math.round(m.mediaTime * 1000 / P18)).length
+    const result = matchFrames(source, drawnAt, changed)!
+    expect(wrong(result)).toBeLessThan(wrong(matchFrames(source, drawnAt)))
+    // 窓の下端は、絵が実際に変わり始めた遅れ（遅れ 20ms ＋ 撮影の間隔ぶん）まで上がる
+    expect(result.searchRangeMs[0]).toBeGreaterThanOrEqual(LAG)
+  })
+
   it('絵の数が撮影の数と合わなければ使わない', () => {
     const s = scene(120, (i) => i)
     const byTime = matchFrames(s.source, s.drawnAt)!
