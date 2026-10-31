@@ -41,7 +41,7 @@ export interface ToeiClipboard {
 // 列は **A から、打った中でいちばん右の列まで**並べる（何も打っていなければ A だけ）。
 // 間の空の列も出す——実物も、番号が 1 つも無い列のコマ配列を全部出す。右端の空の列まで
 // 出すと、貼った先でそこにあった記入を空で上書きしてしまう。
-// **複数列のコピーは実物で採っていない**（採ったのは 1 列ずつ）。
+// 東映へ貼って列が並ぶことは確認済み（2026-10-31）。
 export function buildToeiClipboard(marks: readonly TimesheetMark[], total: number): string {
   const labels = timesheetLabels(marks)
   const labelByCell = new Map<string, string>()
