@@ -82,8 +82,18 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
 //
 // **数え方は frame-feed.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
 // 出る合計とコマ送りに出る場所が別の計算から出ることになる（実測 82 本中 5 本で食い違った）。
+//
+// **枚数が確定している抜けは、その枚数で数える。録画の絵からの推定より優先する。**
+// 確定＝時刻の間隔から出した数と、ブラウザが絵を出した回数 presentedFrames の差が一致したとき。
+// 正解の焼き込まれたテスト動画（2026-11-01・ページを 40〜60ms 詰まらせて抜けを起こしたもの）で、
+// 確定した枚数は 6 本・全部の抜けで本当の枚数と合った。絵からの推定は 59.94fps で少なく出て
+// （3 コマを 2、2 コマを 1）、抜けより後ろの番号が注記なしで全部ずれていた。
+// YouTube はページの処理がときどき詰まり、出た 1 コマの知らせをブラウザが飛ばすので、確定した
+// 抜けを数えないとタイムシートが丸ごと使えない。
+// 確定していない抜け（描かれなかったコマが混ざりうる）は、絵からの推定、それも無ければ未確認のまま。
 export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
   return frameGaps(frames).map((gap) => {
+    if (gap.measured) return { ...gap, animeMissing: gap.missing }
     const animeMissing = frames[gap.afterIndex]?.animeGapMissing
     return animeMissing != null ? { ...gap, animeMissing } : gap
   })

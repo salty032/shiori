@@ -137,6 +137,24 @@ describe('findClipGaps（表から抜けている区間）', () => {
     expect(countReportDrops(frames)).toBe(3)
   })
 
+  // 時刻の間隔とブラウザが絵を出した回数が一致した抜けは、枚数が確定しているのでその枚数で数える。
+  it('絵から推定できなくても、枚数が確定した抜けはその枚数で数える', () => {
+    const frames: StoredFrame[] = rows([1, 1, 2, 1]).map((f, i) => ({ ...f, presentedFrames: [10, 11, 13, 14][i] }))
+    expect(findClipGaps(frames)).toEqual([{ afterIndex: 1, missing: 1, measured: true, animeMissing: 1 }])
+  })
+
+  // 正解付きテスト動画で、絵からの推定は 59.94fps で少なく出た（3 を 2）。確定した数の方を使う。
+  it('枚数が確定した抜けは、録画の絵からの推定より確定した枚数を使う', () => {
+    const frames: StoredFrame[] = rows([1, 1, 4, 1, 1]).map((f, i) => ({ ...f, presentedFrames: [10, 11, 15, 16, 17][i] }))
+    frames[1].animeGapMissing = 2
+    expect(findClipGaps(frames)).toEqual([{ afterIndex: 1, missing: 3, measured: true, animeMissing: 3 }])
+  })
+
+  it('枚数が確定していない抜けは、推定が無ければ未確認のまま', () => {
+    const frames: StoredFrame[] = rows([1, 1, 2, 1]).map((f, i) => ({ ...f, presentedFrames: [10, 11, 12, 13][i] }))
+    expect(findClipGaps(frames)[0].animeMissing).toBeUndefined()
+  })
+
   it('通知欠落数とは別に、録画後に付けたアニメの抜け推定を返す', () => {
     const frames: StoredFrame[] = rows([1, 1, 4, 1])
     frames[1].animeGapMissing = 2

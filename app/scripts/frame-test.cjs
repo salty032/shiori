@@ -299,6 +299,7 @@ function writePage() {
   <nav>
     ${items}
     <button id="toggle">再生 / 一時停止</button>
+    <button id="jank">詰まり: オフ</button>
     <span id="now"></span>
   </nav>
   <video id="v" muted playsinline preload="auto"></video>
@@ -308,6 +309,16 @@ function writePage() {
     b.onclick = () => { v.src = b.dataset.src; document.getElementById('now').textContent = b.dataset.src; v.play() }
   }
   document.getElementById('toggle').onclick = () => v.paused ? v.play() : v.pause()
+  // YouTube のページを模して、ときどき処理を 40〜60ms 詰まらせる。その間に出たコマの知らせを
+  // ブラウザが飛ばし、表に抜けができる（枚数が確定した抜けの数え方を、正解付きで確かめるため）。
+  let jankTimer = null
+  const jank = document.getElementById('jank')
+  const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end) {} }
+  const tick = () => { busy(40 + Math.random() * 20); jankTimer = setTimeout(tick, 300 + Math.random() * 1200) }
+  jank.onclick = () => {
+    if (jankTimer) { clearTimeout(jankTimer); jankTimer = null; jank.textContent = '詰まり: オフ' }
+    else { tick(); jank.textContent = '詰まり: オン' }
+  }
   // ?play=ファイル名 で開くとその動画を自動で再生する（録画を自動で回すとき用）。
   const auto = new URLSearchParams(location.search).get('play')
   if (auto) { v.src = auto; document.getElementById('now').textContent = auto; v.play() }
