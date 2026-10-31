@@ -4,14 +4,14 @@
 // 各コマの上端に 32 個の白黒ブロックを並べ、そのコマが何であるかを焼き込む。
 // 文字ではなくブロックにするのは、録画・再エンコード・縮小を経ても画素の平均だけで読めるから。
 //
-//   [fps 3bit][種類 1bit][番号 16bit][検査 12bit]
+//   [fps 4bit][番号 16bit][検査 12bit]
 //
 // 検査を 12 bit 取るのは、ふつうのアニメの絵がたまたま読めてしまわないため（4 bit では
 // 実際に本物の録画 1 本をテスト動画と取り違えた）。
 //
-// 種類 0（every）… 番号＝素材のコマ番号（0 始まり）。全コマで絵が変わる。
-// 種類 1（anime）… 番号＝セル番号。HOLDS の打ち方で 1〜6 コマ同じ絵が続く。
-//                  素材のコマ番号からセル番号は animeCelOf で決まるので、答えは出せる。
+// 番号はコマ番号（1 始まり。Shiori の画面の数え方と同じ）で、全コマで変わる。
+// 同じ数字が何コマも続く「アニメの打ち方」の動画は作らない。数字がコマ番号でなくなり、
+// 目で確かめる人が「コマが重複している」と読む（実際にそう読まれた）。
 const BITS = 32
 const BAND_HEIGHT_RATIO = 0.25
 
@@ -25,34 +25,15 @@ const FPS_CODES = [
   { label: '60', num: 60, den: 1 },
 ]
 
-const VARIANTS = ['every', 'anime']
-
-// アニメの打ち方。1 コマ打ちから 6 コマ打ちまでを混ぜ、規則的な 2・3 コマ打ちだけに
-// しない（抜けの推定が「たまたま周期に合って当たる」形を避ける）。
-const HOLDS = [3, 3, 2, 2, 2, 1, 1, 1, 4, 3, 2, 6, 1, 2, 3, 3, 2, 1, 5, 2]
-const HOLDS_SUM = HOLDS.reduce((a, b) => a + b, 0)
-
-function animeCelOf(sourceFrame) {
-  const cycle = Math.floor(sourceFrame / HOLDS_SUM)
-  let rest = sourceFrame - cycle * HOLDS_SUM
-  let cel = cycle * HOLDS.length
-  for (const hold of HOLDS) {
-    if (rest < hold) return cel
-    rest -= hold
-    cel++
-  }
-  throw new Error('unreachable')
-}
-
 function checksum(header, number) {
   let h = 0x9e3 ^ header
   for (let i = 0; i < 3; i++) h = (h * 31 + ((number >> (i * 6)) & 0x3f) + 7) % 4093
   return h
 }
 
-function encode(fpsCode, variant, number) {
+function encode(fpsCode, number) {
   if (number < 0 || number > 0xffff) throw new Error(`number out of range: ${number}`)
-  const header = (fpsCode << 1) | variant
+  const header = fpsCode
   return [...toBits(header, 4), ...toBits(number, 16), ...toBits(checksum(header, number), 12)]
 }
 
@@ -72,9 +53,9 @@ function decode(levels) {
   const header = fromBits(bits.slice(0, 4))
   const number = fromBits(bits.slice(4, 20))
   if (fromBits(bits.slice(20)) !== checksum(header, number)) return null
-  const fpsCode = header >> 1
+  const fpsCode = header
   if (!FPS_CODES[fpsCode]) return null
-  return { fpsCode, fps: FPS_CODES[fpsCode], variant: VARIANTS[header & 1], number }
+  return { fpsCode, fps: FPS_CODES[fpsCode], number }
 }
 
 // 読むときは全コマをこの大きさのグレーへ縮めてからブロックの中央を平均する。
@@ -125,5 +106,5 @@ function readBands(ffmpegPath, file) {
 }
 
 module.exports = {
-  BITS, BAND_HEIGHT_RATIO, FPS_CODES, VARIANTS, HOLDS, animeCelOf, encode, decode, readBands
+  BITS, BAND_HEIGHT_RATIO, FPS_CODES, encode, decode, readBands
 }

@@ -48,7 +48,7 @@ const Database = require('better-sqlite3')
 const { decodeFrames, readUnusableFrames } = require('../src/main/db/db-video-frames.ts')
 const { findClipGaps } = require('../src/main/ipc/ipc-video.ts')
 const { buildGapIndex, sourceFrameNo } = require('../src/renderer/src/video/frameReadout.ts')
-const { animeCelOf, readBands } = require('./frame-test-code.cjs')
+const { readBands } = require('./frame-test-code.cjs')
 
 const ffmpeg = path.join(__dirname, '..', 'resources', 'ffmpeg.exe')
 
@@ -94,16 +94,16 @@ async function scoreClip(row) {
   const readable = bands.filter(Boolean)
   if (readable.length < bands.length / 2) return { notTest: true }
   const fps = mode(readable.map((b) => b.fpsCode))
-  const variant = mode(readable.map((b) => b.variant))
   const { num, den, label } = readable.find((b) => b.fpsCode === fps).fps
   const srcOf = (mediaTime) => Math.round((mediaTime * num) / den)
-  const answerOf = (src) => (variant === 'anime' ? animeCelOf(src) : src)
+  // 焼き込んだ数字は 1 始まりのコマ番号。
+  const answerOf = (src) => src + 1
 
   // ビューアと同じく、ファイル内に実在するフレームを指す行だけを使う（ipc-video の buildClipFrames）。
   const usable = table.filter((f) => f.frameIndex >= 0 && f.frameIndex < bands.length)
   const clipRed = usable.some((f) => f.misaligned)
   const result = {
-    fps: label, variant, rows: usable.length, outside: table.length - usable.length,
+    fps: label, rows: usable.length, outside: table.length - usable.length,
     correct: 0, unreadable: [], wrongWarned: [], wrongSilent: [], offsets: [], numberWarned: [], numberSilent: [],
   }
 
@@ -140,7 +140,7 @@ async function scoreClip(row) {
 
 function report(row, r) {
   const when = new Date(row.captured_at).toLocaleString('ja-JP')
-  console.log(`\n■ id ${row.id}  ${when}  ${r.variant} ${r.fps}fps${r.clipRed ? '  （画面ではクリップ全体が要注意）' : ''}`)
+  console.log(`\n■ id ${row.id}  ${when}  ${r.fps}fps${r.clipRed ? '  （画面ではクリップ全体が要注意）' : ''}`)
   console.log(`  素材 ${r.span} コマ / 表 ${r.rows} 行（表に無い素材コマ ${r.noRow}、同じ素材コマを指す行 ${r.duplicated}）`)
   if (r.outside) console.log(`  ファイルに無いフレームを指す行 ${r.outside}（ビューアは使わない）`)
   console.log(`  絵: 正しい ${r.correct} / 違う・注記あり ${r.wrongWarned.length} / 違う・注記なし ${r.wrongSilent.length} / 読めない ${r.unreadable.length}`)
@@ -150,8 +150,7 @@ function report(row, r) {
   if (r.offsets.length) {
     const counts = {}
     for (const d of r.offsets) counts[d] = (counts[d] ?? 0) + 1
-    const unit = r.variant === 'anime' ? 'セル' : 'コマ'
-    console.log(`    ずれ（${unit}）: ${Object.entries(counts).map(([d, n]) => `${d > 0 ? '+' : ''}${d}: ${n}`).join(', ')}`)
+    console.log(`    ずれ（コマ）: ${Object.entries(counts).map(([d, n]) => `${d > 0 ? '+' : ''}${d}: ${n}`).join(', ')}`)
   }
   const numberOk = r.rows - r.numberWarned.length - r.numberSilent.length
   console.log(`  番号: 合う ${numberOk} / 違う・注記あり ${r.numberWarned.length} / 違う・注記なし ${r.numberSilent.length}`)

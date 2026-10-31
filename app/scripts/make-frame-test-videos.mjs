@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { BAND_HEIGHT_RATIO, BITS, FPS_CODES, VARIANTS, animeCelOf, encode, readBands } = require('./frame-test-code.cjs')
+const { BAND_HEIGHT_RATIO, BITS, FPS_CODES, encode, readBands } = require('./frame-test-code.cjs')
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const repoDir = join(appDir, '..')
@@ -29,12 +29,7 @@ const seconds = Number(process.argv[2] ?? 30)
 
 // 実際のアニメ配信に多い 23.976 を軸に、供給が足りなくなる 29.97・59.94 も並べる
 // （docs/ANIME-FRAMES.md「供給レートと素材 fps の関係」）。
-const VIDEOS = [
-  { variant: 'every', fpsCode: 1 },
-  { variant: 'every', fpsCode: 2 },
-  { variant: 'every', fpsCode: 3 },
-  { variant: 'anime', fpsCode: 1 },
-]
+const VIDEOS = [{ fpsCode: 1 }, { fpsCode: 2 }, { fpsCode: 3 }]
 
 // 7 セグメントの数字。人が目でコマ送りしたときに読むためのもので、採点には使わない。
 const SEGMENTS = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg']
@@ -61,11 +56,12 @@ function drawNumber(buf, n, cy) {
   for (const ch of text) { drawDigit(buf, Number(ch), x, cy - dh / 2, dw, dh, 24); x += dw + gap }
 }
 
-function renderFrame(buf, fpsCode, variant, sourceFrame) {
-  const number = variant === 'anime' ? animeCelOf(sourceFrame) : sourceFrame
+// 数字はコマ番号（1 始まり）。Shiori で取り込んだ動画をコマ送りすると、画面のコマ番号と同じ数字が出る。
+function renderFrame(buf, fpsCode, sourceFrame) {
+  const number = sourceFrame + 1
   buf.fill(64)
   const bandH = Math.floor(H * BAND_HEIGHT_RATIO)
-  const bits = encode(fpsCode, VARIANTS.indexOf(variant), number)
+  const bits = encode(fpsCode, number)
   for (let b = 0; b < BITS; b++) {
     const x0 = Math.round((b * W) / BITS)
     const x1 = Math.round(((b + 1) * W) / BITS)
@@ -74,8 +70,8 @@ function renderFrame(buf, fpsCode, variant, sourceFrame) {
   drawNumber(buf, number, Math.floor(bandH + (H - bandH) / 2))
 }
 
-function fileName({ variant, fpsCode }) {
-  return `${variant}-${FPS_CODES[fpsCode].label}fps.mp4`
+function fileName({ fpsCode }) {
+  return `frames-${FPS_CODES[fpsCode].label}fps.mp4`
 }
 
 async function makeVideo(video) {
@@ -96,7 +92,7 @@ async function makeVideo(video) {
   })
   for (let i = 0; i < frames; i++) {
     const buf = Buffer.alloc(W * H)
-    renderFrame(buf, video.fpsCode, video.variant, i)
+    renderFrame(buf, video.fpsCode, i)
     if (!proc.stdin.write(buf)) await new Promise((resolve) => proc.stdin.once('drain', resolve))
   }
   proc.stdin.end()
@@ -105,8 +101,8 @@ async function makeVideo(video) {
   const bands = await readBands(ffmpeg, out)
   if (bands.length !== frames) throw new Error(`${out}: ${bands.length} frames decoded, expected ${frames}`)
   bands.forEach((band, i) => {
-    const want = video.variant === 'anime' ? animeCelOf(i) : i
-    if (!band || band.number !== want || band.fpsCode !== video.fpsCode || band.variant !== video.variant) {
+    const want = i + 1
+    if (!band || band.number !== want || band.fpsCode !== video.fpsCode) {
       throw new Error(`${out}: frame ${i} reads ${JSON.stringify(band)}, expected ${want}`)
     }
   })
@@ -159,6 +155,8 @@ function writeExtension() {
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 }
 
+// 前の版で作った動画（数字の意味が違うもの）を残すと、取り違えて見てしまう。
+rmSync(outDir, { recursive: true, force: true })
 mkdirSync(outDir, { recursive: true })
 for (const video of VIDEOS) await makeVideo(video)
 writePage()
