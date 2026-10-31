@@ -474,3 +474,51 @@ describe('frameGaps（抜けの枚数と、その裏取り）', () => {
     expect(frameGaps(result!.matches)).toEqual([])
   })
 })
+
+describe('matchFrames（絵で位相を決める）', () => {
+  // 29.97fps の素材を 60Hz で撮る。ページが報告する表示時刻は、実際に画面へ出た時刻から
+  // ±6ms ずれる（実測では 30・35ms の刻みで、画面の書き換えと合わない）。
+  const P = 1000 / 29.97
+  const LAG = 20
+  function scene(count: number, hold: number) {
+    let seed = 777
+    const jitter = (): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return ((seed / 0x7fffffff) * 2 - 1) * 6
+    }
+    const source: SourceFrame[] = Array.from({ length: count }, (_, i) => {
+      const displayAt = T0 + i * P + jitter()
+      return { mediaTime: i * (P / 1000), displayAt, receivedAt: displayAt }
+    })
+    const drawnAt = makeDrawn(Math.ceil((count * P + 200) / CAP_PERIOD), 0)
+    // 各撮影に写っている素材のコマ（実際の表示時刻＋遅れより後なら写る）
+    const shown = drawnAt.map((t) => Math.floor((t - LAG - T0) / P))
+    const drawing = (i: number): number => Math.floor(i / hold)
+    const changed = shown.map((s, k) => k > 0 && drawing(s) !== drawing(shown[k - 1]))
+    const wrong = (r: ReturnType<typeof matchFrames>): number =>
+      r!.matches.filter((m) => m.captured && drawing(shown[m.frameIndex]) !== drawing(Math.round(m.mediaTime * 1000 / P))).length
+    return { source, drawnAt, changed, wrong }
+  }
+
+  it('毎コマ絵が変わる映像で、時刻だけで選ぶより外れが減る', () => {
+    const s = scene(240, 1)
+    const byTime = s.wrong(matchFrames(s.source, s.drawnAt))
+    const byPicture = s.wrong(matchFrames(s.source, s.drawnAt, s.changed))
+    expect(byPicture).toBeLessThan(byTime)
+  })
+
+  it('コマ打ちの映像でも、時刻だけで選ぶより外れが増えない', () => {
+    for (const hold of [2, 3]) {
+      const s = scene(240, hold)
+      expect(s.wrong(matchFrames(s.source, s.drawnAt, s.changed)))
+        .toBeLessThanOrEqual(s.wrong(matchFrames(s.source, s.drawnAt)))
+    }
+  })
+
+  it('絵の数が撮影の数と合わなければ使わない', () => {
+    const s = scene(120, 1)
+    const byTime = matchFrames(s.source, s.drawnAt)!
+    const mismatched = matchFrames(s.source, s.drawnAt, s.changed.slice(1))!
+    expect(mismatched.matches).toEqual(byTime.matches)
+  })
+})

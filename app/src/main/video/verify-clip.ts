@@ -9,13 +9,14 @@
 import { getFrameSignatures } from './ffmpeg'
 import { invalidateClipFrames } from '../ipc/ipc-video'
 import {
-  applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, verifyFrameTable
+  applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, signaturesDiffer,
+  verifyFrameTable
 } from './frame-verify'
 import { setAmbiguousFrames, setFrameCounts } from '../db/db'
 import {
   listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
 } from '../db/db-video-frames'
-import { countReportDrops, reportDropsMeasured } from './frame-feed'
+import { countReportDrops, matchFrames, reportDropsMeasured, type SourceFrame } from './frame-feed'
 import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
@@ -50,24 +51,53 @@ function notifyVerified(
  * @param drawnAt 録画時に供給した各フレームの取り込み時刻。渡すと 1. の照合を行う。
  *   トリミング経路は表の frameIndex を切り出し後の PTS 列から作り直しており、定義上ずれない
  *   ので null を渡す。
- * @param source 各コマが画面に出た時刻（診断の書き出し専用。frame-correspondence-diag.ts）。
+ * @param source 録画中に届いた素材のコマ通知。渡すと、取り出した絵で表を作り直す
+ *   （frame-feed.ts の pictureRuns）。診断の書き出しにも使う。
  */
 export async function verifyClipFrames(
   imageId: number,
   videoPath: string,
   table: StoredFrame[],
   drawnAt: number[] | null,
-  source: readonly { mediaTime: number; displayAt: number }[] = []
+  source: SourceFrame[] = []
 ): Promise<void> {
   try {
     const { signatures, pts } = await getFrameSignatures(videoPath)
-    if (drawnAt !== null) await writeCorrespondenceDiagnostic(imageId, drawnAt, pts, table, source)
+    if (drawnAt !== null) {
+      await writeCorrespondenceDiagnostic(
+        imageId, drawnAt, pts, table, source.map((f) => ({ mediaTime: f.mediaTime, displayAt: f.displayAt }))
+      )
+    }
     if (signatures.length === 0) {
       logVerifyResult(imageId, null)
       return
     }
 
     let frames = table
+
+    // 時刻だけで選んだ 1 枚を、絵を見て選び直す。枚数がファイルと合うときだけ——合わないと
+    // drawnAt の添字がファイルのフレームを指さず、絵を見ても別のフレームを見ることになる。
+    if (drawnAt !== null && source.length > 0 && signatures.length === drawnAt.length) {
+      const changed = signatures.map((s, k) => k > 0 && signaturesDiffer(signatures[k - 1], s))
+      const rematched = matchFrames(source, drawnAt, changed)
+      if (rematched) {
+        const before = new Map(table.map((f) => [f.mediaTime, f.frameIndex]))
+        const moved = rematched.matches.filter((m) => before.get(m.mediaTime) !== m.frameIndex).length
+        console.log(
+          `[frame-match] image ${imageId}: re-picked by picture at ${rematched.offsetMs}ms` +
+          ` (candidates ${rematched.tiedRangeMs[0]}..${rematched.tiedRangeMs[1]}ms);` +
+          ` ${moved} of ${rematched.matches.length} row(s) now point to another file frame`
+        )
+        if (moved > 0 || rematched.matches.length !== table.length) {
+          frames = rematched.matches
+          saveVideoFrames(imageId, frames)
+          setFrameCounts(
+            imageId, frames.filter((f) => !f.captured).length, frames.length,
+            countReportDrops(frames), 0, reportDropsMeasured(frames)
+          )
+        }
+      }
+    }
 
     // 表の frameIndex は「requestFrame を呼んだ回数」の添字で、ファイル内のデコード実フレームの
     // 添字と一致することが全ての前提になっている。MediaRecorder はエンコードに詰まると

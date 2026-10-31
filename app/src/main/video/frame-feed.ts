@@ -243,7 +243,12 @@ export function summarizeReportDelay(source: SourceFrame[]): ReportDelay | null 
 // キャプチャ経路には一定の遅延があるため displayAt をそのまま使うと1コマ手前を掴むが、
 // この遅延は一定なので、全体が最もきれいに1対1へ収まるオフセットを探して補正する
 // （offsetMs）。一定のずれは全コマが等しくずれるだけでコマ打ちの数え方を壊さない。
-export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResult | null {
+//
+// pictureChanged（録画ファイルの各フレームが 1 つ前と別の絵か）を渡すと、1 コマ内の位相を
+// 絵で決める（pictureRuns 参照）。録画直後の検査で、絵を取り出した後にもう一度呼ぶ。
+export function matchFrames(
+  source: SourceFrame[], drawnAt: number[], pictureChanged?: readonly boolean[]
+): MatchResult | null {
   if (source.length === 0 || drawnAt.length === 0) return null
 
   // 同じ素材コマが2回以上通知されることがある（コンポジタが同じフレームを再提示すると
@@ -273,15 +278,25 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
     )
   }
 
-  const pick = (offsetMs: number): FrameMatch[] => {
+  const runs = pictureChanged && pictureChanged.length === drawnAt.length && changesEveryFrame(pictureChanged, frames.length)
+    ? pictureRuns(pictureChanged)
+    : null
+
+  const pickIndices = (offsetMs: number): number[] => {
     const idx: number[] = []
-    const lastDrawnAt = drawnAt[drawnAt.length - 1]
     let i = 0
     for (const f of frames) {
       const target = f.displayAt + offsetMs
       while (i + 1 < drawnAt.length && drawnAt[i] < target) i++
       idx.push(i)
     }
+    return idx
+  }
+
+  const pick = (offsetMs: number, repair = true): FrameMatch[] => {
+    const idx = pickIndices(offsetMs)
+    if (runs && repair) repairByPicture(idx, runs)
+    const lastDrawnAt = drawnAt[drawnAt.length - 1]
     // 次のコマが撮影の終わりより後に出た（停止後に届いた通知）なら、次は末尾に張り付いた
     // だけで比べる相手にならない。自分の絵は次の表示より前に撮れているので、区間内に撮れている。
     // 比べると、最後のコマが「専用の絵が無い」とされ 1 つ前の絵を指していた（撮り逃しの誤通知）。
@@ -321,8 +336,23 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   const periodMs = grid?.periodMs ?? 1000 / 24
   const reportDrops = grid?.drops ?? 0
 
-  const scoreAt = (offsetMs: number): number =>
-    pick(offsetMs).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
+  // 絵が無いときのスコアは「自分の区間内に絵があったコマ数」。供給が足りると窓の広い範囲で
+  // 満点に張り付き、位相が決まらない（60Hz の画面で 29.97fps を撮ると、注記なしで隣の絵を出す
+  // コマが 1 本で最大 87 あった）。絵があるときは先に「1 つ前のコマと別の絵を指すコマ数」で比べる。
+  // 区切りの直前の 1 枚を掴む位相ほど、前のコマと同じ絵を指すコマが増えて点が下がる。
+  // 同点なら今までどおり撮れたコマ数で決める。コマ打ちの録画では絵を使わない（changesEveryFrame）。
+  // 変わり目の位置で比べる数え方（区間の途中で変わった回数・切り替わる直前の 1 枚を選んだ回数）は、
+  // どちらも遅れを 5〜10ms 短く選んで外れを増やした。60Hz の画面では素材 1 コマに撮れる絵が 1〜2 枚
+  // しかなく、「1 枚手前の絵の先頭」を選ぶ位置と絵の上で区別がつかない（docs/SPEC.md「キャプチャ経路の遅延（offsetMs）」）。
+  const capturedCount = (offsetMs: number): number =>
+    pick(offsetMs, false).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
+  const scoreAt = (offsetMs: number): number => {
+    if (!runs) return capturedCount(offsetMs)
+    const idx = pickIndices(offsetMs)
+    let distinct = 0
+    for (let k = 1; k < idx.length; k++) if (runs.run[idx[k]] !== runs.run[idx[k - 1]]) distinct++
+    return distinct * (frames.length + 1) + capturedCount(offsetMs)
+  }
 
   // 探索の窓は「実測した遅延 ± 素材コマの半分」＝**幅ちょうど素材 1 コマ**。
   //
@@ -334,7 +364,7 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
   const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
 
-  let bestScore = -1
+  let bestScore = -Infinity
   // 最高スコアで並んだオフセット（MatchResult.tiedOffsets 参照）。
   let tied: number[] = []
   for (let offset = searchLo; offset <= searchHi; offset++) {
@@ -360,7 +390,7 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
   const replicas: OffsetReplica[] = []
   for (const shift of [-2, -1, 1, 2]) {
     const center = offsetMs + shift * periodMs
-    let peak = { offsetMs: Math.round(center), score: -1 }
+    let peak = { offsetMs: Math.round(center), score: -Infinity }
     for (let o = Math.ceil(center - REPLICA_WINDOW_MS); o <= Math.floor(center + REPLICA_WINDOW_MS); o++) {
       const score = scoreAt(o)
       if (score > peak.score) peak = { offsetMs: o, score }
@@ -408,6 +438,64 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
     searchRangeMs: [searchLo, searchHi],
     replicas,
     reportDrops
+  }
+}
+
+/**
+ * 録画ファイルのフレームを「同じ絵が続く区間」に分け、各フレームが何番目の区間かを返す。
+ *
+ * **何コマずれるかは決めない。** 探索の窓は今までどおり定数 `CAPTURE_LATENCY_MS` を中心に
+ * 素材 1 コマ幅で、絵が決めるのは窓の中の位相と、隣り合う行の 1 枚の選び直しだけ
+ * （docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」の理由 2）。行は素材のコマのまま
+ * 1 つも足し引きしないので、同じ絵が何コマ続いたかは今までどおり数えられる（同・理由 1）。
+ *
+ * 時刻だけで位相を決めると、60Hz の画面ではページが報告する表示時刻が 30・35ms の刻みで
+ * 画面の書き換えと合わず、どの位相でも区切りの直前の 1 枚を掴むコマが残る。テスト動画
+ * （29.97fps・6 本）で、注記なしで隣の絵を出すコマが合計 234 → 31 になった。残りの大半は、その絵が
+ * 録画のどこにも写っていないコマ（どう選んでも当たらない）。
+ */
+export interface PictureRuns {
+  run: number[]
+  /** 区間ごとの先頭フレーム */
+  first: number[]
+}
+
+// 絵がほぼ毎コマ変わる録画か。**コマ打ちの録画では絵で位相を決めない。** 同じ絵が 2〜3 コマ
+// 続くと「前のコマと別の絵を指すコマ数」は位相の手がかりにならず、むしろ外れる位相を選ぶ
+// （2 コマ打ちを模した合成データで、外れが 27 → 92 に増えた）。素材のコマ数に対する変わり目の数で
+// 見分ける。毎コマ変わる映像でも、録画に写らなかったコマのぶん少し足りなくなる。
+const EVERY_FRAME_CHANGE_RATIO = 0.8
+
+function changesEveryFrame(changed: readonly boolean[], sourceFrames: number): boolean {
+  if (sourceFrames === 0) return false
+  return changed.filter(Boolean).length >= sourceFrames * EVERY_FRAME_CHANGE_RATIO
+}
+
+export function pictureRuns(changed: readonly boolean[]): PictureRuns {
+  const run: number[] = []
+  const first: number[] = []
+  let r = -1
+  for (let k = 0; k < changed.length; k++) {
+    if (k === 0 || changed[k]) {
+      r++
+      first.push(k)
+    }
+    run.push(r)
+  }
+  return { run, first }
+}
+
+// 時刻で選んだ 1 枚が区切りをまたいだ行を、隣の区間へ移す。
+//
+// 前の行と同じ絵を指し、次の行が 1 つ飛ばした区間を指すなら、飛ばされた区間はこの行の絵
+// （区切りの直前を掴んだ）。逆に前の行から 1 つ飛ばし、次の行と同じ絵を指すなら、飛ばした
+// 区間がこの行の絵（区切りの直後を掴みすぎた）。どちらでもない行は動かさない——同じ絵が
+// 続く区間（コマ打ち）では隣どうしが同じ区間を指すのが正常で、飛ばしが無いので動かない。
+function repairByPicture(idx: number[], runs: PictureRuns): void {
+  const R = (k: number): number => runs.run[idx[k]]
+  for (let k = 1; k + 1 < idx.length; k++) {
+    if (R(k) === R(k - 1) && R(k + 1) - R(k) >= 2) idx[k] = runs.first[R(k) + 1]
+    else if (R(k) - R(k - 1) >= 2 && R(k + 1) === R(k)) idx[k] = runs.first[R(k) - 1]
   }
 }
 
@@ -642,10 +730,10 @@ export function buildFrameTable(drawnAt: number[]): MatchResult | null {
   return matchFrames(frames, drawnAt)
 }
 
-// 収集済みのコマ通知の、素材時刻と画面に出た時刻の写し（診断の書き出し専用）。
+// 収集済みのコマ通知の写し。録画直後の検査が、絵を取り出した後に表を作り直すのに使う。
 // 次の録画で frames は作り直されるので、録画が終わった時点で写しを取る。
-export function getSourceFrameTimes(): { mediaTime: number; displayAt: number }[] {
-  return frames.map((f) => ({ mediaTime: f.mediaTime, displayAt: f.displayAt }))
+export function getSourceFrames(): SourceFrame[] {
+  return frames.map((f) => ({ ...f }))
 }
 
 // 収集済みのコマ通知から、通知が届くまでの遅れを要約する（ReportDelay 参照）。

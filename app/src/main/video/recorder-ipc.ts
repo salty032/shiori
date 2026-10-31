@@ -13,7 +13,7 @@ import { verifyClipFrames } from './verify-clip'
 import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi, takeSettleNote } from './recording'
 import {
   logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions,
-  countReportDrops, reportDropsMeasured, getSourceFrameTimes
+  countReportDrops, reportDropsMeasured, getSourceFrames
 } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
@@ -162,8 +162,9 @@ export function registerRecorderIpc(): void {
     // （供給が均一な録画ほどコマ精度を失う副作用の方が大きい）。疑わしい点の判定と警告は
     // frame-feed 側（offsetVerdict / logMatchResult）に集約してある。
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
-    // 診断の書き出し（dev-diag.bat）用。後の検証は非同期なので、次の録画で消える前に写しておく。
-    const sourceTimes = process.env['SHIORI_FRAME_DIAGNOSTICS_DIR'] ? getSourceFrameTimes() : []
+    // 録画直後の検査が絵を取り出した後に表を作り直すのに使う。検査は非同期なので、次の録画で
+    // 消える前に写しておく。
+    const sourceFrames = frameTable ? getSourceFrames() : []
     const parsedDiag = parseCaptureDiag(diag)
     const supply = usableDrawnAt
       ? summarizeSupply(drawnAt, duration, sourceFps ? 1000 / sourceFps : null)
@@ -272,7 +273,7 @@ export function registerRecorderIpc(): void {
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、
           // それだと「最も精度が良く見えるクリップ」ほど照合されないことになる。
           // 待たずに投げっぱなしにする — 保存の完了通知を遅らせないため。
-          void verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceTimes)
+          void verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceFrames)
         } catch (err) {
           console.error('[clip] saveVideoFrames failed', err)
         }
