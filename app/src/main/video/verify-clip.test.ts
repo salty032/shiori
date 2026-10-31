@@ -78,6 +78,19 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     })
   })
 
+  // トリミングした表は元の行のずれの印を引き継ぐ。0 で飛ばすと画面の件数だけが消える。
+  it('引き継いだずれの印の件数も飛ばす（トリミング後の検査）', () => {
+    signatures.value = [flat(10), flat(200)]
+    signatures.pts = [0, 0.02]
+    const table: StoredFrame[] = [
+      { mediaTime: 0, frameIndex: 0, captured: true },
+      { mediaTime: 0.04, frameIndex: 1, captured: true, misaligned: true }
+    ]
+    return verifyClipFrames(9, 'clip.webm', table, null).then(() => {
+      expect(verifiedPayload()).toMatchObject({ id: 9, total: 2, misaligned: 1 })
+    })
+  })
+
   it('撮り逃しが0でも、録画に残った境界からアニメの抜け推定を保存する', async () => {
     signatures.pts = Array.from({ length: 13 }, (_, i) => 13.369 + i * 0.02)
     signatures.value = [

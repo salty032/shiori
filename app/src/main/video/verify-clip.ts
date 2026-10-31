@@ -19,7 +19,7 @@ import {
 import { countReportDrops, matchFrames, reportDropsMeasured, type SourceFrame } from './frame-feed'
 import { refineByThumbnails } from './frame-thumbs'
 import { alignWholeRecording } from './frame-align'
-import { isCurrentlyRecording } from './recording'
+import { isRecordingInProgress } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
 import { writeCorrespondenceDiagnostic } from './frame-correspondence-diag'
@@ -250,17 +250,19 @@ export async function verifyClipFrames(
     if (animeGaps.changed) saveVideoFrames(imageId, frames)
 
     const missed = frames.filter((f) => !f.captured).length
+    // トリミングした表は元の行のずれの印を引き継いでいる。0 で知らせると、画面の件数だけが消える。
+    const misaligned = frames.filter((f) => f.misaligned).length
     // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
     // 末尾を切って枚数が変わっている場合があるので、画面への反映だけは伝える。
     if (missed === 0) {
-      notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
+      notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames), misaligned, reportDropsMeasured(frames))
       return
     }
 
     const result = verifyFrameTable(frames, signatures)
     saveVideoFrames(imageId, result.frames)
     setAmbiguousFrames(imageId, result.ambiguous)
-    notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
+    notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames), misaligned, reportDropsMeasured(frames))
     logVerifyResult(imageId, result)
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
@@ -291,11 +293,11 @@ export async function recheckMarkedClips(): Promise<void> {
   const when = (at: number | null): string =>
     at ? new Date(at).toLocaleString('sv-SE').slice(5, 16) : 'unknown time'
   for (const target of targets) {
-    // **録画中は必ず譲る。** 1 本ごとに動画をまるごとデコードするので CPU を食う。
+    // **録画中は必ず譲る（開始の準備中も）。** 1 本ごとに動画をまるごとデコードするので CPU を食う。
     // 録画中に走らせると、キャプチャの負荷でページが素材のコマを描き落とす——
     // recording.ts の waitForSteadyFrames で塞いだのと同じ壊れ方を、こちらから起こすことになる。
     // 撮り終えてから続ける（後追いの処理なので、遅れて困るものではない）。
-    while (isCurrentlyRecording()) {
+    while (isRecordingInProgress()) {
       await new Promise((resolve) => setTimeout(resolve, RECHECK_YIELD_MS))
     }
     try {
