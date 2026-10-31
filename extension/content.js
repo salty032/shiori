@@ -1480,6 +1480,11 @@ function getPageTitle() {
     const episode = root.querySelector('[class*="atvwebplayersdk-episode-info"]')?.textContent?.trim()
     if (series && episode) return `${series} ${episode}`
     if (series || episode) return series || episode
+    // タブ名がサイト名で始まるなら、作品のページではなくサイト共通のタブ名なので付けない。
+    // 実例：「Prime Video：映画、TV番組、スポーツ番組、ライブTVを視聴できます」がそのまま作品名に入った
+    // （2026-10-31。プレーヤーから作品名を読めなかったとき）。作品のページは「Amazon.co.jp: 作品名を観る | Prime Video」で
+    // サイト名が末尾に来る。代償：作品名が「Prime Video」で始まる作品は空になる。
+    if (/^prime\s*video/i.test(document.title.trim())) return ''
     return document.title.replace(/^Amazon\.co\.jp:\s*/, '').replace(/\s*\|\s*Prime Video$/, '').replace(/を観る$/, '').trim() || document.title
   }
 

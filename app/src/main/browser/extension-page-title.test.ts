@@ -266,6 +266,11 @@ describe('タブ名が固定のサービス - DOM から組み立てる', () => 
   it('Prime Video: DOM が取れなければタブ名から定型句を落とす', () => {
     expect(title({ host: 'amazon.co.jp', tab: 'Amazon.co.jp: 葬送のフリーレンを観る | Prime Video' })).toBe('葬送のフリーレン')
   })
+
+  it('Prime Video: サイト共通のタブ名は作品名にしない', () => {
+    expect(title({ host: 'amazon.co.jp', tab: 'Prime Video：映画、TV番組、スポーツ番組、ライブTVを視聴できます' })).toBe('')
+    expect(title({ host: 'primevideo.com', tab: 'Prime Video' })).toBe('')
+  })
 })
 
 it('知らないホストではタブ名をそのまま使う', () => {
