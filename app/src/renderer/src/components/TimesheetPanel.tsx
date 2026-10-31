@@ -4,7 +4,7 @@ import { font, radius, space } from '../styles'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
-import { GAP_ROW, requiredSheetLength, timesheetGlyph, timesheetLabels, TOEI_SYMBOL } from '../../../shared/timesheet'
+import { GAP_ROW, requiredSheetLength, timesheetGlyph, timesheetLabels, TOEI_SYMBOL, trackOf } from '../../../shared/timesheet'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { XIcon } from './Icon'
 
@@ -15,7 +15,7 @@ import { XIcon } from './Icon'
 // 打つ人はそちらの用紙を見慣れており、欄の位置・色・目盛りの入り方が手掛かりになっている。
 // 独自の並びにすると、読めはしても「いつもの表」として読めない。
 //
-//   CELL（動画 a〜g）｜コマ目盛り
+//   CELL（A〜G）｜コマ目盛り
 //
 //   - 1 コマ 1 マス。コマ番号は 2 コマごとに出す（実物と同じ間引き）
 //   - 1 秒（素材 fps ぶん）ごとに太線で区切り、**秒のブロックごとに地色を替える**
@@ -31,8 +31,8 @@ import { XIcon } from './Icon'
 // 出るので、幅が違うと入れ替わるたびに左の一覧が伸び縮みする。同じ幅なら、板の中身だけが
 // 差し替わって見える。
 //
-// Shiori が打つのは **CELL（動画）の a 列**だけ。映像から分かるのは「絵が変わった位置」
-// だけで、原画か中割りかも層の分離も分からない（docs/TIMESHEET.md「Shiori が埋められるのは実質 1 欄」）。
+// **A〜G のどの列にも打てる**（←→ か、マスのクリックで列を移る）。どの層の絵が変わったかは
+// 打つ人が見て決める。Shiori が推定して埋めるのではない。
 
 const ROW_H = 15
 
@@ -64,14 +64,14 @@ const c = {
   gapRow: '#d9dde3',
 }
 
-const CELL_COLS = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+const CELL_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 
-// 詳細パネルの最小幅（300）に収まる寸法。ここを広げると、既定の幅で横スクロールが出る。
-const W = { counter: 44, cell: 36 }
+// 詳細パネルの最小幅（300）に、縦スクロールバーと並んで収まる寸法。ここを広げると、
+// 既定の幅で横スクロールが出る。
+const W = { counter: 44, cell: 34 }
+// 見出し 2 段の高さ。現在行へ寄せるとき、貼り付いた見出しの下に隠さないために使う。
+const HEAD_H = 32
 const TOTAL_W = CELL_COLS.length * W.cell + W.counter
-
-// 打った番号が入るのは CELL の a（＝動画欄の 1 列目）。クリップボードへ出すのも 1 列だけ。
-const WRITE_COL = 0
 
 type Props = {
   sheet: Timesheet
@@ -98,24 +98,30 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
     currentRowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [sheet.current, sheet.currentGap])
 
-  const { total, rows, marks, current, currentGap, pending } = sheet
+  const { total, rows, marks, current, currentGap, track, pending } = sheet
   // いま居る位置が rows の何行目か。推定抜けの中なら、手前の実測行からその分だけ進める。
   // **current をそのまま行番号に使えない**——rows には抜けの空コマが挟まっている。
   const measuredPosition = rows.indexOf(current)
   const currentPosition = measuredPosition < 0 ? -1 : measuredPosition + currentGap
   const labels = timesheetLabels(marks)
-  const labelAt = new Array<string | null>(total).fill(null)
-  marks.forEach((mark, i) => { if (mark.frame < total) labelAt[mark.frame] = labels[i] })
+  const labelAt = CELL_COLS.map(() => new Array<string | null>(total).fill(null))
+  marks.forEach((mark, i) => {
+    const col = labelAt[trackOf(mark)]
+    if (col && mark.frame < total) col[mark.frame] = labels[i]
+  })
   // 縦線は「最初の番号より後ろ」にだけ伸ばす。打ち始める前のコマに線が出ていると、
   // まだ何も記録していない区間が「絵が続いている」ように読めてしまう。
   // **× を打った後も伸ばさない**——カラは「その層に絵が無い」なので、続く絵も無い。
-  const held = new Array<boolean>(total).fill(false)
-  let showing = false
-  for (let i = 0; i < total; i++) {
-    const label = labelAt[i]
-    if (label !== null) showing = label !== TOEI_SYMBOL.empty
-    else held[i] = showing
-  }
+  const held = labelAt.map((col) => {
+    const out = new Array<boolean>(total).fill(false)
+    let showing = false
+    for (let i = 0; i < total; i++) {
+      const label = col[i]
+      if (label !== null) showing = label !== TOEI_SYMBOL.empty
+      else out[i] = showing
+    }
+    return out
+  })
 
   const perSecond = Math.max(1, Math.round(fps))
   // 秒の区切りも貼り付け先で要る尺も、**抜けを含めた並び**で数える。表の行数で数えると、
@@ -125,6 +131,11 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
   function cellBorder(i: number): string {
     if (i === 0) return '1px solid transparent'
     return i % perSecond === 0 ? `1px solid ${c.ruleSecond}` : `1px solid ${c.rule}`
+  }
+  // 目盛り欄の罫線は 6 コマごとだけ（実物と同じ）。秒の頭から数える。
+  function counterBorder(i: number): string {
+    if (i % perSecond !== 0 && (i % perSecond) % 6 !== 0) return '1px solid transparent'
+    return cellBorder(i)
   }
 
   return (
@@ -159,26 +170,29 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
       </div>
 
       {/* 横は表の幅で固定する。既定（詳細パネルと同じ 300）でちょうど収まり、
-          それより狭く詰めたときだけ横スクロールになる。 */}
-      <div style={st.scrollX}>
-        <div style={{ width: TOTAL_W, flexShrink: 0 }}>
-          <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
-            <div style={{ ...st.group, width: CELL_COLS.length * W.cell, background: c.cellBand }}>CELL</div>
-            <div style={{ ...st.group, width: W.counter, background: c.counterBg, borderLeft: `1px solid ${c.frame}` }} />
-          </div>
-          <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
-            {CELL_COLS.map((label) => <div key={`c${label}`} style={{ ...st.colHead, width: W.cell, background: c.cellBand }}>{label}</div>)}
-            <div style={{ ...st.colHead, width: W.counter, background: c.counterBg, borderLeft: `1px solid ${c.frame}` }} />
+          それより狭く詰めたときだけ横スクロールになる。
+          **縦も同じ枠で流し、見出しは上に貼り付ける。** 本体だけを縦に流すと、本体の中に
+          出るスクロールバーのぶん本体の列だけが詰められ、見出しと列がずれる。 */}
+      <div style={st.scroll}>
+        <div style={{ width: TOTAL_W }}>
+          <div style={st.stickyHead}>
+            <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
+              {/* 帯は目盛りの上までつなげる（実物で目盛りの上が隣の欄の帯に含まれるのと同じ）。 */}
+              <div style={{ ...st.group, width: TOTAL_W, background: c.cellBand }}>CELL</div>
+            </div>
+            <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
+              {CELL_COLS.map((label) => <div key={`c${label}`} style={{ ...st.colHead, width: W.cell, background: c.cellBand }}>{label}</div>)}
+              <div style={{ ...st.colHead, width: W.counter, background: c.cellBand, borderLeft: `1px solid ${c.frame}` }} />
+            </div>
           </div>
 
-          <div style={st.body}>
+          <div>
             {/* **並ぶのは元の動画のコマ**で、表の行ではない（rows）。抜けの位置には空のコマが
                 入っていて、そこには打てない（行が無いので付ける先が無い）。ただし
                 コマ送りは推定位置にも止まるが、対応する画像は無い。差し込まないと抜けた枚数だけ
                 下が詰まり、番号が元の動画とずれるため、表には空行として残す。 */}
             {rows.map((i, position) => {
               const isGap = i === GAP_ROW
-              const label = isGap ? null : labelAt[i]
               const isCurrent = position === currentPosition
               const isTypable = isCurrent && !isGap
               const secondIdx = Math.floor(position / perSecond)
@@ -190,32 +204,34 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                 <div
                   key={position}
                   ref={isCurrent ? currentRowRef : undefined}
-                  style={{ display: 'flex', height: ROW_H, background: isCurrent ? c.selRow : undefined, cursor: isGap ? 'default' : 'pointer' }}
+                  style={{ display: 'flex', height: ROW_H, scrollMarginTop: HEAD_H, background: isCurrent ? c.selRow : undefined, cursor: isGap ? 'default' : 'pointer' }}
                   onClick={() => { if (!isGap) sheet.seek(i) }}>
-                  {CELL_COLS.map((label2, col) => {
-                    const isWrite = col === WRITE_COL
+                  {CELL_COLS.map((name, col) => {
+                    const isWrite = col === track
+                    const label = isGap ? null : labelAt[col][i]
                     return (
                       <div
-                        key={`c${label2}`}
+                        key={`c${name}`}
+                        onClick={() => { if (!isGap) sheet.setTrack(col) }}
                         style={{
                           ...st.cell, width: W.cell, borderTop: border, position: 'relative',
                           background: isGap ? c.gapRow : (isWrite && isTypable ? c.sel : band),
                           fontWeight: 800, color: c.ink,
                         }}>
-                        {!isGap && isWrite && (isTypable && pending
+                        {!isGap && (isWrite && isTypable && pending
                           ? <span style={{ opacity: 0.6, borderBottom: `1px solid ${c.ink}` }}>{timesheetGlyph(pending)}</span>
                           : label !== null ? timesheetGlyph(label) : '')}
                         {/* 絵が続いていることを示す縦線は、抜けをまたいで伸ばさない。
                             **抜けた区間で新しい絵が始まっていても分からない**ので、
                             続いていると請け合えない。 */}
-                        {!isGap && isWrite && held[i] && !(isTypable && pending) && (
+                        {!isGap && held[col][i] && !(isWrite && isTypable && pending) && (
                           <span style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, background: c.ink, opacity: 0.7 }} />
                         )}
                       </div>
                     )
                   })}
                   {/* コマ目盛り。秒はブロックの最終行、コマ番号は 2 コマごと（実物と同じ間引き）。 */}
-                  <div style={{ ...st.cell, width: W.counter, background: isGap ? c.gapRow : c.counterBg, borderTop: border, borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
+                  <div style={{ ...st.cell, width: W.counter, background: isGap ? c.gapRow : c.counterBg, borderTop: counterBorder(position), borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
                     <span style={{ fontWeight: 700 }}>{isSecondEnd ? secondIdx + 1 : ''}</span>
                     <span>{(position + 1) % 2 === 0 ? position + 1 : ''}</span>
                   </div>
@@ -250,16 +266,16 @@ const st: Record<string, React.CSSProperties> = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'none', border: 'none', color: c.headText, cursor: 'pointer', padding: '2px 4px',
   },
-  scrollX: { flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'hidden', display: 'flex' },
-  groupRow: { display: 'flex', height: 16, flexShrink: 0 },
+  scroll: { flex: 1, minHeight: 0, overflow: 'auto' },
+  stickyHead: { position: 'sticky', top: 0, zIndex: 1 },
+  groupRow: { display: 'flex', height: HEAD_H / 2, flexShrink: 0 },
   group: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    borderRight: `1px solid ${c.frame}`, color: c.headText, fontWeight: 700, letterSpacing: 0.6,
+    borderRight: `1px solid ${c.frame}`, color: c.headText, letterSpacing: 0.6,
   },
   colHead: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    borderRight: `1px solid ${c.rule}`, color: c.headText, fontWeight: 700,
+    borderRight: `1px solid ${c.rule}`, color: c.headText,
   },
-  body: { overflowY: 'auto', height: 'calc(100% - 32px)' },
   cell: { display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: `1px solid ${c.rule}` },
 }

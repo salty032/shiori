@@ -13,12 +13,14 @@ export const TOEI_CLIPBOARD_HEADER = 'toeiDigitalTimeSheet Copy Data'
 // **貼り付け位置はこの値で決まる**（貼る前にどこを選んでいても、frame の絶対値の位置へ入る）。
 export const TOEI_FRAME_BASE = 24
 
-// 実測サンプルに合わせただけの値。**この 2 つは貼り付け先を決めない**——欄も列も、貼る前に
+// 実測サンプルに合わせただけの値。**貼り付け先の欄を決めない**——欄も列も、貼る前に
 // 選んでいるマスで決まる（動画欄のデータを原画欄へ貼っても、そのまま正しく表示される）。
 // コピーしたときに「今どこにあるか」を答えるための値なので、**意味を持たせないこと。**
 // 絶対値で効くのは frame（縦位置）だけ。詳細は docs/TIMESHEET.md「クリップボード形式」。
 export const TOEI_FIELD = 4
-export const TOEI_TRACK = 0
+
+// 列の数（A〜G）。trackNo は欄の中で左から 0 起点（A が 0、G が 6。実物のコピーで確認）。
+export const TIMESHEET_TRACKS = 7
 
 export interface ToeiFrameData {
   fontColorId?: number
@@ -35,25 +37,34 @@ export interface ToeiClipboard {
 //
 // 絵が続くコマは values を持たない `{ id: 0 }` で表す。**エントリを省くのではない**——
 // 省いた場合にどう解釈されるかは確認していないので、実測した形をそのまま守る。
+//
+// 列は **A から、打った中でいちばん右の列まで**並べる（何も打っていなければ A だけ）。
+// 間の空の列も出す——実物も、番号が 1 つも無い列のコマ配列を全部出す。右端の空の列まで
+// 出すと、貼った先でそこにあった記入を空で上書きしてしまう。
+// **複数列のコピーは実物で採っていない**（採ったのは 1 列ずつ）。
 export function buildToeiClipboard(marks: readonly TimesheetMark[], total: number): string {
   const labels = timesheetLabels(marks)
-  const labelByFrame = new Map<number, string>()
+  const labelByCell = new Map<string, string>()
+  let lastTrack = 0
   marks.forEach((mark, i) => {
+    const track = trackOf(mark)
     if (Number.isInteger(mark.frame) && mark.frame >= 0 && mark.frame < total) {
-      labelByFrame.set(mark.frame, labels[i])
+      labelByCell.set(`${track}:${mark.frame}`, labels[i])
+      lastTrack = Math.max(lastTrack, track)
     }
   })
-  const frames = Array.from({ length: Math.max(0, total) }, (_, i) => {
-    const label = labelByFrame.get(i)
-    return {
-      data: label !== undefined ? [{ fontColorId: 0, id: 0, values: [label] }] : [{ id: 0 }],
-      frame: TOEI_FRAME_BASE + i
-    }
-  })
-  const body: ToeiClipboard = {
-    fieldId: TOEI_FIELD,
-    layers: [{ frames, inlineNo: 0, trackNo: TOEI_TRACK }]
-  }
+  const layers = Array.from({ length: lastTrack + 1 }, (_, track) => ({
+    frames: Array.from({ length: Math.max(0, total) }, (_, i) => {
+      const label = labelByCell.get(`${track}:${i}`)
+      return {
+        data: label !== undefined ? [{ fontColorId: 0, id: 0, values: [label] }] : [{ id: 0 }],
+        frame: TOEI_FRAME_BASE + i
+      }
+    }),
+    inlineNo: 0,
+    trackNo: track
+  }))
+  const body: ToeiClipboard = { fieldId: TOEI_FIELD, layers }
   // 実物のコピーがインデント 4 の整形済み JSON なので、それに揃える。
   // 実機で採った内容と目視で突き合わせられる方が、後から形式を疑うときに早い。
   return `${TOEI_CLIPBOARD_HEADER}\n${JSON.stringify(body, null, 4)}\n`
@@ -166,6 +177,11 @@ export interface TimesheetMark {
   /** 新しい絵が始まる素材コマの添字（0 起点） */
   frame: number
   /**
+   * 列（0 起点。A が 0、G が 6）。**A なら持たない**——列を持つ前に保存した記入は全部 A に
+   * 打ったものなので、そのまま A として読める。層を見分けるのは打つ人で、Shiori は推定しない。
+   */
+  track?: number
+  /**
    * 動画番号。**打たなければ持たない**——その場合は上から数えた通し番号を自動で振る。
    *
    * 東映デジタルタイムシートは番号を人が半角英数字で打つ（原画から引き継いだ番号は
@@ -175,6 +191,10 @@ export interface TimesheetMark {
   value?: string
   /** その絵に添える短いメモ。空なら持たない */
   memo?: string
+}
+
+export function trackOf(mark: TimesheetMark): number {
+  return mark.track ?? 0
 }
 
 /**
@@ -223,12 +243,18 @@ export function normalizeTimesheetValue(raw: string): string {
 // **通し番号は配列の並びではなくコマ順で数える。** 呼ぶ側が並べ替え済みであることに
 // 頼ると、打った順のまま渡された瞬間に番号だけが入れ替わる——絵は正しい位置に出るので
 // 画面では気付けず、コピーした表だけが狂う類の壊れ方になる。
+// 通し番号は**列ごとに**数える（A の 3 枚目と B の 1 枚目は別の絵の束）。
 export function timesheetLabels(marks: readonly TimesheetMark[]): string[] {
   const ordinal = new Array<number>(marks.length)
+  const counts = new Map<number, number>()
   marks
-    .map((mark, i) => ({ frame: mark.frame, i }))
+    .map((mark, i) => ({ frame: mark.frame, track: trackOf(mark), i }))
     .sort((a, b) => a.frame - b.frame)
-    .forEach((entry, n) => { ordinal[entry.i] = n + 1 })
+    .forEach((entry) => {
+      const n = (counts.get(entry.track) ?? 0) + 1
+      counts.set(entry.track, n)
+      ordinal[entry.i] = n
+    })
   return marks.map((mark, i) => mark.value || String(ordinal[i]))
 }
 
@@ -249,28 +275,35 @@ export function decodeTimesheet(json: string | null | undefined): TimesheetMark[
     return []
   }
   if (!Array.isArray(parsed)) return []
-  const seen = new Set<number>()
+  const seen = new Set<string>()
   const out: TimesheetMark[] = []
   for (const item of parsed) {
     if (!Array.isArray(item)) continue
-    const [frame, value, memo] = item as [unknown, unknown, unknown]
-    if (!Number.isInteger(frame) || (frame as number) < 0 || seen.has(frame as number)) continue
-    seen.add(frame as number)
+    const [frame, value, memo, rawTrack] = item as [unknown, unknown, unknown, unknown]
+    const track = rawTrack === undefined ? 0 : rawTrack
+    if (!Number.isInteger(frame) || (frame as number) < 0) continue
+    if (!Number.isInteger(track) || (track as number) < 0 || (track as number) >= TIMESHEET_TRACKS) continue
+    const key = `${track as number}:${frame as number}`
+    if (seen.has(key)) continue
+    seen.add(key)
     const mark: TimesheetMark = { frame: frame as number }
+    if ((track as number) > 0) mark.track = track as number
     const cleanValue = typeof value === 'string' ? normalizeTimesheetValue(value) : ''
     if (cleanValue) mark.value = cleanValue
     if (typeof memo === 'string' && memo) mark.memo = memo.slice(0, MAX_TIMESHEET_MEMO)
     out.push(mark)
   }
-  return out.sort((a, b) => a.frame - b.frame).slice(0, MAX_MARKS)
+  return out.sort((a, b) => a.frame - b.frame || trackOf(a) - trackOf(b)).slice(0, MAX_MARKS)
 }
 
-// 保存用。[コマ, 動画番号, メモ] の組を配列で持つ（1 クリップで数百組になるので、キー名を
+// 保存用。[コマ, 動画番号, メモ, 列] の組を配列で持つ（1 クリップで数百組になるので、キー名を
 // 繰り返す形にはしない。video_frames の encodeFrames と同じ判断）。
 // 末尾の空要素は落とす——打鍵だけの行が [0,"",""] と 3 要素で並ぶと無駄に太る。
+// 列は A なら書かない（列を持つ前の保存と同じ形になる）。
 export function encodeTimesheet(marks: readonly TimesheetMark[]): string {
   return JSON.stringify(marks.map((m) => {
     const row: (number | string)[] = [m.frame, m.value ?? '', m.memo ?? '']
+    if (trackOf(m) > 0) row.push(trackOf(m))
     while (row.length > 1 && row[row.length - 1] === '') row.pop()
     return row
   }))

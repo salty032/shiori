@@ -259,6 +259,26 @@ describe('timesheetLabels', () => {
   it('打った番号を優先し、無ければ上から数えた通し番号', () => {
     expect(timesheetLabels([{ frame: 0 }, { frame: 4, value: '7' }, { frame: 9 }])).toEqual(['1', '7', '3'])
   })
+
+  it('通し番号は列ごとに数える', () => {
+    expect(timesheetLabels([{ frame: 0 }, { frame: 2, track: 1 }, { frame: 4 }, { frame: 6, track: 1 }])).toEqual(['1', '1', '2', '2'])
+  })
+})
+
+describe('複数列のコピー', () => {
+  it('A しか打っていなければ A の 1 列だけ（右の列を空で上書きしない）', () => {
+    const body = parse(buildToeiClipboard(at(0), 3))
+    expect(body.layers.map((l) => l.trackNo)).toEqual([0])
+  })
+
+  it('A からいちばん右の打った列まで並べ、間の空の列も出す', () => {
+    const body = parse(buildToeiClipboard([{ frame: 0 }, { frame: 1, track: 2 }], 3))
+    expect(body.layers.map((l) => l.trackNo)).toEqual([0, 1, 2])
+    expect(body.layers[1].frames.some(hasValue)).toBe(false)
+    expect(body.layers[0].frames.map(hasValue)).toEqual([true, false, false])
+    expect(body.layers[2].frames.map(hasValue)).toEqual([false, true, false])
+    expect(body.layers.every((l) => l.frames.length === 3 && l.inlineNo === 0)).toBe(true)
+  })
 })
 
 describe('normalizeTimesheetValue', () => {
@@ -337,6 +357,21 @@ describe('decodeTimesheet / encodeTimesheet', () => {
   it('打鍵だけの行は余分な空要素を持たない（1 クリップで数百組になるため）', () => {
     expect(encodeTimesheet([{ frame: 5 }])).toBe('[[5]]')
     expect(encodeTimesheet([{ frame: 5, value: '2' }])).toBe('[[5,"2"]]')
+  })
+
+  // 列を持つ前の保存は全部 A に打ったもの。
+  it('列の無い保存は A として読む', () => {
+    expect(decodeTimesheet('[[5,"2"]]')).toEqual([{ frame: 5, value: '2' }])
+  })
+
+  it('列を持った記入も往復で変わらず、同じコマでも列が違えば両方残す', () => {
+    const marks: TimesheetMark[] = [{ frame: 5 }, { frame: 5, track: 3 }, { frame: 8, value: '2', track: 6 }]
+    expect(encodeTimesheet(marks)).toBe('[[5],[5,"","",3],[8,"2","",6]]')
+    expect(decodeTimesheet(encodeTimesheet(marks))).toEqual(marks)
+  })
+
+  it('範囲外の列は落とす', () => {
+    expect(decodeTimesheet('[[5,"","",7],[6,"","",-1],[7,"","",1.5]]')).toEqual([])
   })
 })
 

@@ -89,17 +89,30 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     window.setTimeout(() => setIndex(null), 110)
   }
 
+  // **タイムシートを開いている間は、ぶつかるキーをシートに譲る。**
+  // Enter は「確定」であって「閉じる」ではないし、数字はズームではない——東映
+  // デジタルタイムシートの操作系をそのまま持ってくるには、先に通すしかない
+  // （譲る範囲は useTimesheet の handleKey が持つ。コマ送りと再生はこちらに残る）。
+  // **捕獲段階で受けて、取ったキーはほかへ流さない。** 一覧側（useSelection）も window で
+  // ←→（前後のクリップへ）と Delete（クリップを消す）を聞いており、先に登録されている。
+  // 後から聞くだけでは、列を移ったつもりでクリップが替わり、記入を消したつもりでクリップが消える。
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return
+      if (timesheet.handleKey(e)) e.stopImmediatePropagation()
+    }
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [timesheet.handleKey])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       const el = e.target as HTMLElement | null
       const tag = el?.tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el?.isContentEditable)
       if (isEditing) return
-      // **タイムシートを開いている間は、ぶつかるキーをシートに譲る。**
-      // Enter は「確定」であって「閉じる」ではないし、数字はズームではない——東映
-      // デジタルタイムシートの操作系をそのまま持ってくるには、ここで先に通すしかない
-      // （譲る範囲は useTimesheet の handleKey が持つ。コマ送りと再生はこちらに残る）。
-      if (timesheet.handleKey(e)) return
       if (images[index].media_type === 'video'
         && (e.key === 'ArrowUp' || e.key === 'ArrowDown')
         && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
@@ -164,7 +177,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closing, images, index, zoom, pan, onToggleDetailPanel, timesheet.handleKey])
+  }, [closing, images, index, zoom, pan, onToggleDetailPanel])
 
   // +/-/0: ホイールズームと同じ倍率係数(1.25/0.8)で、画像の描画矩形中心を基準にズームする
   // （マウスカーソル基準の handleWheel と違い、キーボード操作にはカーソル位置の意味がないため）。

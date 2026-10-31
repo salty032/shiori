@@ -3,7 +3,8 @@ import type { ClipFrames } from '../../../shared/api.video'
 import { TIMESHEET_LOCKED } from '../timesheetLock'
 import {
   buildToeiClipboard, canBuildTimesheet, countReusedFrames, decodeTimesheet, encodeTimesheet,
-  expandMarks, isToeiSymbol, normalizeTimesheetValue, timesheetRows, TOEI_SYMBOL, type TimesheetMark
+  expandMarks, isToeiSymbol, normalizeTimesheetValue, TIMESHEET_TRACKS, timesheetRows, TOEI_SYMBOL, trackOf,
+  type TimesheetMark
 } from '../../../shared/timesheet'
 
 // 記号の入力キー。**東映デジタルタイムシートの割り当てをそのまま使う**（F1/F2/F3 と
@@ -31,6 +32,7 @@ const SYMBOL_KEYS: Record<string, string> = {
 //   Enter      … 確定して次のコマへ。何も打っていなければ通し番号を振る
 //   Backspace  … 打ちかけを 1 文字消す。空なら現在コマの記入を消す
 //   ↑ / ↓      … 1 コマ戻る / 進む（, / . と同じ動き。東映のカーソル移動に合わせる）
+//   ← / →      … 打つ列を A〜G で移る（東映のカーソル移動に合わせる）
 //   Escape     … 打ちかけを捨てる。空なら表を閉じる
 
 export type TimesheetPlayer = {
@@ -43,6 +45,8 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   const [current, setCurrent] = useState(0)
   // 推定抜けの中では表に対応する実測行が無い。現在の実測行の後ろ何コマ目かを別に持つ。
   const [currentGap, setCurrentGap] = useState(0)
+  // 打つ列（0 起点。A が 0）。
+  const [track, setTrackState] = useState(0)
   const [marks, setMarks] = useState<TimesheetMark[]>([])
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -72,6 +76,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     setClipFrames(null)
     setCurrent(0)
     setCurrentGap(0)
+    setTrackState(0)
     setMarks([])
     setPending('')
     setCopied(false)
@@ -101,9 +106,15 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     }
   }, [imageId])
 
-  const setMemo = useCallback((frame: number, memo: string): void => {
+  // 列を移ったら打ちかけは捨てる（コマを動かしたときと同じ理由）。
+  const setTrack = useCallback((next: number): void => {
+    setTrackState(Math.min(TIMESHEET_TRACKS - 1, Math.max(0, next)))
+    setPending('')
+  }, [])
+
+  const setMemo = useCallback((frame: number, memoTrack: number, memo: string): void => {
     setMarks((prev) => {
-      const next = prev.map((m) => (m.frame === frame ? { ...m, memo: memo || undefined } : m))
+      const next = prev.map((m) => (m.frame === frame && trackOf(m) === memoTrack ? { ...m, memo: memo || undefined } : m))
       if (imageId != null) {
         window.api.saveTimesheet(imageId, encodeTimesheet(next)).catch((err) => console.warn('[timesheet] save failed', err))
       }
@@ -153,8 +164,11 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
       e.preventDefault()
       if (inGap) { player?.stepFrame(1); return true }
       const value = normalizeTimesheetValue(pending)
-      const without = marks.filter((m) => m.frame !== current)
-      apply([...without, value ? { frame: current, value } : { frame: current }].sort((a, b) => a.frame - b.frame))
+      const without = marks.filter((m) => !(m.frame === current && trackOf(m) === track))
+      const mark: TimesheetMark = { frame: current }
+      if (value) mark.value = value
+      if (track > 0) mark.track = track
+      apply([...without, mark].sort((a, b) => a.frame - b.frame || trackOf(a) - trackOf(b)))
       setPending('')
       player?.stepFrame(1)
       return true
@@ -165,13 +179,19 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
       if (inGap) return true
       // 記号は 1 文字ずつ削れない（綴りが崩れるだけ）ので、まるごと捨てる。
       if (pending) setPending((p) => (isToeiSymbol(p) ? '' : p.slice(0, -1)))
-      else apply(marks.filter((m) => m.frame !== current))
+      else apply(marks.filter((m) => !(m.frame === current && trackOf(m) === track)))
       return true
     }
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault()
       player?.stepFrame(e.key === 'ArrowDown' ? 1 : -1)
+      return true
+    }
+
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      setTrack(track + (e.key === 'ArrowRight' ? 1 : -1))
       return true
     }
 
@@ -183,11 +203,11 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     }
 
     return false
-  }, [visible, pending, marks, current, currentGap, apply])
+  }, [visible, pending, marks, current, currentGap, track, apply, setTrack])
 
   return {
-    ready, visible, open, setOpen, total, rows, current, currentGap, marks, pending, copied, reused,
-    onFramesReady, onFrameIndex, setMemo, copy, handleKey, bindPlayer, seek,
+    ready, visible, open, setOpen, total, rows, current, currentGap, track, marks, pending, copied, reused,
+    onFramesReady, onFrameIndex, setMemo, setTrack, copy, handleKey, bindPlayer, seek,
   }
 }
 
