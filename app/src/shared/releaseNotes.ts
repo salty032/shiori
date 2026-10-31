@@ -20,6 +20,18 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.6.1': {
+    ja: [
+      'YouTube などの録画で、途中でコマの知らせが抜けたクリップではタイムシートが使えませんでした。抜けたコマ数がはっきりしている場合は、そのコマを空けたまま使えるようにしました。',
+      '59.94fps の録画で、抜けより後ろのコマ番号がずれていることがありました。これまでに撮った録画も、正しい番号で表示されるようになります。',
+      'この更新ではブラウザ拡張も入れ替わります。ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'On YouTube and similar sites, the timesheet could not be used for clips where a frame notice was missed partway through. When the number of missing frames is certain, those frames are now left blank and the timesheet works.',
+      'In 59.94 fps recordings, frame numbers after a gap could be off. Recordings you already made now show the correct numbers too.',
+      'This update also replaces the browser extension. Please reload it on your browser’s extensions page.',
+    ],
+  },
   '1.6.0': {
     ja: [
       'タイムシートが使えるようになりました。録画したクリップをコマ送りしながら数字を打ち、東映デジタルタイムシートへ貼り付けられる形でコピーできます。',
