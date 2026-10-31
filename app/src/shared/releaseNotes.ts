@@ -20,6 +20,30 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.6.0': {
+    ja: [
+      'タイムシートが使えるようになりました。録画したクリップをコマ送りしながら数字を打ち、東映デジタルタイムシートへ貼り付けられる形でコピーできます。',
+      '録画のコマ送りで、注記なしに隣のコマの絵が出ることがありました。止め絵と口パクだけの場面、背景だけが毎コマ動く場面、18fps のようなコマの長い動画、録画の最初と最後のコマなどで起きていました。この版で撮る録画から直ります。',
+      'シークバーで止めたとき、番号は前のコマなのに絵は次のコマになり、1 コマ進めても絵が変わらないことがありました。',
+      'Shiori が使うメモリを減らしました。さらに減らしたいときは、設定 > 基本 > メモリ の「ウィンドウを閉じたらメモリを解放する」をオンにしてください。',
+      '常駐中に Shiori をもう一度起動すると、その起動が終了せずにメモリを使ったまま残っていました。',
+      '録画の仕組みが一度落ちると、アプリを再起動するまで録画が毎回「レコーダーの準備に失敗」になっていました。',
+      'Prime Video で、作品名の代わりにサイト共通の文が入ることがありました。再生してすぐ撮ると、作品名が空になることもありました。',
+      'アプリを起動していない間、拡張が約 1 秒ごとに接続を試し続けていました。拡張を再読み込みした後も「再読み込みして」の通知が毎回出ていました。',
+      'この更新ではブラウザ拡張も新しくなります。アプリを起動すると入れ替わるので、ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'The timesheet is now available. Type numbers while stepping through a recorded clip, then copy the sheet in a form you can paste into Toei Digital Timesheet.',
+      'Frame stepping in recordings could show the neighbouring frame’s picture without any warning — in still shots with only mouth flaps, scenes where only the background moves every frame, long-frame video such as 18 fps, and the first and last frames of a recording. Fixed for recordings made with this version.',
+      'Stopping on the seek bar could show the next frame’s picture under the previous frame’s number, so stepping one frame did not change the picture.',
+      'Shiori now uses less memory. To save more, turn on “Free memory when the window is closed” under Settings > General > Memory.',
+      'Starting Shiori again while it was already in the tray left that second start running and holding memory.',
+      'Once the recorder crashed, every recording failed with “Could not start the recorder” until the app was restarted.',
+      'On Prime Video, a site-wide slogan could be saved as the title, and shots taken right after playback started could have no title.',
+      'While the app was not running, the extension kept trying to connect about once a second. The “please reload” notice also kept appearing after the extension had been reloaded.',
+      'This update also brings a new browser extension. It is swapped in when the app starts — please reload the extension on your browser’s extensions page.',
+    ],
+  },
   '1.5.1': {
     ja: [
       '録画を止めると、最後のコマが 1〜2 枚消えていることがありました。この版で撮る録画から直ります。',
