@@ -60,6 +60,25 @@ describe('extension との受け渡しの経路', () => {
   // **background.js の normalizePortMessage は項目を1つずつ書き写して作り直す**ので、
   // そこに書き足し忘れると content.js が送っていても消える。実際にそれで「ビットレートが
   // 素材 fps に連動しない」状態になった（2026-08-13）。3 段すべてを固定する。
+  // 項目ごとに書くと、次に足した項目でまた落とす（videoSize と version が 2026-08-30 から
+  // 落ちていて、静止画の「自動」解像度と拡張の版の食い違い通知が一度も効いていなかった）。
+  // content.js が送る項目を全部拾って、background.js の書き写しに全部あるかを見る。
+  it('content.js が送るタイムコードの項目が、background.js の書き写しを 1 つ残らず通る', () => {
+    const block = (src: string, start: RegExp): string => {
+      const from = src.search(start)
+      expect(from, String(start)).toBeGreaterThanOrEqual(0)
+      return src.slice(from, src.indexOf('\n  }', from))
+    }
+    // `key: 値` と、省略記法の `key,` の両方を拾う。
+    const keys = (body: string): string[] =>
+      [...body.matchAll(/^ {4}([A-Za-z]+)(?::|,\r?$)/gm)].map((m) => m[1])
+    const sent = keys(block(contentJs, /function buildPayload\(\)[\s\S]*?return \{/))
+    // 切り出しは `type:` の行の途中から始まるので、type だけは行頭として拾えない。
+    const relayed = keys(block(backgroundJs, /type: 'timecode',\s*\n\s*currentTime,/)).concat('type')
+    expect(sent.length).toBeGreaterThan(10)
+    expect(sent.filter((k) => !relayed.includes(k))).toEqual([])
+  })
+
   it('素材のコマ間隔が content.js → background.js の両方を素通りする', () => {
     expect(contentJs).toMatch(/frameDurMs:\s*measuredFrameDur\s*!=\s*null/)
     expect(backgroundJs).toMatch(/frameDurMs:\s*boundedNumber\(\s*msg\.frameDurMs/)

@@ -120,6 +120,14 @@ function safeRect(value) {
     : { left, top, width, height }
 }
 
+// 映像そのものの画素数。0 や範囲外は null（アプリ側は null のとき縮めない）。
+function safeVideoSize(value) {
+  if (!value || typeof value !== 'object') return null
+  const width = boundedNumber(value.width, 1, MAX_SCREEN_SIZE)
+  const height = boundedNumber(value.height, 1, MAX_SCREEN_SIZE)
+  return width == null || height == null ? null : { width, height }
+}
+
 function normalizePortMessage(msg) {
   if (!msg || typeof msg !== 'object') return null
   if (msg.type === 'ping') return { type: 'ping' }
@@ -193,11 +201,15 @@ function normalizePortMessage(msg) {
     innerHeight,
     devicePixelRatio,
     videoRect: safeRect(msg.videoRect),
+    // 静止画を配信の実寸より大きく保存しないために使う。落とすと「自動」の解像度が効かない。
+    videoSize: safeVideoSize(msg.videoSize),
     fullscreen: msg.fullscreen === true,
     // 素材のコマ間隔。**ここに書き足し忘れると content.js が送っていても消える**
     // （この関数は項目を1つずつ書き写して作り直すため）。実際にそれで
     // 「ビットレートが連動しない」ように見えた（2026-08-13）。
-    frameDurMs: boundedNumber(msg.frameDurMs, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS)
+    frameDurMs: boundedNumber(msg.frameDurMs, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS),
+    // アプリが同梱の拡張と版を比べ、再読み込みが要ることを知らせる。表示にしか使わないので長さだけ切る。
+    version: typeof msg.version === 'string' ? msg.version.slice(0, 32) : undefined
   }
 }
 
