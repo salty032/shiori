@@ -507,11 +507,11 @@ describe('matchFrames（絵で位相を決める）', () => {
     expect(byPicture).toBeLessThan(byTime)
   })
 
-  it('コマ打ちの映像でも、時刻だけで選ぶより外れが増えない', () => {
+  it('コマ打ちだけの映像でも、絵の変わり目から外れが減る', () => {
     for (const hold of [2, 3]) {
       const s = scene(240, (i) => Math.floor(i / hold))
       expect(s.wrong(matchFrames(s.source, s.drawnAt, s.changed)))
-        .toBeLessThanOrEqual(s.wrong(matchFrames(s.source, s.drawnAt)))
+        .toBeLessThan(s.wrong(matchFrames(s.source, s.drawnAt)))
     }
   })
 

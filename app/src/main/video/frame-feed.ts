@@ -287,9 +287,21 @@ export function matchFrames(
   const periodMs = grid?.periodMs ?? 1000 / 24
   const reportDrops = grid?.drops ?? 0
 
-  const runs = pictureChanged && pictureChanged.length === drawnAt.length
-    ? pictureRuns(pictureChanged, everyFrameRows(frames, drawnAt, pictureChanged, periodMs))
+  // 探索の窓は「実測した遅延 ± 素材コマの半分」＝**幅ちょうど素材 1 コマ**。
+  //
+  // これより広げてはいけない。スコアは素材の周期について周期的なので、窓が 1 コマより広いと
+  // 同じ位相の複製が複数入り、**どれを引くかが端の数コマの差（＝雑音）で決まってしまう**。
+  // 実測では 447 コマ中 0 コマの差で選ばれ、録画ごとに -38〜-90ms と 1 コマ以上振れていた。
+  // 幅を 1 コマに閉じれば複製は 1 つしか入らず、**何コマぶんずれるかは定数（物理）が決め、
+  // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
+  const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
+  const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
+
+  const usablePicture = pictureChanged && pictureChanged.length === drawnAt.length ? pictureChanged : null
+  const runs = usablePicture
+    ? pictureRuns(usablePicture, everyFrameRows(frames, drawnAt, usablePicture, periodMs))
     : null
+  const bounds = usablePicture ? changeBounds(frames, drawnAt, usablePicture, searchLo, searchHi) : []
 
   const pickIndices = (offsetMs: number): number[] => {
     const idx: number[] = []
@@ -343,31 +355,26 @@ export function matchFrames(
   // 満点に張り付き、位相が決まらない（60Hz の画面で 29.97fps を撮ると、注記なしで隣の絵を出す
   // コマが 1 本で最大 87 あった）。絵があるときは先に「1 つ前のコマと別の絵を指すコマ数」で比べる。
   // 区切りの直前の 1 枚を掴む位相ほど、前のコマと同じ絵を指すコマが増えて点が下がる。
-  // 同点なら今までどおり撮れたコマ数で決める。数えるのは絵が毎コマ変わっている区間の行だけ（everyFrameRows）。
+  // 数えるのは絵が毎コマ変わっている区間の行だけ（everyFrameRows）。
+  // 同点なら、絵の変わり目ごとの条件を満たす数（changeBounds）、さらに同点なら撮れたコマ数で決める。
   // 変わり目の位置で比べる数え方（区間の途中で変わった回数・切り替わる直前の 1 枚を選んだ回数）は、
   // どちらも遅れを 5〜10ms 短く選んで外れを増やした。60Hz の画面では素材 1 コマに撮れる絵が 1〜2 枚
   // しかなく、「1 枚手前の絵の先頭」を選ぶ位置と絵の上で区別がつかない（docs/SPEC.md「キャプチャ経路の遅延（offsetMs）」）。
   const capturedCount = (offsetMs: number): number =>
     pick(offsetMs, false).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
   const scoreAt = (offsetMs: number): number => {
-    if (!runs) return capturedCount(offsetMs)
-    const idx = pickIndices(offsetMs)
     let distinct = 0
-    for (let k = 1; k < idx.length; k++) {
-      if (runs.dense[k] && runs.dense[k - 1] && runs.run[idx[k]] !== runs.run[idx[k - 1]]) distinct++
+    if (runs) {
+      const idx = pickIndices(offsetMs)
+      for (let k = 1; k < idx.length; k++) {
+        if (runs.dense[k] && runs.dense[k - 1] && runs.run[idx[k]] !== runs.run[idx[k - 1]]) distinct++
+      }
     }
-    return distinct * (frames.length + 1) + capturedCount(offsetMs)
+    let satisfied = 0
+    for (const [above, atMost] of bounds) if (offsetMs > above && offsetMs <= atMost) satisfied++
+    const scale = frames.length + 1
+    return (distinct * scale + satisfied) * scale + capturedCount(offsetMs)
   }
-
-  // 探索の窓は「実測した遅延 ± 素材コマの半分」＝**幅ちょうど素材 1 コマ**。
-  //
-  // これより広げてはいけない。スコアは素材の周期について周期的なので、窓が 1 コマより広いと
-  // 同じ位相の複製が複数入り、**どれを引くかが端の数コマの差（＝雑音）で決まってしまう**。
-  // 実測では 447 コマ中 0 コマの差で選ばれ、録画ごとに -38〜-90ms と 1 コマ以上振れていた。
-  // 幅を 1 コマに閉じれば複製は 1 つしか入らず、**何コマぶんずれるかは定数（物理）が決め、
-  // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
-  const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
-  const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
 
   let bestScore = -Infinity
   // 最高スコアで並んだオフセット（MatchResult.tiedOffsets 参照）。
@@ -510,6 +517,40 @@ export function pictureRuns(changed: readonly boolean[], dense: boolean[] | null
     run.push(r)
   }
   return { run, first, dense }
+}
+
+/**
+ * 絵の変わり目ごとに、正しい絵を選べる遅れの範囲（下限を含まず上限を含む）を返す。
+ *
+ * 撮影 s で絵が変わったなら、新しい絵の最初のコマ k は s より前の 1 枚（変わる前の絵）を選んではいけず、
+ * 1 つ前のコマ k-1 は s 以降（変わった後の絵）を選んではいけない。「その時刻以降の最初の 1 枚」を
+ * 選ぶので、条件は `t(s-1) - displayAt_k < 遅れ <= t(s-1) - displayAt_(k-1)`。**止め絵と口パクだけの
+ * 録画でも、口・まばたきの変わり目から位相が決まる。** 毎コマ変わる区間が要らない。
+ *
+ * 新しい絵の最初のコマ k は、変わる前後 2 枚の中間の時刻が窓（定数の遅れ ± 素材コマの半分）に入る
+ * コマとみなす。何コマずれるかは今までどおり定数が決める。
+ * **変わった後の 1 枚の時刻で結び付けてはいけない。** その 1 枚は遅れより最大で撮影 1 回ぶん遅いので、
+ * 窓の外へはみ出して隣のコマに結び付き、遅れを短く選ぶ（テスト動画で外れが 7 → 42 に増えた）。
+ * 「変わった直後の 1 枚をちょうど選ぶ」位置を探す数え方も同じ理由で短く出た——変わった後の 2 枚目を
+ * 選んでも正しいのに減点していた。
+ *
+ * テスト動画 8 本（2〜3 コマ打ちを模して変わり目を間引いたもの）で、注記なしの外れが 2 コマ打ちで
+ * 合計 126 → 20、3 コマ打ちで 117 → 5。
+ */
+function changeBounds(
+  frames: SourceFrame[], drawnAt: number[], changed: readonly boolean[], searchLo: number, searchHi: number
+): [number, number][] {
+  const out: [number, number][] = []
+  let k = 0
+  for (let s = 1; s < drawnAt.length; s++) {
+    if (!changed[s]) continue
+    const mid = (drawnAt[s] + drawnAt[s - 1]) / 2
+    while (k + 1 < frames.length && mid - frames[k + 1].displayAt > searchLo) k++
+    const latency = mid - frames[k].displayAt
+    if (k === 0 || latency <= searchLo || latency > searchHi + 1) continue
+    out.push([drawnAt[s - 1] - frames[k].displayAt, drawnAt[s - 1] - frames[k - 1].displayAt])
+  }
+  return out
 }
 
 // 時刻で選んだ 1 枚が区切りをまたいだ行を、隣の区間へ移す。
