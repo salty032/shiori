@@ -172,6 +172,10 @@ function reportFrame(now, meta) {
   try {
     const msg = { type: 'frame', mediaTime: meta.mediaTime, displayAt: performance.timeOrigin + display }
     if (Number.isFinite(meta.presentedFrames)) msg.presentedFrames = meta.presentedFrames
+    // 表示予定の時刻（expectedDisplayTime）は 60Hz の画面で書き換えの刻みと合わなかった。どの時刻が
+    // 実際に画面へ出た時刻に近いかを比べるため、合成へ回した時刻とコールバックの時刻も送る（診断用）。
+    if (Number.isFinite(meta.presentationTime)) msg.presentedAt = performance.timeOrigin + meta.presentationTime
+    if (Number.isFinite(now)) msg.calledAt = performance.timeOrigin + now
     port.postMessage(msg)
   } catch {
     reportingFrames = false   // 拡張コンテキスト無効化。次の録画で張り直る

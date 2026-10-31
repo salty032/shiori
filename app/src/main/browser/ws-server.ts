@@ -35,7 +35,13 @@ export type ExtensionMessage =
   // presentedFrames は rVFC が返す「合成へ送られたコマの累積数」。通知が飛んでも飛んだぶん
   // 増えているので、前後の差から通知欠落の枚数が**実数で**出る（frame-feed の frameGaps）。
   // 旧版の拡張・返さないブラウザでは null になり、その場合は従来の推定に落ちる。
-  | { type: 'frame'; mediaTime: number; displayAt: number; presentedFrames: number | null }
+  //
+  // presentedAt（rVFC の presentationTime）と calledAt（コールバックの時刻）は、どの時刻が実際に画面へ
+  // 出た時刻に近いかを比べるための診断用。対応付けにはまだ使っていない。
+  | {
+    type: 'frame'; mediaTime: number; displayAt: number; presentedFrames: number | null
+    presentedAt: number | null; calledAt: number | null
+  }
   // 録画中にコマ通知が途切れたことの知らせ（値は持たない）。配信ページ側の rVFC ループは
   // <video> が差し替わる（広告挿入・画質切替）と止まるため、その区間のコマは表に入らない。
   // **入らなかったコマは撮り逃しですらなく最初から存在しない**ので、枚数や割合には現れない。
@@ -204,9 +210,11 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
     // presentedFrames は無くても通す。**欠けると抜けの枚数が推定に落ちるだけ**で、
     // コマの対応そのものは mediaTime と displayAt で決まる。
     const presentedFrames = boundedNumber(msg.presentedFrames, 0, MAX_PRESENTED_FRAMES)
+    const presentedAt = boundedNumber(msg.presentedAt, 0, MAX_EPOCH_MS)
+    const calledAt = boundedNumber(msg.calledAt, 0, MAX_EPOCH_MS)
     return mediaTime == null || displayAt == null
       ? null
-      : { type: 'frame', mediaTime, displayAt, presentedFrames }
+      : { type: 'frame', mediaTime, displayAt, presentedFrames, presentedAt, calledAt }
   }
   if (msg.type !== 'timecode') return null
 

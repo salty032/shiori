@@ -65,7 +65,9 @@ export async function verifyClipFrames(
     const { signatures, pts } = await getFrameSignatures(videoPath)
     if (drawnAt !== null) {
       await writeCorrespondenceDiagnostic(
-        imageId, drawnAt, pts, table, source.map((f) => ({ mediaTime: f.mediaTime, displayAt: f.displayAt }))
+        imageId, drawnAt, pts, table, source.map((f) => ({
+          mediaTime: f.mediaTime, displayAt: f.displayAt, presentedAt: f.presentedAt ?? null, calledAt: f.calledAt ?? null
+        }))
       )
     }
     if (signatures.length === 0) {

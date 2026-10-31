@@ -77,7 +77,7 @@ export async function writeCorrespondenceDiagnostic(
   imageId: number, drawnAt: readonly number[], pts: readonly number[], table: readonly StoredFrame[],
   // 各コマが画面に出た時刻。これがあれば、遅れを何 ms にしたら表がどうなったかを後から作り直せる
   // （正解を焼き込んだテスト動画と突き合わせ、正しくなる遅れの範囲を 1 本から出すため）。
-  source: readonly { mediaTime: number; displayAt: number }[] = []
+  source: readonly { mediaTime: number; displayAt: number; presentedAt?: number | null; calledAt?: number | null }[] = []
 ): Promise<void> {
   const configuredDir = process.env['SHIORI_FRAME_DIAGNOSTICS_DIR']
   if (!configuredDir) return
@@ -88,7 +88,7 @@ export async function writeCorrespondenceDiagnostic(
     const file = join(dir, `frame-${imageId}-${Date.now()}-${randomUUID()}.json`)
     await writeFile(file, JSON.stringify({
       schemaVersion: 1, createdAt: new Date().toISOString(), imageId,
-      units: { drawnAt: 'epoch-ms', pts: 'seconds', source: 'mediaTime seconds, displayAt epoch-ms' },
+      units: { drawnAt: 'epoch-ms', pts: 'seconds', source: 'mediaTime seconds, displayAt/presentedAt/calledAt epoch-ms' },
       drawnAt, pts, table, diagnosis, source
     }), { encoding: 'utf8', flag: 'wx' })
     console.log(`[frame-correspondence-diag] image ${imageId}: ${JSON.stringify(diagnosis)}; ${file}`)

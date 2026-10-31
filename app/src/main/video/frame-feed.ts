@@ -26,6 +26,9 @@ export interface SourceFrame {
    * 検算できない。1 枚違うだけで、その下のコマ番号が全部ずれる。
    */
   presentedFrames?: number | null
+  /** 合成へ回した時刻・コールバックの時刻（epoch ミリ秒。診断用。ws-server.ts の frame 参照） */
+  presentedAt?: number | null
+  calledAt?: number | null
 }
 
 // 60秒 × 60fps に、通知の重複や高フレームレート素材ぶんの余裕を持たせた上限。
@@ -68,7 +71,7 @@ export function startFrameFeed(): void {
     }
     frames.push({
       mediaTime: msg.mediaTime, displayAt: msg.displayAt, receivedAt: Date.now(),
-      presentedFrames: msg.presentedFrames
+      presentedFrames: msg.presentedFrames, presentedAt: msg.presentedAt, calledAt: msg.calledAt
     })
   })
 }
