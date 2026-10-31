@@ -25,7 +25,7 @@ export interface CorrespondenceDiagnosis {
 
 /** Enumerate a single missing burst; never infer its size from average spacing. */
 // toleranceMs is a parameter so recorded clocks can be re-scored offline
-// (scripts/evaluate-frame-diagnostics.cjs) before any bound is adopted.
+// (scripts/frame-test.cjs diag) before any bound is adopted.
 export function diagnoseCorrespondence(
   drawnAt: readonly number[], pts: readonly number[], toleranceMs = TOLERANCE_MS
 ): CorrespondenceDiagnosis {
