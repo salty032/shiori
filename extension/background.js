@@ -144,6 +144,11 @@ function normalizePortMessage(msg) {
     const presentedFrames = boundedNumber(msg.presentedFrames, 0, MAX_PRESENTED_FRAMES)
     const out = { type: 'frame', mediaTime, displayAt }
     if (presentedFrames != null) out.presentedFrames = presentedFrames
+    // 診断用の時刻（content.js の reportFrame 参照）。ここで落とすと app まで届かない。
+    const presentedAt = boundedNumber(msg.presentedAt, 0, MAX_EPOCH_MS)
+    const calledAt = boundedNumber(msg.calledAt, 0, MAX_EPOCH_MS)
+    if (presentedAt != null) out.presentedAt = presentedAt
+    if (calledAt != null) out.calledAt = calledAt
     return out
   }
   if (msg.type !== 'timecode') return null
