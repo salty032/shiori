@@ -45,7 +45,6 @@ const c = {
   headText: '#1b3348',
   headBand: '#e4e9ee',
   cellBand: '#fbe3e6',
-  counterBg: '#f7fbfc',
   counterInk: '#5a7280',
   // 撮り逃したコマ数を出すときの文字色。**ビューアの警告色（明るい黄）は使えない**——
   // あちらは映像の上に載せる前提の色で、この用紙の白地では読めない。地の青灰より濃く、
@@ -234,7 +233,7 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                     )
                   })}
                   {/* コマ目盛り。秒はブロックの最終行、コマ番号は 2 コマごと（実物と同じ間引き）。 */}
-                  <div style={{ ...st.cell, width: W.counter, flexShrink: 0, background: isGap ? c.gapRow : c.counterBg, borderTop: counterBorder(position), borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
+                  <div style={{ ...st.cell, width: W.counter, flexShrink: 0, background: isGap ? c.gapRow : band, borderTop: counterBorder(position), borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
                     <span style={{ fontWeight: 700 }}>{isSecondEnd ? secondIdx + 1 : ''}</span>
                     <span>{(position + 1) % 2 === 0 ? position + 1 : ''}</span>
                   </div>
