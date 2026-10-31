@@ -16,7 +16,7 @@ import { desktopCapturer, globalShortcut, ipcMain } from 'electron'
 import { getBrowserWindowRect } from '../capture/capture'
 import { screen as electronScreen } from 'electron'
 import { getRecorderWindow, isTrustedRecorderSender, setPendingDisplaySource } from './recorder-window'
-import { isCurrentlyRecording } from './recording'
+import { isRecordingInProgress } from './recording'
 import type { BenchRequest, BenchResult, BenchVariant } from '../../shared/recorder-api'
 
 const BENCH_HOTKEY = 'Alt+Shift+D'
@@ -117,7 +117,7 @@ export function registerSupplyBench(): void {
 
   const ok = globalShortcut.register(BENCH_HOTKEY, async () => {
     if (running) { console.log('[supply-bench] already running'); return }
-    if (isCurrentlyRecording()) { console.log('[supply-bench] skipped: recording in progress'); return }
+    if (isRecordingInProgress()) { console.log('[supply-bench] skipped: recording in progress'); return }
     const win = getRecorderWindow()
     if (!win || win.isDestroyed()) { console.warn('[supply-bench] recorder window is not available'); return }
     const sourceId = await resolveScreenSourceId()
