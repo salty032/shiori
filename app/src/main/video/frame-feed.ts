@@ -248,7 +248,7 @@ export function summarizeReportDelay(source: SourceFrame[]): ReportDelay | null 
 // （offsetMs）。一定のずれは全コマが等しくずれるだけでコマ打ちの数え方を壊さない。
 //
 // pictureChanged（録画ファイルの各フレームが 1 つ前と別の絵か）を渡すと、1 コマ内の位相を
-// 絵の変わり目で決める（changeBounds 参照）。録画直後の検査で、絵を取り出した後にもう一度呼ぶ。
+// 絵で決める（pictureRuns 参照）。録画直後の検査で、絵を取り出した後にもう一度呼ぶ。
 export function matchFrames(
   source: SourceFrame[], drawnAt: number[], pictureChanged?: readonly boolean[]
 ): MatchResult | null {
@@ -295,8 +295,14 @@ export function matchFrames(
   // 幅を 1 コマに閉じれば複製は 1 つしか入らず、**何コマぶんずれるかは定数（物理）が決め、
   // 探索は 1 コマ内のどこか（位相）だけを決める**という役割分担になる。docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」。
   const usablePicture = pictureChanged && pictureChanged.length === drawnAt.length ? pictureChanged : null
-  const searchLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
-  const searchHi = searchLo + Math.max(1, Math.round(periodMs)) - 1
+  // 絵があれば、窓の下端をその録画で絵が実際に変わり始めた遅れ（appearanceLatency）に置く。
+  const appeared = usablePicture ? appearanceLatency(frames, drawnAt, usablePicture, periodMs) : null
+  const windowLo = Math.round(CAPTURE_LATENCY_MS - periodMs / 2)
+  const searchHi = windowLo + Math.max(1, Math.round(periodMs)) - 1
+  const searchLo = appeared == null ? windowLo : Math.min(searchHi, Math.max(windowLo, appeared))
+  const runs = usablePicture
+    ? pictureRuns(usablePicture, everyFrameRows(frames, drawnAt, usablePicture, periodMs))
+    : null
   const bounds = usablePicture ? changeBounds(frames, drawnAt, usablePicture, searchLo, searchHi) : []
 
   const pickIndices = (offsetMs: number): number[] => {
@@ -310,8 +316,9 @@ export function matchFrames(
     return idx
   }
 
-  const pick = (offsetMs: number): FrameMatch[] => {
+  const pick = (offsetMs: number, repair = true): FrameMatch[] => {
     const idx = pickIndices(offsetMs)
+    if (runs && repair) repairByPicture(idx, runs)
     const lastDrawnAt = drawnAt[drawnAt.length - 1]
     // 次のコマが撮影の終わりより後に出た（停止後に届いた通知）なら、次は末尾に張り付いた
     // だけで比べる相手にならない。自分の絵は次の表示より前に撮れているので、区間内に撮れている。
@@ -348,20 +355,27 @@ export function matchFrames(
 
   // 絵が無いときのスコアは「自分の区間内に絵があったコマ数」。供給が足りると窓の広い範囲で
   // 満点に張り付き、位相が決まらない（60Hz の画面で 29.97fps を撮ると、注記なしで隣の絵を出す
-  // コマが 1 本で最大 87 あった）。絵があるときは先に、絵の変わり目ごとの条件を満たす数（changeBounds）で
-  // 比べ、同点なら撮れたコマ数で決める。
-  // **場面の種類ごとの規則を足さない。** 毎コマ動く区間だけで数える点・区切りをまたいだ 1 枚の選び直し・
-  // 窓の下端の引き上げを足していたが、外してもテスト動画で外れは 1 本 0〜2 コマしか増えず、実録画 14 本で
-  // 選ぶ絵が変わったのは 5 本だった。外れのたびに足すと、どれが何を壊しているか追えなくなる。
+  // コマが 1 本で最大 87 あった）。絵があるときは先に「1 つ前のコマと別の絵を指すコマ数」で比べる。
+  // 区切りの直前の 1 枚を掴む位相ほど、前のコマと同じ絵を指すコマが増えて点が下がる。
+  // 数えるのは絵が毎コマ変わっている区間の行だけ（everyFrameRows）。
+  // 同点なら、絵の変わり目ごとの条件を満たす数（changeBounds）、さらに同点なら撮れたコマ数で決める。
   // 変わり目の位置で比べる数え方（区間の途中で変わった回数・切り替わる直前の 1 枚を選んだ回数）は、
   // どちらも遅れを 5〜10ms 短く選んで外れを増やした。60Hz の画面では素材 1 コマに撮れる絵が 1〜2 枚
   // しかなく、「1 枚手前の絵の先頭」を選ぶ位置と絵の上で区別がつかない（docs/SPEC.md「キャプチャ経路の遅延（offsetMs）」）。
   const capturedCount = (offsetMs: number): number =>
-    pick(offsetMs).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
+    pick(offsetMs, false).reduce((n, x) => n + (x.captured ? 1 : 0), 0)
   const scoreAt = (offsetMs: number): number => {
+    let distinct = 0
+    if (runs) {
+      const idx = pickIndices(offsetMs)
+      for (let k = 1; k < idx.length; k++) {
+        if (runs.dense[k] && runs.dense[k - 1] && runs.run[idx[k]] !== runs.run[idx[k - 1]]) distinct++
+      }
+    }
     let satisfied = 0
     for (const [above, atMost] of bounds) if (offsetMs > above && offsetMs <= atMost) satisfied++
-    return satisfied * (frames.length + 1) + capturedCount(offsetMs)
+    const scale = frames.length + 1
+    return (distinct * scale + satisfied) * scale + capturedCount(offsetMs)
   }
 
   let bestScore = -Infinity
@@ -453,6 +467,72 @@ export function matchFrames(
 }
 
 /**
+ * 録画ファイルのフレームを「同じ絵が続く区間」に分け、各フレームが何番目の区間かを返す。
+ *
+ * **何コマずれるかは決めない。** 探索の窓は今までどおり定数 `CAPTURE_LATENCY_MS` を中心に
+ * 素材 1 コマ幅で、絵が決めるのは窓の中の位相と、隣り合う行の 1 枚の選び直しだけ
+ * （docs/ANIME-FRAMES.md「絵の差分をフレーム対応の土台にしない」の理由 2）。行は素材のコマのまま
+ * 1 つも足し引きしないので、同じ絵が何コマ続いたかは今までどおり数えられる（同・理由 1）。
+ *
+ * 時刻だけで位相を決めると、60Hz の画面ではページが報告する表示時刻が 30・35ms の刻みで
+ * 画面の書き換えと合わず、どの位相でも区切りの直前の 1 枚を掴むコマが残る。テスト動画
+ * （29.97fps・6 本）で、注記なしで隣の絵を出すコマが合計 234 → 31 になった。残りの大半は、その絵が
+ * 録画のどこにも写っていないコマ（どう選んでも当たらない）。
+ */
+export interface PictureRuns {
+  run: number[]
+  /** 区間ごとの先頭フレーム */
+  first: number[]
+  /** 素材のコマ（行）ごとに、絵が毎コマ変わっている区間にあるか（everyFrameRows） */
+  dense: boolean[]
+}
+
+// 絵が毎コマ変わっている区間にある行か。**同じ絵が続く区間（コマ打ち）の行では絵で位相を決めない。**
+// そこでは「前のコマと別の絵を指すコマ数」が位相の手がかりにならず、むしろ外れる位相を選ぶ
+// （2 コマ打ちを模した合成データで、外れが 27 → 92 に増えた）。
+//
+// アニメは人物がコマ打ちでも、背景・光・カメラが毎コマ動く場面が 1 本の中に混ざる（実録画で、
+// 光る魚が毎コマ動く背景の前で人物が 2〜3 コマ打ち）。録画全体で判定すると混ざった録画で絵を
+// 使えないので、行ごとに前後 EVERY_FRAME_SPAN コマぶんの変わり目の数で見分ける。
+// 毎コマ変わる区間なら変わり目は約 2×EVERY_FRAME_SPAN 個、2 コマ打ちなら半分。
+const EVERY_FRAME_SPAN = 3
+const EVERY_FRAME_MIN_CHANGES = 5
+// 毎コマ変わる区間の行がこれより少なければ、絵は使わない（素材 1 秒ぶん）。
+const EVERY_FRAME_MIN_ROWS = 24
+
+function everyFrameRows(
+  frames: SourceFrame[], drawnAt: number[], changed: readonly boolean[], periodMs: number
+): boolean[] | null {
+  const span = EVERY_FRAME_SPAN * periodMs
+  const dense: boolean[] = []
+  let lo = 0
+  let hi = 0
+  let count = 0
+  for (const f of frames) {
+    const center = f.displayAt + CAPTURE_LATENCY_MS
+    while (hi < drawnAt.length && drawnAt[hi] < center + span) { if (changed[hi]) count++; hi++ }
+    while (lo < hi && drawnAt[lo] < center - span) { if (changed[lo]) count--; lo++ }
+    dense.push(count >= EVERY_FRAME_MIN_CHANGES)
+  }
+  return dense.filter(Boolean).length >= EVERY_FRAME_MIN_ROWS ? dense : null
+}
+
+export function pictureRuns(changed: readonly boolean[], dense: boolean[] | null): PictureRuns | null {
+  if (!dense) return null
+  const run: number[] = []
+  const first: number[] = []
+  let r = -1
+  for (let k = 0; k < changed.length; k++) {
+    if (k === 0 || changed[k]) {
+      r++
+      first.push(k)
+    }
+    run.push(r)
+  }
+  return { run, first, dense }
+}
+
+/**
  * 絵の変わり目ごとに、正しい絵を選べる遅れの範囲（下限を含まず上限を含む）を返す。
  *
  * 撮影 s で絵が変わったなら、新しい絵の最初のコマ k は s より前の 1 枚（変わる前の絵）を選んではいけず、
@@ -486,10 +566,56 @@ function changeBounds(
   return out
 }
 
+/**
+ * 絵が変わった時刻（変わる前後 2 枚の中間）が、その直前に表示されたコマの表示時刻から何 ms 後かの中央値。
+ *
+ * **窓を「定数 ± 素材コマの半分」に置くと、コマの長い素材で 1 コマ前の絵を選ぶ。** 窓の下半分が
+ * 「まだ絵が変わる前」のタイミングになるため。18fps の YouTube 動画で、絵は表示時刻の 10〜35ms 後に
+ * 変わっていたのに、-7ms を選んで全コマが注記なしで 1 つ前の絵を指した。この値より前を選ぶと、
+ * 半分以上の変わり目で変わる前の絵を拾うので、窓の下端に置く。
+ *
+ * 「直前に表示されたコマ」から測るので、遅れが素材 1 コマより長いと 1 コマぶん短く出る。60fps
+ * （コマ長 16.7ms）は遅れ（実測 14〜28ms）がコマより長いので測らず、定数の窓のままにする
+ * （定数の窓の理由は CAPTURE_LATENCY_MS）。変わり目が少ないときも測らない。
+ */
+const APPEARANCE_MIN_CHANGES = 10
+
+function appearanceLatency(
+  frames: SourceFrame[], drawnAt: number[], changed: readonly boolean[], periodMs: number
+): number | null {
+  if (periodMs <= 2 * CAPTURE_LATENCY_MS) return null
+  const lat: number[] = []
+  let k = 0
+  for (let s = 1; s < drawnAt.length; s++) {
+    if (!changed[s]) continue
+    const mid = (drawnAt[s] + drawnAt[s - 1]) / 2
+    while (k + 1 < frames.length && frames[k + 1].displayAt <= mid) k++
+    if (frames[k].displayAt <= mid) lat.push(mid - frames[k].displayAt)
+  }
+  if (lat.length < APPEARANCE_MIN_CHANGES) return null
+  lat.sort((a, b) => a - b)
+  return Math.round(lat[lat.length >> 1])
+}
+
 // ファイルの a 枚目から b 枚目までのあいだで絵が変わったか。
 function pictureChangedBetween(changed: readonly boolean[], a: number, b: number): boolean {
   for (let s = a + 1; s <= b; s++) if (changed[s]) return true
   return false
+}
+
+// 時刻で選んだ 1 枚が区切りをまたいだ行を、隣の区間へ移す。
+//
+// 前の行と同じ絵を指し、次の行が 1 つ飛ばした区間を指すなら、飛ばされた区間はこの行の絵
+// （区切りの直前を掴んだ）。逆に前の行から 1 つ飛ばし、次の行と同じ絵を指すなら、飛ばした
+// 区間がこの行の絵（区切りの直後を掴みすぎた）。どちらでもない行は動かさない——同じ絵が
+// 続く区間（コマ打ち）では隣どうしが同じ区間を指すのが正常で、飛ばしが無いので動かない。
+function repairByPicture(idx: number[], runs: PictureRuns): void {
+  const R = (k: number): number => runs.run[idx[k]]
+  for (let k = 1; k + 1 < idx.length; k++) {
+    if (!runs.dense[k - 1] || !runs.dense[k] || !runs.dense[k + 1]) continue
+    if (R(k) === R(k - 1) && R(k + 1) - R(k) >= 2) idx[k] = runs.first[R(k) + 1]
+    else if (R(k) - R(k - 1) >= 2 && R(k + 1) === R(k)) idx[k] = runs.first[R(k) - 1]
+  }
 }
 
 // 素材のコマ周期を最小二乗で推定する。

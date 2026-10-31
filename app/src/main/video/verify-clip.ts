@@ -52,7 +52,7 @@ function notifyVerified(
  *   トリミング経路は表の frameIndex を切り出し後の PTS 列から作り直しており、定義上ずれない
  *   ので null を渡す。
  * @param source 録画中に届いた素材のコマ通知。渡すと、取り出した絵で表を作り直す
- *   （frame-feed.ts の changeBounds）。診断の書き出しにも使う。
+ *   （frame-feed.ts の pictureRuns）。診断の書き出しにも使う。
  */
 export async function verifyClipFrames(
   imageId: number,

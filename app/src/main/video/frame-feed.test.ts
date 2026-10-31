@@ -552,6 +552,8 @@ describe('matchFrames（絵で位相を決める）', () => {
       r!.matches.filter((m) => m.captured && shown[m.frameIndex] !== Math.round(m.mediaTime * 1000 / P18)).length
     const result = matchFrames(source, drawnAt, changed)!
     expect(wrong(result)).toBeLessThan(wrong(matchFrames(source, drawnAt)))
+    // 窓の下端は、絵が実際に変わり始めた遅れ（遅れ 20ms ＋ 撮影の間隔ぶん）まで上がる
+    expect(result.searchRangeMs[0]).toBeGreaterThanOrEqual(LAG)
   })
 
   it('絵の数が撮影の数と合わなければ使わない', () => {
