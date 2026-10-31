@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { BAND_HEIGHT_RATIO, BITS, FPS_CODES, encode, readBands } = require('./frame-test-code.cjs')
+const { BAND_HEIGHT_RATIO, BITS, FPS_CODES, HOLDS, drawingOf, encode, readBands } = require('./frame-test-code.cjs')
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const repoDir = join(appDir, '..')
@@ -29,7 +29,11 @@ const seconds = Number(process.argv[2] ?? 30)
 
 // 実際のアニメ配信に多い 23.976 を軸に、供給が足りなくなる 29.97・59.94 も並べる
 // （docs/ANIME-FRAMES.md「供給レートと素材 fps の関係」）。
-const VIDEOS = [{ fpsCode: 1 }, { fpsCode: 2 }, { fpsCode: 3 }]
+// コマ打ち（同じ絵が 2〜3 コマ続く）の動画はアニメに合わせて 23.976 だけ。
+const VIDEOS = [
+  { fpsCode: 1, hold: 0 }, { fpsCode: 2, hold: 0 }, { fpsCode: 3, hold: 0 },
+  { fpsCode: 1, hold: 1 }, { fpsCode: 1, hold: 2 }, { fpsCode: 1, hold: 3 },
+]
 
 // 7 セグメントの数字。人が目でコマ送りしたときに読むためのもので、採点には使わない。
 const SEGMENTS = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg']
@@ -48,30 +52,39 @@ function drawDigit(buf, d, x, y, dw, dh, t) {
   for (const s of SEGMENTS[d]) fillRect(buf, ...seg[s].map(Math.round), 235)
 }
 
-function drawNumber(buf, n, cy) {
-  const text = String(n)
-  const dw = 110, dh = 200, gap = 40
+// 数字と「-」だけを書く。長いときは横幅に収まるまで縮める。
+function drawNumber(buf, text, cy) {
+  const scale = Math.min(1, (W - 80) / (text.length * 150 - 40))
+  const dw = 110 * scale, dh = 200 * scale, gap = 40 * scale, t = 24 * scale
   const total = text.length * dw + (text.length - 1) * gap
   let x = Math.floor((W - total) / 2)
-  for (const ch of text) { drawDigit(buf, Number(ch), x, cy - dh / 2, dw, dh, 24); x += dw + gap }
+  for (const ch of text) {
+    if (ch === '-') fillRect(buf, Math.round(x), Math.round(cy - t / 2), Math.round(dw), Math.round(t), 235)
+    else drawDigit(buf, Number(ch), x, cy - dh / 2, dw, dh, t)
+    x += dw + gap
+  }
 }
 
 // 数字はコマ番号（1 始まり）。Shiori で取り込んだ動画をコマ送りすると、画面のコマ番号と同じ数字が出る。
-function renderFrame(buf, fpsCode, sourceFrame) {
-  const number = sourceFrame + 1
+// コマ打ちの動画は「その絵が出るコマ番号の範囲」を書く（13-14 なら、13 コマ目と 14 コマ目がこの絵）。
+function renderFrame(buf, fpsCode, hold, sourceFrame) {
+  const { first, last } = drawingOf(hold, sourceFrame + 1)
+  const number = first
   buf.fill(64)
   const bandH = Math.floor(H * BAND_HEIGHT_RATIO)
-  const bits = encode(fpsCode, number)
+  const bits = encode(fpsCode, number, hold)
   for (let b = 0; b < BITS; b++) {
     const x0 = Math.round((b * W) / BITS)
     const x1 = Math.round(((b + 1) * W) / BITS)
     fillRect(buf, x0, 0, x1 - x0, bandH, bits[b] ? 255 : 0)
   }
-  drawNumber(buf, number, Math.floor(bandH + (H - bandH) / 2))
+  drawNumber(buf, first === last ? String(first) : `${first}-${last}`, Math.floor(bandH + (H - bandH) / 2))
 }
 
-function fileName({ fpsCode }) {
-  return `frames-${FPS_CODES[fpsCode].label}fps.mp4`
+function fileName({ fpsCode, hold }) {
+  return hold === 0
+    ? `frames-${FPS_CODES[fpsCode].label}fps.mp4`
+    : `frames-${FPS_CODES[fpsCode].label}fps-${HOLDS[hold].label}.mp4`
 }
 
 async function makeVideo(video) {
@@ -92,7 +105,7 @@ async function makeVideo(video) {
   })
   for (let i = 0; i < frames; i++) {
     const buf = Buffer.alloc(W * H)
-    renderFrame(buf, video.fpsCode, i)
+    renderFrame(buf, video.fpsCode, video.hold, i)
     if (!proc.stdin.write(buf)) await new Promise((resolve) => proc.stdin.once('drain', resolve))
   }
   proc.stdin.end()
@@ -101,8 +114,8 @@ async function makeVideo(video) {
   const bands = await readBands(ffmpeg, out)
   if (bands.length !== frames) throw new Error(`${out}: ${bands.length} frames decoded, expected ${frames}`)
   bands.forEach((band, i) => {
-    const want = i + 1
-    if (!band || band.number !== want || band.fpsCode !== video.fpsCode) {
+    const want = drawingOf(video.hold, i + 1).first
+    if (!band || band.number !== want || band.fpsCode !== video.fpsCode || band.hold !== video.hold) {
       throw new Error(`${out}: frame ${i} reads ${JSON.stringify(band)}, expected ${want}`)
     }
   })

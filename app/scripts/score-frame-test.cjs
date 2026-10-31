@@ -48,7 +48,7 @@ const Database = require('better-sqlite3')
 const { decodeFrames, readUnusableFrames } = require('../src/main/db/db-video-frames.ts')
 const { findClipGaps } = require('../src/main/ipc/ipc-video.ts')
 const { buildGapIndex, sourceFrameNo } = require('../src/renderer/src/video/frameReadout.ts')
-const { readBands } = require('./frame-test-code.cjs')
+const { drawingOf, readBands } = require('./frame-test-code.cjs')
 
 const ffmpeg = path.join(__dirname, '..', 'resources', 'ffmpeg.exe')
 
@@ -96,8 +96,10 @@ async function scoreClip(row) {
   const fps = mode(readable.map((b) => b.fpsCode))
   const { num, den, label } = readable.find((b) => b.fpsCode === fps).fps
   const srcOf = (mediaTime) => Math.round((mediaTime * num) / den)
-  // 焼き込んだ数字は 1 始まりのコマ番号。
-  const answerOf = (src) => src + 1
+  // 焼き込んだ数字は、その絵が出る最初のコマ番号（1 始まり）。コマ打ちの動画では同じ絵の
+  // どのコマも同じ数字を持つので、そのコマが属する絵の最初のコマ番号と比べる。
+  const hold = mode(readable.map((b) => b.hold))
+  const answerOf = (src) => drawingOf(hold, src + 1).first
 
   // ビューアと同じく、ファイル内に実在するフレームを指す行だけを使う（ipc-video の buildClipFrames）。
   const usable = table.filter((f) => f.frameIndex >= 0 && f.frameIndex < bands.length)
