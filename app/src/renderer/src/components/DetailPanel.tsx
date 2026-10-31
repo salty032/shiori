@@ -649,7 +649,8 @@ const s: Record<string, React.CSSProperties> = {
   // ペアの分離は距離ではなく metaHalf の列間で取ること。
   // **maxWidth は広がりの上限。** パネルは幅を変えられるので、上限が無いと広げるほど
   // 「元の位置 …… 0:34」が離れていく。
-  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x8, maxWidth: 100 },
+  // 収まらない長さ（1 時間を超えた「1:27:31」）では折り返さずに行を広げ、ラベルとの間を 16 空ける。
+  metaRow: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.x16, maxWidth: 100, minWidth: 'max-content', whiteSpace: 'nowrap' },
   // **ラベルの枠は固定幅。文字数で隙間を変えない。** 値は右端に揃えてあるので、枠が
   // 中身なりだと「長さ」(2文字)の側だけ 2 文字ぶん余計に空く。4em＝全角4文字ぶんを
   // 常に確保し、短いラベルは枠の中で余らせる。**ラベルの語を変えても隙間は動かない。**
