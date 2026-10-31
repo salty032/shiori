@@ -82,12 +82,17 @@ export function refineByThumbnails<T extends FrameMatch>(
   for (let k = 0; k < out.length; k++) {
     const t = own[k]
     if (!t) continue
-    // 隣のコマのうち、自分と違う絵のものだけを比べる相手にする。どちらも同じ絵ならコマ打ちの途中で、
-    // どの画像を選んでも同じ絵なので照合しない。
-    const rivals = [own[k - 1], own[k + 1]].filter(
-      (r): r is Float64Array => r != null && similarity(r, t) < SAME_PICTURE
-    )
-    if (rivals.length === 0) continue
+    // 候補の画像に写りうるコマ（前後 CANDIDATE_SPAN コマ）のうち、自分と違う絵のものを比べる相手にする。
+    // 隣の 1 コマずつだけだと、一度も写らなかったコマ（59.94fps は撮る間隔の方が長い）で、2 つ先のコマの
+    // 画像が比べる相手に無いまま選ばれ、注記なしで 2 コマ先の絵を出していた。
+    // すぐ隣がどちらも同じ絵ならコマ打ちの途中で、どの画像を選んでも同じ絵なので照合しない。
+    const near = [own[k - 1], own[k + 1]].filter((r) => r != null && similarity(r, t) < SAME_PICTURE)
+    if (near.length === 0) continue
+    const rivals: Float64Array[] = []
+    for (let j = k - CANDIDATE_SPAN; j <= k + CANDIDATE_SPAN; j++) {
+      const r = j !== k ? own[j] : null
+      if (r && similarity(r, t) < SAME_PICTURE) rivals.push(r)
+    }
     const floor = k > 0 ? out[k - 1].frameIndex : 0
     const cur = out[k].frameIndex
     const marginAt = (c: number): number => {

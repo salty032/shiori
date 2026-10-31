@@ -56,6 +56,29 @@ describe('refineByThumbnails（控えの絵と録画の画像の照合）', () =
     expect(r.matches.map((m) => m.frameIndex)).toEqual(picks)
   })
 
+  it('一度も写らなかったコマに、2 つ先のコマの画像を選ばない', () => {
+    // コマ 2 の画像が録画に無い（撮る間隔がコマより長い 59.94fps で起きる）。候補にはコマ 1・3・4 の画像が入る。
+    // テスト動画のように、絵の大半は共通で一部だけが違い、偶数のコマどうし・奇数のコマどうしがよく似ている。
+    const base = picture(99)
+    const alike = (n: number): Uint8Array => {
+      const p = Uint8Array.from(base)
+      const part = picture(1000 + (n % 2))
+      const own = picture(n)
+      for (let i = 0; i < 256; i++) p[i] = part[i]
+      for (let i = 256; i < 320; i++) p[i] = own[i]
+      return p
+    }
+    const shot = (n: number): Uint8Array => Uint8Array.from(alike(n), (v) => Math.round(16 + v * 0.85))
+    // コマ 2・3 は一度も写らなかった。録画にはコマ 0・1・4・5 の画像だけがある
+    const files = [0, 1, 4, 5]
+    const signatures = files.map(shot)
+    const thumbs = new Map([0, 1, 2, 3, 4, 5].map((n) => [n / 24, b64(alike(n))]))
+    const r = refineByThumbnails(rows([0, 1, 1, 2, 2, 3]), thumbs, signatures)
+    const shown = r.matches.map((m) => files[m.frameIndex])
+    // コマ 2 にコマ 4 の絵を出さない
+    expect(shown[2]).not.toBe(4)
+  })
+
   it('控えの無いコマは時刻で選んだまま。並びは逆戻りさせない', () => {
     const s = scene([0, 1, 2, 3])
     s.thumbs.delete(2 / 24)
