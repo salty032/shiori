@@ -219,6 +219,17 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
     })
   })
 
+  it('停止後に届いた通知で、録画中の最後のコマを撮り逃しにしない', () => {
+    // 素材 1 コマにつき 1 枚ずつ撮れていて、停止後にも通知が 1 件届いた状況（実録画で
+    // 撮り逃しの通知が出た 4 本はすべてこの形だった）。停止後のコマは撮影の末尾に張り付くので、
+    // 「次のコマと同じ絵＝専用の絵が無い」と読むと、最後のコマが 1 つ前の絵を指してしまう。
+    const drawn = Array.from({ length: 10 }, (_, i) => T0 + i * SRC_PERIOD + 20)
+    const result = matchFrames(makeSource(11), drawn)!
+    expect(result.matches.length).toBe(10)
+    expect(result.matches.every((m) => m.captured)).toBe(true)
+    expect(result.matches[9].frameIndex).toBe(9)
+  })
+
   it('録画が始まる前に表示し終えたコマも表に入れない', () => {
     // 受け口は録画開始より前に立ち上げる（最初の数コマを取りこぼさないため）。
     // その間のコマは録画されていないので、撮り逃しではなく範囲外として外す。

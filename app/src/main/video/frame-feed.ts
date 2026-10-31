@@ -275,12 +275,18 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
 
   const pick = (offsetMs: number): FrameMatch[] => {
     const idx: number[] = []
+    const lastDrawnAt = drawnAt[drawnAt.length - 1]
     let i = 0
     for (const f of frames) {
       const target = f.displayAt + offsetMs
       while (i + 1 < drawnAt.length && drawnAt[i] < target) i++
       idx.push(i)
     }
+    // 次のコマが撮影の終わりより後に出た（停止後に届いた通知）なら、次は末尾に張り付いた
+    // だけで比べる相手にならない。自分の絵は次の表示より前に撮れているので、区間内に撮れている。
+    // 比べると、最後のコマが「専用の絵が無い」とされ 1 つ前の絵を指していた（撮り逃しの誤通知）。
+    const nextAfterRecording = (k: number): boolean =>
+      k + 1 < frames.length && frames[k + 1].displayAt + offsetMs > lastDrawnAt
     // 「自分の表示区間内に撮れたか」は、次のコマが別のフレームを指したかで決まる。
     //
     // 選ばれるのは常に「その時刻以降の最初のフレーム」なので、次のコマが別のものを
@@ -293,7 +299,9 @@ export function matchFrames(source: SourceFrame[], drawnAt: number[]): MatchResu
     const out = idx.map((frameIndex, k) => ({
       mediaTime: frames[k].mediaTime,
       frameIndex,
-      captured: k + 1 < idx.length ? idx[k + 1] !== frameIndex : frameIndex !== idx[k - 1],
+      captured: nextAfterRecording(k)
+        ? frames[k].displayAt + offsetMs <= lastDrawnAt
+        : k + 1 < idx.length ? idx[k + 1] !== frameIndex : frameIndex !== idx[k - 1],
       presentedFrames: frames[k].presentedFrames
     }))
     // 自分の区間に絵が無かったコマは、そのままだと「次のコマの絵」を指してしまう
