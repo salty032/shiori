@@ -1962,4 +1962,9 @@ document.addEventListener('yt-navigate-finish', () => {
   }, 100)
 })
 
+// 動画のあるページでは作品名を 1 秒おきに読んで覚えておく（getPageTitleCached）。撮った瞬間だけ
+// 読めないことがある（Prime Video で、プレーヤーの作品名が取れずタブ名もサイト共通の文だった）。
+// 定期送信（TIMECODE_POLL_MS）にも読む機会はあるが 5 秒おきで、再生してすぐ撮ると覚えた名前がまだ無い。
+setInterval(() => { if (getVideo()) getPageTitleCached() }, 1000)
+
 connectPort()
