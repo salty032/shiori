@@ -337,12 +337,16 @@ export function matchFrames(
     //
     // 時刻の大小で直接判定すると、撮影がちょうど区間の境目に乗ったときに浮動小数点の
     // 誤差で結果が揺れる。添字の比較なら厳密に決まる。
+    //
+    // 最後の行は比べる次が無い。前の行と同じ 1 枚を指しても、その 1 枚は自分の表示時刻以降に
+    // 撮れている（絵を持っていないのは前の行の方）。自分の時刻以降に 1 枚も無い（末尾に張り付いた）
+    // ときだけ撮れていない。前の行と比べていたため、前の行が撮り逃しだと最後の行まで撮り逃しにしていた。
     const out = idx.map((frameIndex, k) => ({
       mediaTime: frames[k].mediaTime,
       frameIndex,
       captured: nextAfterRecording(k)
         ? frames[k].displayAt + offsetMs <= lastDrawnAt
-        : k + 1 < idx.length ? idx[k + 1] !== frameIndex : frameIndex !== idx[k - 1],
+        : k + 1 < idx.length ? idx[k + 1] !== frameIndex : drawnAt[frameIndex] >= frames[k].displayAt + offsetMs,
       presentedFrames: frames[k].presentedFrames
     }))
     // 自分の区間に絵が無かったコマは、そのままだと「次のコマの絵」を指してしまう
@@ -377,7 +381,10 @@ export function matchFrames(
     }
     let satisfied = 0
     for (const [above, atMost] of bounds) if (offsetMs > above && offsetMs <= atMost) satisfied++
-    const scale = frames.length + 1
+    // 3 つを 1 つの数へ詰めて辞書順に比べる。桁の幅は各項の上限より大きくなければならない。
+    // satisfied の上限は行数ではなく変わり目の数（撮影 1 枚ごとに立ちうるので行数を超える）で、
+    // 行数で桁を切ると上の桁（distinct）へ食い込み、比べる順が崩れる。
+    const scale = Math.max(frames.length, bounds.length) + 1
     return (distinct * scale + satisfied) * scale + capturedCount(offsetMs)
   }
 

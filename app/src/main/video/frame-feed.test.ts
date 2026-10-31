@@ -146,6 +146,21 @@ describe('matchFrames（素材のコマと撮影フレームの対応付け）',
     }
   })
 
+  it('最後の 1 つ前が撮り逃しでも、最後の行は自分の絵を持つなら撮れている', () => {
+    const source = makeSource(30)
+    const prev = source[28].displayAt
+    const last = source[29].displayAt
+    // 最後の 1 つ前の表示区間に撮影が 1 枚も無く、次の 1 枚は最後のコマの表示中に撮れている。
+    const drawn: number[] = []
+    for (let t = T0 - 100; t < prev - 10; t += 10) drawn.push(t)
+    drawn.push(last + 45)
+    const result = matchFrames(source, drawn)!
+    const rows = result.matches
+    expect(rows[rows.length - 2].captured).toBe(false)
+    expect(rows[rows.length - 1].captured).toBe(true)
+    expect(rows[rows.length - 1].frameIndex).toBe(drawn.length - 1)
+  })
+
   it('入力が空なら null を返す', () => {
     expect(matchFrames([], makeDrawn(100, 0))).toBeNull()
     expect(matchFrames(makeSource(10), [])).toBeNull()
