@@ -2,7 +2,7 @@
 // Usage: node scripts/frame-test.cjs <command> [...]
 //   make [秒数=30]    各コマに答えを焼き込んだテスト動画を frame-test/ に作る
 //   serve [port=8790] frame-test/ を http://localhost で配る（dev.bat が起動時に立ち上げる）
-//   score [クリップ id ...] [--prod | --db パス] [--hours N] [--rematch]
+//   score [クリップ id ...] [--prod | --db パス] [--hours N] [--rematch] [--no-thumbs]
 //                     録画したテスト動画を、焼き込んだ答えで採点する
 //   diag <dir|file.json> [...]
 //                     録画時の対応検査（diagnoseCorrespondence）を、集めた診断ファイルの時刻列で採点する
@@ -376,6 +376,8 @@ function serve(argv) {
 // --rematch で、保存済みの表ではなく今のコードで作り直した表を採点する。材料は診断ファイル（frame-diag/）と
 // 録画ファイルの絵。録画直後の処理（verify-clip.ts）と同じく、ファイルの枚数が撮影時刻の数と合うときだけ
 // 作り直す。照合を変えたら、撮り直さずに過去の録画すべてで外れが増えていないかをこれで確かめる。
+// --no-thumbs で、控えの絵を無いものとして作り直す（--rematch を含む）。テスト動画は DRM ではないので控えがあり、
+// そのままでは DRM の配信の決め方（frame-align.ts）が採点されない。
 //
 // 素材コマの正解は mediaTime × fps から出す。mediaTime はブラウザが表示したコマの時刻そのもの
 // なので、ここが合っていれば「どのコマを見せたか」の記録は正しい。
@@ -389,14 +391,16 @@ function parseArgs(argv) {
   let hours = 24
   let db = null
   let rematch = false
+  let noThumbs = false
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--prod') prod = true
     else if (argv[i] === '--hours') hours = Number(argv[++i])
     else if (argv[i] === '--db') db = argv[++i]
     else if (argv[i] === '--rematch') rematch = true
+    else if (argv[i] === '--no-thumbs') rematch = noThumbs = true
     else ids.push(Number(argv[i]))
   }
-  return { ids, prod, hours, db, rematch }
+  return { ids, prod, hours, db, rematch, noThumbs }
 }
 
 // getFrameSignatures（ffmpeg.ts）と同じ取り出し方。
@@ -423,7 +427,7 @@ function readSignatures(file) {
 }
 
 // 今のコードで表を作り直す。作り直せないときは理由を返す（採点は保存済みの表で続ける）。
-async function rematchTable(row, stored) {
+async function rematchTable(row, stored, noThumbs) {
   const { matchFrames } = require('../src/main/video/frame-feed.ts')
   const { signaturesDiffer } = require('../src/main/video/frame-verify.ts')
   const name = fs.existsSync(diagDir)
@@ -440,7 +444,7 @@ async function rematchTable(row, stored) {
   const result = matchFrames(diag.source.map((f) => ({ ...f, receivedAt: NaN })), diag.drawnAt, changed)
   if (!result) return { reason: '照合が表を返さなかった' }
   // 録画直後の処理（verify-clip.ts）と同じく、控えの絵があれば照合で、無ければ録画全体で決め直す。
-  if (diag.source.some((f) => f.thumb)) {
+  if (!noThumbs && diag.source.some((f) => f.thumb)) {
     const { refineByThumbnails } = require('../src/main/video/frame-thumbs.ts')
     result.matches = refineByThumbnails(result.matches, new Map(diag.source.map((f) => [f.mediaTime, f.thumb])), signatures).matches
   } else {
@@ -474,7 +478,7 @@ function ranges(indices) {
   return out.length > 8 ? `${text} ほか ${out.length - 8} か所` : text
 }
 
-async function scoreClip(row, rematch) {
+async function scoreClip(row, rematch, noThumbs) {
   const { decodeFrames, readUnusableFrames } = require('../src/main/db/db-video-frames.ts')
   const { findClipGaps } = require('../src/main/ipc/ipc-video.ts')
   const { buildGapIndex, sourceFrameNo } = require('../src/renderer/src/video/frameReadout.ts')
@@ -484,8 +488,8 @@ async function scoreClip(row, rematch) {
   }
   let rematchNote = null
   if (rematch) {
-    const r = await rematchTable(row, table)
-    if (r.table) { table = r.table; rematchNote = `今のコードで作り直した表（遅れ ${r.offsetMs}ms）` }
+    const r = await rematchTable(row, table, noThumbs)
+    if (r.table) { table = r.table; rematchNote = `今のコードで作り直した表（遅れ ${r.offsetMs}ms${noThumbs ? '・控えの絵を使わない' : ''}）` }
     else rematchNote = `保存済みの表のまま（${r.reason}）`
   }
   const bands = await readBands(ffmpeg, row.filepath)
@@ -565,7 +569,7 @@ function report(row, r) {
 async function score(argv) {
   loadAppModules()
   const Database = require('better-sqlite3')
-  const { ids, prod, hours, db: dbArg, rematch } = parseArgs(argv)
+  const { ids, prod, hours, db: dbArg, rematch, noThumbs } = parseArgs(argv)
   const appData = process.env.APPDATA
   const dbPath = dbArg ?? path.join(appData, prod ? 'Shiori' : 'Shiori-dev', 'Shiori.db')
   const db = new Database(dbPath, { readonly: true, fileMustExist: true })
@@ -580,7 +584,7 @@ async function score(argv) {
   let notTest = 0
   for (const row of rows) {
     if (!fs.existsSync(row.filepath)) { console.log(`\n■ id ${row.id}: ファイルが無い（${row.filepath}）`); continue }
-    const r = await scoreClip(row, rematch)
+    const r = await scoreClip(row, rematch, noThumbs)
     if (r.notTest) { notTest++; continue }
     if (r.skip) { console.log(`\n■ id ${row.id}: ${r.skip}`); continue }
     report(row, r)
