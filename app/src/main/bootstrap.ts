@@ -25,7 +25,7 @@ import {
   getMainWindow,
   sendToRenderer, sendNotice, showMainWindow, isMainWindowFocused,
   handleTrusted,
-  createWindow
+  createWindow, whenRendererReady
 } from './system/windows'
 import { createTray, rebuildTrayMenu } from './system/tray'
 import { isStartupLaunch, isOpenAtLogin, setOpenAtLogin, migrateStartupArgs } from './system/startup'
@@ -49,15 +49,8 @@ import { consumeRestoreMarker } from './db/db-maintenance'
 import { openDatabaseOrRecover, backupDateLabel } from './db/db-startup'
 import { registerShutdownGuard } from './system/shutdown'
 
-// renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み中なら描画後に送る。
-// 既に読み込み済みなら did-finish-load はもう発火しないので、その場で送る（EADDRINUSE の
-// ように到着タイミングが読めない通知は、once() だけに頼ると取りこぼす）。
-function whenRendererReady(fn: () => void): void {
-  const wc = getMainWindow()?.webContents
-  if (!wc) return
-  if (wc.isLoading()) wc.once('did-finish-load', fn)
-  else fn()
-}
+// renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み後に送る
+// （whenRendererReady。ウィンドウがまだ無ければ作ったときまで預かる）。
 
 function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', message: string): void {
   whenRendererReady(() => sendNotice(level, message))
@@ -68,7 +61,6 @@ function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', messag
 export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.enableSandbox()
-  const shutdown = registerShutdownGuard()
 
   // 開発時は userData をインストール版から分離する。
   //
@@ -95,6 +87,11 @@ export function bootstrap(): void {
     app.quit()
     return
   }
+
+  // **終了の確認は二重起動のチェックより後に登録する。** 前に置くと、2 回目の起動が上で
+  // 呼ぶ app.quit() をこれが止め、準備前に後片付けを走らせて失敗し、終了し直さないまま
+  // プロセス一式（約 115MB）が残っていた——常駐中に起動し直すたびに 1 つずつ溜まる。
+  const shutdown = registerShutdownGuard()
 
   // 開発版は ID を分ける。開発版の起動時に Electron がこの ID でスタートメニューへ
   // Electron.lnk（electron.exe を指す）を作り、同じ ID だと製品版のタスクバーのアイコンと
