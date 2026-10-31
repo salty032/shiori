@@ -66,12 +66,16 @@ const c = {
 
 const CELL_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 
-// 詳細パネルの最小幅（300）に、縦スクロールバーと並んで収まる寸法。ここを広げると、
-// 既定の幅で横スクロールが出る。
-const W = { counter: 44, cell: 34 }
+// マスの幅は**パネルの幅に合わせて伸びる**。cell は詳細パネルの最小幅（300）に縦スクロールバーと
+// 並んで収まる下限で、これより狭く詰めたときだけ横スクロールになる。cellMax は実物のマス幅
+// （実物のマスは横長。パネルを広げればそこまで伸びる）。
+const W = { counter: 44, cell: 34, cellMax: 45 }
 // 見出し 2 段の高さ。現在行へ寄せるとき、貼り付いた見出しの下に隠さないために使う。
 const HEAD_H = 32
 const TOTAL_W = CELL_COLS.length * W.cell + W.counter
+const TOTAL_MAX_W = CELL_COLS.length * W.cellMax + W.counter
+// A〜G のマス。見出しと本体で同じ指定を使う（違えると列がずれる）。
+const cellFlex: React.CSSProperties = { flex: '1 1 0', minWidth: W.cell }
 
 type Props = {
   sheet: Timesheet
@@ -174,15 +178,15 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
           **縦も同じ枠で流し、見出しは上に貼り付ける。** 本体だけを縦に流すと、本体の中に
           出るスクロールバーのぶん本体の列だけが詰められ、見出しと列がずれる。 */}
       <div style={st.scroll}>
-        <div style={{ width: TOTAL_W }}>
+        <div style={{ minWidth: TOTAL_W, maxWidth: TOTAL_MAX_W }}>
           <div style={st.stickyHead}>
             <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
               {/* 帯は目盛りの上までつなげる（実物で目盛りの上が隣の欄の帯に含まれるのと同じ）。 */}
-              <div style={{ ...st.group, width: TOTAL_W, background: c.cellBand }}>CELL</div>
+              <div style={{ ...st.group, flex: 1, background: c.cellBand }}>CELL</div>
             </div>
             <div style={{ ...st.groupRow, borderBottom: `1px solid ${c.frame}` }}>
-              {CELL_COLS.map((label) => <div key={`c${label}`} style={{ ...st.colHead, width: W.cell, background: c.cellBand }}>{label}</div>)}
-              <div style={{ ...st.colHead, width: W.counter, background: c.cellBand, borderLeft: `1px solid ${c.frame}` }} />
+              {CELL_COLS.map((label) => <div key={`c${label}`} style={{ ...st.colHead, ...cellFlex, background: c.cellBand }}>{label}</div>)}
+              <div style={{ ...st.colHead, width: W.counter, flexShrink: 0, background: c.cellBand, borderLeft: `1px solid ${c.frame}` }} />
             </div>
           </div>
 
@@ -214,7 +218,7 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                         key={`c${name}`}
                         onClick={() => { if (!isGap) sheet.setTrack(col) }}
                         style={{
-                          ...st.cell, width: W.cell, borderTop: border, position: 'relative',
+                          ...st.cell, ...cellFlex, borderTop: border, position: 'relative',
                           background: isGap ? c.gapRow : (isWrite && isTypable ? c.sel : band),
                           fontWeight: 800, color: c.ink,
                         }}>
@@ -231,7 +235,7 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                     )
                   })}
                   {/* コマ目盛り。秒はブロックの最終行、コマ番号は 2 コマごと（実物と同じ間引き）。 */}
-                  <div style={{ ...st.cell, width: W.counter, background: isGap ? c.gapRow : c.counterBg, borderTop: counterBorder(position), borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
+                  <div style={{ ...st.cell, width: W.counter, flexShrink: 0, background: isGap ? c.gapRow : c.counterBg, borderTop: counterBorder(position), borderLeft: `1px solid ${c.frame}`, color: c.counterInk, justifyContent: 'space-between', padding: '0 4px' }}>
                     <span style={{ fontWeight: 700 }}>{isSecondEnd ? secondIdx + 1 : ''}</span>
                     <span>{(position + 1) % 2 === 0 ? position + 1 : ''}</span>
                   </div>
