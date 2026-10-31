@@ -1,7 +1,11 @@
 // テスト動画（make-frame-test-videos.mjs）を録画したクリップを、焼き込んだ答えで採点する。
-// Usage: node scripts/score-frame-test.cjs [クリップ id ...] [--prod | --db パス] [--hours N]
+// Usage: node scripts/score-frame-test.cjs [クリップ id ...] [--prod | --db パス] [--hours N] [--rematch]
 //   id を省くと、直近 N 時間（既定 24）の録画をすべて見る。テスト動画でないものは飛ばす。
 //   --prod で製品版のライブラリを見る（既定は開発版 dev.bat のライブラリ）。
+//   --rematch で、保存済みの表ではなく今のコードで作り直した表を採点する。材料は dev-diag.bat で
+//     撮ったときの診断ファイル（frame-diag/）と録画ファイルの絵。録画直後の処理（verify-clip.ts）と
+//     同じく、ファイルの枚数が撮影時刻の数と合うときだけ作り直す。照合を変えたら、撮り直さずに
+//     過去の録画すべてで外れが増えていないかをこれで確かめる。
 //
 // 見るのは 2 つ。
 //   絵   … 表の各行が指すファイル内フレームに、その素材コマの絵が写っているか。
@@ -48,22 +52,76 @@ const Database = require('better-sqlite3')
 const { decodeFrames, readUnusableFrames } = require('../src/main/db/db-video-frames.ts')
 const { findClipGaps } = require('../src/main/ipc/ipc-video.ts')
 const { buildGapIndex, sourceFrameNo } = require('../src/renderer/src/video/frameReadout.ts')
+const { matchFrames } = require('../src/main/video/frame-feed.ts')
+const { signaturesDiffer } = require('../src/main/video/frame-verify.ts')
 const { drawingOf, readBands } = require('./frame-test-code.cjs')
 
 const ffmpeg = path.join(__dirname, '..', 'resources', 'ffmpeg.exe')
+const diagDir = path.join(__dirname, '..', '..', 'frame-diag')
+// ffmpeg.ts の SIGNATURE_GRID と同じ大きさ。違うと録画直後とは別の「絵が変わった」で作り直すことになる。
+// ffmpeg.ts は electron を読み込むのでここからは読めない。
+const SIGNATURE_GRID = 32
 
 function parseArgs(argv) {
   const ids = []
   let prod = false
   let hours = 24
   let db = null
+  let rematch = false
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--prod') prod = true
     else if (argv[i] === '--hours') hours = Number(argv[++i])
     else if (argv[i] === '--db') db = argv[++i]
+    else if (argv[i] === '--rematch') rematch = true
     else ids.push(Number(argv[i]))
   }
-  return { ids, prod, hours, db }
+  return { ids, prod, hours, db, rematch }
+}
+
+// getFrameSignatures（ffmpeg.ts）と同じ取り出し方。
+function readSignatures(file) {
+  const { spawn } = require('node:child_process')
+  const bytes = SIGNATURE_GRID * SIGNATURE_GRID
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let stderr = ''
+    const proc = spawn(ffmpeg, [
+      '-hide_banner', '-loglevel', 'error', '-i', file, '-an', '-fps_mode', 'passthrough',
+      '-vf', `scale=${SIGNATURE_GRID}:${SIGNATURE_GRID}:flags=area,format=gray`, '-f', 'rawvideo', '-'
+    ])
+    proc.stdout.on('data', (c) => chunks.push(c))
+    proc.stderr.on('data', (d) => { stderr += d })
+    proc.on('error', reject)
+    proc.on('close', (code) => {
+      if (code !== 0) return reject(new Error(`ffmpeg exited ${code}: ${stderr}`))
+      const all = Buffer.concat(chunks)
+      const out = []
+      for (let k = 0; k + bytes <= all.length; k += bytes) out.push(new Uint8Array(all.subarray(k, k + bytes)))
+      resolve(out)
+    })
+  })
+}
+
+// 今のコードで表を作り直す。作り直せないときは理由を返す（採点は保存済みの表で続ける）。
+async function rematchTable(row, stored) {
+  const name = fs.existsSync(diagDir)
+    ? fs.readdirSync(diagDir).filter((f) => f.startsWith(`frame-${row.id}-`)).sort().pop()
+    : null
+  if (!name) return { reason: '診断ファイルが無い' }
+  const diag = JSON.parse(fs.readFileSync(path.join(diagDir, name), 'utf8'))
+  if (!diag.source?.length) return { reason: '診断ファイルに素材のコマ通知が無い' }
+  const signatures = await readSignatures(row.filepath)
+  if (signatures.length !== diag.drawnAt.length) {
+    return { reason: `ファイル ${signatures.length} 枚・撮影時刻 ${diag.drawnAt.length} 個で合わない` }
+  }
+  const changed = signatures.map((sig, k) => k > 0 && signaturesDiffer(signatures[k - 1], sig))
+  const result = matchFrames(diag.source.map((f) => ({ ...f, receivedAt: NaN })), diag.drawnAt, changed)
+  if (!result) return { reason: '照合が表を返さなかった' }
+  // 診断ファイルは presentedFrames を持たない。保存済みの表の値（重複を畳んだ後の値）を同じコマへ写す。
+  // 番号の採点（抜けの数え方）にだけ効く。
+  const presented = new Map(stored.map((f) => [f.mediaTime, f.presentedFrames]))
+  const table = result.matches.map((m) => ({ ...m, presentedFrames: presented.get(m.mediaTime) ?? null }))
+  return { table, offsetMs: result.offsetMs }
 }
 
 function mode(values) {
@@ -83,10 +141,16 @@ function ranges(indices) {
   return out.length > 8 ? `${text} ほか ${out.length - 8} か所` : text
 }
 
-async function scoreClip(row) {
-  const table = decodeFrames(row.data)
+async function scoreClip(row, rematch) {
+  let table = decodeFrames(row.data)
   if (!table) {
     return { skip: readUnusableFrames(row.data) ? '表は「使えない」と判定済み（コマ送りはファイル単位）' : '表が無い' }
+  }
+  let rematchNote = null
+  if (rematch) {
+    const r = await rematchTable(row, table)
+    if (r.table) { table = r.table; rematchNote = `今のコードで作り直した表（遅れ ${r.offsetMs}ms）` }
+    else rematchNote = `保存済みの表のまま（${r.reason}）`
   }
   const bands = await readBands(ffmpeg, row.filepath)
   // 半分も読めないものはテスト動画ではないとみなす。ふつうの絵でもまれに検査が通るので、
@@ -137,12 +201,14 @@ async function scoreClip(row) {
   result.noRow = result.span - new Set(srcs).size
   result.duplicated = srcs.length - new Set(srcs).size
   result.clipRed = clipRed
+  result.rematchNote = rematchNote
   return result
 }
 
 function report(row, r) {
   const when = new Date(row.captured_at).toLocaleString('ja-JP')
   console.log(`\n■ id ${row.id}  ${when}  ${r.fps}fps${r.clipRed ? '  （画面ではクリップ全体が要注意）' : ''}`)
+  if (r.rematchNote) console.log(`  ${r.rematchNote}`)
   console.log(`  素材 ${r.span} コマ / 表 ${r.rows} 行（表に無い素材コマ ${r.noRow}、同じ素材コマを指す行 ${r.duplicated}）`)
   if (r.outside) console.log(`  ファイルに無いフレームを指す行 ${r.outside}（ビューアは使わない）`)
   console.log(`  絵: 正しい ${r.correct} / 違う・注記あり ${r.wrongWarned.length} / 違う・注記なし ${r.wrongSilent.length} / 読めない ${r.unreadable.length}`)
@@ -161,7 +227,7 @@ function report(row, r) {
 }
 
 async function main() {
-  const { ids, prod, hours, db: dbArg } = parseArgs(process.argv.slice(2))
+  const { ids, prod, hours, db: dbArg, rematch } = parseArgs(process.argv.slice(2))
   const appData = process.env.APPDATA
   const dbPath = dbArg ?? path.join(appData, prod ? 'Shiori' : 'Shiori-dev', 'Shiori.db')
   const db = new Database(dbPath, { readonly: true, fileMustExist: true })
@@ -176,7 +242,7 @@ async function main() {
   let notTest = 0
   for (const row of rows) {
     if (!fs.existsSync(row.filepath)) { console.log(`\n■ id ${row.id}: ファイルが無い（${row.filepath}）`); continue }
-    const r = await scoreClip(row)
+    const r = await scoreClip(row, rematch)
     if (r.notTest) { notTest++; continue }
     if (r.skip) { console.log(`\n■ id ${row.id}: ${r.skip}`); continue }
     report(row, r)
