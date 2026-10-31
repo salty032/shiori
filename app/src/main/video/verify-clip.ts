@@ -50,16 +50,18 @@ function notifyVerified(
  * @param drawnAt 録画時に供給した各フレームの取り込み時刻。渡すと 1. の照合を行う。
  *   トリミング経路は表の frameIndex を切り出し後の PTS 列から作り直しており、定義上ずれない
  *   ので null を渡す。
+ * @param source 各コマが画面に出た時刻（診断の書き出し専用。frame-correspondence-diag.ts）。
  */
 export async function verifyClipFrames(
   imageId: number,
   videoPath: string,
   table: StoredFrame[],
-  drawnAt: number[] | null
+  drawnAt: number[] | null,
+  source: readonly { mediaTime: number; displayAt: number }[] = []
 ): Promise<void> {
   try {
     const { signatures, pts } = await getFrameSignatures(videoPath)
-    if (drawnAt !== null) await writeCorrespondenceDiagnostic(imageId, drawnAt, pts, table)
+    if (drawnAt !== null) await writeCorrespondenceDiagnostic(imageId, drawnAt, pts, table, source)
     if (signatures.length === 0) {
       logVerifyResult(imageId, null)
       return

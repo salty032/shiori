@@ -642,6 +642,12 @@ export function buildFrameTable(drawnAt: number[]): MatchResult | null {
   return matchFrames(frames, drawnAt)
 }
 
+// 収集済みのコマ通知の、素材時刻と画面に出た時刻の写し（診断の書き出し専用）。
+// 次の録画で frames は作り直されるので、録画が終わった時点で写しを取る。
+export function getSourceFrameTimes(): { mediaTime: number; displayAt: number }[] {
+  return frames.map((f) => ({ mediaTime: f.mediaTime, displayAt: f.displayAt }))
+}
+
 // 収集済みのコマ通知から、通知が届くまでの遅れを要約する（ReportDelay 参照）。
 export function getReportDelay(): ReportDelay | null {
   return summarizeReportDelay(frames)
