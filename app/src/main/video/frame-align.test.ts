@@ -55,6 +55,15 @@ describe('alignWholeRecording（録画全体で辻褄を合わせて決める）
     }
   })
 
+  it('素材のコマが撮影の間隔より短い録画（59.94fps）には使わない', () => {
+    // 59.94fps のテスト動画 2 本で、時刻だけで選ぶより注記なしの外れが 71 → 177 に増えた。
+    const r = rec['439']
+    const source: SourceFrame[] = r.frames.map(([mediaTime, displayAt]) => ({ mediaTime, displayAt, receivedAt: NaN }))
+    const changed = [...r.changed].map((c) => c === '1')
+    const rows = matchFrames(source, r.drawnAt, changed)!
+    expect(alignWholeRecording(rows.matches, source, r.drawnAt, changed, rows.searchRangeMs, 1000 / 59.94)).toBeNull()
+  })
+
   it('コマの並びは逆戻りしない', () => {
     for (const r of Object.values(rec)) {
       const idx = run(r).aligned.matches.map((m) => m.frameIndex)

@@ -104,6 +104,11 @@ function align(
   return { frameOf, cost: last[end] }
 }
 
+function medianInterval(drawnAt: readonly number[]): number {
+  const gaps = drawnAt.slice(1).map((t, i) => t - drawnAt[i]).sort((a, b) => a - b)
+  return gaps.length ? gaps[gaps.length >> 1] : 0
+}
+
 export interface AlignResult<T extends FrameMatch> {
   matches: T[]
   delayMs: number
@@ -122,6 +127,9 @@ export function alignWholeRecording<T extends FrameMatch>(
   changed: readonly boolean[], searchRangeMs: readonly [number, number], periodMs: number
 ): AlignResult<T> | null {
   if (rows.length === 0 || drawnAt.length === 0 || changed.length !== drawnAt.length) return null
+  // 素材のコマが撮影の間隔より短い録画（59.94fps）には使わない。半分ほどのコマが一度も写らず変わり目が
+  // 手がかりにならないので、時刻だけで選ぶより外れた（テスト動画 2 本で注記なしの外れ 71 → 177）。
+  if (periodMs <= medianInterval(drawnAt)) return null
   const frames: SourceFrame[] = []
   for (const f of source) if (frames[frames.length - 1]?.mediaTime !== f.mediaTime) frames.push(f)
   const starts = frames.map((f) => f.displayAt)
