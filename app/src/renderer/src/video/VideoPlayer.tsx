@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
-import { findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from './frameTable'
+import { FRAME_EPS, findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from './frameTable'
 import {
   buildGapIndex, clipStatus, frameReadout, walkFrames,
   type GapIndex, type ReadoutKind
@@ -379,6 +379,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   }), [])
   // 掴んで動かしている間の、まだ出していない行き先（handleSeekPointerDown の注記）。
   const pendingScrubRef = useRef<number | null>(null)
+  // シークバーから指を離した。着いたら、そのコマが使っている絵へ寄せる（snapToFrameShown）。
+  const snapAfterScrubRef = useRef(false)
 
   function drainScrubSeek(): void {
     const v = videoRef.current
@@ -388,12 +390,32 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     v.currentTime = next
   }
 
+  // シークバーで止めた位置を、番号のコマが使っている絵へ寄せる。
+  //
+  // **録画ファイルには素材 1 コマにつき 2 枚ほど絵があり、表が使うのはそのうち 1 枚だけ。**
+  // 使っていない方で止まると、その絵がもう次のコマのものであることがある（テスト動画の
+  // 録画で、行と行の間の 228 枚のうち 56 枚）。そのままだと番号は前のコマなのに絵は次のコマで、
+  // 1 コマ進めても同じ絵が出る。寄せる幅は最大 1 コマ。掴んでいる間は寄せない（指に逆らう）。
+  function snapToFrameShown(): void {
+    snapAfterScrubRef.current = false
+    const v = videoRef.current
+    const frames = framesRef.current
+    if (!v || !v.paused || !frames?.sourceBased || frames.pts.length === 0) return
+    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
+    const target = Math.max(0, Math.min(frameSeekTarget(frames.pts, currentFrameIdx(), stepSec, frames.dur), limit))
+    if (Math.abs(v.currentTime - target) < FRAME_EPS) return
+    selfSeekRef.current = true
+    v.currentTime = target
+  }
+
   // シークが終わったとき。添字を引き直してから、待っている行き先があればそこへ進む。
   // **引き直しを先にする**——いま映ったコマの番号を出したいので、次の行き先を入れてしまうと
   // まだ映っていないコマの番号を出すことになる。
   function handleSeeked(): void {
     syncFrameIdx()
     drainScrubSeek()
+    const v = videoRef.current
+    if (snapAfterScrubRef.current && v && !v.seeking) snapToFrameShown()
   }
 
   const seekFillRef = useRef<HTMLDivElement>(null)
@@ -714,6 +736,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     // バーがホバーしていなくても出たままになる。
     const onUp = () => {
       setScrubbing(false)
+      // まだシーク中なら着いたとき（handleSeeked）に寄せる。もう着いていればここで寄せる。
+      snapAfterScrubRef.current = true
+      if (!videoRef.current?.seeking && pendingScrubRef.current === null) snapToFrameShown()
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
