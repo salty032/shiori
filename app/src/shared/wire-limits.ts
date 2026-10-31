@@ -57,6 +57,10 @@ export const MAX_EPOCH_MS = 4_102_444_800_000
 // **この値の差がそのまま「通知が来なかったコマ数」になる**ので、壊れた値が入ると
 // 抜けの枚数が黙って狂う。入口で落とす。
 export const MAX_PRESENTED_FRAMES = 100_000_000
+// コマ通知に添えるそのコマの絵（白黒）の一辺。録画の画像の署名（ffmpeg.ts の SIGNATURE_GRID）と同じ大きさで、
+// app はこの 2 つを照合してどの画像がそのコマかを決める。base64 で送るので長さは決まっている。
+export const FRAME_THUMB_SIZE = 32
+export const FRAME_THUMB_BASE64_LENGTH = Math.ceil((FRAME_THUMB_SIZE * FRAME_THUMB_SIZE) / 3) * 4
 
 // ここから下はアプリ側に対応する処理が無い、**拡張の中だけで使う値**。それでも
 // background.js と content.js の 2 箇所に要る、あるいはテストが値を見るので、原本はここに置く。
@@ -184,6 +188,11 @@ export function renderExtensionBlocks(namedCaptureKeys: ReadonlySet<string>): Ge
           literal: String(MAX_PRESENTED_FRAMES),
         },
         {
+          note: ['コマ通知に添えるコマの絵（32x32 の白黒を base64 にしたもの）。この形以外は中継しない。'],
+          name: 'THUMB_BASE64',
+          literal: `/^[A-Za-z0-9+/]{${FRAME_THUMB_BASE64_LENGTH - 2}}==$/`,
+        },
+        {
           note: [
             'プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理の',
             'マージンを十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。',
@@ -213,6 +222,7 @@ export function renderExtensionBlocks(namedCaptureKeys: ReadonlySet<string>): Ge
           literal: String(MAX_STEP_LABEL_LENGTH),
         },
         { note: ['タイムコードの定期送信の間隔（ms）。'], name: 'TIMECODE_POLL_MS', literal: String(TIMECODE_POLL_MS) },
+        { note: ['コマ通知に添えるコマの絵の一辺。'], name: 'THUMB_SIZE', literal: String(FRAME_THUMB_SIZE) },
       ]),
     },
     {

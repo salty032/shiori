@@ -77,7 +77,9 @@ export async function writeCorrespondenceDiagnostic(
   imageId: number, drawnAt: readonly number[], pts: readonly number[], table: readonly StoredFrame[],
   // 各コマが画面に出た時刻。これがあれば、遅れを何 ms にしたら表がどうなったかを後から作り直せる
   // （正解を焼き込んだテスト動画と突き合わせ、正しくなる遅れの範囲を 1 本から出すため）。
-  source: readonly { mediaTime: number; displayAt: number; presentedAt?: number | null; calledAt?: number | null }[] = []
+  source: readonly {
+    mediaTime: number; displayAt: number; presentedAt?: number | null; calledAt?: number | null; thumb?: string | null
+  }[] = []
 ): Promise<void> {
   const configuredDir = process.env['SHIORI_FRAME_DIAGNOSTICS_DIR']
   if (!configuredDir) return

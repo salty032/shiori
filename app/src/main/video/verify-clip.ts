@@ -17,6 +17,7 @@ import {
   listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
 } from '../db/db-video-frames'
 import { countReportDrops, matchFrames, reportDropsMeasured, type SourceFrame } from './frame-feed'
+import { refineByThumbnails } from './frame-thumbs'
 import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
@@ -66,7 +67,8 @@ export async function verifyClipFrames(
     if (drawnAt !== null) {
       await writeCorrespondenceDiagnostic(
         imageId, drawnAt, pts, table, source.map((f) => ({
-          mediaTime: f.mediaTime, displayAt: f.displayAt, presentedAt: f.presentedAt ?? null, calledAt: f.calledAt ?? null
+          mediaTime: f.mediaTime, displayAt: f.displayAt, presentedAt: f.presentedAt ?? null, calledAt: f.calledAt ?? null,
+          thumb: f.thumb ?? null
         }))
       )
     }
@@ -83,15 +85,24 @@ export async function verifyClipFrames(
       const changed = signatures.map((s, k) => k > 0 && signaturesDiffer(signatures[k - 1], s))
       const rematched = matchFrames(source, drawnAt, changed)
       if (rematched) {
+        let picked = rematched.matches
+        // 拡張が控えた各コマの絵があれば、録画の画像と照合して決め直す（frame-thumbs.ts）。
+        if (source.some((f) => f.thumb)) {
+          const refined = refineByThumbnails(picked, new Map(source.map((f) => [f.mediaTime, f.thumb])), signatures)
+          console.log(
+            `[frame-thumbs] image ${imageId}: ${refined.decided} row(s) decided by thumbnails, ${refined.moved} moved`
+          )
+          picked = refined.matches
+        }
         const before = new Map(table.map((f) => [f.mediaTime, f.frameIndex]))
-        const moved = rematched.matches.filter((m) => before.get(m.mediaTime) !== m.frameIndex).length
+        const moved = picked.filter((m) => before.get(m.mediaTime) !== m.frameIndex).length
         console.log(
           `[frame-match] image ${imageId}: re-picked by picture at ${rematched.offsetMs}ms` +
           ` (candidates ${rematched.tiedRangeMs[0]}..${rematched.tiedRangeMs[1]}ms);` +
-          ` ${moved} of ${rematched.matches.length} row(s) now point to another file frame`
+          ` ${moved} of ${picked.length} row(s) now point to another file frame`
         )
-        if (moved > 0 || rematched.matches.length !== table.length) {
-          frames = rematched.matches
+        if (moved > 0 || picked.length !== table.length) {
+          frames = picked
           saveVideoFrames(imageId, frames)
           setFrameCounts(
             imageId, frames.filter((f) => !f.captured).length, frames.length,

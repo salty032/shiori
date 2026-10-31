@@ -7,7 +7,7 @@ import {
   WS_PORTS, MAX_TITLE_LENGTH, MAX_URL_LENGTH, MAX_WS_PAYLOAD_BYTES, MAX_REQUEST_ID_LENGTH,
   MAX_TIMECODE_SECONDS, MIN_SCREEN_COORD, MAX_SCREEN_COORD, MIN_SCREEN_SIZE, MAX_SCREEN_SIZE,
   MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
-  MAX_EPOCH_MS, MAX_PRESENTED_FRAMES,
+  MAX_EPOCH_MS, MAX_PRESENTED_FRAMES, FRAME_THUMB_BASE64_LENGTH,
 } from '../../shared/wire-limits'
 
 // 実際に listen できたポート。どれも確保できなければ null のまま。
@@ -38,9 +38,12 @@ export type ExtensionMessage =
   //
   // presentedAt（rVFC の presentationTime）と calledAt（コールバックの時刻）は、どの時刻が実際に画面へ
   // 出た時刻に近いかを比べるための診断用。対応付けにはまだ使っていない。
+  //
+  // thumb はそのコマの絵（32x32 の白黒を base64 にしたもの）。録画の画像と絵で照合して、どの画像が
+  // このコマかを決める（frame-thumbs.ts）。DRM の動画など絵が読めないときは null。
   | {
     type: 'frame'; mediaTime: number; displayAt: number; presentedFrames: number | null
-    presentedAt: number | null; calledAt: number | null
+    presentedAt: number | null; calledAt: number | null; thumb: string | null
   }
   // 録画中にコマ通知が途切れたことの知らせ（値は持たない）。配信ページ側の rVFC ループは
   // <video> が差し替わる（広告挿入・画質切替）と止まるため、その区間のコマは表に入らない。
@@ -212,9 +215,11 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
     const presentedFrames = boundedNumber(msg.presentedFrames, 0, MAX_PRESENTED_FRAMES)
     const presentedAt = boundedNumber(msg.presentedAt, 0, MAX_EPOCH_MS)
     const calledAt = boundedNumber(msg.calledAt, 0, MAX_EPOCH_MS)
+    const thumb = typeof msg.thumb === 'string' && msg.thumb.length === FRAME_THUMB_BASE64_LENGTH &&
+      /^[A-Za-z0-9+/]+=*$/.test(msg.thumb) ? msg.thumb : null
     return mediaTime == null || displayAt == null
       ? null
-      : { type: 'frame', mediaTime, displayAt, presentedFrames, presentedAt, calledAt }
+      : { type: 'frame', mediaTime, displayAt, presentedFrames, presentedAt, calledAt, thumb }
   }
   if (msg.type !== 'timecode') return null
 

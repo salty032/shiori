@@ -29,6 +29,8 @@ export interface SourceFrame {
   /** 合成へ回した時刻・コールバックの時刻（epoch ミリ秒。診断用。ws-server.ts の frame 参照） */
   presentedAt?: number | null
   calledAt?: number | null
+  /** そのコマの絵（32x32 の白黒を base64 にしたもの）。読めなければ null（frame-thumbs.ts） */
+  thumb?: string | null
 }
 
 // 60秒 × 60fps に、通知の重複や高フレームレート素材ぶんの余裕を持たせた上限。
@@ -71,7 +73,8 @@ export function startFrameFeed(): void {
     }
     frames.push({
       mediaTime: msg.mediaTime, displayAt: msg.displayAt, receivedAt: Date.now(),
-      presentedFrames: msg.presentedFrames, presentedAt: msg.presentedAt, calledAt: msg.calledAt
+      presentedFrames: msg.presentedFrames, presentedAt: msg.presentedAt, calledAt: msg.calledAt,
+      thumb: msg.thumb
     })
   })
 }

@@ -48,6 +48,8 @@ const MAX_EPOCH_MS = 4102444800000
 // **前後の差がそのまま「通知が来なかったコマ数」になる**ので、壊れた値を中継すると
 // 抜けの枚数が黙って狂う。入口で落とす。
 const MAX_PRESENTED_FRAMES = 100000000
+// コマ通知に添えるコマの絵（32x32 の白黒を base64 にしたもの）。この形以外は中継しない。
+const THUMB_BASE64 = /^[A-Za-z0-9+/]{1366}==$/
 // プレーヤー UI を隠したままにできる上限（ms）。クリップの最長 30 秒＋停止処理の
 // マージンを十分に超える値だが、壊れた値で UI が延々と隠れたままになるのは防ぐ。
 const MAX_UI_HOLD_MS = 120000
@@ -149,6 +151,8 @@ function normalizePortMessage(msg) {
     const calledAt = boundedNumber(msg.calledAt, 0, MAX_EPOCH_MS)
     if (presentedAt != null) out.presentedAt = presentedAt
     if (calledAt != null) out.calledAt = calledAt
+    // コマの絵（content.js の frameThumb）。32x32 の白黒を base64 にしたものだけを通す。
+    if (typeof msg.thumb === 'string' && THUMB_BASE64.test(msg.thumb)) out.thumb = msg.thumb
     return out
   }
   if (msg.type !== 'timecode') return null

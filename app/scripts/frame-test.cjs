@@ -439,6 +439,11 @@ async function rematchTable(row, stored) {
   const changed = signatures.map((sig, k) => k > 0 && signaturesDiffer(signatures[k - 1], sig))
   const result = matchFrames(diag.source.map((f) => ({ ...f, receivedAt: NaN })), diag.drawnAt, changed)
   if (!result) return { reason: '照合が表を返さなかった' }
+  // 録画直後の処理（verify-clip.ts）と同じく、控えの絵があれば照合で決め直す。
+  if (diag.source.some((f) => f.thumb)) {
+    const { refineByThumbnails } = require('../src/main/video/frame-thumbs.ts')
+    result.matches = refineByThumbnails(result.matches, new Map(diag.source.map((f) => [f.mediaTime, f.thumb])), signatures).matches
+  }
   // 診断ファイルは presentedFrames を持たない。保存済みの表の値（重複を畳んだ後の値）を同じコマへ写す。
   // 番号の採点（抜けの数え方）にだけ効く。
   const presented = new Map(stored.map((f) => [f.mediaTime, f.presentedFrames]))

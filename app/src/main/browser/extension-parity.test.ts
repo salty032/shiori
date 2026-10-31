@@ -198,7 +198,7 @@ describe('コマ通知が途切れる経路（content.js の rVFC ループ）',
   it('コマ通知の診断用の時刻は content.js・background.js・ws-server.ts の全部で通る', () => {
     // background.js が 1 項目ずつ書き写すので、中継だけ忘れると送っているのに app へ届かない（実際に踏んだ）。
     const wsServerTs = readFileSync(join(__dirname, './ws-server.ts'), 'utf-8')
-    for (const key of ['presentedAt', 'calledAt']) {
+    for (const key of ['presentedAt', 'calledAt', 'thumb']) {
       expect(contentJs).toContain(`msg.${key} =`)
       expect(backgroundJs).toContain(`msg.${key}`)
       expect(wsServerTs).toContain(`msg.${key}`)

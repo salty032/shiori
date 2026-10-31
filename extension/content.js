@@ -84,7 +84,7 @@ function startFrameTracker(video) {
     lastFrameTime = meta.mediaTime
     lastFrameTimeEstimated = false
     confirmedFrameTime = meta.mediaTime
-    reportFrame(now, meta)
+    reportFrame(now, meta, video)
     // フレーム間隔は連続再生中のみ計測（ステップ中のシーク差分で汚さない）
     if (prev !== null && !video.paused) {
       const d = meta.mediaTime - prev
@@ -166,11 +166,41 @@ function reportFrameGap() {
 //
 // 古いブラウザ・古い実装では undefined になりうるので、その場合は送らない（app 側は
 // 従来の数え方へ落ちる）。旧版の拡張から届く通知も同じ扱いになる。
-function reportFrame(now, meta) {
+//
+// thumb はそのコマの絵を 32x32 の白黒（1024 バイト、base64）に縮めたもの。app は録画の画像と絵で照合して、
+// どの画像がこのコマかを決める（時刻だけだと、絵が切り替わる境目で隣のコマの画像を選ぶ）。
+// DRM の動画は真っ黒にしか読めないので送らない（app は時刻だけで決める）。
+let thumbCanvas = null
+function frameThumb(video) {
+  try {
+    const frame = new VideoFrame(video)
+    try {
+      thumbCanvas ??= new OffscreenCanvas(THUMB_SIZE, THUMB_SIZE)
+      const g = thumbCanvas.getContext('2d', { willReadFrequently: true })
+      g.drawImage(frame, 0, 0, THUMB_SIZE, THUMB_SIZE)
+      const rgba = g.getImageData(0, 0, THUMB_SIZE, THUMB_SIZE).data
+      const gray = new Uint8Array(THUMB_SIZE * THUMB_SIZE)
+      let lit = 0
+      for (let i = 0; i < gray.length; i++) {
+        gray[i] = Math.round(0.299 * rgba[i * 4] + 0.587 * rgba[i * 4 + 1] + 0.114 * rgba[i * 4 + 2])
+        if (gray[i] > 8) lit++
+      }
+      if (lit === 0) return null
+      return btoa(String.fromCharCode(...gray))
+    } finally {
+      frame.close()
+    }
+  } catch {
+    return null
+  }
+}
+function reportFrame(now, meta, video) {
   if (!reportingFrames || !port) return
   const display = Number.isFinite(meta.expectedDisplayTime) ? meta.expectedDisplayTime : now
   try {
     const msg = { type: 'frame', mediaTime: meta.mediaTime, displayAt: performance.timeOrigin + display }
+    const thumb = frameThumb(video)
+    if (thumb) msg.thumb = thumb
     if (Number.isFinite(meta.presentedFrames)) msg.presentedFrames = meta.presentedFrames
     // 表示予定の時刻（expectedDisplayTime）は 60Hz の画面で書き換えの刻みと合わなかった。どの時刻が
     // 実際に画面へ出た時刻に近いかを比べるため、合成へ回した時刻とコールバックの時刻も送る（診断用）。
@@ -556,6 +586,8 @@ const MAX_NOTICE_MESSAGE_LENGTH = 240
 const MAX_STEP_LABEL_LENGTH = 120
 // タイムコードの定期送信の間隔（ms）。
 const TIMECODE_POLL_MS = 5000
+// コマ通知に添えるコマの絵の一辺。
+const THUMB_SIZE = 32
 // ==== ここまで自動生成: limits ====
 // app から届く表示文言を丸める。**拡張は文言を1つも持たない**ので、落とすと画面から
 // 文字が消える（機能は動いたまま）。長さだけ切って、型が違えば空にする。
