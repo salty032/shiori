@@ -70,11 +70,16 @@ vi.mock('../system/settings', () => ({
 
 vi.mock('../system/windows', () => ({ isMainWindowFocused: vi.fn(() => false) }))
 
+// 描画プロセスが落ちた状態を試験で作れるようにする（落ちたら作り直すこと）。
+let recorderCrashed = false
+const recorderDestroy = vi.fn(() => { recorderCrashed = false })
 vi.mock('./recorder-window', () => ({
   getRecorderWindow: vi.fn(() => ({
     isDestroyed: () => false,
+    destroy: () => recorderDestroy(),
     webContents: {
       isLoading: () => false,
+      isCrashed: () => recorderCrashed,
       send: (channel: string, data?: { sessionId?: number }) => recorderSend(channel, data)
     }
   })),
@@ -99,6 +104,8 @@ vi.mock('../browser/browser-notice', () => ({ sendBrowserNotice: vi.fn() }))
 vi.mock('../system/i18n', () => ({ t: (key: string) => key }))
 
 import { desktopCapturer } from 'electron'
+import { createRecorderWindow } from './recorder-window'
+import { setTrayRecording } from '../system/tray'
 import { sendBrowserNotice } from '../browser/browser-notice'
 import { waitForSteadyFrames } from './frame-feed'
 import { finishRecordingState, handleClipHotkey, isCurrentlyRecording, notifyRecorderPrepared, releaseCaptureUi, startRecording, wasRecordingDisplayAmbiguous } from './recording'
@@ -145,8 +152,8 @@ describe('落ち着くのを待っている間に停止したとき', () => {
     await started
     expect(recorderSend.mock.calls.map((c) => c[0])).not.toContain('recorder:start')
     expect(isCurrentlyRecording()).toBe(false)
-    // 隠したプレーヤー UI は戻す。畳んだのに隠したままにしない。
-    expect(broadcastMessage.mock.calls.some((c) => (c[0] as { type: string }).type === 'post-capture')).toBe(true)
+    // 隠したプレーヤー UI は戻す。畳んだのに隠したままにしない。二重にも送らない。
+    expect(postCaptureCount()).toBe(1)
   })
 
   // 落ち着き待ちが明けてから消去 ACK が返るまで。**ここも
@@ -162,7 +169,7 @@ describe('落ち着くのを待っている間に停止したとき', () => {
     await started
     expect(recorderSend.mock.calls.map((c) => c[0])).not.toContain('recorder:start')
     expect(isCurrentlyRecording()).toBe(false)
-    expect(broadcastMessage.mock.calls.some((c) => (c[0] as { type: string }).type === 'post-capture')).toBe(true)
+    expect(postCaptureCount()).toBe(1)
   })
 
   // 押していなければ従来どおり。**窓を閉じるために開始そのものを遅らせていないこと。**
@@ -222,7 +229,7 @@ describe('画面キャプチャの立ち上げと落ち着き待ちの順序', (
     expect(isCurrentlyRecording()).toBe(false)
     // 掴んだままにしないための停止と、隠した UI の復帰。**録画しないのだから両方要る。**
     expect(recorderSend.mock.calls.map((c) => c[0])).toContain('recorder:stop')
-    expect(postCaptureCount()).toBeGreaterThan(0)
+    expect(postCaptureCount()).toBe(1)
     expect(sendBrowserNotice).toHaveBeenCalledWith('error', 'notice.recorderPrepareFailed')
   })
 
@@ -242,6 +249,72 @@ describe('画面キャプチャの立ち上げと落ち着き待ちの順序', (
     expect(isCurrentlyRecording()).toBe(false)
     // 押して畳んだだけなので、失敗の通知は出さない。
     expect(sendBrowserNotice).not.toHaveBeenCalledWith('error', 'notice.recorderPrepareFailed')
+  })
+
+  // 押してから画面キャプチャの準備を頼むまで（拡張への問い合わせ・画面の特定）の間。
+  // まだ isRecording が立っておらず、直す前はこの間の 2 回目が捨てられて録画が始まっていた。
+  it('準備を頼む前に押されたら、録画を始めない', async () => {
+    const started = startRecording()
+    handleClipHotkey()
+    await vi.advanceTimersByTimeAsync(3000)
+    await started
+    expect(recorderSend).not.toHaveBeenCalled()
+    expect(isCurrentlyRecording()).toBe(false)
+    expect(broadcastMessage.mock.calls.map((c) => (c[0] as { type: string }).type)).not.toContain('pre-capture')
+  })
+
+  it('取り消した次の押下では普通に録画が始まる（印を持ち越さない）', async () => {
+    const first = startRecording()
+    handleClipHotkey()
+    await vi.advanceTimersByTimeAsync(3000)
+    await first
+    await startRecordingSettled()
+    expect(recorderSend.mock.calls.map((c) => c[0])).toContain('recorder:start')
+    expect(isCurrentlyRecording()).toBe(true)
+  })
+
+  it('落ち着き待ちの間にレコーダーが落ちたら、開始を送らずトレイを録画中に戻さない', async () => {
+    vi.mocked(waitForSteadyFrames).mockImplementationOnce(async () => {
+      finishRecordingState() // render-process-gone から呼ばれるのと同じ
+      return { settled: true, waitedMs: 0, reports: 30 }
+    })
+    vi.mocked(setTrayRecording).mockClear()
+    await startRecordingSettled()
+    expect(recorderSend.mock.calls.map((c) => c[0])).not.toContain('recorder:start')
+    expect(isCurrentlyRecording()).toBe(false)
+    expect(setTrayRecording).not.toHaveBeenCalledWith(true)
+  })
+})
+
+describe('レコーダーの描画プロセスが落ちた後', () => {
+  beforeEach(() => {
+    finishRecordingState()
+    vi.useFakeTimers()
+    recorderSend.mockClear()
+    recorderDestroy.mockClear()
+    vi.mocked(createRecorderWindow).mockClear()
+  })
+
+  afterEach(() => {
+    recorderCrashed = false
+    vi.useRealTimers()
+    finishRecordingState()
+  })
+
+  // 落ちてもウィンドウは残り、読み込み中でもないので「用意できている」と見える。作り直さないと
+  // 以後の録画が毎回準備の見切りで失敗し、再起動するまで録画できなかった。
+  it('次の録画でウィンドウを作り直してから準備を頼む', async () => {
+    recorderCrashed = true
+    await startRecordingSettled()
+    expect(recorderDestroy).toHaveBeenCalledTimes(1)
+    expect(createRecorderWindow).toHaveBeenCalledTimes(1)
+    expect(recorderSend.mock.calls.map((c) => c[0])).toContain('recorder:start')
+  })
+
+  it('落ちていなければ作り直さない', async () => {
+    await startRecordingSettled()
+    expect(recorderDestroy).not.toHaveBeenCalled()
+    expect(createRecorderWindow).not.toHaveBeenCalled()
   })
 })
 

@@ -39,6 +39,9 @@ let uiHoldReleased = false
 // 待ちが明けてから録画が始まる、という形になるため、待ち中の停止は開始の取り消しにする。
 let awaitingStart = false
 let startCanceled = false
+// 準備（拡張への問い合わせ・画面の特定など）の途中で押された停止。この間はまだ isRecording が
+// 立っていないので、印を残しておかないと「開始の 2 回目」として捨てられ、そのまま録画が始まる。
+let stopRequestedDuringSetup = false
 
 export function isCurrentlyRecording(): boolean {
   return isRecording
@@ -214,6 +217,17 @@ async function ensureRecorderReady(timeoutMs: number): Promise<boolean> {
   }
   if (!win || win.isDestroyed()) return false
 
+  // **描画プロセスが落ちたウィンドウは作り直す。** 落ちてもウィンドウ自体は残り、読み込み中でも
+  // ないので「用意できている」と見えるが、送った準備の合図は誰にも届かない。作り直さないと、
+  // 以後の録画が毎回準備の見切りまで待って失敗し、アプリを再起動するまで録画できなかった。
+  if (win.webContents.isCrashed()) {
+    console.warn('[clip] recorder renderer had crashed; recreating the window')
+    win.destroy()
+    createRecorderWindow(finishRecordingState)
+    win = getRecorderWindow()
+    if (!win || win.isDestroyed()) return false
+  }
+
   const wc = win.webContents
   if (!wc.isLoading()) return true // 既にロード完了済み
 
@@ -266,15 +280,17 @@ export function notifyRecorderPrepared(sessionId: number): void {
 // **recorder:stop を送るのを省かないこと。** この時点でレコーダーは既に画面キャプチャを
 // 掴んでいる（準備が先に済んでいる）ので、送らないと録画しないまま掴みっぱなしになる。
 // レコーダー側は「まだ録画していない」経路で解放し、中断を返す（recorder.ts の onStop）。
+// プレーヤー UI の復帰（post-capture）は finishRecordingState が送る。ここでも送ると二重になり、
+// content.js が復帰タイマーを張り直す。
 function cancelBeforeStart(): void {
   getRecorderWindow()?.webContents.send('recorder:stop')
-  broadcastMessage({ type: 'post-capture', immediate: true })
   finishRecordingState()
 }
 
 export async function startRecording(): Promise<void> {
   if (isRecording || isRecordingStarting) return
   isRecordingStarting = true
+  stopRequestedDuringSetup = false
 
   try {
     const target = await requestRecordingTarget()
@@ -323,6 +339,13 @@ export async function startRecording(): Promise<void> {
 
     const settings = loadSettings()
     const maxSeconds = settings.clipMaxSeconds ?? 30
+
+    // ここまでの準備の間に停止が押されていたら始めない。まだ何も隠しておらず、キャプチャも
+    // 掴んでいないので、畳むものは無い。
+    if (stopRequestedDuringSetup) {
+      console.log('[clip] canceled before the capture was set up')
+      return
+    }
 
     isRecording = true
     uiHoldReleased = false
@@ -393,6 +416,12 @@ export async function startRecording(): Promise<void> {
 
     const settle = await waitForSteadyFrames(CLIP_SETTLE_TIMEOUT_MS)
     const armingClear = await clearArmingOverlay()
+    // 待っている間にレコーダーが落ちる・閉じる等で状態が畳まれていたら、ここで止める。
+    // 進めると、録画していないのにトレイが録画中のまま残る（見張りも isRecording を見て何もしない）。
+    if (!isRecording) {
+      console.warn('[clip] recording state was reset while waiting to start')
+      return
+    }
     // 待っている間に停止を押されていたら、ここで畳む（記録は始めず、キャプチャは解放する）。
     if (startCanceled) {
       console.log(`[clip] canceled during settle (${settle.waitedMs}ms)`)
@@ -529,5 +558,7 @@ export function finishRecordingState(): void {
 
 export function handleClipHotkey(): void {
   if (isMainWindowFocused()) return
-  if (isRecording) stopRecording(); else startRecording()
+  if (isRecording) stopRecording()
+  else if (isRecordingStarting) stopRequestedDuringSetup = true
+  else startRecording()
 }
