@@ -439,10 +439,16 @@ async function rematchTable(row, stored) {
   const changed = signatures.map((sig, k) => k > 0 && signaturesDiffer(signatures[k - 1], sig))
   const result = matchFrames(diag.source.map((f) => ({ ...f, receivedAt: NaN })), diag.drawnAt, changed)
   if (!result) return { reason: '照合が表を返さなかった' }
-  // 録画直後の処理（verify-clip.ts）と同じく、控えの絵があれば照合で決め直す。
+  // 録画直後の処理（verify-clip.ts）と同じく、控えの絵があれば照合で、無ければ録画全体で決め直す。
   if (diag.source.some((f) => f.thumb)) {
     const { refineByThumbnails } = require('../src/main/video/frame-thumbs.ts')
     result.matches = refineByThumbnails(result.matches, new Map(diag.source.map((f) => [f.mediaTime, f.thumb])), signatures).matches
+  } else {
+    const { alignWholeRecording } = require('../src/main/video/frame-align.ts')
+    const aligned = alignWholeRecording(
+      result.matches, diag.source, diag.drawnAt, changed, result.searchRangeMs, result.sourcePeriodMs
+    )
+    if (aligned) result.matches = aligned.matches
   }
   // 診断ファイルは presentedFrames を持たない。保存済みの表の値（重複を畳んだ後の値）を同じコマへ写す。
   // 番号の採点（抜けの数え方）にだけ効く。

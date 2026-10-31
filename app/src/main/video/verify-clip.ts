@@ -18,6 +18,7 @@ import {
 } from '../db/db-video-frames'
 import { countReportDrops, matchFrames, reportDropsMeasured, type SourceFrame } from './frame-feed'
 import { refineByThumbnails } from './frame-thumbs'
+import { alignWholeRecording } from './frame-align'
 import { isCurrentlyRecording } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH } from '../../shared/api'
@@ -87,12 +88,21 @@ export async function verifyClipFrames(
       if (rematched) {
         let picked = rematched.matches
         // 拡張が控えた各コマの絵があれば、録画の画像と照合して決め直す（frame-thumbs.ts）。
+        // 無ければ（DRM の配信は絵が読めない）、録画全体で辻褄が合うように決め直す（frame-align.ts）。
         if (source.some((f) => f.thumb)) {
           const refined = refineByThumbnails(picked, new Map(source.map((f) => [f.mediaTime, f.thumb])), signatures)
           console.log(
             `[frame-thumbs] image ${imageId}: ${refined.decided} row(s) decided by thumbnails, ${refined.moved} moved`
           )
           picked = refined.matches
+        } else {
+          const aligned = alignWholeRecording(
+            picked, source, drawnAt, changed, rematched.searchRangeMs, rematched.sourcePeriodMs
+          )
+          if (aligned) {
+            console.log(`[frame-align] image ${imageId}: delay ${aligned.delayMs}ms, ${aligned.moved} row(s) moved`)
+            picked = aligned.matches
+          }
         }
         const before = new Map(table.map((f) => [f.mediaTime, f.frameIndex]))
         const moved = picked.filter((m) => before.get(m.mediaTime) !== m.frameIndex).length
