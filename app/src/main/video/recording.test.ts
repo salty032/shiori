@@ -64,8 +64,9 @@ vi.mock('../capture/capture', () => ({
   setVideoRect: vi.fn()
 }))
 
+let lowMemoryMode = false
 vi.mock('../system/settings', () => ({
-  loadSettings: vi.fn(() => ({ clipMaxSeconds: 30, language: 'ja' }))
+  loadSettings: vi.fn(() => ({ clipMaxSeconds: 30, language: 'ja', lowMemoryMode }))
 }))
 
 vi.mock('../system/windows', () => ({ isMainWindowFocused: vi.fn(() => false) }))
@@ -84,6 +85,7 @@ vi.mock('./recorder-window', () => ({
     }
   })),
   createRecorderWindow: vi.fn(),
+  destroyRecorderWindow: vi.fn(() => recorderDestroy()),
   setPendingDisplaySource: vi.fn()
 }))
 
@@ -315,6 +317,46 @@ describe('レコーダーの描画プロセスが落ちた後', () => {
     await startRecordingSettled()
     expect(recorderDestroy).not.toHaveBeenCalled()
     expect(createRecorderWindow).not.toHaveBeenCalled()
+  })
+})
+
+// 閉じたらメモリを空ける設定では、録画用ウィンドウを録画のたびに作って捨てる。
+describe('閉じたらメモリを空ける設定の録画用ウィンドウ', () => {
+  beforeEach(() => {
+    finishRecordingState()
+    vi.useFakeTimers()
+    lowMemoryMode = true
+    recorderSend.mockClear()
+    recorderDestroy.mockClear()
+  })
+
+  afterEach(() => {
+    lowMemoryMode = false
+    vi.useRealTimers()
+    finishRecordingState()
+  })
+
+  it('録画中は捨てず、終わったら捨てる', async () => {
+    await startRecordingSettled()
+    expect(isCurrentlyRecording()).toBe(true)
+    expect(recorderDestroy).not.toHaveBeenCalled()
+    finishRecordingState()
+    expect(recorderDestroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('始めずに取り消したときも捨てる', async () => {
+    const started = startRecording()
+    handleClipHotkey()
+    await vi.advanceTimersByTimeAsync(3000)
+    await started
+    expect(recorderDestroy).toHaveBeenCalled()
+  })
+
+  it('設定が OFF なら捨てない（従来どおり作り置く）', async () => {
+    lowMemoryMode = false
+    await startRecordingSettled()
+    finishRecordingState()
+    expect(recorderDestroy).not.toHaveBeenCalled()
   })
 })
 

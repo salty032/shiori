@@ -2,7 +2,7 @@
 import { app, session, globalShortcut } from 'electron'
 import { loadSettings, saveSettings } from '../system/settings'
 import { sendBrowserNotice } from '../browser/browser-notice'
-import { handleTrusted, getMainWindow } from '../system/windows'
+import { handleTrusted, onMainWindowFocus } from '../system/windows'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
 import { VIDEO_CH } from '../../shared/api.video'
 import { addPreCaptureGuard, addBrowserTargetUpdateGuard, SilentCaptureAbort } from '../capture/capture'
@@ -64,7 +64,8 @@ export function startVideo(): void {
       sendBrowserNotice('error', message)
     }
   )
-  createRecorderWindow(finishRecordingState)
+  // 閉じたらメモリを空ける設定では作り置かない（録画のたびに作って捨てる。recording.ts）。
+  if (!loadSettings().lowMemoryMode) createRecorderWindow(finishRecordingState)
 
   // 供給レートの計測は開発時のみ。配布物にホットキーも計測経路も足さない。
   if (!app.isPackaged) registerSupplyBench()
@@ -72,7 +73,7 @@ export function startVideo(): void {
   // ホットキーは起動時に一度だけ登録するため、起動時に他アプリが同じキーを
   // 握っていると登録に失敗したまま復帰しない。ウィンドウフォーカス時に
   // 「未登録のものだけ」取り直す（静止画の captureHotkey 再取得とは独立）。
-  getMainWindow()?.on('focus', () => {
+  onMainWindowFocus(() => {
     const st = loadSettings()
     if (!globalShortcut.isRegistered(st.clipHotkey)) {
       registerClipHotkey(st.clipHotkey, handleClipHotkey, (m) => {

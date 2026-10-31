@@ -5,6 +5,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { CH } from '../../shared/api'
+import { loadSettings } from './settings'
+import { hasActiveTasks } from './busy'
 
 let mainWindow: BrowserWindow | null = null
 let trustedRendererUrl: string | null = null
@@ -29,15 +31,37 @@ export function sendNotice(level: 'info' | 'warning' | 'error', message: string)
   sendToRenderer(CH.appNotice, { level, message })
 }
 
-// メインウィンドウを前面に出す（show + focus）。破棄済み・未生成時は何もしない。
+// 画面の読み込みが済んでから実行する。**ウィンドウがまだ無いとき（閉じたらメモリを空ける設定で
+// 破棄した後・起動時に作らなかったとき）も捨てない**——次に作った画面の読み込み後に実行する。
+// 捨てると、起動時の通知（設定が壊れていた・DB を復元した等）が二度と出ない。
+const pendingUntilReady: Array<() => void> = []
+
+export function whenRendererReady(fn: () => void): void {
+  const wc = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null
+  if (!wc) { pendingUntilReady.push(fn); return }
+  if (wc.isLoading()) wc.once('did-finish-load', fn)
+  else fn()
+}
+
+// フォーカス復帰時に呼ぶもの（ホットキーの取り直し）。ウィンドウは作り直されることがあるので、
+// ウィンドウではなくここに持ち、作るたびに張る。
+const focusListeners: Array<() => void> = []
+
+export function onMainWindowFocus(fn: () => void): void {
+  focusListeners.push(fn)
+}
+
+// メインウィンドウを前面に出す（show + focus）。閉じたらメモリを空ける設定で破棄されていれば作り直す。
 export function showMainWindow(): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    // 自動起動時は skipTaskbar 付きで生成しているため、初回表示でタスクバーへ戻す
-    mainWindow.setSkipTaskbar(false)
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    buildWindow(true)
+    return
   }
+  // 自動起動時は skipTaskbar 付きで生成しているため、初回表示でタスクバーへ戻す
+  mainWindow.setSkipTaskbar(false)
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
 }
 
 export function isMainWindowFocused(): boolean {
@@ -108,14 +132,22 @@ export function safeExternalUrl(value: unknown): string | null {
 
 // メインウィンドウを生成する。onFocus はフォーカス復帰時に呼ばれる（ホットキー再取得用）。
 // startHidden の場合はウィンドウを出さずトレイ常駐で待機する（OS 自動起動時）。
+// **閉じたらメモリを空ける設定なら、裏で起動したときは作りもしない**——作ると、開かれるまで
+// 一覧の画面がまるごと常駐する。トレイから開いたときに作る（showMainWindow）。
 export function createWindow(onFocus: () => void, startHidden = false): void {
+  onMainWindowFocus(onFocus)
+  if (startHidden && loadSettings().lowMemoryMode) return
+  buildWindow(!startHidden)
+}
+
+function buildWindow(show: boolean): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 960,
     minHeight: 480,
-    show: !startHidden,
-    skipTaskbar: startHidden,
+    show,
+    skipTaskbar: !show,
     title: 'Shiori',
     icon: join(__dirname, '../../build/icon.ico'),
     webPreferences: {
@@ -140,15 +172,27 @@ export function createWindow(onFocus: () => void, startHidden = false): void {
     if (!isTrustedRendererUrl(url)) event.preventDefault()
   })
 
-  mainWindow.on('close', (e) => {
-    if (!isQuitting) {
-      e.preventDefault()
-      mainWindow?.hide()
-    }
+  // 閉じても終了しない（トレイに常駐する）。普段は隠すだけで、閉じたらメモリを空ける設定のときは
+  // 破棄して画面のプロセスごと手放す。**書き出し・取り込みなどの処理中は隠すだけにする**——
+  // 進み具合と結果の表示は画面にしか届かないので、破棄すると終わったかどうか分からなくなる。
+  const win = mainWindow
+  win.on('close', (e) => {
+    if (isQuitting) return
+    if (loadSettings().lowMemoryMode && !hasActiveTasks()) return
+    e.preventDefault()
+    win.hide()
+  })
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
   })
 
   // 起動時に競合で取れなかったホットキーを、ウィンドウ復帰時に取り直す
-  mainWindow.on('focus', onFocus)
+  win.on('focus', () => focusListeners.forEach((fn) => fn()))
+
+  // 作る前に預かった「読み込み後に実行するもの」を流す。
+  win.webContents.once('did-finish-load', () => {
+    pendingUntilReady.splice(0).forEach((fn) => fn())
+  })
 
   // レンダラーの HTML ファイル名
   const htmlName = 'index.html'

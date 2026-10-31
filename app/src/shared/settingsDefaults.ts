@@ -16,6 +16,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   clipMaxSeconds: 30,
   clipNotify: true,
   captureNotify: true,
+  // 既定は従来どおり常駐させる。開くたびに読み込み直す代償は、選んだ人にだけ払わせる。
+  lowMemoryMode: false,
   allowedExtensionIds: [],
   serviceOrder: [],
   showAiTags: false,

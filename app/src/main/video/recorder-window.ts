@@ -19,6 +19,14 @@ export function getRecorderWindow(): BrowserWindow | null {
   return recorderWindow
 }
 
+// 録画用ウィンドウを捨てる（閉じたらメモリを空ける設定で、録画が終わるたびに呼ぶ）。
+// 次の録画で ensureRecorderReady が作り直す。
+export function destroyRecorderWindow(): void {
+  const win = recorderWindow
+  recorderWindow = null
+  if (win && !win.isDestroyed()) win.destroy()
+}
+
 export function isTrustedRecorderSender(
   event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent
 ): boolean {
@@ -34,7 +42,7 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   const preloadPath = join(__dirname, '../preload/recorder.js')
   // show:false の隠し window ではコンポジターが止まり requestVideoFrameCallback が
   // スロットリングされる。1x1px の可視ウィンドウにすることでスロットリングを回避する。
-  recorderWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     show: true,
     width: 1,
     height: 1,
@@ -58,7 +66,10 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   // （render-process-gone と同じ症状）。frameless・focusable:false でユーザーが
   // 閉じる経路はほぼないが、対称化のため closed でも録画状態をリセットする。
   // finishRecordingState は冪等なので、正常系での多重発火も no-op になる。
-  recorderWindow.on('closed', () => {
+  recorderWindow = win
+  // 自分で捨てた（destroyRecorderWindow）ときは、先に参照を外してあるので中断扱いにしない。
+  win.on('closed', () => {
+    if (recorderWindow !== win) return
     recorderWindow = null
     onInterrupted?.()
   })
@@ -69,7 +80,7 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   //
   // 注: この経路にカーソル除外の効果は無い（cursor:'never' は Chromium 未実装。詳細は
   // recorder.ts の acquireScreenStream）。除外は拡張機能側 content.js の hideCursor が担う。
-  recorderWindow.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
+  win.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer.getSources({ types: ['screen'] })
       .then((sources) => {
         // 一致しないときに sources[0] へ落とすと、画面が複数ある環境で**別のモニターを
@@ -90,27 +101,29 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   })
 
   // レコーダーは外部 URL を開く正当な理由がないため、全て deny（外部ブラウザへの委譲もしない）
-  recorderWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-  recorderWindow.webContents.on('will-navigate', (event, url) => {
+  win.webContents.on('will-navigate', (event, url) => {
     if (url !== trustedRecorderUrl) event.preventDefault()
   })
 
   // レコーダープロセスがクラッシュすると recorder:done/error が届かず、録画状態が
   // true で固着する（トレイ録画表示のまま・ホットキーが停止しか効かない）。
   // クラッシュを検知して録画状態を強制リセットする。
-  recorderWindow.webContents.on('render-process-gone', (_event, details) => {
+  win.webContents.on('render-process-gone', (_event, details) => {
     console.error('[recorder] render process gone', details.reason)
+    // 捨てた後・作り直した後の古いウィンドウの知らせで、今の録画を畳まない。
+    if (recorderWindow !== win) return
     onInterrupted?.()
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (!app.isPackaged && devUrl && isAllowedDevRendererUrl(devUrl)) {
     trustedRecorderUrl = `${devUrl}/recorder.html`
-    recorderWindow.loadURL(trustedRecorderUrl)
+    win.loadURL(trustedRecorderUrl)
   } else {
     const recorderFile = join(__dirname, '../renderer/recorder.html')
     trustedRecorderUrl = pathToFileURL(recorderFile).toString()
-    recorderWindow.loadFile(recorderFile)
+    win.loadFile(recorderFile)
   }
 }

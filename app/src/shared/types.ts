@@ -103,6 +103,9 @@ export type Settings = {
   clipMaxSeconds: number
   clipNotify: boolean
   captureNotify: boolean
+  // 閉じたらウィンドウを破棄し、録画用の隠しウィンドウも録画のたびに作って捨てる（常駐中のメモリを空ける）。
+  // 代わりに開くたび読み込み直し（一覧の位置は先頭へ戻る）、録画の開始が少し遅れる。
+  lowMemoryMode: boolean
   allowedExtensionIds: string[]
   serviceOrder: string[]
   showAiTags: boolean

@@ -202,6 +202,7 @@ export function normalizeSettings(value: unknown): Settings {
     clipMaxSeconds: boundedNumber(data.clipMaxSeconds, DEFAULTS.clipMaxSeconds, 5, 30),
     clipNotify: data.clipNotify !== false,
     captureNotify: data.captureNotify !== false,
+    lowMemoryMode: data.lowMemoryMode === true,
     allowedExtensionIds: allowedIds.length > 0 ? allowedIds : [EXTENSION_ID],
     serviceOrder: stringList(data.serviceOrder),
     showAiTags: data.showAiTags === true,

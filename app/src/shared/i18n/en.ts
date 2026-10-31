@@ -549,6 +549,8 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.language': 'Language',
   'settings.startup': 'Startup',
   'settings.startOnLogin': 'Start on login',
+  'settings.lowMemoryMode': 'Free memory when closed',
+  'settings.lowMemoryModeHint': 'Closing the window shuts the screen down so Shiori uses less memory while it waits in the tray. Opening it from the tray loads it again and resets the list position and selection. Recordings are also set up fresh each time, so they take a little longer to start.',
   'settings.extension': 'Browser extension',
   'settings.extReloadNeeded': 'Reload needed',
   'settings.extConnected': 'Connected',

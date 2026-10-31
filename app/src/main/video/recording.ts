@@ -6,7 +6,7 @@ import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRec
 import { loadSettings } from '../system/settings'
 import { captureRootReachable } from '../system/paths'
 import { isMainWindowFocused } from '../system/windows'
-import { getRecorderWindow, createRecorderWindow, setPendingDisplaySource } from './recorder-window'
+import { getRecorderWindow, createRecorderWindow, destroyRecorderWindow, setPendingDisplaySource } from './recorder-window'
 import { startFrameFeed, stopFrameFeed, waitForSteadyFrames } from './frame-feed'
 import { setTrayRecording } from '../system/tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/timecode'
@@ -222,7 +222,7 @@ async function ensureRecorderReady(timeoutMs: number): Promise<boolean> {
   // 以後の録画が毎回準備の見切りまで待って失敗し、アプリを再起動するまで録画できなかった。
   if (win.webContents.isCrashed()) {
     console.warn('[clip] recorder renderer had crashed; recreating the window')
-    win.destroy()
+    destroyRecorderWindow()
     createRecorderWindow(finishRecordingState)
     win = getRecorderWindow()
     if (!win || win.isDestroyed()) return false
@@ -488,7 +488,17 @@ export async function startRecording(): Promise<void> {
     finishRecordingState()
   } finally {
     isRecordingStarting = false
+    // 始めずに抜けた（対象が見つからない等）ときも、作った録画用ウィンドウを残さない。
+    if (!isRecording) releaseIdleRecorder()
   }
+}
+
+// 閉じたらメモリを空ける設定では、録画用ウィンドウを録画のたびに作って捨てる（常駐させると
+// 描画プロセスが 1 つまるごと残る）。録画中・開始処理中は捨てない。
+function releaseIdleRecorder(): void {
+  if (isRecording || isRecordingStarting) return
+  if (!loadSettings().lowMemoryMode) return
+  destroyRecorderWindow()
 }
 
 function stopRecording(): void {
@@ -554,6 +564,8 @@ export function finishRecordingState(): void {
   if (wasRecording && !uiHoldReleased) broadcastMessage({ type: 'post-capture', immediate: true })
   uiHoldReleased = false
   setTrayRecording(false)
+  // ファイルの中身は recorder:done で受け取り済み（ここは保存の前に呼ばれる）なので、捨ててよい。
+  releaseIdleRecorder()
 }
 
 export function handleClipHotkey(): void {

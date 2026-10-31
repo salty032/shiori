@@ -17,6 +17,7 @@ const DEFAULTS = {
   clipMaxSeconds: 30,
   clipNotify: true,
   captureNotify: true,
+  lowMemoryMode: false,
   allowedExtensionIds: [DEFAULT_EXTENSION_ID],
   serviceOrder: [],
   showAiTags: false,

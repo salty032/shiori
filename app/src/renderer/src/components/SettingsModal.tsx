@@ -27,6 +27,7 @@ type Props = {
   onUpdateFrameFpsAuto: (enabled: boolean) => void
   onUpdateCaptureHotkey: (hotkey: string) => Promise<boolean>
   onUpdateCaptureNotify: (enabled: boolean) => void
+  onUpdateLowMemoryMode: (enabled: boolean) => void
   onUpdateShowAiTags: (enabled: boolean) => void
   onUpdateTheme: (theme: Settings['theme']) => void
   onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
@@ -283,6 +284,11 @@ export default function SettingsModal(p: Props) {
                     <span style={s.label}>{t('settings.startOnLogin')}</span>
                     <ToggleSwitch checked={p.startup} onChange={() => p.onToggleStartup()} />
                   </div>
+                  <div style={s.toggleRow}>
+                    <span style={s.label}>{t('settings.lowMemoryMode')}</span>
+                    <ToggleSwitch checked={p.settings.lowMemoryMode ?? false} onChange={p.onUpdateLowMemoryMode} />
+                  </div>
+                  <div style={s.hint}>{t('settings.lowMemoryModeHint')}</div>
                 </div>
                 <div style={s.group}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>

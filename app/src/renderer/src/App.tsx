@@ -763,6 +763,7 @@ export default function App() {
             onUpdateFrameFpsAuto={settings.updateFrameFpsAuto}
             onUpdateCaptureHotkey={settings.updateCaptureHotkey}
             onUpdateCaptureNotify={settings.updateCaptureNotify}
+            onUpdateLowMemoryMode={settings.updateLowMemoryMode}
             onUpdateShowAiTags={settings.updateShowAiTags}
             onUpdateTheme={settings.updateTheme}
             onUpdateVideoExportFormat={settings.updateVideoExportFormat}

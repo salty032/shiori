@@ -623,6 +623,8 @@ export const ja = {
   'settings.language': '言語',
   'settings.startup': '起動',
   'settings.startOnLogin': 'ログイン時に自動起動',
+  'settings.lowMemoryMode': '閉じたらメモリを空ける',
+  'settings.lowMemoryModeHint': 'ウィンドウを閉じると画面を終了し、トレイに常駐している間のメモリを減らします。トレイから開くたびに読み込み直し、一覧の位置や選択は最初に戻ります。録画も毎回準備し直すので、始まるまで少し長くかかります。',
   'settings.extension': '拡張機能',
   'settings.extReloadNeeded': '再読み込みが必要',
   'settings.extConnected': '受信中',
