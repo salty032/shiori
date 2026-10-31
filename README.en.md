@@ -22,7 +22,7 @@ WD Tagger and filtering by tag or date.
 - **Grid and timeline views**: organize in bulk with drag-rectangle selection, Shift/Ctrl-click, and arrow keys
 - **Frame stepping**: `,` / `.` over the player (same keys in the app's viewer and trimmer); `M` mutes
 - **Timesheet**: type numbers while stepping through a recorded clip's frames, then copy the sheet in a form you can paste straight into Toei Digital Timesheet
-- **Export as mp4**: choose “mp4” under Settings > Data > Video conversion and Shiori converts to H.264 on export (webm stays the default)
+- **Export as mp4**: choose “mp4” under Settings > Data > Video export and Shiori converts to H.264 on export (webm stays the default)
 - **Local import**: paste a clipboard image with `Ctrl+V`, or drop a folder of images and videos (`.webm` / `.mp4`, up to 30 seconds) to import them in bulk
 - **Delete**: press `Delete`. The toast that appears has an "Undo" you can use for a few seconds
   (after the grace period the files are gone for good, and **they are not sent to the Windows Recycle Bin**)

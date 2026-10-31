@@ -284,6 +284,9 @@ export default function SettingsModal(p: Props) {
                     <span style={s.label}>{t('settings.startOnLogin')}</span>
                     <ToggleSwitch checked={p.startup} onChange={() => p.onToggleStartup()} />
                   </div>
+                </div>
+                <div style={s.group}>
+                  <div style={s.section}>{t('settings.memory')}</div>
                   <div style={s.toggleRow}>
                     <span style={s.label}>{t('settings.lowMemoryMode')}</span>
                     <ToggleSwitch checked={p.settings.lowMemoryMode ?? false} onChange={p.onUpdateLowMemoryMode} />
@@ -456,8 +459,7 @@ export default function SettingsModal(p: Props) {
                       <button style={s.cancelBtn} onClick={p.onTaggerCancelDownload}>{t('action.stop')}</button>
                     </div>
                   ) : (
-                    <div style={s.actionRow}>
-                      <div style={s.hint}>{t('settings.modelSaveHint')}</div>
+                    <div style={{ ...s.actionRow, justifyContent: 'flex-end' }}>
                       <button style={s.addBtn} onClick={p.onTaggerDownload}>
                         {t('settings.downloadModel')}
                       </button>
