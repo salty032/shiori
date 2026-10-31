@@ -278,8 +278,14 @@ export function matchFrames(
     )
   }
 
-  const runs = pictureChanged && pictureChanged.length === drawnAt.length && changesEveryFrame(pictureChanged, frames.length)
-    ? pictureRuns(pictureChanged)
+  // 素材のコマ周期。複製の位置（OffsetReplica）と録画範囲の判定の両方で使う。
+  // drops（格子に空いた穴＝通知が来なかったコマ）も同じ当てはめから出る。捨てずに持ち帰る。
+  const grid = fitGrid(frames.map((f) => f.mediaTime))
+  const periodMs = grid?.periodMs ?? 1000 / 24
+  const reportDrops = grid?.drops ?? 0
+
+  const runs = pictureChanged && pictureChanged.length === drawnAt.length
+    ? pictureRuns(pictureChanged, everyFrameRows(frames, drawnAt, pictureChanged, periodMs))
     : null
 
   const pickIndices = (offsetMs: number): number[] => {
@@ -330,17 +336,11 @@ export function matchFrames(
     return out
   }
 
-  // 素材のコマ周期。複製の位置（OffsetReplica）と録画範囲の判定の両方で使う。
-  // drops（格子に空いた穴＝通知が来なかったコマ）も同じ当てはめから出る。捨てずに持ち帰る。
-  const grid = fitGrid(frames.map((f) => f.mediaTime))
-  const periodMs = grid?.periodMs ?? 1000 / 24
-  const reportDrops = grid?.drops ?? 0
-
   // 絵が無いときのスコアは「自分の区間内に絵があったコマ数」。供給が足りると窓の広い範囲で
   // 満点に張り付き、位相が決まらない（60Hz の画面で 29.97fps を撮ると、注記なしで隣の絵を出す
   // コマが 1 本で最大 87 あった）。絵があるときは先に「1 つ前のコマと別の絵を指すコマ数」で比べる。
   // 区切りの直前の 1 枚を掴む位相ほど、前のコマと同じ絵を指すコマが増えて点が下がる。
-  // 同点なら今までどおり撮れたコマ数で決める。コマ打ちの録画では絵を使わない（changesEveryFrame）。
+  // 同点なら今までどおり撮れたコマ数で決める。数えるのは絵が毎コマ変わっている区間の行だけ（everyFrameRows）。
   // 変わり目の位置で比べる数え方（区間の途中で変わった回数・切り替わる直前の 1 枚を選んだ回数）は、
   // どちらも遅れを 5〜10ms 短く選んで外れを増やした。60Hz の画面では素材 1 コマに撮れる絵が 1〜2 枚
   // しかなく、「1 枚手前の絵の先頭」を選ぶ位置と絵の上で区別がつかない（docs/SPEC.md「キャプチャ経路の遅延（offsetMs）」）。
@@ -350,7 +350,9 @@ export function matchFrames(
     if (!runs) return capturedCount(offsetMs)
     const idx = pickIndices(offsetMs)
     let distinct = 0
-    for (let k = 1; k < idx.length; k++) if (runs.run[idx[k]] !== runs.run[idx[k - 1]]) distinct++
+    for (let k = 1; k < idx.length; k++) {
+      if (runs.dense[k] && runs.dense[k - 1] && runs.run[idx[k]] !== runs.run[idx[k - 1]]) distinct++
+    }
     return distinct * (frames.length + 1) + capturedCount(offsetMs)
   }
 
@@ -458,20 +460,42 @@ export interface PictureRuns {
   run: number[]
   /** 区間ごとの先頭フレーム */
   first: number[]
+  /** 素材のコマ（行）ごとに、絵が毎コマ変わっている区間にあるか（everyFrameRows） */
+  dense: boolean[]
 }
 
-// 絵がほぼ毎コマ変わる録画か。**コマ打ちの録画では絵で位相を決めない。** 同じ絵が 2〜3 コマ
-// 続くと「前のコマと別の絵を指すコマ数」は位相の手がかりにならず、むしろ外れる位相を選ぶ
-// （2 コマ打ちを模した合成データで、外れが 27 → 92 に増えた）。素材のコマ数に対する変わり目の数で
-// 見分ける。毎コマ変わる映像でも、録画に写らなかったコマのぶん少し足りなくなる。
-const EVERY_FRAME_CHANGE_RATIO = 0.8
+// 絵が毎コマ変わっている区間にある行か。**同じ絵が続く区間（コマ打ち）の行では絵で位相を決めない。**
+// そこでは「前のコマと別の絵を指すコマ数」が位相の手がかりにならず、むしろ外れる位相を選ぶ
+// （2 コマ打ちを模した合成データで、外れが 27 → 92 に増えた）。
+//
+// アニメは人物がコマ打ちでも、背景・光・カメラが毎コマ動く場面が 1 本の中に混ざる（実録画で、
+// 光る魚が毎コマ動く背景の前で人物が 2〜3 コマ打ち）。録画全体で判定すると混ざった録画で絵を
+// 使えないので、行ごとに前後 EVERY_FRAME_SPAN コマぶんの変わり目の数で見分ける。
+// 毎コマ変わる区間なら変わり目は約 2×EVERY_FRAME_SPAN 個、2 コマ打ちなら半分。
+const EVERY_FRAME_SPAN = 3
+const EVERY_FRAME_MIN_CHANGES = 5
+// 毎コマ変わる区間の行がこれより少なければ、絵は使わない（素材 1 秒ぶん）。
+const EVERY_FRAME_MIN_ROWS = 24
 
-function changesEveryFrame(changed: readonly boolean[], sourceFrames: number): boolean {
-  if (sourceFrames === 0) return false
-  return changed.filter(Boolean).length >= sourceFrames * EVERY_FRAME_CHANGE_RATIO
+function everyFrameRows(
+  frames: SourceFrame[], drawnAt: number[], changed: readonly boolean[], periodMs: number
+): boolean[] | null {
+  const span = EVERY_FRAME_SPAN * periodMs
+  const dense: boolean[] = []
+  let lo = 0
+  let hi = 0
+  let count = 0
+  for (const f of frames) {
+    const center = f.displayAt + CAPTURE_LATENCY_MS
+    while (hi < drawnAt.length && drawnAt[hi] < center + span) { if (changed[hi]) count++; hi++ }
+    while (lo < hi && drawnAt[lo] < center - span) { if (changed[lo]) count--; lo++ }
+    dense.push(count >= EVERY_FRAME_MIN_CHANGES)
+  }
+  return dense.filter(Boolean).length >= EVERY_FRAME_MIN_ROWS ? dense : null
 }
 
-export function pictureRuns(changed: readonly boolean[]): PictureRuns {
+export function pictureRuns(changed: readonly boolean[], dense: boolean[] | null): PictureRuns | null {
+  if (!dense) return null
   const run: number[] = []
   const first: number[] = []
   let r = -1
@@ -482,7 +506,7 @@ export function pictureRuns(changed: readonly boolean[]): PictureRuns {
     }
     run.push(r)
   }
-  return { run, first }
+  return { run, first, dense }
 }
 
 // 時刻で選んだ 1 枚が区切りをまたいだ行を、隣の区間へ移す。
@@ -494,6 +518,7 @@ export function pictureRuns(changed: readonly boolean[]): PictureRuns {
 function repairByPicture(idx: number[], runs: PictureRuns): void {
   const R = (k: number): number => runs.run[idx[k]]
   for (let k = 1; k + 1 < idx.length; k++) {
+    if (!runs.dense[k - 1] || !runs.dense[k] || !runs.dense[k + 1]) continue
     if (R(k) === R(k - 1) && R(k + 1) - R(k) >= 2) idx[k] = runs.first[R(k) + 1]
     else if (R(k) - R(k - 1) >= 2 && R(k + 1) === R(k)) idx[k] = runs.first[R(k) - 1]
   }
