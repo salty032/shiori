@@ -136,6 +136,9 @@ function writePage() {
     b.onclick = () => { v.src = b.dataset.src; document.getElementById('now').textContent = b.dataset.src; v.play() }
   }
   document.getElementById('toggle').onclick = () => v.paused ? v.play() : v.pause()
+  // ?play=ファイル名 で開くとその動画を自動で再生する（録画を自動で回すとき用）。
+  const auto = new URLSearchParams(location.search).get('play')
+  if (auto) { v.src = auto; document.getElementById('now').textContent = auto; v.play() }
 </script>
 </body>
 </html>
