@@ -11,7 +11,7 @@ import { registerVideoHandlers } from '../ipc/ipc-video'
 import { registerRecorderIpc } from './recorder-ipc'
 import { registerClipHotkey, changeClipHotkey } from './clip-hotkey'
 import { registerSupplyBench } from './supply-bench'
-import { finishRecordingState, handleClipHotkey, isCurrentlyRecording } from './recording'
+import { finishRecordingState, handleClipHotkey, isRecordingInProgress } from './recording'
 
 export function registerVideoIpc(): void {
   registerVideoHandlers()
@@ -47,12 +47,15 @@ export function startVideo(): void {
 
   // 録画中はスクショと pre/post-capture を共有しているため、スクショ終了時の
   // post-capture が録画中の動画にUIを復活させてしまう。録画中は撥ねる。
+  // **開始の準備中も含める。** 記録が始まる前でも、スクショの post-capture が後から届けば
+  // 録画の冒頭に UI が戻る。
   addPreCaptureGuard(() => {
-    if (isCurrentlyRecording()) throw new SilentCaptureAbort('Recording in progress')
+    if (isRecordingInProgress()) throw new SilentCaptureAbort('Recording in progress')
   })
   // キャプチャ対象（ウィンドウ位置・動画矩形）は録画中に書き換えない。
-  // バックグラウンドタブのポーリングが getCrop 前に競り勝つのを防ぐ。
-  addBrowserTargetUpdateGuard(() => isCurrentlyRecording())
+  // バックグラウンドタブのポーリングが getCrop 前に競り勝つのを防ぐ。開始の準備中も同じ
+  // （録画対象の画面は準備中に、ここで決めた位置から選ぶ）。
+  addBrowserTargetUpdateGuard(() => isRecordingInProgress())
 
   registerClipHotkey(
     loadSettings().clipHotkey,
