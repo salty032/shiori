@@ -55,6 +55,8 @@ function notifyVerified(
  *   ので null を渡す。
  * @param source 録画中に届いた素材のコマ通知。渡すと、取り出した絵で表を作り直す
  *   （frame-feed.ts の pictureRuns）。診断の書き出しにも使う。
+ * @returns 決め直した撮り逃しの数。表が使えない・検証できなかったときは null。
+ *   録画の完了通知はこの数を出す（保存直後の数を出すと、画面の数と食い違う）。
  */
 export async function verifyClipFrames(
   imageId: number,
@@ -62,7 +64,7 @@ export async function verifyClipFrames(
   table: StoredFrame[],
   drawnAt: number[] | null,
   source: SourceFrame[] = []
-): Promise<void> {
+): Promise<number | null> {
   try {
     const { signatures, pts } = await getFrameSignatures(videoPath)
     if (drawnAt !== null) {
@@ -75,7 +77,7 @@ export async function verifyClipFrames(
     }
     if (signatures.length === 0) {
       logVerifyResult(imageId, null)
-      return
+      return null
     }
 
     let frames = table
@@ -197,7 +199,7 @@ export async function verifyClipFrames(
           // 1 行も使えるところが無い。ここだけは表として成立しない。
           markVideoFramesUnusable(imageId, 'correspondence-break')
           notifyVerified(imageId, null, null, null, null, null)
-          return
+          return null
         }
         if (misaligned > 0) {
           saveVideoFrames(imageId, marked)
@@ -218,7 +220,7 @@ export async function verifyClipFrames(
             misaligned,
             reportDropsMeasured(marked)
           )
-          return
+          return marked.filter((f) => !f.captured).length
         }
         // 裏が取れなかった＝表はそのまま使える。範囲外を指す行だけ落として通常の経路へ戻す。
         frames = marked
@@ -230,7 +232,7 @@ export async function verifyClipFrames(
         if (kept.length === 0) {
           markVideoFramesUnusable(imageId, 'no-frame-within-file')
           notifyVerified(imageId, null, null, null, null, null)
-          return
+          return null
         }
         console.warn(
           `[frame-verify] image ${imageId}: file is short by ${drawnAt.length - signatures.length} frame(s) at the end` +
@@ -256,7 +258,7 @@ export async function verifyClipFrames(
     // 末尾を切って枚数が変わっている場合があるので、画面への反映だけは伝える。
     if (missed === 0) {
       notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames), misaligned, reportDropsMeasured(frames))
-      return
+      return 0
     }
 
     const result = verifyFrameTable(frames, signatures)
@@ -264,9 +266,11 @@ export async function verifyClipFrames(
     setAmbiguousFrames(imageId, result.ambiguous)
     notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames), misaligned, reportDropsMeasured(frames))
     logVerifyResult(imageId, result)
+    return missed
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
     console.warn(`[frame-verify] image ${imageId}: failed`, err)
+    return null
   }
 }
 

@@ -261,6 +261,7 @@ export function registerRecorderIpc(): void {
       // フレーム表は保存できなくてもクリップ自体は成立する（コマ送りが従来動作に
       // 落ちるだけ）。ここで失敗させて保存済みのクリップを巻き戻す方が損失が大きい。
       const missedFrames = frameTable ? frameTable.matches.filter((m) => !m.captured).length : 0
+      let verified: Promise<number | null> | null = null
       if (frameTable) {
         try {
           saveVideoFrames(result.id, frameTable.matches)
@@ -273,19 +274,26 @@ export function registerRecorderIpc(): void {
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、
           // それだと「最も精度が良く見えるクリップ」ほど照合されないことになる。
           // 待たずに投げっぱなしにする — 保存の完了通知を遅らせないため。
-          void verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceFrames)
+          verified = verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceFrames)
         } catch (err) {
           console.error('[clip] saveVideoFrames failed', err)
         }
       }
-      if (loadSettings().clipNotify !== false) {
-        // 撮り逃したコマがあるときは枚数も添える。この場で分かれば撮り直せるが、後から
-        // 詳細パネルで気づいても撮り直せる場面はもう終わっている。0 枚なら従来どおり
-        // 何も足さない（大半はこちら。常に数字を出すと通知が読み飛ばされる）。
-        sendBrowserNotice('success', missedFrames > 0
-          ? t('notice.clipSavedWithMissed', { duration: formatClipDuration(duration), count: String(missedFrames) })
+      // 撮り逃したコマがあるときは枚数も添える。この場で分かれば撮り直せるが、後から
+      // 詳細パネルで気づいても撮り直せる場面はもう終わっている。0 枚なら従来どおり
+      // 何も足さない（大半はこちら。常に数字を出すと通知が読み飛ばされる）。
+      //
+      // **枚数は照合し直した後の数を出す。** 保存直後の数は時刻だけで決めた仮の値で、
+      // 照合で決め直した詳細パネルの数と食い違っていた。照合は数秒かかるので通知もそのぶん遅れる。
+      // 照合できなかったときは保存直後の数を出す（詳細パネルもその数のまま残る）。
+      const notifySaved = (missed: number): void => {
+        if (loadSettings().clipNotify === false) return
+        sendBrowserNotice('success', missed > 0
+          ? t('notice.clipSavedWithMissed', { duration: formatClipDuration(duration), count: String(missed) })
           : t('notice.clipSaved', { duration: formatClipDuration(duration) }))
       }
+      if (verified) void verified.then((missed) => notifySaved(missed ?? missedFrames))
+      else notifySaved(missedFrames)
     } catch (err) {
       console.error('[clip] save failed', err)
       if (webmPath) try { await unlink(webmPath) } catch {}

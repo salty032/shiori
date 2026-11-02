@@ -66,6 +66,21 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     })
   })
 
+  // 録画の完了通知（ブラウザに出る）はこの戻り値を出す。画面へ飛ばす数と別の数を返すと、
+  // 通知と詳細パネルで撮り逃しの数が食い違う（保存直後の数を出していた頃はそうだった）。
+  it('画面へ飛ばした撮り逃しの数と同じ数を返す', async () => {
+    signatures.value = [flat(10), flat(200)]
+    signatures.pts = [0, 0.02]
+    const table: StoredFrame[] = [
+      { mediaTime: 0, frameIndex: 0, captured: true },
+      { mediaTime: 0.04, frameIndex: 0, captured: false },
+      { mediaTime: 0.08, frameIndex: 1, captured: true }
+    ]
+    const missed = await verifyClipFrames(10, 'clip.webm', table, null)
+    expect(missed).toBe(1)
+    expect(verifiedPayload()?.uncaptured).toBe(missed)
+  })
+
   it('撮り逃しが 0 でも飛ばす（未検証の表示を残さない）', () => {
     signatures.value = [flat(10), flat(200)]
     signatures.pts = [0, 0.02]
