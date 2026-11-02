@@ -94,13 +94,22 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
 
   // フレームテーブルが使えるか
   const hasTable = framePts.length > 0
-  const inIdx = hasTable ? findFrameIdx(framePts, inSec) : -1
-  const outIdx = hasTable ? findFrameIdx(framePts, outSec) : -1
+  // IN/OUT が表の何行目か。**時刻だけでは決まらない**——撮り逃したコマは直前のコマと
+  // 同じ時刻で並ぶ（ipc-video.ts の buildClipFrames）ので、時刻から引くと必ずその並びの
+  // 最後の行になり、−1f が撮り逃しの所で止まって戻れなかった。
+  const [inRow, setInRow] = useState(-1)
+  const [outRow, setOutRow] = useState(-1)
+  const playRowRef = useRef(-1)  // 再生位置の行（同じ理由）
+  // 覚えている行が今の時刻と食い違っていれば（ドラッグ・クリック等で時刻だけ動いた）時刻から引く。
+  function rowAt(row: number, sec: number): number {
+    if (row >= 0 && row < framePts.length && Math.abs(framePts[row] - sec) <= FRAME_EPS) return row
+    return findFrameIdx(framePts, sec)
+  }
+  const inIdx = hasTable ? rowAt(inRow, inSec) : -1
+  const outIdx = hasTable ? rowAt(outRow, outSec) : -1
 
   // ffmpeg に渡す終端時刻: OUT フレームの次フレーム開始時刻（OUT含む）
-  const exportOutSec = hasTable
-    ? (outIdx + 1 < framePts.length ? framePts[outIdx + 1] : dur)
-    : outSec
+  const exportOutSec = exportOutOf(outSec)
 
   // フレームテーブルが取れないときの刻み幅。クリップの実測 fps（image.fps）が
   // あればそれを優先する（settings.frameFps はクリップの実態と無関係なグローバル既定値
@@ -125,6 +134,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
           setFrameDurs(frameDur)
           setInSec(pts[0])
           setOutSec(pts[pts.length - 1])
+          setInRow(0)
+          setOutRow(pts.length - 1)
           // タイムラインの全長を「最後のフレーム + 1 コマ」に詰める。
           // コンテナの尺（video.duration）は録画停止までのラグを含んでおり、最後のフレーム
           // より後ろに映像の無い区間が残る。それをタイムラインに含めると、OUT を末尾まで
@@ -196,6 +207,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   // OUT に選んだフレームの「終わり」の時刻。OUT はそのフレームを含むので、帯やマーカーは
   // ここまで塗る必要がある。開始時刻で描くと、末尾のフレームを選んでも 1 コマ分だけ
   // 右端に届かない。
+  // 次の行ではなく「次に時刻が進む行」を取る（findFrameIdx は同じ時刻の並びの最後を返す）。
+  // 撮り逃しの行を OUT にしたとき次の行を取ると、映っている絵の手前で切れてしまう。
   function exportOutOf(outS: number): number {
     if (!hasTable) return outS
     const idx = findFrameIdx(framePts, outS)
@@ -301,8 +314,10 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       const targetSec = framePts[targetIdx]
       const v = videoRef.current
       if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = frameSeekSec(targetIdx); displayedSecRef.current = targetSec }
+      playRowRef.current = targetIdx
       updatePos(targetSec)
       setInSec(targetSec)
+      setInRow(targetIdx)
     } else {
       stepBoundaryRvfc(dir, 'in')
     }
@@ -314,8 +329,10 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       const targetSec = framePts[targetIdx]
       const v = videoRef.current
       if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = frameSeekSec(targetIdx); displayedSecRef.current = targetSec }
+      playRowRef.current = targetIdx
       updatePos(targetSec)
       setOutSec(targetSec)
+      setOutRow(targetIdx)
     } else {
       stepBoundaryRvfc(dir, 'out')
     }
@@ -355,8 +372,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   function setCurrentAsIn(): void {
     withFrame(null, (t) => {
       if (hasTable) {
-        const idx = Math.max(0, Math.min(findFrameIdx(framePts, t), outIdx - 1))
+        const idx = Math.max(0, Math.min(rowAt(playRowRef.current, t), outIdx - 1))
         setInSec(framePts[idx])
+        setInRow(idx)
       } else {
         setInSec(Math.max(0, Math.min(t, outSec - step)))
       }
@@ -366,8 +384,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   function setCurrentAsOut(): void {
     withFrame(null, (t) => {
       if (hasTable) {
-        const idx = Math.max(inIdx + 1, Math.min(findFrameIdx(framePts, t), framePts.length - 1))
+        const idx = Math.max(inIdx + 1, Math.min(rowAt(playRowRef.current, t), framePts.length - 1))
         setOutSec(framePts[idx])
+        setOutRow(idx)
       } else {
         setOutSec(Math.max(t, inSec + step))
       }
@@ -378,7 +397,9 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   // 変わっている状態で Esc/✕ を押すと確認ダイアログを挟む（下の requestClose 参照）。
   const defaultInSec = hasTable ? framePts[0] : 0
   const defaultOutSec = hasTable ? framePts[framePts.length - 1] : dur
+  // 行も見る。撮り逃しの並びの中で動かしただけだと時刻は変わらない。
   const boundaryChanged = Math.abs(inSec - defaultInSec) > FRAME_EPS || Math.abs(outSec - defaultOutSec) > FRAME_EPS
+    || (hasTable && (inIdx !== 0 || outIdx !== framePts.length - 1))
 
   function requestClose(): void {
     if (boundaryChanged) setShowCloseConfirm(true)
@@ -399,12 +420,13 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       return
     }
     if (hasTable) {
-      const curIdx = findFrameIdx(framePts, displayedSecRef.current)
+      const curIdx = rowAt(playRowRef.current, displayedSecRef.current)
       const targetIdx = Math.max(0, Math.min(curIdx + dir, framePts.length - 1))
       const targetSec = framePts[targetIdx]
       seekSeqRef.current += 1
       v.currentTime = frameSeekSec(targetIdx)
       displayedSecRef.current = targetSec
+      playRowRef.current = targetIdx
       updatePos(targetSec)
     } else {
       const target = Math.max(0, Math.min((v.currentTime || 0) + dir * step, dur))
@@ -539,6 +561,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     const curInIdx = inIdx
     const curOutSec = outSec
     const curInSec = inSec
+    let dragRow = kind === 'in' ? curInIdx : curOutIdx
 
     function onMove(ev: MouseEvent): void {
       if (!timelineRef.current || dur === 0) return
@@ -552,6 +575,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             ? Math.max(0, Math.min(findFrameIdx(framePts, snapToPts(raw)), curOutIdx - 1))
             : Math.max(curInIdx + 1, Math.min(findFrameIdx(framePts, snapToPts(raw)), framePts.length - 1)))
         : -1
+      if (hasTable) { dragRow = idx; playRowRef.current = idx }
       if (kind === 'in') {
         const sec = hasTable ? framePts[idx] : Math.max(0, Math.min(raw, curOutSec - step))
         dragInSecRef.current = sec
@@ -576,8 +600,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       document.body.style.userSelect = ''
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
-      if (kind === 'in') setInSec(dragInSecRef.current)
-      else setOutSec(dragOutSecRef.current)
+      if (kind === 'in') { setInSec(dragInSecRef.current); setInRow(dragRow) }
+      else { setOutSec(dragOutSecRef.current); setOutRow(dragRow) }
     }
 
     window.addEventListener('mousemove', onMove)
