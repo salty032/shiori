@@ -20,6 +20,24 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.6.2': {
+    ja: [
+      'Shiori を起動したまま長く使っていると、撮れているコマを大量に「撮り逃し」と数え、コマ送りで別の場面の絵が出ることがありました。起動中に PC の時計が自動で合わせ直されたときに起きていました。この版で撮る録画から直ります。',
+      '録画の完了通知が、止めた直後に出るようになりました。撮り逃しの数は確認が終わると同じ通知の中で「なし」か「◯コマ」に書き換わります。通知の数と詳細パネルの数が食い違うこともなくなりました。',
+      '録画を始めた瞬間に出ていた注意の通知をやめ、録画の完了通知に添えるようにしました。',
+      'タイムシートで、撮り逃したコマは灰色で表示され、打てなくなりました。表の最後のコマの下には線が入ります。',
+      'トリミングで、撮り逃したコマのところまで −1f / +1f で動かすと、そこから先へ動かせなくなることがありました。',
+      'この更新ではブラウザ拡張も入れ替わります。ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'After Shiori had been running for a long time, captured frames could be counted as “missed” in large numbers, and frame stepping could show a picture from another moment. This happened when the PC clock was adjusted automatically while Shiori was running. Recordings made with this version are fixed.',
+      'The notification after recording now appears as soon as you stop. The missed-frame count is filled in within the same notification (“none” or a number) once checking finishes, and it now matches the details panel.',
+      'The warning that used to appear the moment recording started is now added to the notification after recording instead.',
+      'In the timesheet, missed frames are now shown in gray and cannot be typed into. A line now marks the last frame of the sheet.',
+      'When trimming, −1f / +1f could get stuck at a missed frame and not move any further.',
+      'This update also replaces the browser extension. Please reload it on your browser’s extensions page.',
+    ],
+  },
   '1.6.1': {
     ja: [
       'YouTube などの録画で、途中でコマの知らせが抜けたクリップではタイムシートが使えませんでした。抜けたコマ数がはっきりしている場合は、そのコマを空けたまま使えるようにしました。',
