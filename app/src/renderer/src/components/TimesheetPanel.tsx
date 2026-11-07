@@ -196,7 +196,10 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                 コマ送りは推定位置にも止まるが、対応する画像は無い。差し込まないと抜けた枚数だけ
                 下が詰まり、番号が元の動画とずれるため、表には空行として残す。 */}
             {rows.map((i, position) => {
-              const isGap = i === GAP_ROW
+              // 撮り逃したコマも抜けと同じ灰色で、打てない（useTimesheet の unseen）。
+              // 抜けとは意味が違うが、使う人にとってはどちらも「絵が無くて打てないコマ」。
+              const isUnseen = i !== GAP_ROW && sheet.unseen.has(i)
+              const isGap = i === GAP_ROW || isUnseen
               const isCurrent = position === currentPosition
               const isTypable = isCurrent && !isGap
               const secondIdx = Math.floor(position / perSecond)
@@ -212,7 +215,9 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                   onClick={() => { if (!isGap) sheet.seek(i) }}>
                   {CELL_COLS.map((name, col) => {
                     const isWrite = col === track
-                    const label = isGap ? null : labelAt[col][i]
+                    // 撮り逃しのコマに前に打ってあった記入は消さずに見せる（書き出しには入るので、
+                    // 隠すと貼り付け先にだけ出てくる）。
+                    const label = i === GAP_ROW ? null : labelAt[col][i]
                     return (
                       <div
                         key={`c${name}`}
@@ -222,9 +227,9 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
                           background: isGap ? c.gapRow : (isWrite && isTypable ? c.sel : band),
                           fontWeight: 800, color: c.ink,
                         }}>
-                        {!isGap && (isWrite && isTypable && pending
+                        {isWrite && isTypable && pending
                           ? <span style={{ opacity: 0.6, borderBottom: `1px solid ${c.ink}` }}>{timesheetGlyph(pending)}</span>
-                          : label !== null ? timesheetGlyph(label) : '')}
+                          : label !== null ? timesheetGlyph(label) : ''}
                         {/* 絵が続いていることを示す縦線は、抜けをまたいで伸ばさない。
                             **抜けた区間で新しい絵が始まっていても分からない**ので、
                             続いていると請け合えない。 */}

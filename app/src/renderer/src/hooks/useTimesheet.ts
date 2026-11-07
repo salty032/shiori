@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ClipFrames } from '../../../shared/api.video'
+import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import {
   buildToeiClipboard, canBuildTimesheet, countReusedFrames, decodeTimesheet, encodeTimesheet,
   expandMarks, isToeiSymbol, normalizeTimesheetValue, TIMESHEET_TRACKS, timesheetRows, TOEI_SYMBOL, trackOf,
@@ -67,6 +67,13 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   // そのコマは直前と同じ絵が出ているだけなので、そこで新しい絵が始まっていても見えない。
   // 表を開くと詳細パネルが隠れるため、打っている場所から読めるのはここだけ。
   const reused = countReusedFrames(clipFrames)
+  // 撮り逃したコマ（表の行の添字）。**抜けの行と同じく打てない**——そのコマの絵は無く、
+  // 打つなら前後から推測して書くことになる。画面でも抜けと同じ灰色で出す（使う人にとっては
+  // どちらも「絵が無くて打てないコマ」で、見分ける意味が無い。2026-11-07 の指示）。
+  const unseen = useMemo(
+    () => new Set((clipFrames?.quality ?? []).flatMap((q, i) => (q === FRAME_QUALITY.reused ? [i] : []))),
+    [clipFrames]
+  )
 
   // クリップが変わったら全部引き直す。**開いたままにはしない**——別のクリップでいきなり
   // 打てる状態になっていると、隣のクリップに打ち込む事故が起きる。
@@ -141,8 +148,9 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     const player = playerRef.current
 
     const bare = !e.ctrlKey && !e.metaKey && !e.altKey
-    // 推定抜けには保存先となる実測行が無い。移動キーは通すが、入力は受け取って捨てる。
-    const inGap = currentGap > 0
+    // 推定抜けには保存先となる実測行が無い。撮り逃したコマは絵が無い。どちらも移動キーは通すが、
+    // 入力は受け取って捨てる。
+    const inGap = currentGap > 0 || unseen.has(current)
     // ○ / ● / × は 1 つで 1 マスぶんなので、打ちかけがあっても置き換える。
     if (bare && SYMBOL_KEYS[e.key]) {
       e.preventDefault()
@@ -201,10 +209,10 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     }
 
     return false
-  }, [visible, pending, marks, current, currentGap, track, apply, setTrack])
+  }, [visible, pending, marks, current, currentGap, unseen, track, apply, setTrack])
 
   return {
-    ready, visible, open, setOpen, total, rows, current, currentGap, track, marks, pending, copied, reused,
+    ready, visible, open, setOpen, total, rows, current, currentGap, track, marks, pending, copied, reused, unseen,
     onFramesReady, onFrameIndex, setMemo, setTrack, copy, handleKey, bindPlayer, seek,
   }
 }
