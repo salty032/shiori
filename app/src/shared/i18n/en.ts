@@ -138,7 +138,9 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.recordingDataInvalid': 'The recording was damaged, so it could not be saved.',
   'notice.clipSaveFailed': 'Could not save the recording',
   'notice.clipSaved': 'Recording saved ({duration})',
-  'notice.clipSavedWithMissed': 'Recording saved ({duration}, {count} frames missed)',
+  'notice.clipSavedWithMissed': 'Recording saved ({duration}, missed frames: {count})',
+  'notice.clipSavedChecking': 'Recording saved ({duration}, missed frames: checking)',
+  'notice.clipSavedNoMissed': 'Recording saved ({duration}, missed frames: none)',
   'notice.videoNotDetected':
     'No video found. Open a video page on a supported site and check that the browser extension is enabled.',
   'notice.recorderPrepareFailed': 'Could not start the recorder. Please try again.',

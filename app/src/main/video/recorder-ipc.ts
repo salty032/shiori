@@ -284,16 +284,30 @@ export function registerRecorderIpc(): void {
       // 何も足さない（大半はこちら。常に数字を出すと通知が読み飛ばされる）。
       //
       // **枚数は照合し直した後の数を出す。** 保存直後の数は時刻だけで決めた仮の値で、
-      // 照合で決め直した詳細パネルの数と食い違っていた。照合は数秒かかるので通知もそのぶん遅れる。
-      // 照合できなかったときは保存直後の数を出す（詳細パネルもその数のまま残る）。
-      const notifySaved = (missed: number): void => {
+      // 照合で決め直した詳細パネルの数と食い違っていた。照合できなかったときは保存直後の数を出す
+      // （詳細パネルもその数のまま残る）。
+      //
+      // 照合は録画ファイルを読み直すので 1〜3 秒かかる。**その間も黙らない**——保存できたことは
+      // 止めた瞬間に「確認中」で出し、照合が終わったら同じ通知を結果で書き換える（拡張は同じ場所に
+      // 上書きする）。待ってから出すと、2 秒でも通知に気づけなかった（2026-11-07 の指摘）。
+      // 仮の数は出さない（後から変わる数を見せると、詳細パネルと食い違う）。
+      // 3 つの文言は末尾だけが違う形に揃えてあり、拡張は書き換えるとき左端を固定する
+      // （中央寄せのままだと長さが変わるたびに文字が左右へ動く）。
+      // **「撮り逃し なし」は照合で 0 と確かめたときだけ。** 照合できなかった・表が無いときは
+      // 確かめていないので、従来どおり何も添えない。
+      const notifySaved = (missed: number, confirmed: boolean): void => {
         if (loadSettings().clipNotify === false) return
+        const d = formatClipDuration(duration)
         sendBrowserNotice('success', missed > 0
-          ? t('notice.clipSavedWithMissed', { duration: formatClipDuration(duration), count: String(missed) })
-          : t('notice.clipSaved', { duration: formatClipDuration(duration) }))
+          ? t('notice.clipSavedWithMissed', { duration: d, count: String(missed) })
+          : t(confirmed ? 'notice.clipSavedNoMissed' : 'notice.clipSaved', { duration: d }))
       }
-      if (verified) void verified.then((missed) => notifySaved(missed ?? missedFrames))
-      else notifySaved(missedFrames)
+      if (verified) {
+        if (loadSettings().clipNotify !== false) {
+          sendBrowserNotice('success', t('notice.clipSavedChecking', { duration: formatClipDuration(duration) }), true)
+        }
+        void verified.then((missed) => notifySaved(missed ?? missedFrames, missed !== null))
+      } else notifySaved(missedFrames, false)
     } catch (err) {
       console.error('[clip] save failed', err)
       if (webmPath) try { await unlink(webmPath) } catch {}

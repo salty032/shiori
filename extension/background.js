@@ -249,7 +249,7 @@ function normalizeServerMessage(data) {
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
     const message = typeof msg.message === 'string' ? msg.message.slice(0, MAX_NOTICE_MESSAGE_LENGTH) : ''
-    return message ? { type: 'notice', level, message } : null
+    return message ? { type: 'notice', level, message, pending: msg.pending === true } : null
   }
   if (msg.type === 'request-timecode') {
     return {

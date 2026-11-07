@@ -214,6 +214,15 @@ describe('コマ通知が途切れる経路（content.js の rVFC ループ）',
     expect(wsServerTs).toContain("msg.type === 'frame-gap'")
   })
 
+  // 録画の「撮り逃しを確認中」は照合が終わるまで消さない印を持つ。どちらかの検疫で落ちると、
+  // 1.8 秒で消えて結果の前に一度消える（画面では「通知が遅い・見落とす」としか見えない）。
+  it('通知の pending（書き換え待ち）が background.js・content.js の検疫を通り、表示まで届く', () => {
+    for (const src of [backgroundJs, contentJs]) {
+      expect(src).toContain("{ type: 'notice', level, message, pending: msg.pending === true }")
+    }
+    expect(contentJs).toContain('showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)')
+  })
+
   it('コマ通知の診断用の時刻は content.js・background.js・ws-server.ts の全部で通る', () => {
     // background.js が 1 項目ずつ書き写すので、中継だけ忘れると送っているのに app へ届かない（実際に踏んだ）。
     const wsServerTs = readFileSync(join(__dirname, './ws-server.ts'), 'utf-8')

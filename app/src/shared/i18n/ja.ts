@@ -148,6 +148,8 @@ export const ja = {
   'notice.clipSaveFailed': '録画の保存に失敗しました',
   'notice.clipSaved': '録画を保存しました（{duration}）',
   'notice.clipSavedWithMissed': '録画を保存しました（{duration}・撮り逃し {count}コマ）',
+  'notice.clipSavedChecking': '録画を保存しました（{duration}・撮り逃し 確認中）',
+  'notice.clipSavedNoMissed': '録画を保存しました（{duration}・撮り逃し なし）',
   'notice.videoNotDetected':
     '動画を検出できませんでした。対応サイトの動画ページを開き、ブラウザ拡張が有効になっているか確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',

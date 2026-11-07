@@ -1248,7 +1248,11 @@ function hideArmingOverlay() {
   document.querySelectorAll('#shiori-clip-arming').forEach((el) => el.remove())
 }
 
-function showShioriNotice(level, message) {
+// pending: 続きの通知で書き換える予定の通知（録画の「撮り逃しを確認中」）。次の通知が来るまで
+// 消さない。短く消すと、結果が出る前に一度消えてまた出る。来なかったときのために上限は置く。
+const PENDING_NOTICE_MAX_MS = 15000
+let noticePending = false
+function showShioriNotice(level, message, pending = false) {
   let host = document.getElementById('shiori-browser-notice')
   // フルスクリーン時、サイトによっては body 直下の要素を display:none で隠す CSS がある
   // (niconico 等)。動画の親要素内なら隠されないので、フルスクリーン時はそちらに追加する。
@@ -1307,6 +1311,18 @@ function showShioriNotice(level, message) {
   if (host.parentElement !== noticeRoot) noticeRoot.appendChild(host)
 
   const box = host.shadowRoot?.querySelector('.notice')
+  // 書き換え待ちの通知を書き換えるときは、左端をその場に固定する。文言は末尾だけが違う形に
+  // 揃えてあり（「撮り逃し 確認中」→「なし」「3コマ」）、中央寄せのままだと長さが変わるたびに
+  // 文字が左右へ動く。それ以外の通知は従来どおり中央に出す。
+  const replacing = noticePending && box && !box.classList.contains('hidden')
+  if (replacing) {
+    host.style.setProperty('left', `${host.getBoundingClientRect().left}px`, 'important')
+    host.style.setProperty('transform', 'none', 'important')
+  } else {
+    host.style.setProperty('left', '50%', 'important')
+    host.style.setProperty('transform', 'translateX(-50%)', 'important')
+  }
+  noticePending = pending
   if (box) {
     box.classList.remove('info', 'success', 'warning', 'error')
     box.classList.add(level)
@@ -1318,7 +1334,7 @@ function showShioriNotice(level, message) {
   }
 
   // 成功・情報通知は短めに自動消滅させ、警告・エラーは少し長めに残す
-  const dismissAfter = level === 'success' || level === 'info' ? 1800 : 3600
+  const dismissAfter = pending ? PENDING_NOTICE_MAX_MS : level === 'success' || level === 'info' ? 1800 : 3600
   if (noticeTimer) clearTimeout(noticeTimer)
   noticeTimer = setTimeout(() => {
     noticeTimer = null
@@ -1818,7 +1834,7 @@ function normalizePortMessage(msg) {
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
     const message = typeof msg.message === 'string' ? msg.message.slice(0, MAX_NOTICE_MESSAGE_LENGTH) : ''
-    return message ? { type: 'notice', level, message } : null
+    return message ? { type: 'notice', level, message, pending: msg.pending === true } : null
   }
   if (msg.type === 'request-timecode') {
     return {
@@ -1914,7 +1930,7 @@ function connectPort() {
       hideArmingOverlay()
       scheduleRestorePlayerUI(safeMsg.immediate)
     } else if (safeMsg.type === 'notice') {
-      showShioriNotice(safeMsg.level, safeMsg.message)
+      showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)
     }
   })
 
