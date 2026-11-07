@@ -113,6 +113,28 @@ export function takeSettleNote(): string | null {
   return note
 }
 
+// 直近の録画の冒頭について保証できなかったこと。**始める瞬間には画面へ出さず、完了通知に添える**
+// （recorder-ipc.ts）。始めた瞬間に出しても、そのときにはもう何もできない——撮り直すかは録画が
+// 終わってから決めることで、そのとき読めればよい（2026-11-07 の指示。開始時の黄色い通知は迷惑だった）。
+// 録画は止めない。危ないのは冒頭の一瞬だけで、止めるとそのために場面全部を失う。
+export interface StartDoubts {
+  /** コマ通知の飛びが収まらないまま始めた。先頭に抜けがあるかもしれない */
+  notSettled: boolean
+  /** 準備中の表示が消えた後のフレームを確かめられないまま始めた。冒頭に写っているかもしれない */
+  armingUnconfirmed: boolean
+}
+let startDoubts: StartDoubts = { notSettled: false, armingUnconfirmed: false }
+
+export function markArmingUnconfirmed(): void {
+  startDoubts = { ...startDoubts, armingUnconfirmed: true }
+}
+
+export function takeStartDoubts(): StartDoubts {
+  const doubts = startDoubts
+  startDoubts = { notSettled: false, armingUnconfirmed: false }
+  return doubts
+}
+
 // 直近の解決で「どの画面を録るか確定できなかった」か。getDesktopSourceId が立て、
 // 録画開始時に警告として画面へ出す（診断ログではなくその場で読めること）。
 let lastDisplayAmbiguous = false
@@ -431,9 +453,10 @@ export async function startRecording(): Promise<void> {
     // ログは録画の見出しの下に出す（recorder-ipc.ts）。ここで出すと見出しより上に来て、
     // どの録画の行か読めない。
     lastSettleNote = `[clip] settle ${settle.settled ? 'ok' : 'gave up'} after ${settle.waitedMs}ms (${settle.reports} reports)`
-    // 落ち着きを確認できないまま始めたことは、ログではなくその場の画面に出す。
-    // 黙って始めると「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。
-    if (!settle.settled) sendBrowserNotice('warning', t('notice.recordingNotSettled'))
+    // 落ち着きを確認できないまま始めたことは、ログではなく画面に出す。黙って始めると
+    // 「待ったから大丈夫」と読めてしまう（60fps 素材・高負荷時はこちらに来る）。出すのは
+    // 始める瞬間ではなく完了通知（StartDoubts）。
+    startDoubts = { notSettled: !settle.settled, armingUnconfirmed: false }
     const tc = getLastTimecode()
     recordingMeta = {
       title: tc?.title ?? null,

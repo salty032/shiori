@@ -10,7 +10,10 @@ import { sendBrowserNotice } from '../browser/browser-notice'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
-import { finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi, takeSettleNote } from './recording'
+import {
+  finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, markArmingUnconfirmed,
+  notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi, takeSettleNote, takeStartDoubts
+} from './recording'
 import {
   logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions,
   countReportDrops, reportDropsMeasured, getSourceFrames
@@ -71,9 +74,8 @@ export function registerRecorderIpc(): void {
 
   ipcMain.on('recorder:startBoundary', (event, sessionId: number, confirmed: boolean) => {
     if (!isTrustedRecorderSender(event) || !isCurrentRecordingSession(sessionId)) return
-    if (confirmed !== true) {
-      sendBrowserNotice('warning', t('notice.recordingStartUnconfirmed'))
-    }
+    // 始める瞬間には出さず、完了通知に添える（recording.ts の StartDoubts）。
+    if (confirmed !== true) markArmingUnconfirmed()
   })
 
   // 録画が実際に止まった合図。**保存の完了ではない**ので録画状態は触らず、隠している
@@ -189,6 +191,7 @@ export function registerRecorderIpc(): void {
     )
     const settleNote = takeSettleNote()
     if (settleNote) console.log(settleNote)
+    const startDoubts = takeStartDoubts()
 
     logMatchResult(frameTable)
     // 通知が途切れていた区間は表に入らず、割合にも枚数にも現れない（logReportInterruptions 参照）。
@@ -295,17 +298,22 @@ export function registerRecorderIpc(): void {
       // （中央寄せのままだと長さが変わるたびに文字が左右へ動く）。
       // **「撮り逃し なし」は照合で 0 と確かめたときだけ。** 照合できなかった・表が無いときは
       // 確かめていないので、従来どおり何も添えない。
+      //
+      // 冒頭について保証できなかったこと（StartDoubts）もここに添える。始める瞬間には出さない。
+      // 置くのは尺の直後で、書き換わる「撮り逃し …」より前（後ろに置くと書き換えのたびに動く）。
+      // 完了通知を切っていても、これがあるときは出す（保証できないことを黙らない）。
+      const notes = (startDoubts.notSettled ? t('notice.clipNoteStartGap') : '') +
+        (startDoubts.armingUnconfirmed ? t('notice.clipNoteArming') : '')
+      const shouldNotify = loadSettings().clipNotify !== false || notes !== ''
+      const d = formatClipDuration(duration)
       const notifySaved = (missed: number, confirmed: boolean): void => {
-        if (loadSettings().clipNotify === false) return
-        const d = formatClipDuration(duration)
+        if (!shouldNotify) return
         sendBrowserNotice('success', missed > 0
-          ? t('notice.clipSavedWithMissed', { duration: d, count: String(missed) })
-          : t(confirmed ? 'notice.clipSavedNoMissed' : 'notice.clipSaved', { duration: d }))
+          ? t('notice.clipSavedWithMissed', { duration: d, notes, count: String(missed) })
+          : t(confirmed ? 'notice.clipSavedNoMissed' : 'notice.clipSaved', { duration: d, notes }))
       }
       if (verified) {
-        if (loadSettings().clipNotify !== false) {
-          sendBrowserNotice('success', t('notice.clipSavedChecking', { duration: formatClipDuration(duration) }), true)
-        }
+        if (shouldNotify) sendBrowserNotice('success', t('notice.clipSavedChecking', { duration: d, notes }), true)
         void verified.then((missed) => notifySaved(missed ?? missedFrames, missed !== null))
       } else notifySaved(missedFrames, false)
     } catch (err) {

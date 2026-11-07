@@ -22,7 +22,12 @@ type MockRecordingMeta = { title: string | null; currentTime: number | null; url
 const getRecordingMeta = vi.fn<() => MockRecordingMeta>(() => null)
 const isCurrentRecordingSession = vi.fn((_id: number) => true)
 const releaseCaptureUi = vi.fn()
+const markArmingUnconfirmed = vi.fn()
+const startDoubts = { notSettled: false, armingUnconfirmed: false }
 vi.mock('./recording', () => ({
+  // 冒頭について保証できなかったこと。始める瞬間には出さず、完了通知に添える。
+  markArmingUnconfirmed: () => markArmingUnconfirmed(),
+  takeStartDoubts: () => ({ ...startDoubts }),
   finishRecordingState: () => finishRecordingState(),
   getRecordingMeta: () => getRecordingMeta(),
   isCurrentRecordingSession: (id: number) => isCurrentRecordingSession(id),
@@ -128,20 +133,38 @@ describe('recorder:error / recorder:done - 旧セッションからの遅延メ�
     expect(finishRecordingState).toHaveBeenCalled()
   })
 
-  it('開始境界を確認できなくても録画は止めず、写り込みの可能性だけを知らせる', () => {
+  // 始めた瞬間に黄色い通知を出しても、そのときにはもう何もできず迷惑なだけだった（2026-11-07）。
+  // 録画は止めず、その場では何も出さずに印だけ付け、完了通知に添える。
+  it('開始境界を確認できなくても録画は止めず、その場では知らせずに印だけ付ける', () => {
+    markArmingUnconfirmed.mockClear()
     const handler = handlers.get('recorder:startBoundary')!
     handler({}, 1, false)
-    expect(sendBrowserNotice).toHaveBeenCalledWith(
-      'warning',
-      '録画準備中の表示が消えたことを確認しきれないまま録画を始めました。冒頭に表示が写っている可能性があります。'
-    )
+    expect(sendBrowserNotice).not.toHaveBeenCalled()
+    expect(markArmingUnconfirmed).toHaveBeenCalled()
     expect(finishRecordingState).not.toHaveBeenCalled()
   })
 
-  it('開始境界を確認できたら警告しない', () => {
+  it('開始境界を確認できたら印を付けない', () => {
+    markArmingUnconfirmed.mockClear()
     const handler = handlers.get('recorder:startBoundary')!
     handler({}, 1, true)
     expect(sendBrowserNotice).not.toHaveBeenCalled()
+    expect(markArmingUnconfirmed).not.toHaveBeenCalled()
+  })
+
+  it('冒頭について保証できなかったことは、完了通知に添える', async () => {
+    startDoubts.notSettled = true
+    startDoubts.armingUnconfirmed = true
+    try {
+      const handler = handlers.get('recorder:done')!
+      await handler({}, new ArrayBuffer(10), 5, 1)
+      expect(sendBrowserNotice).toHaveBeenCalledWith(
+        'success', '録画を保存しました（0:05・先頭に抜けの可能性あり・冒頭に準備中の表示が写っている可能性あり）'
+      )
+    } finally {
+      startDoubts.notSettled = false
+      startDoubts.armingUnconfirmed = false
+    }
   })
 
   it('recorder:done: sessionId が一致しなければ無視する（新しい録画を保存確定させない）', async () => {

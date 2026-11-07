@@ -138,18 +138,18 @@ export const ja = {
   // 録画開始の合図から、記録を始めるまでの待ち（recording.ts の waitForSteadyFrames）。
   // 落ち着きを確認できないまま始めたときだけ出す。**黙って始めない** —— 待つ作りにした以上、
   // 待っても駄目だったことは画面から読めないと「待ったから大丈夫」と誤解される。
-  'notice.recordingNotSettled': 'コマの取りこぼしが収まらないまま録画を始めました。先頭に抜けがある可能性があります。',
-  'notice.recordingStartUnconfirmed': '録画準備中の表示が消えたことを確認しきれないまま録画を始めました。冒頭に表示が写っている可能性があります。',
   'notice.recordingEmpty': '録画データが空でした。短すぎる録画は保存されません。',
   'notice.screenCapturePermission':
     '画面録画の権限がありません。ブラウザのハードウェアアクセラレーションをオフにして、もう一度お試しください。',
   'notice.recordingError': '録画エラー: {message}',
   'notice.recordingDataInvalid': '録画データが不正なため保存できませんでした。',
   'notice.clipSaveFailed': '録画の保存に失敗しました',
-  'notice.clipSaved': '録画を保存しました（{duration}）',
-  'notice.clipSavedWithMissed': '録画を保存しました（{duration}・撮り逃し {count}コマ）',
-  'notice.clipSavedChecking': '録画を保存しました（{duration}・撮り逃し 確認中）',
-  'notice.clipSavedNoMissed': '録画を保存しました（{duration}・撮り逃し なし）',
+  'notice.clipSaved': '録画を保存しました（{duration}{notes}）',
+  'notice.clipSavedWithMissed': '録画を保存しました（{duration}{notes}・撮り逃し {count}コマ）',
+  'notice.clipSavedChecking': '録画を保存しました（{duration}{notes}・撮り逃し 確認中）',
+  'notice.clipSavedNoMissed': '録画を保存しました（{duration}{notes}・撮り逃し なし）',
+  'notice.clipNoteStartGap': '・先頭に抜けの可能性あり',
+  'notice.clipNoteArming': '・冒頭に準備中の表示が写っている可能性あり',
   'notice.videoNotDetected':
     '動画を検出できませんでした。対応サイトの動画ページを開き、ブラウザ拡張が有効になっているか確認してください。',
   'notice.recorderPrepareFailed': 'レコーダーの準備に失敗しました。もう一度お試しください。',
