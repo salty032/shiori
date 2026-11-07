@@ -810,6 +810,29 @@ const SERVICE_PLAYER_UI = {
   ],
 }
 
+// Netflix の広告つきプランは、一時停止すると数秒で「一時停止広告」を動画全面に重ねる。
+// 実機で採取（2026-11-07）：外枠 `[data-uia="depp-pause-ad"]`（1699x956@0,0 で全面）の中に
+// 不透明な背景・商品画像・「広告」バッジ・作品パネルと再生ボタンが全部入っている。動画は下に
+// 止まったコマのまま残っていて、外枠を display:none にするだけで見えるようになった。
+// 中身のクラス名は難読（default-ltr-*-cache-*）なので使わず、外枠 1 個だけを指す。
+//
+// 広告を消すと、その下にもう 1 枚「ご覧になっている作品」の半透明の作品情報
+// （`.watch-video--evidence-overlay-container`）が出る。これも外枠を display:none にして
+// 消えることを実機で確認（2026-11-07）。撮影時の SERVICE_PLAYER_UI にも入っているが、
+// あちらは撮影の瞬間だけなので、ここで常時にも当てる。
+//
+// 撮影の瞬間だけでなく**常に**消す（止めて眺めている間も邪魔、という本人の判断）。
+// 広告は一時停止のたびに作り直されるので、要素ではなく <style> で当てる。restorePlayerUI が
+// 撮影の後始末で外す data-shiori-visrule 等とは別の属性にして、撮影の前後で外れないようにする。
+function hideNetflixPauseAd() {
+  if (!isNetflix() || document.querySelector('style[data-shiori-netflix-pause-ad]')) return
+  const styleEl = document.createElement('style')
+  styleEl.setAttribute('data-shiori-netflix-pause-ad', '1')
+  styleEl.textContent = '[data-uia="depp-pause-ad"],.watch-video--evidence-overlay-container{display:none!important}'
+  document.head.appendChild(styleEl)
+}
+hideNetflixPauseAd()
+
 // 録画中にマウスカーソルが動画へ写り込むのを防ぐ。hidePlayerUI から video:true の
 // pre-capture のときだけ呼ばれる（スクショは desktopCapturer のサムネイル取得で
 // そもそもカーソルが写らないため、消す必要も効果もない）。
