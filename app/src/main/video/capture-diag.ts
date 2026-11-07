@@ -95,10 +95,10 @@ export function logSupplyDiag(summary: SupplySummary | null, diag: CaptureDiag |
 //
 // **オフセット（frame-feed.ts の offsetMs）が録画ごとに振れる理由を切り分けるための実測。**
 // 突き合わせている 2 つの時刻は、どちらも別プロセスの単調時計を各々の epoch へ直した値：
-//   displayAt = 配信ページ(Chrome)の timeOrigin + expectedDisplayTime
-//   drawnAt   = レコーダー(Electron)の timeOrigin + captureTime
-// timeOrigin は文書の生成時刻で固定される一方 now() は単調時計で進むため、壁時計との差は
-// 文書の寿命ぶん開く。**両者で差が違えば、その差はそのまま offsetMs に乗る。**
+//   displayAt = 配信ページ(Chrome)の (録画開始時の Date.now() - performance.now()) + expectedDisplayTime
+//   drawnAt   = レコーダー(Electron)の (録画開始時の Date.now() - performance.now()) + captureTime
+// 原点を録画ごとに取り直すので、開いた後の時計の補正は乗らない（以前は timeOrigin で、乗っていた。
+// frame-sink.ts 参照）。recorder skew は timeOrigin 基準の値で、今は「補正が入ったか」の目安。
 //
 // 読み方:
 //   report delay min が -30ms より負に大きい → ページ側の時計がずれている

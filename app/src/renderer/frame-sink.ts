@@ -42,12 +42,19 @@ export interface FrameSink {
 
 /**
  * @param clock now: captureTime が無いときの退避先（既定は Date.now）。
- *              timeOrigin: performance 時刻を epoch へ直すための原点。
+ *              epochBase: performance 時刻を epoch へ直すための原点。
  *              **配信ページとは別プロセスなので、この変換をしないと突き合わせられない。**
+ *
+ * 原点は作った時点（録画ごと）の `Date.now() - performance.now()`。**`performance.timeOrigin` は使わない。**
+ * timeOrigin は画面を開いた時刻で固定され、その後に Windows が時計を補正するとその幅だけずれる。
+ * レコーダーの画面はアプリの起動から開きっぱなしなので、補正の後に撮った録画は表の全行が
+ * ずれ、撮れているコマを撮り逃しと数える（2026-11-02 実測：21:47 に時計が 1.86 秒進み、
+ * 23:01 の録画は全行が約 1.9 秒ずれて 689 コマ中 158 コマを撮り逃しと数えた）。
+ * 拡張（content.js）も録画開始の時点で同じ取り方をする。
  */
-export function createFrameSink(clock?: { now?: () => number; timeOrigin?: number }): FrameSink {
+export function createFrameSink(clock?: { now?: () => number; epochBase?: number }): FrameSink {
   const now = clock?.now ?? (() => Date.now())
-  const timeOrigin = clock?.timeOrigin ?? performance.timeOrigin
+  const timeOrigin = clock?.epochBase ?? Date.now() - performance.now()
   const drawnAt: number[] = []
   let captureTimeMissing = 0
   let open = false

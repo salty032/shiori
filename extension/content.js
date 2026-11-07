@@ -114,9 +114,15 @@ function startFrameTracker(video) {
 //
 // 送るのは素材自身のタイムライン上の時刻(mediaTime)と、そのコマが画面に出る絶対時刻。
 // expectedDisplayTime は「実際に表示される時刻」で、コールバック実行時刻(now)より
-// 素材の提示タイミングに近いため優先する。performance.timeOrigin を足して epoch 基準に
-// 直すことで、別プロセスである main 側の時計と比較できるようにする。
+// 素材の提示タイミングに近いため優先する。epoch 基準に直すことで、別プロセスである
+// main 側の時計と比較できるようにする。
+//
+// 原点は録画を始めた時点の `Date.now() - performance.now()`。**performance.timeOrigin は使わない。**
+// timeOrigin はページを開いた時刻で固定され、その後に Windows が時計を補正するとその幅だけずれる。
+// アプリのレコーダー（frame-sink.ts）も録画ごとに同じ取り方をしており、片側だけずれると
+// 表の全行がずれて、撮れているコマを撮り逃しと数える（2026-11-02 実測：時計の補正 1.86 秒で 158 コマ）。
 let reportingFrames = false
+let epochBase = 0
 // ==== ここから自動生成: frame-watchdog ====
 // 以下は app/src/shared/wire-limits.ts が原本。**手で書き換えない**（verify が落とす）。
 // 直すときは wire-limits.ts を変えてから app/ で `npm run ext:limits` を実行する。
@@ -130,6 +136,7 @@ const FRAME_WATCHDOG_MS = 500
 // ==== ここまで自動生成: frame-watchdog ====
 let frameWatchdog = null
 function startFrameReporting() {
+  epochBase = Date.now() - performance.now()
   reportingFrames = true
   const video = getVideo()
   if (video) startFrameTracker(video)   // 冪等。録画開始時にループが止まっていても確実に回す
@@ -198,14 +205,14 @@ function reportFrame(now, meta, video) {
   if (!reportingFrames || !port) return
   const display = Number.isFinite(meta.expectedDisplayTime) ? meta.expectedDisplayTime : now
   try {
-    const msg = { type: 'frame', mediaTime: meta.mediaTime, displayAt: performance.timeOrigin + display }
+    const msg = { type: 'frame', mediaTime: meta.mediaTime, displayAt: epochBase + display }
     const thumb = frameThumb(video)
     if (thumb) msg.thumb = thumb
     if (Number.isFinite(meta.presentedFrames)) msg.presentedFrames = meta.presentedFrames
     // 表示予定の時刻（expectedDisplayTime）は 60Hz の画面で書き換えの刻みと合わなかった。どの時刻が
     // 実際に画面へ出た時刻に近いかを比べるため、合成へ回した時刻とコールバックの時刻も送る（診断用）。
-    if (Number.isFinite(meta.presentationTime)) msg.presentedAt = performance.timeOrigin + meta.presentationTime
-    if (Number.isFinite(now)) msg.calledAt = performance.timeOrigin + now
+    if (Number.isFinite(meta.presentationTime)) msg.presentedAt = epochBase + meta.presentationTime
+    if (Number.isFinite(now)) msg.calledAt = epochBase + now
     port.postMessage(msg)
   } catch {
     reportingFrames = false   // 拡張コンテキスト無効化。次の録画で張り直る

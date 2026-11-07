@@ -211,11 +211,10 @@ const REPLICA_WINDOW_MS = 3
  * コマ通知が main へ届くまでの遅れ（`receivedAt - displayAt`）の要約。
  *
  * **オフセットが負に出る理由を切り分けるための実測。** `displayAt` は配信ページ（Chrome）の
- * `performance.timeOrigin + expectedDisplayTime`、`drawnAt` はレコーダー（Electron）の
- * `performance.timeOrigin + captureTime` で、**別プロセスの単調時計を各々の epoch へ直した値**。
- * 各 timeOrigin は文書の生成時刻で固定される一方、その後 now() は単調時計で進むため、
- * 壁時計（`Date.now()`）との差は文書の寿命ぶん開きうる。この差が両者で違えば、その差はそのまま
- * `offsetMs` に乗る——録画ごとにオフセットが振れる理由の候補。
+ * `expectedDisplayTime`、`drawnAt` はレコーダー（Electron）の `captureTime` を、**別プロセスの単調時計を
+ * 各々が録画開始の時点で `Date.now() - performance.now()` を原点にして epoch へ直した値**。
+ * 以前の原点は `performance.timeOrigin`（文書の生成時刻で固定）で、開いた後に Windows が時計を
+ * 補正するとその幅だけずれ、表の全行がずれていた（frame-sink.ts 参照）。
  *
  * `receivedAt` は main の `Date.now()` なので、この値は「転送の遅れ − ページ側の時計のずれ」。
  * 転送の遅れは 0 以上なので、**最小値が負に大きく振れていればページ側の時計がずれている証拠**に
