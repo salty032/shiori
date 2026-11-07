@@ -220,13 +220,16 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
   // pts は stderr を全文ためてから正規表現で走査するのではなく、届いた行をその場で
   // 数値へ畳む。showinfo は 1 フレーム 1 行（実測 200 バイト前後）出すので、全文を
   // 保持するとテキストだけで署名本体より重くなる。
+  // showinfo は縮小の後ろに置く。showinfo は毎フレーム画素の検査値を計算するので、前に置くと
+  // 元の解像度で計算する（実測: 1687x948・30 秒の録画で 2.6s → 1.4s。pts も署名も 1 枚残らず同じ）。
+  // 録画の完了通知はこの処理を待って出る（recorder-ipc.ts）ので、ここの遅さがそのまま通知の遅れになる。
   const pts: number[] = []
   const { stdout } = await runFfmpegCollectStdout([
     '-hide_banner',
     '-i', inputPath,
     '-an',
     '-fps_mode', 'passthrough',
-    '-vf', `showinfo,scale=${SIGNATURE_GRID}:${SIGNATURE_GRID}:flags=area,format=gray`,
+    '-vf', `scale=${SIGNATURE_GRID}:${SIGNATURE_GRID}:flags=area,format=gray,showinfo`,
     '-f', 'rawvideo',
     '-'
   ], {
