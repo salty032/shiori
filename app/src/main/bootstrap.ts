@@ -48,6 +48,7 @@ import { describeStartupError } from './system/startup-error'
 import { consumeRestoreMarker } from './db/db-maintenance'
 import { openDatabaseOrRecover, backupDateLabel } from './db/db-startup'
 import { registerShutdownGuard } from './system/shutdown'
+import { startDiagLogIfEnabled } from './system/diag-log'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み後に送る
 // （whenRendererReady。ウィンドウがまだ無ければ作ったときまで預かる）。
@@ -98,6 +99,9 @@ export function bootstrap(): void {
   // 呼ぶ app.quit() をこれが止め、準備前に後片付けを走らせて失敗し、終了し直さないまま
   // プロセス一式（約 115MB）が残っていた——常駐中に起動し直すたびに 1 つずつ溜まる。
   const shutdown = registerShutdownGuard()
+
+  // 二重起動のチェックより後（2 回目の起動が同じファイルへ書かないように）。
+  startDiagLogIfEnabled()
 
   // 開発版は ID を分ける。開発版の起動時に Electron がこの ID でスタートメニューへ
   // Electron.lnk（electron.exe を指す）を作り、同じ ID だと製品版のタスクバーのアイコンと
