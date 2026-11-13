@@ -812,6 +812,7 @@ export default function App() {
           allTags={filters.allTags}
           viewerOpen={viewerIdx !== null}
           onTagsChanged={handleTagsChanged}
+          showToast={toast.showToast}
           onTitleChanged={(id, title) => patchImage(id, { title })}
           onMemoChanged={(id, memo) => patchImage(id, { memo })}
           onFilterByTag={(tag) => {

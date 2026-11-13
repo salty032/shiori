@@ -15,7 +15,7 @@ function panelProps(id = 1): ComponentProps<typeof DetailPanel> {
       source: 'capture', current_time: null, url: null, colors: null, media_type: null,
       duration: null, fps: null, width: null, height: null, thumb_path: null },
     settings: SETTINGS_DEFAULTS, taggerDoneKey: 0, allTags: [], viewerOpen: false,
-    onTagsChanged: vi.fn(), onTitleChanged: vi.fn(), onMemoChanged: vi.fn(),
+    onTagsChanged: vi.fn(), showToast: vi.fn(), onTitleChanged: vi.fn(), onMemoChanged: vi.fn(),
     onFilterByTag: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onClearSelection: vi.fn(),
   }
 }

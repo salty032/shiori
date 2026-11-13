@@ -3,6 +3,7 @@ import type { ImageRow, ImageTagSource, Settings } from '../types'
 import { cleanTitle, siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
 import { color, control, font, radius, s as commonStyles, space, weight } from '../styles'
 import TagEditor from './TagEditor'
+import type { ShowToast } from '../hooks/useToast'
 import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
 import { ExternalLinkIcon, PencilIcon } from './Icon'
@@ -25,6 +26,8 @@ type Props = {
   // 再生され、音声が二重に鳴るのを防ぐ）。
   viewerOpen: boolean
   onTagsChanged: () => void
+  // タグの付け外しの失敗を出す。失敗しても画面が変わらないと、付いたと思い込む。
+  showToast: ShowToast
   onTitleChanged: (id: number, title: string) => void
   onMemoChanged: (id: number, memo: string) => void
   onFilterByTag: (tag: string) => void
@@ -38,6 +41,12 @@ type Props = {
 type BulkCoverage = 'all' | 'some'
 type BulkTagEntry = { coverage: BulkCoverage; source: ImageTagSource }
 type MemoSaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
+
+function toBulkTagMap(freq: Awaited<ReturnType<typeof fetchBulkTagFrequency>>, total: number): Map<string, BulkTagEntry> {
+  const map = new Map<string, BulkTagEntry>()
+  for (const [name, { count, source }] of freq) map.set(name, { coverage: count === total ? 'all' : 'some', source })
+  return map
+}
 type PendingMemoSave = { id: number; value: string; base: string }
 // フォルダドロップ等で自動タグ付けが連続完了すると taggerDoneKey が連打され、
 // そのたびに選択枚数ぶんの再取得が走ってしまう（N×M の増幅）ため、トレーリングデバウンスで束ねる。
@@ -59,7 +68,7 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
   el.style.height = (el.scrollHeight + borderHeight) + 'px'
 }
 
-export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
+export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, showToast, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { t, tp, locale } = useT()
   // トリミング等のオーバーレイに覆われている間も再生を止める（overlaySignal の注記を参照）。
   // ここはビューアと違い、ビューアを開かずに詳細パネルから直接トリミングへ入る経路のため。
@@ -198,10 +207,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       fetchBulkTagFrequency(selectedIdList)
         .then((freq) => {
           if (canceled) return
-          const total = selectedIdList.length
-          const map = new Map<string, BulkTagEntry>()
-          for (const [name, { count, source }] of freq) map.set(name, { coverage: count === total ? 'all' : 'some', source })
-          setBulkTagMap(map)
+          setBulkTagMap(toBulkTagMap(freq, selectedIdList.length))
         }).catch((err) => { if (!canceled) console.error('[tags] getTagsBulk failed', err) })
     }, delay)
     return () => { canceled = true; clearTimeout(timer) }
@@ -217,6 +223,8 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       onTagsChanged()
     } catch (err) {
       console.error('[tag] bulkAddTag failed', err)
+      showToast(t('tag.addFailed'), 'error')
+      reloadAfterBulkFailure()
     }
   }
 
@@ -227,7 +235,19 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       onTagsChanged()
     } catch (err) {
       console.error('[tag] bulkRemoveTag failed', err)
+      showToast(t('toast.tagRemoveFailed'), 'error')
+      reloadAfterBulkFailure()
     }
+  }
+
+  // 一括の付け外しは分割して送るので、途中で失敗すると一部の画像にだけ反映されている。
+  // 画面の表示を実際の状態に合わせ直す（何もしないと、付いていないのに付いた／その逆に見える）。
+  function reloadAfterBulkFailure(): void {
+    const ids = selectedIdList
+    fetchBulkTagFrequency(ids)
+      .then((freq) => setBulkTagMap(toBulkTagMap(freq, ids.length)))
+      .catch((err) => console.error('[tags] getTagsBulk failed', err))
+    onTagsChanged()
   }
 
   function openBulkTagInput(): void {
@@ -436,6 +456,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
               allTags={allTags}
               taggerDoneKey={taggerDoneKey}
               onTagsChanged={onTagsChanged}
+              showToast={showToast}
               onFilterByTag={onFilterByTag}
             />
 

@@ -5,6 +5,7 @@ import { normalizeTag, tagSuggestions } from '../utils'
 import ContextMenu from './ContextMenu'
 import TagSuggestInput from './TagSuggestInput'
 import { useT } from '../i18n'
+import type { ShowToast } from '../hooks/useToast'
 
 const TAG_LIST_COLLAPSED_MAX_HEIGHT = 177
 
@@ -13,13 +14,14 @@ type Props = {
   allTags: string[]
   taggerDoneKey: number
   onTagsChanged: () => void
+  showToast: ShowToast
   // 指定すると各タグチップがクリック可能になり絞り込みに使う（DetailPanel向け）。
   // ビューア側では現在の一覧を裏で変えたくないため渡さない。
   onFilterByTag?: (tag: string) => void
 }
 
 // 単一画像のタグ表示・追加・削除。DetailPanel とビューア内タグパネルの両方から使う共通部品（S7-2/P1）。
-export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChanged, onFilterByTag }: Props) {
+export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChanged, showToast, onFilterByTag }: Props) {
   const { t } = useT()
   const [tags, setTags] = useState<ImageTag[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -74,6 +76,7 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
       onTagsChanged()
     } catch (err) {
       console.error('[tag] removeTag failed', err)
+      showToast(t('toast.tagRemoveFailed'), 'error')
     }
   }
 
