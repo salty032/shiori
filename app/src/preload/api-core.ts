@@ -118,6 +118,8 @@ export function buildCoreApi(): ShioriApi {
 
     onUpdateDownloaded: (cb: (version: string) => void) => listen<string>(CH.updaterDownloaded, cb),
 
+    getDownloadedUpdate: (): Promise<string | null> => ipcRenderer.invoke(CH.updaterGetDownloaded),
+
     updaterQuitAndInstall: (): Promise<void> => ipcRenderer.invoke(CH.updaterQuitAndInstall),
 
     taggerEnsure: (): Promise<void> => ipcRenderer.invoke(CH.taggerEnsure),

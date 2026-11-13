@@ -25,7 +25,14 @@ export function useSettings(showToast?: ShowToast) {
   }, [init])
 
   useEffect(() => window.api.onOpenSettings(() => setShowSettings(true)), [])
-  useEffect(() => window.api.onUpdateDownloaded((v) => setUpdateVersion(v)), [])
+  useEffect(() => {
+    const off = window.api.onUpdateDownloaded((v) => setUpdateVersion(v))
+    // 画面が無い間にダウンロードが済んでいた場合、上の知らせは来ない。開いたときに聞く。
+    window.api.getDownloadedUpdate()
+      .then((v) => { if (v) setUpdateVersion((cur) => cur ?? v) })
+      .catch((err) => console.warn('[updater] getDownloadedUpdate failed', err))
+    return off
+  }, [])
   useEffect(() => window.api.onExtensionTimecode((data) => setExtensionStatus({ lastSeenAt: Date.now(), data })), [])
 
   // <html data-theme> を settings.theme に追従させる。'system' は OS 設定を購読し、

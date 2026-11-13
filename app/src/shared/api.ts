@@ -73,6 +73,9 @@ export interface ShioriApi {
   // 設定画面のバージョン表示用（自動アップデートが適用されたかを確認できる逃げ道）。
   getAppVersion: () => Promise<string>
   onUpdateDownloaded: (cb: (version: string) => void) => () => void
+  // 画面を開いた時点で、ダウンロード済みの更新があるか。届いた知らせは画面が無いと捨てられるので、
+  // 開くたびにこちらから聞く（「閉じたらメモリを空ける」設定ではウィンドウを作り直す）。
+  getDownloadedUpdate: () => Promise<string | null>
   updaterQuitAndInstall: () => Promise<void>
   taggerEnsure: () => Promise<void>
   taggerCancelDownload: () => Promise<void>
@@ -189,5 +192,6 @@ export const CH = {
   appNotice: 'app:notice',
   whatsNew: 'app:whatsNew',
   updaterDownloaded: 'updater:downloaded',
+  updaterGetDownloaded: 'updater:getDownloaded',
   updaterQuitAndInstall: 'updater:quitAndInstall',
 } as const

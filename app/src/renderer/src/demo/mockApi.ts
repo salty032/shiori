@@ -235,6 +235,7 @@ export async function installMockApi(): Promise<void> {
     getWsPort: async () => null,
     startImageDrag: () => unsupported(),
     updaterQuitAndInstall: async () => {},
+    getDownloadedUpdate: async () => null,
     taggerEnsure: async () => unsupported(),
     taggerCancelDownload: async () => {},
     taggerDelete: async () => ({ removedTags: 0 }),

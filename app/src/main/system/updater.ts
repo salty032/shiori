@@ -77,6 +77,14 @@ function cleanPendingCache(): void {
   }
 }
 
+// ダウンロード済みで、次の再起動で入る版。画面は開いたときにこれを聞く（getDownloadedUpdate）。
+// 届いた瞬間の知らせだけだと、ウィンドウが無いときは捨てられ、後で開いてもバナーが出ない。
+let downloadedVersion: string | null = null
+
+export function downloadedUpdateVersion(): string | null {
+  return downloadedVersion
+}
+
 export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
   if (!app.isPackaged) return
 
@@ -88,11 +96,9 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
-  let lastNotifiedVersion: string | null = null
-
   autoUpdater.on('update-downloaded', (info) => {
-    if (info.version === lastNotifiedVersion) return
-    lastNotifiedVersion = info.version
+    if (info.version === downloadedVersion) return
+    downloadedVersion = info.version
     getWindow()?.webContents.send(CH.updaterDownloaded, info.version)
   })
 
@@ -107,7 +113,7 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
   }
 
   // CODE-REVIEW-v1.0.4 B-4: トレイ常駐で何週間も起動しっぱなしのユーザーがいるため、
-  // 起動時に加えて 24h ごとにも確認する（lastNotifiedVersion ガードで多重通知はしない）。
+  // 起動時に加えて 24h ごとにも確認する（downloadedVersion ガードで多重通知はしない）。
   check()
   setInterval(check, 24 * 60 * 60 * 1000)
 }

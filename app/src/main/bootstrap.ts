@@ -16,7 +16,7 @@ import { checkExtensionUpdate, installedExtensionPath } from './browser/extensio
 import { startExtensionBridge, browserStepLabels } from './browser/extension-bridge'
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
 import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
-import { initAutoUpdater, quitAndInstallUpdate } from './system/updater'
+import { downloadedUpdateVersion, initAutoUpdater, quitAndInstallUpdate } from './system/updater'
 import { thumbPathFor } from './system/paths'
 import { registerCapfileScheme, registerCapfileProtocol } from './system/capfile-protocol'
 import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
@@ -394,6 +394,7 @@ export function bootstrap(): void {
     })
 
     initAutoUpdater(getMainWindow)
+    handleTrusted(CH.updaterGetDownloaded, () => downloadedUpdateVersion())
     handleTrusted(CH.updaterQuitAndInstall, async () => {
       await shutdown.runUpdate(quitAndInstallUpdate)
     })
