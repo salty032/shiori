@@ -120,9 +120,11 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
       folder.site ? `site:${folder.site}` : '',
       folder.search,
     ].filter(Boolean).join(' ')
+    // tagFilters へも入れると、検索欄の tag:◯◯ を手で消しても裏で絞り込みが残り、
+    // 見えている条件と結果が食い違う。
     applySmartFolder(folder.id, {
       search: composedSearch,
-      tagFilters: folder.tags,
+      tagFilters: [],
       tagMode: folder.tagMode,
     })
   }

@@ -82,6 +82,9 @@ export const useFilterStore = create<FilterState>((set) => ({
     searchInput: '',
     committedSearch: '',
     tagFilters: [],
+    // AND / OR のボタンはタグが 2 つ以上のときしか出ない。ここで戻さないと、OR のフォルダを
+    // 開いて解除した後、次に 2 つで絞ったとき黙って OR になる。
+    tagMode: 'and',
     activeSmartFolderId: null,
   }),
 }))
