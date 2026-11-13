@@ -157,6 +157,9 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
               {t('timesheet.reused', { frames: String(sheet.reused) })}
             </span>
           )}
+          {sheet.loadFailed && (
+            <span style={{ color: c.warnInk, fontSize: font.xs }}>{t('timesheet.loadFailed')}</span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
           <button

@@ -367,6 +367,7 @@ export const ja = {
   'timesheet.count': '{marks} 枚 / {total} コマ',
   'timesheet.reused': '撮り逃し {frames} コマ',
   'timesheet.reusedHint': 'このコマ数だけ、専用の絵が撮れず直前のコマの絵が出ています。コマ番号はずれていませんが、そこで新しい絵が始まっていても画面からは分かりません。',
+  'timesheet.loadFailed': 'タイムシートを読み込めませんでした。上書きしないよう、入力を止めています。',
   'timesheet.copy': 'コピー',
   'timesheet.copied': 'コピーしました',
   'timesheet.copyHint': 'タイムシートソフトに貼り付けられる形式でコピーします（{sec} 秒 {frames} コマ）',

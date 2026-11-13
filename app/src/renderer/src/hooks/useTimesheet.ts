@@ -47,6 +47,10 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   // 打つ列（0 起点。A が 0）。
   const [track, setTrackState] = useState(0)
   const [marks, setMarks] = useState<TimesheetMark[]>([])
+  // 保存済みの打鍵を読み終えたか。**読み終えるまで・読めなかったときは打たせない**——空の表に
+  // 1 つ打つと、保存してあった表がその 1 件だけで上書きされる（打鍵は作り直せない）。
+  const [loadState, setLoadState] = useState<'loading' | 'loaded' | 'failed'>('loading')
+  const editable = loadState === 'loaded'
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   // 打ちかけの動画番号。確定するまで保存もコピーもされない（東映と同じく Enter で確定）。
@@ -86,11 +90,19 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     setPending('')
     setCopied(false)
     setOpen(false)
+    setLoadState('loading')
     if (imageId == null) return
     let canceled = false
     window.api.getTimesheet(imageId)
-      .then((json) => { if (!canceled) setMarks(decodeTimesheet(json)) })
-      .catch((err) => console.warn('[timesheet] load failed', err))
+      .then((json) => {
+        if (canceled) return
+        setMarks(decodeTimesheet(json))
+        setLoadState('loaded')
+      })
+      .catch((err) => {
+        console.warn('[timesheet] load failed', err)
+        if (!canceled) setLoadState('failed')
+      })
     return () => { canceled = true }
   }, [imageId])
 
@@ -104,12 +116,13 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   }, [])
 
   const apply = useCallback((next: TimesheetMark[]): void => {
+    if (!editable) return
     setMarks(next)
     setCopied(false)
     if (imageId != null) {
       window.api.saveTimesheet(imageId, encodeTimesheet(next)).catch((err) => console.warn('[timesheet] save failed', err))
     }
-  }, [imageId])
+  }, [imageId, editable])
 
   // 列を移ったら打ちかけは捨てる（コマを動かしたときと同じ理由）。
   const setTrack = useCallback((next: number): void => {
@@ -118,6 +131,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   }, [])
 
   const setMemo = useCallback((frame: number, memoTrack: number, memo: string): void => {
+    if (!editable) return
     setMarks((prev) => {
       const next = prev.map((m) => (m.frame === frame && trackOf(m) === memoTrack ? { ...m, memo: memo || undefined } : m))
       if (imageId != null) {
@@ -126,7 +140,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
       return next
     })
     setCopied(false)
-  }, [imageId])
+  }, [imageId, editable])
 
   const copy = useCallback(async (): Promise<void> => {
     try {
@@ -150,7 +164,8 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     const bare = !e.ctrlKey && !e.metaKey && !e.altKey
     // 推定抜けには保存先となる実測行が無い。撮り逃したコマは絵が無い。どちらも移動キーは通すが、
     // 入力は受け取って捨てる。
-    const inGap = currentGap > 0 || unseen.has(current)
+    // 保存済みの表を読めていないときも、同じく移動だけ通して入力は捨てる（loadState の注記）。
+    const inGap = currentGap > 0 || unseen.has(current) || !editable
     // ○ / ● / × は 1 つで 1 マスぶんなので、打ちかけがあっても置き換える。
     if (bare && SYMBOL_KEYS[e.key]) {
       e.preventDefault()
@@ -209,10 +224,11 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     }
 
     return false
-  }, [visible, pending, marks, current, currentGap, unseen, track, apply, setTrack])
+  }, [visible, pending, marks, current, currentGap, unseen, track, apply, setTrack, editable])
 
   return {
     ready, visible, open, setOpen, total, rows, current, currentGap, track, marks, pending, copied, reused, unseen,
+    loadFailed: loadState === 'failed',
     onFramesReady, onFrameIndex, setMemo, setTrack, copy, handleKey, bindPlayer, seek,
   }
 }

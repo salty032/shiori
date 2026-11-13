@@ -317,6 +317,7 @@ export const en: Record<keyof typeof ja, string> = {
   'timesheet.count': '{marks} drawings / {total} frames',
   'timesheet.reused': '{frames} frames missed',
   'timesheet.reusedHint': 'That many frames have no picture of their own and show the previous frame instead. The frame numbers are still correct, but a new drawing starting on one of them is invisible on screen.',
+  'timesheet.loadFailed': 'Could not load the timesheet. Input is stopped so the saved one is not overwritten.',
   'timesheet.copy': 'Copy',
   'timesheet.copied': 'Copied',
   'timesheet.copyHint': 'Copies in a form you can paste into timesheet software ({sec}s {frames}f)',
