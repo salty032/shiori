@@ -1,4 +1,5 @@
 import { broadcastMessage } from './ws-server'
+import { sendNotice } from '../system/windows'
 
 type NoticeLevel = 'info' | 'success' | 'warning' | 'error'
 
@@ -8,4 +9,16 @@ type NoticeLevel = 'info' | 'success' | 'warning' | 'error'
  */
 export function sendBrowserNotice(level: NoticeLevel, message: string, pending = false): void {
   broadcastMessage(pending ? { type: 'notice', level, message, pending: true } : { type: 'notice', level, message })
+}
+
+/**
+ * 録画・キャプチャの失敗を、Shiori の画面と視聴中のブラウザの両方へ出す。
+ *
+ * ホットキーは Shiori が前面でないときに押すので、失敗した瞬間に見ているのはブラウザ。
+ * Shiori の画面だけに出すと気づかれず、「閉じたらメモリを空ける」設定でウィンドウが無いときは
+ * 通知そのものが捨てられて、撮れたつもりのまま次へ進んでしまう。
+ */
+export function sendFailureNotice(level: 'warning' | 'error', message: string): void {
+  sendNotice(level, message)
+  sendBrowserNotice(level, message)
 }

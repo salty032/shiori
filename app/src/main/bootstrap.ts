@@ -36,7 +36,7 @@ import { registerTaggerHandlers } from './ipc/ipc-tagger'
 import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
-import { sendBrowserNotice } from './browser/browser-notice'
+import { sendBrowserNotice, sendFailureNotice } from './browser/browser-notice'
 import { recheckMarkedClips } from './video/verify-clip'
 import { backfillFrameCounts } from './db/db-video-frames'
 import { decideVersionNotice } from './system/version-notice'
@@ -294,7 +294,7 @@ export function bootstrap(): void {
         autoTag: { path: thumbOk ? thumbPath : imagePath, reportError: true }
       })
       if (!result.ok) {
-        sendNotice('error', t('notice.captureSaveFailed'))
+        sendFailureNotice('error', t('notice.captureSaveFailed'))
         // 保存失敗時はファイルを削除済み。capture:done の成功通知を出すと矛盾するため送らない
         return
       }

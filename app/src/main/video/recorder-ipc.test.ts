@@ -69,7 +69,9 @@ vi.mock('../system/settings', () => ({
 
 const sendBrowserNotice = vi.fn()
 vi.mock('../browser/browser-notice', () => ({
-  sendBrowserNotice: (...args: unknown[]) => sendBrowserNotice(...args)
+  sendBrowserNotice: (...args: unknown[]) => sendBrowserNotice(...args),
+  // 本物と同じく、Shiori の画面とブラウザの両方へ出す
+  sendFailureNotice: (...args: unknown[]) => { sendNotice(...args); sendBrowserNotice(...args) }
 }))
 
 vi.mock('./ffmpeg', () => ({
@@ -290,6 +292,7 @@ describe('recorder:done - duration 上限（多層防御）', () => {
     isCurrentRecordingSession.mockClear()
     isCurrentRecordingSession.mockReturnValue(true)
     sendNotice.mockClear()
+    sendBrowserNotice.mockClear()
     registerCapturedMedia.mockClear()
     registerRecorderIpc()
   })
@@ -307,6 +310,8 @@ describe('recorder:done - duration 上限（多層防御）', () => {
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(finishRecordingState).toHaveBeenCalled()
     expect(sendNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
+    // ホットキーで録画している間、見ているのはブラウザ。失敗はそちらにも出す。
+    expect(sendBrowserNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
   })
 })
 

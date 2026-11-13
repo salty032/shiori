@@ -3,10 +3,9 @@
 import { ipcMain } from 'electron'
 import { unlink } from 'fs/promises'
 import { computeVideoCrop, writeCaptureFile } from '../capture/capture'
-import { sendNotice } from '../system/windows'
 import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { loadSettings } from '../system/settings'
-import { sendBrowserNotice } from '../browser/browser-notice'
+import { sendBrowserNotice, sendFailureNotice } from '../browser/browser-notice'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
@@ -110,13 +109,13 @@ export function registerRecorderIpc(): void {
     }
     finishRecordingState()
     if (msg === 'crop_unavailable') {
-      sendNotice('warning', t('notice.videoRegionNotFound'))
+      sendFailureNotice('warning', t('notice.videoRegionNotFound'))
     } else if (msg === 'no_data') {
-      sendNotice('warning', t('notice.recordingEmpty'))
+      sendFailureNotice('warning', t('notice.recordingEmpty'))
     } else if (msg === 'getUserMedia_not_allowed') {
-      sendNotice('error', t('notice.screenCapturePermission'))
+      sendFailureNotice('error', t('notice.screenCapturePermission'))
     } else {
-      sendNotice('error', t('notice.recordingError', { message: msg.slice(0, 80) }))
+      sendFailureNotice('error', t('notice.recordingError', { message: msg.slice(0, 80) }))
     }
   })
 
@@ -130,13 +129,13 @@ export function registerRecorderIpc(): void {
     if (!(webmAB instanceof ArrayBuffer) || webmAB.byteLength === 0 || webmAB.byteLength > MAX_WEBM_BYTES) {
       console.error('[clip] recorder:done rejected: invalid webm payload', { byteLength: (webmAB as ArrayBuffer)?.byteLength })
       finishRecordingState()
-      sendNotice('error', t('notice.recordingDataInvalid'))
+      sendFailureNotice('error', t('notice.recordingDataInvalid'))
       return
     }
     if (!Number.isFinite(duration) || duration <= 0 || duration > MAX_CLIP_DURATION_SEC) {
       console.error('[clip] recorder:done rejected: invalid duration', { duration })
       finishRecordingState()
-      sendNotice('error', t('notice.recordingDataInvalid'))
+      sendFailureNotice('error', t('notice.recordingDataInvalid'))
       return
     }
 
@@ -255,7 +254,7 @@ export function registerRecorderIpc(): void {
         autoTag: thumbPath ? { path: thumbPath } : null
       })
       if (!result.ok) {
-        sendNotice('error', t('notice.clipSaveFailed'))
+        sendFailureNotice('error', t('notice.clipSaveFailed'))
         return
       }
       // 見出し（clip #N）と image id の対応。**この後に出る `[frame-verify]` は数秒後の
@@ -320,7 +319,7 @@ export function registerRecorderIpc(): void {
       console.error('[clip] save failed', err)
       if (webmPath) try { await unlink(webmPath) } catch {}
       if (thumbPath) try { await unlink(thumbPath) } catch {}
-      sendNotice('error', t('notice.clipSaveFailed'))
+      sendFailureNotice('error', t('notice.clipSaveFailed'))
     }
   })
 }
