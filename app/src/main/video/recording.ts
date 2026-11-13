@@ -504,6 +504,10 @@ export async function startRecording(): Promise<void> {
       if (!isRecording) return
       console.error('[clip] watchdog: recorder did not report done/error in time, forcing reset')
       finishRecordingState()
+      // 固まった録画用ウィンドウは捨てる（次の録画で ensureRecorderReady が作り直す）。
+      // 残すと中の MediaRecorder が止まっていないままで、次の準備の合図を黙って弾き、
+      // 以後の録画が毎回「準備に失敗」になって再起動するまで録画できない。
+      destroyRecorderWindow()
       sendBrowserNotice('error', t('notice.recordingTimeout'))
     }, (maxSeconds + 30) * 1000)
   } catch (err) {

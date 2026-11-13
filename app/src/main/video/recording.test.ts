@@ -320,6 +320,39 @@ describe('レコーダーの描画プロセスが落ちた後', () => {
   })
 })
 
+// レコーダーが done / error を返さないまま固まったとき（見張りが働いたとき）。
+describe('録画の見張りが働いた後', () => {
+  beforeEach(() => {
+    finishRecordingState()
+    vi.useFakeTimers()
+    recorderSend.mockClear()
+    recorderDestroy.mockClear()
+    vi.mocked(createRecorderWindow).mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    finishRecordingState()
+  })
+
+  // 固まったウィンドウを残すと、次の準備の合図が黙って弾かれ、再起動するまで録画できない。
+  it('録画用ウィンドウを捨て、録画中の状態を戻す', async () => {
+    await startRecordingSettled()
+    expect(isCurrentlyRecording()).toBe(true)
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(isCurrentlyRecording()).toBe(false)
+    expect(recorderDestroy).toHaveBeenCalledTimes(1)
+    expect(sendBrowserNotice).toHaveBeenCalledWith('error', 'notice.recordingTimeout')
+  })
+
+  it('正常に終わった録画では捨てない', async () => {
+    await startRecordingSettled()
+    finishRecordingState()
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(recorderDestroy).not.toHaveBeenCalled()
+  })
+})
+
 // 閉じたらメモリを空ける設定では、録画用ウィンドウを録画のたびに作って捨てる。
 describe('閉じたらメモリを空ける設定の録画用ウィンドウ', () => {
   beforeEach(() => {
