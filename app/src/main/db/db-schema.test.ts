@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -164,6 +164,20 @@ describe('古い DB を開いたとき', () => {
     raw.close()
 
     expect(() => initDb()).toThrow(DatabaseVersionTooNewError)
+  })
+})
+
+describe('DB でないファイル・壊れたファイルを開いたとき', () => {
+  // 最初の pragma が例外で落ちても接続を閉じる。開いたままだと Windows ではファイルを
+  // 動かせず、壊れた DB の退避（bootstrap.ts の復元）が EBUSY で失敗する。
+  it('例外で抜けた後、ファイルを移動できる', () => {
+    writeFileSync(databasePath(), 'this is not a sqlite database, just some text '.repeat(200))
+
+    expect(() => initDb()).toThrow()
+
+    const aside = join(dir, 'Shiori.db-broken-test')
+    expect(() => renameSync(databasePath(), aside)).not.toThrow()
+    expect(existsSync(aside)).toBe(true)
   })
 })
 

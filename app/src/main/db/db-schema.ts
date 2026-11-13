@@ -71,20 +71,31 @@ export function initDb(): void {
   db = new Database(dbPath)
   // ステートメントのキャッシュは接続に紐づくため、張り直したらここで捨てる（setDatabase の中）。
   setDatabase(db)
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  // WAL 併用時は NORMAL で十分な耐久性があり、書き込みが速くなる（キャプチャ連打時に効く）
-  db.pragma('synchronous = NORMAL')
-  // 読み取りキャッシュを 16MB に拡大（負値は KB 指定）。一覧スクロール・フィルタ集計が軽くなる
-  db.pragma('cache_size = -16000')
-  // 一時テーブル・ソートをメモリ上で処理（ORDER BY / GROUP BY が速くなる）
-  db.pragma('temp_store = MEMORY')
-
   const runner = sqlRunner()
-  // 開けたことと壊れていないことは別。ここを通さないと、壊れたファイルへ以降の移行と
-  // 書き込みを重ねてしまい、気づいたときには退避も上書き済みになる。壊れていたら
-  // 呼び出し元（bootstrap.ts）が復元を提案するので、ここでは閉じて投げるだけにする。
-  const problem = integrityProblem(runner)
+  let problem: string | null
+  // 開いた直後の pragma と quick_check は、DB でないファイル・壊れたファイルだと値ではなく
+  // 例外（SQLITE_NOTADB / SQLITE_CORRUPT*）で落ちる。**そのときも閉じてから投げる。**
+  // 開いたままだと Windows ではファイルを動かせず、呼び出し元（bootstrap.ts）の
+  // 壊れた DB の退避が EBUSY で失敗し、復元そのものができなくなる。
+  try {
+    db.pragma('journal_mode = WAL')
+    db.pragma('foreign_keys = ON')
+    // WAL 併用時は NORMAL で十分な耐久性があり、書き込みが速くなる（キャプチャ連打時に効く）
+    db.pragma('synchronous = NORMAL')
+    // 読み取りキャッシュを 16MB に拡大（負値は KB 指定）。一覧スクロール・フィルタ集計が軽くなる
+    db.pragma('cache_size = -16000')
+    // 一時テーブル・ソートをメモリ上で処理（ORDER BY / GROUP BY が速くなる）
+    db.pragma('temp_store = MEMORY')
+
+    // 開けたことと壊れていないことは別。ここを通さないと、壊れたファイルへ以降の移行と
+    // 書き込みを重ねてしまい、気づいたときには退避も上書き済みになる。壊れていたら
+    // 呼び出し元（bootstrap.ts）が復元を提案するので、ここでは閉じて投げるだけにする。
+    problem = integrityProblem(runner)
+  } catch (err) {
+    // 閉じる側の失敗で元の例外（＝復元を提案するかの判定材料）を上書きしない。
+    try { db.close() } catch (closeErr) { console.error('[db] close after open failure failed', closeErr) }
+    throw err
+  }
   if (problem) {
     db.close()
     throw new DatabaseCorruptError(problem)
