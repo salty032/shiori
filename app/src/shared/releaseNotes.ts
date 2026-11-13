@@ -20,6 +20,18 @@ import type { Lang } from './types'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.6.3': {
+    ja: [
+      'Netflix で一時停止したとき、広告や「ご覧になっている作品」が全面に重なって、止めたコマが見えないことがありました。',
+      '録画やキャプチャの保存に失敗したとき、視聴中のブラウザにも通知が出るようになりました。',
+      'この更新ではブラウザ拡張も入れ替わります。ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'On Netflix, pausing could cover the whole screen with ads and the “You’re watching” panel, hiding the paused frame.',
+      'When saving a recording or capture fails, a notification now also appears in the browser you are watching in.',
+      'This update also replaces the browser extension. Please reload it on your browser’s extensions page.',
+    ],
+  },
   '1.6.2': {
     ja: [
       'Shiori を起動したまま長く使っていると、撮れているコマを大量に「撮り逃し」と数え、コマ送りで別の場面の絵が出ることがありました。起動中に PC の時計が自動で合わせ直されたときに起きていました。この版で撮る録画から直ります。',
