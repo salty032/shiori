@@ -383,9 +383,10 @@ export default function App() {
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
   // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、
   // ドロップ完了後にまとめて届く。
+  // t は言語ごとに作り直される。依存に入れないと、言語を切り替えた後もこれだけ前の言語で出る。
   useEffect(() => window.api.onImagesDragTruncated(({ requested, copied }) =>
     toast.showToast(t('toast.dragTruncated', { requested, copied }), 'warning')
-  ), [])
+  ), [t, toast.showToast])
 
   // ResizeObserver: measure grid wrapper width + offsetTop for virtualizer
   // useLayoutEffect + 初回同期測定で、起動直後に ResizeObserver の初回発火を
