@@ -55,6 +55,7 @@ export const en: Record<keyof typeof ja, string> = {
   'busy.modelDownload': 'AI model download',
   'busy.thumbRepair': 'Thumbnail repair',
   'busy.captureMove': 'Moving captures',
+  'busy.trim': 'Trimming',
 
   // ── Fatal startup errors ─────────────────────────────────────
   'error.dbOpen':

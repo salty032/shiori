@@ -3,6 +3,7 @@ import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted, sendToRenderer } from '../system/windows'
+import { beginTask, endTask } from '../system/busy'
 import { getImage, setFrameCounts } from '../db/db'
 import { getImageTags } from '../db/db-tags'
 import { getVideoFrames, restoreVideoFrames, saveVideoFrames } from '../db/db-video-frames'
@@ -251,6 +252,8 @@ export function registerVideoHandlers(): void {
     const thumbOut = thumbPathFor(webmOut, '.png')
 
     trimmingIds.add(validId)
+    // 終了の確認に載せる。途中で終了すると、焼き直したファイルが書きかけのまま残る。
+    beginTask('trim')
     try {
       // 進み具合の送り先。**閉じた後に届いても捨てる**（トリミングは画面を閉じても
       // 走り切るので、送り先が先に消えることは普通に起きる）。
@@ -361,6 +364,7 @@ export function registerVideoHandlers(): void {
       return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 200) }
     } finally {
       trimmingIds.delete(validId)
+      endTask('trim')
     }
   })
 }

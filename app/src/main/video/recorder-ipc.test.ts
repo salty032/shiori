@@ -106,6 +106,7 @@ vi.mock('fs/promises', () => ({
 }))
 
 import { registerRecorderIpc } from './recorder-ipc'
+import { hasActiveTasks } from '../system/busy'
 import { isTrustedRecorderSender } from './recorder-window'
 
 describe('recorder:error / recorder:done - 旧セッションからの遅延メッセージ', () => {
@@ -295,6 +296,16 @@ describe('recorder:done - duration 上限（多層防御）', () => {
     sendBrowserNotice.mockClear()
     registerCapturedMedia.mockClear()
     registerRecorderIpc()
+  })
+
+  // 録画状態は保存の前に畳むので、保存の数秒は「録画中」に数えられない。終了の確認に載せる。
+  it('保存の間は終了の確認に載り、終わったら外れる', async () => {
+    let busyDuringSave = false
+    registerCapturedMedia.mockImplementationOnce(async () => { busyDuringSave = hasActiveTasks(); return { ok: true, id: 1 } })
+    const handler = handlers.get('recorder:done')!
+    await handler({}, new ArrayBuffer(10), 10, 1)
+    expect(busyDuringSave).toBe(true)
+    expect(hasActiveTasks()).toBe(false)
   })
 
   it('上限(40秒)ちょうどは保存する', async () => {

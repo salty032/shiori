@@ -5,6 +5,7 @@ import { unlink } from 'fs/promises'
 import { computeVideoCrop, writeCaptureFile } from '../capture/capture'
 import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { loadSettings } from '../system/settings'
+import { beginTask, endTask } from '../system/busy'
 import { sendBrowserNotice, sendFailureNotice } from '../browser/browser-notice'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
@@ -219,6 +220,9 @@ export function registerRecorderIpc(): void {
     const recordedPixels = recordedSize(parsedDiag)
     let webmPath: string | null = null
     let thumbPath: string | null = null
+    // 録画状態は上で畳んであるので、ここから登録までの数秒は「録画中」に数えられない。
+    // 登録しておかないと、その間の終了が確認なしで通り、このクリップが失われる。
+    beginTask('clip-save')
     try {
       const dir = await ensureCaptureSubDir(capturedAt)
       webmPath = await writeCaptureFile(dir, webm, '.webm')
@@ -320,6 +324,8 @@ export function registerRecorderIpc(): void {
       if (webmPath) try { await unlink(webmPath) } catch {}
       if (thumbPath) try { await unlink(thumbPath) } catch {}
       sendFailureNotice('error', t('notice.clipSaveFailed'))
+    } finally {
+      endTask('clip-save')
     }
   })
 }

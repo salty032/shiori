@@ -85,6 +85,7 @@ import { CH } from '../../shared/api'
 import type { StoredFrame } from '../db/db-video-frames'
 import { countReportDrops } from '../video/frame-feed'
 import { unlink } from 'fs/promises'
+import { hasActiveTasks } from '../system/busy'
 import type { ClipFrames } from '../../shared/api.video'
 
 // 表から抜けている区間。**撮り逃し（流用）とは別物で、コマ自体が表に無い。**
@@ -317,6 +318,16 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     registerCapturedMedia.mockResolvedValue({ ok: true, id: 99 })
     vi.mocked(unlink).mockClear()
     registerVideoHandlers()
+  })
+
+  // 途中で終了すると焼き直したファイルが書きかけで残る。終了の確認に載せる。
+  it('トリミングの間は終了の確認に載り、終わったら外れる', async () => {
+    let busyDuringTrim = false
+    trimWebm.mockImplementationOnce(async () => { busyDuringTrim = hasActiveTasks() })
+    const handler = handlers.get('video:trim')!
+    await handler({}, 1, 2, 8)
+    expect(busyDuringTrim).toBe(true)
+    expect(hasActiveTasks()).toBe(false)
   })
 
   it('extractThumb が失敗しても、録画保存時と同様にサムネなしで登録を継続する', async () => {

@@ -44,6 +44,7 @@ export const ja = {
   'busy.modelDownload': 'AIモデルのダウンロード',
   'busy.thumbRepair': 'サムネイルの修復',
   'busy.captureMove': '保存先の移動',
+  'busy.trim': 'トリミング',
 
   // ── 起動時の致命的エラー ──────────────────────────────────────
   'error.dbOpen':
