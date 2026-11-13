@@ -18,6 +18,9 @@ interface RecordingMeta {
   title: string | null
   currentTime: number | null
   url: string | null
+  // 診断用。撮影枚数の上限と、その元にした画面のリフレッシュレート（Electron が返した値）。
+  captureFps: number
+  displayHz: number | null
 }
 
 let isRecording = false
@@ -401,6 +404,7 @@ export async function startRecording(): Promise<void> {
     // 実際の状態を見るようになる**（落ち着かないまま見切る録画は増えうるが、それは
     // 悪化ではなく、今まで見えていなかったものが見えるということ）。
     setPendingDisplaySource(sourceId)
+    const captureFps = Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60)))
     getRecorderWindow()!.webContents.send('recorder:prepare', {
       sourceId,
       // 取得フレームレートの上限（recorder.ts の acquireScreenStream に渡す）。
@@ -414,7 +418,7 @@ export async function startRecording(): Promise<void> {
       // 上限の上限は MAX_CAPTURE_FPS。素材のコマ 1 つにつき撮影 1 枚以上を確保するのに
       // 要るのは素材の 2 倍なので、対応上限の 60fps 素材に対して 120 あれば足りる。
       // それ以上はエンコード負荷とファイルサイズが増えるだけで精度には効かない。
-      fps: Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60))),
+      fps: captureFps,
       sessionId
     } satisfies PrepareData)
     const prepared = await waitForRecorderPrepared(RECORDER_PREPARE_TIMEOUT_MS)
@@ -461,7 +465,9 @@ export async function startRecording(): Promise<void> {
     recordingMeta = {
       title: tc?.title ?? null,
       currentTime: tc?.currentTime ?? null,
-      url: tc?.url ?? null
+      url: tc?.url ?? null,
+      captureFps,
+      displayHz: lastDisplayHz
     }
 
     // ここから先は recorder:stop が効く（レコーダーが開始の合図を受け取る）。**印を下ろすのは

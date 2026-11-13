@@ -187,7 +187,10 @@ export function registerRecorderIpc(): void {
       `  video is ${sourceFps ? `${sourceFps.toFixed(3)} fps` : 'fps unknown'}` +
       `  |  screen captured at ${supply ? `${supply.drawnPerSec.toFixed(1)} frames/s` : 'n/a'}` +
       // 供給の天井がキャプチャ側かレコーダーウィンドウ側かの切り分け（CaptureDiag.tickerTicks）。
-      `  |  window redrawn at ${parsedDiag?.tickerTicks != null ? `${(parsedDiag.tickerTicks / duration).toFixed(1)}/s` : 'n/a'}`
+      `  |  window redrawn at ${parsedDiag?.tickerTicks != null ? `${(parsedDiag.tickerTicks / duration).toFixed(1)}/s` : 'n/a'}` +
+      // 撮影枚数の上限と、その元にした画面のリフレッシュレート。自動起動の回だけ枚数が落ちた
+      // （2026-11-09/12/13）原因の切り分け用——起動時の値が残って上限が低くなっていないか。
+      (meta ? `  |  cap ${meta.captureFps}/s (display ${meta.displayHz ?? 'unknown'} Hz)` : '')
     )
     const settleNote = takeSettleNote()
     if (settleNote) console.log(settleNote)
