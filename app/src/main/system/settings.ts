@@ -354,9 +354,17 @@ async function persistToDisk(data: Settings): Promise<void> {
       await unlink(tmp).catch(() => {})
       const code = (err as NodeJS.ErrnoException).code
       const transient = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES'
-      if (attempt === MAX_ATTEMPTS || !transient) {
-        // tmp+rename が通らない場合の最終手段として実ファイルへ直接書き込む
-        // （原子性は劣るが rename の EPERM を回避できる）。これも失敗したら諦める。
+      if (!transient) {
+        // 空き容量不足（ENOSPC）など、待っても直らない失敗。**本体へ直接は書かない**——
+        // 直接書きは本体を先に空にしてから書くので、同じ理由で途中で失敗すると settings.json が
+        // 壊れ、次回起動で全部初期値に戻る。今の本体は無傷なので、保存できなかったことだけ伝える。
+        console.error('[settings] persist failed:', err)
+        notifyPersistFailed()
+        return
+      }
+      if (attempt === MAX_ATTEMPTS) {
+        // 一時的なロック（ウイルス対策ソフト等による rename の EPERM）が続いたときの最終手段として
+        // 実ファイルへ直接書き込む（原子性は劣るが rename を回避できる）。これも失敗したら諦める。
         try { await writeFile(path, json, 'utf-8'); _persistFailed = false; return }
         catch (fallbackErr) {
           console.error('[settings] persist failed after retries:', fallbackErr)

@@ -102,8 +102,8 @@ describe('flushSettings', () => {
 // 書き込みを諦めたことは必ず外へ出す——黙って諦めると、症状は次に起動したときの
 // 「設定が戻っている」だけになり、利用者にも原因が辿れない。
 describe('永続化を諦めたときの通知', () => {
-  // ENOSPC は一時的なロックではないのでリトライ待ち（最大 800ms）に入らず、
-  // すぐ最終手段の直接書き込みへ進む。テストを待たせないための選択。
+  // ENOSPC は一時的なロックではないのでリトライ待ち（最大 800ms）に入らず、すぐ諦める。
+  // テストを待たせないための選択。
   const fatal = (): Promise<never> => Promise.reject(Object.assign(new Error('no space'), { code: 'ENOSPC' }))
 
   it('リトライを使い切ったら知らせる', async () => {
@@ -150,6 +150,29 @@ describe('永続化を諦めたときの通知', () => {
     await flushSettings()
 
     expect(notified).toHaveBeenCalledTimes(2)
+  })
+
+  // 直接書きは本体を空にしてから書くので、空き容量不足だと本体まで壊れて次回起動で初期値に戻る。
+  it('待っても直らない失敗では、本体へ直接書かない', async () => {
+    const { saveSettings, flushSettings } = await freshSettings()
+
+    writeFile.mockImplementation(fatal)
+    saveSettings({ theme: 'light' })
+    await flushSettings()
+
+    const targets = writeFile.mock.calls.map((c) => c[0])
+    expect(targets.length).toBeGreaterThan(0)
+    expect(targets.every((p) => p.endsWith('.tmp'))).toBe(true)
+  })
+
+  it('一時的なロックが続いたときだけ、最後に本体へ直接書く', async () => {
+    const { saveSettings, flushSettings } = await freshSettings()
+
+    rename.mockRejectedValue(Object.assign(new Error('locked'), { code: 'EPERM' }))
+    saveSettings({ theme: 'light' })
+    await flushSettings()
+
+    expect(writeFile.mock.calls.at(-1)?.[0].endsWith('.tmp')).toBe(false)
   })
 
   it('書けなくてもセッション内の値は確定している', async () => {
