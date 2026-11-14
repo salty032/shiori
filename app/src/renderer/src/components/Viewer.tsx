@@ -72,13 +72,16 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     if (!current) return
     setFullSrc(null)
     let canceled = false
-    const preload = new Image()
-    preload.onload = () => { if (!canceled) setFullSrc(mediaUrl(current.id)) }
-    preload.src = mediaUrl(current.id)
+    // 動画は <img> で読めず捨てられるだけなので、先読みは画像に限る（fullSrc も画像でしか使わない）。
+    if (current.media_type !== 'video') {
+      const preload = new Image()
+      preload.onload = () => { if (!canceled) setFullSrc(mediaUrl(current.id)) }
+      preload.src = mediaUrl(current.id)
+    }
     // 前後1枚は表示には使わないが、先読みしてブラウザキャッシュに載せておく
     // （次に進んだときの preload.onload までの待ちを短くする）。
     for (const n of [images[index - 1], images[index + 1]]) {
-      if (n) new Image().src = mediaUrl(n.id)
+      if (n && n.media_type !== 'video') new Image().src = mediaUrl(n.id)
     }
     return () => { canceled = true }
   }, [images, index])
