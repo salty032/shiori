@@ -39,7 +39,7 @@ let isImagesExportCanceled = false
 //
 // 以前は shell.trashItem でゴミ箱へ移していたが、それだと「Shiori で消したのに空き容量が
 // 増えない」状態になり、容量を戻すのにユーザーが自分でゴミ箱を空ける必要があった。
-// 取り消しは削除確定前の猶予（useSelection.ts の DELETE_UNDO_MS）で既に成立していて、
+// 取り消しは削除確定前の猶予（usePendingDeletion.ts の DELETE_UNDO_MS）で既に成立していて、
 // ここへ来る時点で取り消し機会は過ぎている。以降はアプリが最後まで後始末する。
 //
 // DB 行は既に削除済みなので、ここでの失敗は巻き戻さず孤立ファイルとして残すだけ

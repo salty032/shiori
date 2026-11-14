@@ -11,7 +11,7 @@ export const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif
 export const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 
 // 取り込んだ素材の captured_at は取り込み時刻にそろえ、metadata.jsonl の値は
-// original_captured_at として別に持つ（詳細パネルに「元の取得時間」として出す）。
+// original_captured_at として別に持つ（画面には出していない）。
 // そろえないと、他人からもらった素材が自分のキャプチャと日付順で混ざり、一覧のどこに
 // 何が増えたのか分からなくなる。
 //

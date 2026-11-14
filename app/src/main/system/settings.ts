@@ -305,7 +305,7 @@ function delay(ms: number): Promise<void> {
 }
 
 // 永続化の最終失敗を呼び出し側（bootstrap）へ伝える購読口。settings.ts は windows.ts に
-// 依存させたくない（_corruptOnLoad と同じ理由）ので、通知の実体は bootstrap 側に持たせる。
+// 依存させたくない（_loadProblem と同じ理由）ので、通知の実体は bootstrap 側に持たせる。
 //
 // **なぜ黙って諦めてはいけないか** — saveSettings はディスク反映を待たずに返る設計で、
 // 画面上は保存できたようにしか見えない。書き込みが最後まで通らなかった場合、次に起動した

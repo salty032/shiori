@@ -80,9 +80,8 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
       const { sortOrder } = useFilterStore.getState()
       // フィルタなし・新しい順（date_desc）で、かつ先頭挿入しても並び順が崩れない
       // （＝この画像が現在の先頭以上に新しい）ときだけ先頭挿入する。それ以外（S4-5: 古い順・
-      // ランダムでの先頭挿入で並びが崩れるケースに加えて、フォルダ/ファイルインポートは
-      // captured_at が元ファイルの更新日時になるため、既存の先頭より古いことがある）は
-      // 再クエリに倒す。先頭より古いキャプチャを先頭挿入すると、カーソルページングが後で
+      // ランダムでの先頭挿入で並びが崩れるケースや、届いた画像の captured_at が既存の先頭より
+      // 古いとき）は再クエリに倒す。先頭より古いキャプチャを先頭挿入すると、カーソルページングが後で
       // その captured_at 位置まで進んだときに同じ行を再取得して二重表示になる。
       const top = store.gridImages[0]
       if (!store.gridReloading && !filtered && sortOrder === 'date_desc' && (!top || img.captured_at >= top.captured_at)) {

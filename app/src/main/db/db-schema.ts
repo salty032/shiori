@@ -46,7 +46,7 @@ export function databasePath(): string {
 }
 
 // 退避処理が失敗したことをウィンドウ準備後に伝えるための持ち越し。設定ファイルの破損
-// （settings.ts の consumeCorruptSettingsNotice）と同じ持ち方。退避が取れなかったこと自体は
+// （settings.ts の consumeSettingsLoadProblem）と同じ持ち方。退避が取れなかったこと自体は
 // 起動を止める理由にならないが、黙っていると「取れているつもり」で使い続けることになる。
 let _backupFailed = false
 

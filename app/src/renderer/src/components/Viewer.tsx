@@ -189,7 +189,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   }, [closing, images, index, zoom, pan, onToggleDetailPanel, keyActionsRef])
 
   // +/-/0: ホイールズームと同じ倍率係数(1.25/0.8)で、画像の描画矩形中心を基準にズームする
-  // （マウスカーソル基準の handleWheel と違い、キーボード操作にはカーソル位置の意味がないため）。
+  // （マウスカーソル基準のホイールズーム（onWheelNative）と違い、キーボード操作にはカーソル位置の意味がないため）。
   function zoomByKeyboard(factor: number): void {
     const nextZoom = Math.max(1, Math.min(8, zoom * factor))
     if (nextZoom === zoom) return

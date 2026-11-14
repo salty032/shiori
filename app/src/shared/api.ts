@@ -34,7 +34,7 @@ export interface ShioriApi {
   onExtensionTimecode: (cb: (data: ExtensionTimecode) => void) => () => void
   updateImageTitle: (id: number, title: string) => Promise<void>
   updateImageMemo: (id: number, memo: string) => Promise<void>
-  // 手打ちのタイムシート。中身は shared/timesheet.ts の encode/decode を通した JSON 文字列で、
+  // 手打ちのタイムシート。中身は shared/timesheet.ts の encodeTimesheet / decodeTimesheet を通した JSON 文字列で、
   // main は素通しする（形の検証は両端の同じ関数が持ち、IPC の途中に 3 つ目の解釈を作らない）。
   getTimesheet: (imageId: number) => Promise<string | null>
   saveTimesheet: (imageId: number, data: string) => Promise<void>

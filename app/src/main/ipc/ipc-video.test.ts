@@ -270,7 +270,7 @@ describe('buildClipFrames（コマ送りに渡す並びと、コマごとの確�
   })
 
   // frameIndex がファイルの範囲外＝表とファイルの対応が取れていない。半端に解釈すると
-  // 別のコマの絵を指したままコマ送りが動くので、退避させる方がよい（db.ts の decodeFrames と同じ判断）。
+  // 別のコマの絵を指したままコマ送りが動くので、退避させる方がよい（db-video-frames.ts の decodeFrames と同じ判断）。
   it('表の指す先がファイルの範囲外なら、その行は使わない', () => {
     const table: StoredFrame[] = [
       { mediaTime: 0, frameIndex: 0, captured: true },

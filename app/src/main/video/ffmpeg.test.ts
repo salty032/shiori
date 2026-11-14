@@ -90,7 +90,7 @@ describe('trimWebm', () => {
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'shiori-ffmpeg-test-'))
     srcPath = join(dir, 'src.webm')
-    // 10秒の testsrc ソース（video-edit.ts の実測手順と同一条件）
+    // 10秒の testsrc ソース
     await runFfmpegSync([
       '-y',
       '-f', 'lavfi', '-i', 'testsrc=duration=10:size=320x240:rate=10',
@@ -102,7 +102,7 @@ describe('trimWebm', () => {
 
   // 可変フレームレートの素材。録画（MediaRecorder）は「画面が変化したぶんだけ」フレームを
   // 吐くので実物もこの形になる。**等間隔の素材ではこの手の丸めは再現しない**
-  // （docs/ANIME-FRAMES.md の H.264 書き出しの項と同じ理由）。
+  // （docs/SPEC.md「書き出しで固定フレームレートに落とさない」と同じ理由）。
   beforeAll(async () => {
     vfrPath = join(dir, 'vfr.webm')
     await runFfmpegSync([

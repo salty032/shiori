@@ -186,7 +186,7 @@ export function registerImportHandlers(): void {
         const ts = Date.now()
         // 取得時間は取り込んだ時刻にそろえる。元ファイルの更新日時をそのまま使っていた頃は、
         // 他人からもらった画像が自分のキャプチャと日付順で混ざり、一覧のどこに何が増えたのか
-        // 分からなかった。元の更新日時は捨てず original_captured_at に持ち、詳細パネルに出す。
+        // 分からなかった。元の更新日時は捨てず original_captured_at に持つ（画面には出していない）。
         // 格納先サブフォルダも取り込んだ時刻に合わせる（一覧の並びと同じ月に入る）。
         const originalCapturedAt = Math.floor(srcStat.mtimeMs) || null
         const capturedAt = ts

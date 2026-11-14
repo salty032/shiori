@@ -28,7 +28,7 @@ export function normalizeSearchText(s: string): string {
 // 変えても既存の行は古い結果のまま残る。検索語は新ルールで正規化されるので、同じ語が
 // 「古い行には当たらないが新しい行には当たる」状態になる。行によって当たったり当たらな
 // かったりするのは、この機能がまさに潰そうとしている「説明の付かない検索結果」そのもの。
-// db.ts の initDb がこの数字の変化を見て search_text を全行作り直す。
+// db-schema.ts の initDb がこの数字の変化を見て search_text を全行作り直す。
 export const SEARCH_NORMALIZE_VERSION = 1
 
 // search_text 列の中身。title/memo それぞれを正規化して1列にまとめる（アプリは列を
