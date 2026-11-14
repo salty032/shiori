@@ -7,7 +7,6 @@ vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/user
 
 // 数え直し（backfillFrameCounts）だけは DB を読むので、その 2 か所だけ差し替える。
 const storedRows = vi.fn<() => unknown[]>(() => [])
-const setFrameCountsMock = vi.fn()
 const executedSql: { sql: string; args: unknown[] }[] = []
 vi.mock('./db-core', () => ({
   getDb: vi.fn(),
@@ -17,7 +16,6 @@ vi.mock('./db-core', () => ({
     run: (...args: unknown[]) => { executedSql.push({ sql, args }) }
   })
 }))
-vi.mock('./db', () => ({ setFrameCounts: (...args: unknown[]) => setFrameCountsMock(...args) }))
 
 import {
   encodeFrames, decodeFrames, encodeUnusable, readUnusableReason, backfillFrameCounts,
@@ -177,24 +175,25 @@ describe('保存済みのコマ表から枚数を数え直す', () => {
   })
 
   it('空のままの録画を、表から数えて埋める', () => {
-    setFrameCountsMock.mockClear()
+    executedSql.length = 0
     storedRows.mockReturnValue([row({})])
     expect(backfillFrameCounts()).toBe(1)
-    // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1
-    expect(setFrameCountsMock).toHaveBeenCalledWith(7, 1, 6, 2, 1, false)
+    // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1 / 裏付けなし
+    const update = executedSql.find((entry) => entry.sql.includes('UPDATE images'))
+    expect(update?.args).toEqual([1, 6, 2, 1, 0, 7])
   })
 
   it('既に合っている録画は書き換えない（起動のたびに全件書き直さない）', () => {
-    setFrameCountsMock.mockClear()
+    executedSql.length = 0
     storedRows.mockReturnValue([row({ uncaptured: 1, total: 6, unreported: 2, misaligned: 1 })])
     expect(backfillFrameCounts()).toBe(0)
-    expect(setFrameCountsMock).not.toHaveBeenCalled()
+    expect(executedSql.some((entry) => entry.sql.includes('UPDATE images'))).toBe(false)
   })
 
   it('使えない印の付いた表は触らない（表が無いのと同じ扱い）', () => {
-    setFrameCountsMock.mockClear()
+    executedSql.length = 0
     storedRows.mockReturnValue([row({ data: encodeUnusable(encodeFrames(table), 'correspondence-break') })])
     expect(backfillFrameCounts()).toBe(0)
-    expect(setFrameCountsMock).not.toHaveBeenCalled()
+    expect(executedSql.some((entry) => entry.sql.includes('UPDATE images'))).toBe(false)
   })
 })

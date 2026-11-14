@@ -16,17 +16,26 @@ vi.mock('../system/windows', () => ({ sendToRenderer: (...args: unknown[]) => se
 
 const markVideoFramesUnusable = vi.fn()
 vi.mock('../db/db', () => ({
-  setAmbiguousFrames: vi.fn(),
-  setFrameCounts: vi.fn()
+  setAmbiguousFrames: vi.fn()
 }))
 
+// 枚数の数え方は本物を使う（通知に載る数そのものを確かめるため）。保存だけ記録へ流す。
 const saveVideoFrames = vi.fn()
-vi.mock('../db/db-video-frames', () => ({
-  markVideoFramesUnusable: (...args: unknown[]) => markVideoFramesUnusable(...args),
-  saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
-  listClipsForRecheck: vi.fn(() => []),
-  markRechecked: vi.fn()
-}))
+vi.mock('../db/db-video-frames', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../db/db-video-frames')>()
+  return {
+    countFrameTable: actual.countFrameTable,
+    markVideoFramesUnusable: (...args: unknown[]) => markVideoFramesUnusable(...args),
+    saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
+    saveFrameTable: (imageId: number, frames: StoredFrame[]) => {
+      if (frames.length === 0) return null
+      saveVideoFrames(imageId, frames)
+      return actual.countFrameTable(frames)
+    },
+    listClipsForRecheck: vi.fn(() => []),
+    markRechecked: vi.fn()
+  }
+})
 
 import { verifyClipFrames } from './verify-clip'
 import { CH } from '../../shared/api'

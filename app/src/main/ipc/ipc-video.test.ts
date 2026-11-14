@@ -28,22 +28,30 @@ const mockImage = {
 const getVideoFrames = vi.fn(() => null as import('../db/db-video-frames').StoredFrame[] | null)
 const saveVideoFrames = vi.fn()
 const restoreVideoFrames = vi.fn()
-const setFrameCounts = vi.fn()
+const saveFrameTable = vi.fn()
 
 vi.mock('../db/db', () => ({
   getImage: vi.fn(() => mockImage),
-  setFrameCounts: (...args: unknown[]) => setFrameCounts(...args),
 }))
 
 vi.mock('../db/db-tags', () => ({
   getImageTags: vi.fn(() => []),
 }))
 
-vi.mock('../db/db-video-frames', () => ({
-  getVideoFrames: () => getVideoFrames(),
-  saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
-  restoreVideoFrames: (...args: unknown[]) => restoreVideoFrames(...args),
-}))
+vi.mock('../db/db-video-frames', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../db/db-video-frames')>()
+  return {
+    getVideoFrames: () => getVideoFrames(),
+    saveVideoFrames: (...args: unknown[]) => saveVideoFrames(...args),
+    restoreVideoFrames: (...args: unknown[]) => restoreVideoFrames(...args),
+    // 書いた表と、そこから数えた枚数の両方を記録する。
+    saveFrameTable: (imageId: number, frames: import('../db/db-video-frames').StoredFrame[]) => {
+      const counts = actual.countFrameTable(frames)
+      saveFrameTable(imageId, frames, counts)
+      return counts
+    },
+  }
+})
 
 vi.mock('../system/paths', () => ({
   resolveRealCapturePath: vi.fn(async (p: string) => p),
@@ -313,7 +321,7 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     getVideoFrames.mockReset()
     getVideoFrames.mockReturnValue(null)
     saveVideoFrames.mockReset()
-    setFrameCounts.mockReset()
+    saveFrameTable.mockReset()
     registerCapturedMedia.mockClear()
     registerCapturedMedia.mockResolvedValue({ ok: true, id: 99 })
     vi.mocked(unlink).mockClear()
@@ -375,11 +383,10 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     const result = await handler({}, 1, 2, 8)
 
     expect(result).toEqual({ ok: true, newId: 99 })
-    expect(saveVideoFrames).toHaveBeenCalledWith(99, [
+    expect(saveFrameTable).toHaveBeenCalledWith(99, [
       { mediaTime: 2, frameIndex: 0, captured: true },
       { mediaTime: 4, frameIndex: 2, captured: true },
-    ])
-    expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0, 0, true)
+    ], { uncaptured: 0, sourceFrames: 2, unreported: 0, misaligned: 0, unreportedMeasured: true })
   })
 
   // 印は行ごと引き継がれるので、件数も表から数える（0 で書くと詳細の件数と赤い表示が食い違う）。
@@ -395,6 +402,6 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
 
     await handlers.get('video:trim')!({}, 1, 2, 8)
 
-    expect(setFrameCounts).toHaveBeenCalledWith(99, 0, 2, 0, 1, true)
+    expect(saveFrameTable).toHaveBeenCalledWith(99, expect.any(Array), expect.objectContaining({ misaligned: 1 }))
   })
 })

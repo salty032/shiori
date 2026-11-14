@@ -12,16 +12,17 @@ import {
   applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, signaturesDiffer,
   verifyFrameTable
 } from './frame-verify'
-import { setAmbiguousFrames, setFrameCounts } from '../db/db'
+import { setAmbiguousFrames } from '../db/db'
 import {
-  listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveVideoFrames, type StoredFrame
+  countFrameTable, listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveFrameTable, saveVideoFrames,
+  type FrameCounts, type StoredFrame
 } from '../db/db-video-frames'
-import { countReportDrops, matchFrames, reportDropsMeasured, type SourceFrame } from './frame-feed'
+import { matchFrames, type SourceFrame } from './frame-feed'
 import { refineByThumbnails } from './frame-thumbs'
 import { alignWholeRecording } from './frame-align'
 import { isRecordingInProgress } from './recording'
 import { sendToRenderer } from '../system/windows'
-import { CH } from '../../shared/api'
+import { CH, type FramesVerified } from '../../shared/api'
 import { writeCorrespondenceDiagnostic } from './frame-correspondence-diag'
 
 // 検証で確定した枚数を画面へ反映させる。
@@ -33,15 +34,23 @@ import { writeCorrespondenceDiagnostic } from './frame-correspondence-diag'
 // 一覧のスナップショットの中で分子と分母が別の時点の数になり、割合の判定が静かに狂う。
 // misaligned まで流すのは、詳細パネルの「要注意」がこの値で決まるため。**落とすと録画した
 // 直後の 1 本だけ、コマ送りの表示が赤いのに詳細パネルが黙る**（開き直すまで直らない）。
-function notifyVerified(
-  imageId: number, uncaptured: number | null, ambiguous: number | null,
-  total: number | null, unreported: number | null, misaligned: number | null = 0,
-  unreportedMeasured = false
-): void {
+// counts が null ＝ 表が使えなくなった（枚数は全部「数えられない」）。
+export function framesVerifiedPayload(
+  imageId: number, counts: FrameCounts | null, ambiguous: number | null
+): FramesVerified {
+  return counts
+    ? {
+        id: imageId, uncaptured: counts.uncaptured, ambiguous, total: counts.sourceFrames,
+        unreported: counts.unreported, misaligned: counts.misaligned, unreportedMeasured: counts.unreportedMeasured
+      }
+    : { id: imageId, uncaptured: null, ambiguous: null, total: null, unreported: null, misaligned: null, unreportedMeasured: false }
+}
+
+function notifyVerified(imageId: number, counts: FrameCounts | null, ambiguous: number | null = null): void {
   // **画面へ知らせる前にキャッシュを捨てる。** ここへ来るのは表を書き換えた後だけで、
   // 捨てないと開いたままのクリップが古い並びのままコマ送りを続ける。
   invalidateClipFrames(imageId)
-  sendToRenderer(CH.framesVerified, { id: imageId, uncaptured, ambiguous, total, unreported, misaligned, unreportedMeasured })
+  sendToRenderer(CH.framesVerified, framesVerifiedPayload(imageId, counts, ambiguous))
 }
 
 /**
@@ -114,11 +123,7 @@ export async function verifyClipFrames(
         )
         if (moved > 0 || picked.length !== table.length) {
           frames = picked
-          saveVideoFrames(imageId, frames)
-          setFrameCounts(
-            imageId, frames.filter((f) => !f.captured).length, frames.length,
-            countReportDrops(frames), 0, reportDropsMeasured(frames)
-          )
+          saveFrameTable(imageId, frames)
         }
       }
     }
@@ -197,40 +202,23 @@ export async function verifyClipFrames(
         if (marked.length === 0 || (misaligned > 0 && misaligned === marked.length)) {
           // 1 行も使えるところが無い。ここだけは表として成立しない。
           markVideoFramesUnusable(imageId, 'correspondence-break')
-          notifyVerified(imageId, null, null, null, null, null)
+          notifyVerified(imageId, null)
           return null
         }
         if (misaligned > 0) {
-          saveVideoFrames(imageId, marked)
-          setFrameCounts(
-            imageId,
-            marked.filter((f) => !f.captured).length,
-            marked.length,
-            countReportDrops(marked),
-            misaligned,
-            reportDropsMeasured(marked)
-          )
-          notifyVerified(
-            imageId,
-            marked.filter((f) => !f.captured).length,
-            null,
-            marked.length,
-            countReportDrops(marked),
-            misaligned,
-            reportDropsMeasured(marked)
-          )
-          return marked.filter((f) => !f.captured).length
+          const counts = saveFrameTable(imageId, marked)
+          notifyVerified(imageId, counts)
+          return counts ? counts.uncaptured : null
         }
         // 裏が取れなかった＝表はそのまま使える。範囲外を指す行だけ落として通常の経路へ戻す。
         frames = marked
-        saveVideoFrames(imageId, frames)
-        setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
+        saveFrameTable(imageId, frames)
       } else {
         // 末尾だけ足りない。そこまでの対応は正しいので、範囲外を指すコマを落として残りを使う。
         const kept = frames.filter((f) => f.frameIndex < signatures.length)
         if (kept.length === 0) {
           markVideoFramesUnusable(imageId, 'no-frame-within-file')
-          notifyVerified(imageId, null, null, null, null, null)
+          notifyVerified(imageId, null)
           return null
         }
         console.warn(
@@ -239,8 +227,7 @@ export async function verifyClipFrames(
           ` correspondence holds up to the end, so ${frames.length - kept.length} trailing frame(s) were trimmed.`
         )
         frames = kept
-        saveVideoFrames(imageId, frames)
-        setFrameCounts(imageId, frames.filter((f) => !f.captured).length, frames.length, countReportDrops(frames), 0, reportDropsMeasured(frames))
+        saveFrameTable(imageId, frames)
       }
     }
 
@@ -250,22 +237,21 @@ export async function verifyClipFrames(
     frames = animeGaps.frames
     if (animeGaps.changed) saveVideoFrames(imageId, frames)
 
-    const missed = frames.filter((f) => !f.captured).length
-    // トリミングした表は元の行のずれの印を引き継いでいる。0 で知らせると、画面の件数だけが消える。
-    const misaligned = frames.filter((f) => f.misaligned).length
+    // トリミングした表は元の行のずれの印を引き継いでいる。表から数えるので、ずれの件数も落ちない。
+    const counts = countFrameTable(frames)
     // 撮り逃しが 1 コマも無ければ検証する対象が無い（照合だけが目的だった）。
     // 末尾を切って枚数が変わっている場合があるので、画面への反映だけは伝える。
-    if (missed === 0) {
-      notifyVerified(imageId, 0, null, frames.length, countReportDrops(frames), misaligned, reportDropsMeasured(frames))
+    if (counts.uncaptured === 0) {
+      notifyVerified(imageId, counts)
       return 0
     }
 
     const result = verifyFrameTable(frames, signatures)
     saveVideoFrames(imageId, result.frames)
     setAmbiguousFrames(imageId, result.ambiguous)
-    notifyVerified(imageId, missed, result.ambiguous, frames.length, countReportDrops(frames), misaligned, reportDropsMeasured(frames))
+    notifyVerified(imageId, counts, result.ambiguous)
     logVerifyResult(imageId, result)
-    return missed
+    return counts.uncaptured
   } catch (err) {
     // 検証できなくてもクリップは従来どおり使える（注記が「未検証」のまま残るだけ）。
     console.warn(`[frame-verify] image ${imageId}: failed`, err)
@@ -321,30 +307,14 @@ export async function recheckMarkedClips(): Promise<void> {
       }
       // 印を外して通常の表へ戻す。ずれた行には印が立っており、そこだけ画面で赤く出る。
       // **全部か全部ダメにしない**——使える行が 1 つでもあれば、その精度は返す。
-      saveVideoFrames(target.imageId, match.frames)
+      const counts = saveFrameTable(target.imageId, match.frames)
       // 救えたときも版を記録する。**印が残ったクリップを毎回の起動でデコードし直さないため。**
       markRechecked(target.imageId)
-      setFrameCounts(
-        target.imageId,
-        match.frames.filter((f) => !f.captured).length,
-        match.frames.length,
-        countReportDrops(match.frames),
-        match.misaligned,
-        reportDropsMeasured(match.frames)
-      )
       console.log(
         `[frame-recheck] image ${target.imageId} (${when(target.capturedAt)}): restored` +
         ` (${usable} usable, ${match.misaligned} misaligned, worst ${match.worstMs.toFixed(1)}ms)`
       )
-      notifyVerified(
-        target.imageId,
-        match.frames.filter((f) => !f.captured).length,
-        null,
-        match.frames.length,
-        countReportDrops(match.frames),
-        match.misaligned,
-        reportDropsMeasured(match.frames)
-      )
+      notifyVerified(target.imageId, counts)
     } catch (err) {
       console.warn(`[frame-recheck] image ${target.imageId} failed`, err)
     }

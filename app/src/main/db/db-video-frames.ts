@@ -16,7 +16,6 @@
 //   'changed' … 前後で絵が変わっている。どのコマで変わったかは特定できない＝要確認
 // captured=true のコマでは意味を持たない（常に 'unknown'）。
 import { getDb, prepare } from './db-core'
-import { setFrameCounts } from './db'
 import { countReportDrops, reportDropsMeasured } from '../video/frame-feed'
 
 export type FrameVerify = 'unknown' | 'same' | 'changed'
@@ -219,28 +218,67 @@ export function saveVideoFrames(imageId: number, frames: StoredFrame[]): void {
   prepare('INSERT OR REPLACE INTO video_frames (image_id, data) VALUES (?, ?)').run(imageId, encodeFrames(frames))
 }
 
-export function restoredFrameCounts(
-  frames: StoredFrame[],
-  counts: { ambiguous: number | null }
-): { uncaptured: number; ambiguous: number | null; sourceFrames: number; unreported: number; unreportedMeasured: boolean; misaligned: number } {
+// 詳細パネルとコマ送りの表示が読む枚数。**どれも表から数える。** 書く経路ごとに手で数えると、
+// 1 か所数え方が違うだけで詳細パネルとコマ送りの数が黙って食い違う。
+export interface FrameCounts {
+  uncaptured: number
+  sourceFrames: number
+  unreported: number
+  // 上の抜けの枚数に裏が取れているか。旧版の拡張で撮った表には累積数が無いので false。
+  unreportedMeasured: boolean
+  misaligned: number
+}
+
+export function countFrameTable(frames: StoredFrame[]): FrameCounts {
   return {
     uncaptured: frames.filter((frame) => !frame.captured).length,
     sourceFrames: frames.length,
+    unreported: countReportDrops(frames),
+    unreportedMeasured: reportDropsMeasured(frames),
+    misaligned: frames.filter((frame) => frame.misaligned).length,
+  }
+}
+
+// 撮り逃した枚数と、その母数である素材のコマ総数。**必ず一緒に書く** —— 片方だけ更新すると
+// 割合が別々の時点の数から算出され、詳細パネルの「多い / 少ない」が静かに狂う。
+function writeFrameCounts(imageId: number, counts: FrameCounts): void {
+  prepare(
+    'UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ?,' +
+    ' misaligned_frames = ?, unreported_measured = ? WHERE id = ?'
+  ).run(
+    counts.uncaptured, counts.sourceFrames, counts.unreported,
+    counts.misaligned, counts.unreportedMeasured ? 1 : 0, imageId
+  )
+}
+
+// 表を保存し、そこから数えた枚数を**同じトランザクションで**書く。戻り値は書いた枚数
+// （画面への通知はこれから作る）。ambiguous_frames には触らない —— 実ファイルとの照合が要る。
+export function saveFrameTable(imageId: number, frames: StoredFrame[]): FrameCounts | null {
+  if (frames.length === 0) return null
+  const counts = countFrameTable(frames)
+  getDb().transaction(() => {
+    saveVideoFrames(imageId, frames)
+    writeFrameCounts(imageId, counts)
+  })()
+  return counts
+}
+
+export function restoredFrameCounts(
+  frames: StoredFrame[],
+  counts: { ambiguous: number | null }
+): FrameCounts & { ambiguous: number | null } {
+  return {
+    // **送り主が入れてきた数字は使わず、受け取った表から数え直す。**
+    // 共有ファイルに入っているのは 1 コマずつの表だけで、合計は入っていない。以前は
+    // 送られてきた値をそのまま入れており、入っていなければ空のままだった——結果、
+    // 受け取った録画はコマ送りの表示だけが赤く、詳細パネルは黙る形になっていた。
+    ...countFrameTable(frames),
     // null は「未検証」、数値がある場合は表を真値として再計算する。
     ambiguous: counts.ambiguous === null
       ? null
       // verifyFrameTable と同じ定義（changed + unknown）。same と確定できたものだけを除く。
       // unknown を落とすと「判定できなかったコマ」が問題なしに見えてしまう。
       : frames.filter((frame) => !frame.captured && frame.verified !== 'same').length,
-    // **送り主が入れてきた数字は使わず、受け取った表から数え直す。**
-    // 共有ファイルに入っているのは 1 コマずつの表だけで、合計は入っていない。以前は
-    // 送られてきた値をそのまま入れており、入っていなければ空のままだった——結果、
-    // 受け取った録画はコマ送りの表示だけが赤く、詳細パネルは黙る形になっていた。
-    unreported: countReportDrops(frames),
-    // 上の枚数に裏が取れているか。**受け取った表から数え直すので、ここも表から出す**
-    // （送り主の申告は使わない）。旧版の拡張で撮った表には累積数が無いので false になる。
-    unreportedMeasured: reportDropsMeasured(frames),
-    misaligned: frames.filter((frame) => frame.misaligned).length,
   }
 }
 
@@ -254,15 +292,9 @@ export function restoreVideoFrames(
   if (frames.length === 0) return null
   const restored = restoredFrameCounts(frames, counts)
   getDb().transaction(() => {
-    prepare('INSERT OR REPLACE INTO video_frames (image_id, data) VALUES (?, ?)').run(imageId, encodeFrames(frames))
-    prepare(`UPDATE images
-      SET uncaptured_frames = ?, ambiguous_frames = ?, source_frames = ?, unreported_frames = ?,
-          misaligned_frames = ?, unreported_measured = ?
-      WHERE id = ?`)
-      .run(
-        restored.uncaptured, restored.ambiguous, restored.sourceFrames, restored.unreported,
-        restored.misaligned, restored.unreportedMeasured ? 1 : 0, imageId
-      )
+    saveVideoFrames(imageId, frames)
+    writeFrameCounts(imageId, restored)
+    prepare('UPDATE images SET ambiguous_frames = ? WHERE id = ?').run(restored.ambiguous, imageId)
   })()
   return restored
 }
@@ -323,12 +355,10 @@ export function backfillFrameCounts(): number {
   for (const row of rows) {
     const frames = decodeFrames(row.data)
     if (!frames || frames.length === 0) continue
-    const uncaptured = frames.filter((f) => !f.captured).length
-    const misaligned = frames.filter((f) => f.misaligned).length
-    const unreported = countReportDrops(frames)
-    if (row.uncaptured === uncaptured && row.total === frames.length &&
-        row.unreported === unreported && row.misaligned === misaligned) continue
-    setFrameCounts(row.imageId, uncaptured, frames.length, unreported, misaligned, reportDropsMeasured(frames))
+    const counts = countFrameTable(frames)
+    if (row.uncaptured === counts.uncaptured && row.total === counts.sourceFrames &&
+        row.unreported === counts.unreported && row.misaligned === counts.misaligned) continue
+    writeFrameCounts(row.imageId, counts)
     fixed++
   }
   return fixed

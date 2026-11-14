@@ -96,6 +96,10 @@ vi.mock('./frame-feed', () => ({
   getSourceFrames: vi.fn(() => [])
 }))
 
+vi.mock('../db/db-video-frames', () => ({
+  saveFrameTable: vi.fn(() => null)
+}))
+
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))
 vi.mock('../capture/captured-media', () => ({
   registerCapturedMedia: (params: unknown) => registerCapturedMedia(params)

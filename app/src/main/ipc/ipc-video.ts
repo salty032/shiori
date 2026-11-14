@@ -4,9 +4,9 @@ import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { handleTrusted, sendToRenderer } from '../system/windows'
 import { beginTask, endTask } from '../system/busy'
-import { getImage, setFrameCounts } from '../db/db'
+import { getImage } from '../db/db'
 import { getImageTags } from '../db/db-tags'
-import { getVideoFrames, restoreVideoFrames, saveVideoFrames } from '../db/db-video-frames'
+import { getVideoFrames, restoreVideoFrames, saveFrameTable, saveVideoFrames } from '../db/db-video-frames'
 import type { StoredFrame } from '../db/db-video-frames'
 import { optionalPositiveInteger } from './ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../system/paths'
@@ -15,8 +15,8 @@ import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
 import type { ClipFrames, ClipGap, FrameQuality, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { sliceFrameTable, countReportDrops, frameGaps, reportDropsMeasured } from '../video/frame-feed'
-import { verifyClipFrames } from '../video/verify-clip'
+import { sliceFrameTable, frameGaps } from '../video/frame-feed'
+import { framesVerifiedPayload, verifyClipFrames } from '../video/verify-clip'
 import { applyAnimeGapEstimates } from '../video/frame-verify'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
@@ -139,15 +139,7 @@ function syncFrameCountsToUsable(
   // ambiguous も usable から再計算し、DBと通知の片方だけ null になる状態を作らない。
   const restored = restoreVideoFrames(imageId, usable, { ambiguous })
   if (!restored) return
-  sendToRenderer(CH.framesVerified, {
-    id: imageId,
-    uncaptured: restored.uncaptured,
-    ambiguous: restored.ambiguous,
-    total: restored.sourceFrames,
-    unreported: restored.unreported,
-    misaligned: restored.misaligned,
-    unreportedMeasured: restored.unreportedMeasured
-  })
+  sendToRenderer(CH.framesVerified, framesVerifiedPayload(imageId, restored, restored.ambiguous))
 }
 
 export function registerVideoHandlers(): void {
@@ -330,12 +322,8 @@ export function registerVideoHandlers(): void {
           ])
           const sliced = sliceFrameTable(table, originalPts, trimmedPts, inSec)
           if (sliced.length > 0) {
-            saveVideoFrames(result.id, sliced)
-            const missed = sliced.filter((f) => !f.captured).length
-            // ずれの印は元の表から行ごと引き継がれるので、件数も表から数える。0 で書くと、次の起動で
-            // 数え直されるまで詳細の件数とコマ送りの赤い表示が食い違う。
-            const misaligned = sliced.filter((f) => f.misaligned).length
-            setFrameCounts(result.id, missed, sliced.length, countReportDrops(sliced), misaligned, reportDropsMeasured(sliced))
+            // ずれの印は元の表から行ごと引き継がれ、件数も表から数える（saveFrameTable）。
+            saveFrameTable(result.id, sliced)
             // 撮り逃しの検証は元クリップの結果を流用せず、新しいファイルで取り直す。
             // 切り出しでフレーム番号も並びも変わっており、元の判定がそのまま当てはまる
             // 保証が無いため。待たない（トリム完了を返すのを遅らせない）。

@@ -282,20 +282,6 @@ export function setThumbPath(id: number, thumbPath: string): void {
   prepare('UPDATE images SET thumb_path = ? WHERE id = ?').run(thumbPath, id)
 }
 
-// 撮り逃した枚数と、その母数である素材のコマ総数。**必ず一緒に書く** —— 片方だけ更新すると
-// 割合が別々の時点の数から算出され、詳細パネルの「多い / 少ない」が静かに狂う。
-// unreportedMeasured は「抜けの枚数に裏が取れているか」。**既定を false にしない**——
-// 呼び忘れた経路が黙って「確定」を名乗るより、推定と出る方が安全側（db-schema の注記）。
-export function setFrameCounts(
-  id: number, uncaptured: number, total: number, unreported: number,
-  misaligned = 0, unreportedMeasured = false
-): void {
-  prepare(
-    'UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ?,' +
-    ' misaligned_frames = ?, unreported_measured = ? WHERE id = ?'
-  ).run(uncaptured, total, unreported, misaligned, unreportedMeasured ? 1 : 0, id)
-}
-
 // 検証で「絵が変わっていて特定できない」と分かったコマ数。検証を通していないクリップと
 // 「検証したが0コマだった」クリップを区別する必要があるため、0 も明示的に書く。
 export function setAmbiguousFrames(id: number, count: number): void {

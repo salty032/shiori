@@ -7,6 +7,18 @@ import type {
   ImageQuery, ImageListRequest, DeleteImageResult, ChooseCaptureRootResult,
 } from './types'
 
+// 撮り逃し・ずれ・総数を検証後の値へ置き換えさせる通知の中身（onFramesVerified）。
+// 表が使えなくなったときは枚数が全部 null（「数えられない」）。
+export interface FramesVerified {
+  id: number
+  uncaptured: number | null
+  ambiguous: number | null
+  total: number | null
+  unreported: number | null
+  misaligned: number | null
+  unreportedMeasured: boolean
+}
+
 export interface ShioriApi {
   listImages: (req: ImageListRequest) => Promise<ImageRow[]>
   countImages: (query: ImageQuery) => Promise<number>
@@ -26,7 +38,7 @@ export interface ShioriApi {
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで走り、終わってから
   // 撮り逃し・ずれ・総数を検証後の値へ置き換えさせる。一覧は保存時点のスナップショットなので、
   // これを飛ばさないと**検証で数が変わっても保存直後の数のまま**になる。値は検証後の確定値。
-  onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null; misaligned: number | null; unreportedMeasured: boolean }) => void) => () => void
+  onFramesVerified: (cb: (data: FramesVerified) => void) => () => void
   onOpenSettings: (cb: () => void) => () => void
   onAppNotice: (cb: (data: AppNotice) => void) => () => void
   onWhatsNew: (cb: (data: WhatsNewData) => void) => () => void

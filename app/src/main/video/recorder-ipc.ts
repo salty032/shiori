@@ -16,12 +16,11 @@ import {
 } from './recording'
 import {
   logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions,
-  countReportDrops, reportDropsMeasured, getSourceFrames
+  getSourceFrames
 } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { setFrameCounts } from '../db/db'
-import { saveVideoFrames } from '../db/db-video-frames'
+import { saveFrameTable } from '../db/db-video-frames'
 import { t } from '../system/i18n'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
@@ -273,11 +272,7 @@ export function registerRecorderIpc(): void {
       let verified: Promise<number | null> | null = null
       if (frameTable) {
         try {
-          saveVideoFrames(result.id, frameTable.matches)
-          setFrameCounts(
-            result.id, missedFrames, frameTable.matches.length,
-            countReportDrops(frameTable.matches), 0, reportDropsMeasured(frameTable.matches)
-          )
+          saveFrameTable(result.id, frameTable.matches)
           // 撮り逃しの有無にかかわらず走らせる。撮り逃しが 0 でも、表の frameIndex が
           // ファイル内の実フレームと一致しているかの照合は必要だから（一致しなければ
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、
