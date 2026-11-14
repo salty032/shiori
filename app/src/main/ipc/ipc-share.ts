@@ -17,6 +17,7 @@ import { registerCapturedMedia } from '../capture/captured-media'
 import { createProgressThrottle } from '../system/progress-throttle'
 import { beginTask, endTask } from '../system/busy'
 import { t } from '../system/i18n'
+import { MAX_MEDIA_FILE_BYTES } from '../system/media-exts'
 
 let isShareExporting = false
 let isShareExportCanceled = false
@@ -218,7 +219,7 @@ export function registerShareHandlers(): void {
           const srcFile = join(srcDir, 'images', parsed.file)
           let srcStat: Awaited<ReturnType<typeof stat>>
           try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${parsed.file}`); continue }
-          if (srcStat.size > 500 * 1024 * 1024) { errors.push(`file too large: ${parsed.file}`); continue }
+          if (srcStat.size > MAX_MEDIA_FILE_BYTES) { errors.push(`file too large: ${parsed.file}`); continue }
 
           const uid = randomUUID()
           const ts = Date.now()

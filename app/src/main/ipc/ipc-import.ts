@@ -13,7 +13,7 @@ import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { CH } from '../../shared/api'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { beginTask, endTask } from '../system/busy'
-import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
+import { IMAGE_EXTS, VIDEO_EXTS, MAX_MEDIA_FILE_BYTES } from '../system/media-exts'
 
 // nativeImage が確実にデコードできる形式（Electron が対応を明記しているのは PNG / JPEG のみ）。
 // この範囲では「寸法もサムネも取れない＝中身が画像ではない」と断定できるので取り込みを失敗にする。
@@ -161,7 +161,7 @@ export function registerImportHandlers(): void {
         let srcStat: Awaited<ReturnType<typeof stat>>
         try { srcStat = await stat(rawPath) } catch { errors.push(`not found: ${basename(rawPath)}`); continue }
         if (!srcStat.isFile()) { errors.push(`not a file: ${basename(rawPath)}`); continue }
-        if (srcStat.size > 500 * 1024 * 1024) { errors.push(`too large: ${basename(rawPath)}`); continue }
+        if (srcStat.size > MAX_MEDIA_FILE_BYTES) { errors.push(`too large: ${basename(rawPath)}`); continue }
 
         // 動画は尺上限を超えるものを取り込まない（著作権対策）。コピー前に元ファイルで判定し、
         // 超過・判定不能なら無駄なコピーもせず弾く。判定不能を許すと長尺のすり抜け余地が
