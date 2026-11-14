@@ -24,9 +24,8 @@ export interface ShioriApi {
   getImage: (id: number) => Promise<ImageRow | null>
   onCapture: (cb: (data: CaptureData) => void) => () => void
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで走り、終わってから
-  // 「N コマ未取得」を「N コマ要確認」へ変える。一覧は保存時点のスナップショットなので、
-  // これを飛ばさないと**検証済みなのに未検証の表示のまま**になる（実測で 90コマ未取得 のまま
-  // 64コマ要確認 に変わらなかった）。値は検証後の確定値。
+  // 撮り逃し・ずれ・総数を検証後の値へ置き換えさせる。一覧は保存時点のスナップショットなので、
+  // これを飛ばさないと**検証で数が変わっても保存直後の数のまま**になる。値は検証後の確定値。
   onFramesVerified: (cb: (data: { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null; misaligned: number | null; unreportedMeasured: boolean }) => void) => () => void
   onOpenSettings: (cb: () => void) => () => void
   onAppNotice: (cb: (data: AppNotice) => void) => () => void
@@ -43,7 +42,7 @@ export interface ShioriApi {
   deleteImagesBulk: (ids: number[]) => Promise<DeleteImageResult[]>
   // 画像を他アプリへドラッグ&ドロップで渡す（main が OS のドラッグを開始する）。
   // 唯一の送りっぱなし IPC。Promise を待つとドラッグ開始に間に合わないため戻り値を持たない
-  // （理由の詳細は main/ipc-drag.ts の先頭コメント）。
+  // （理由の詳細は main/ipc/ipc-drag.ts の先頭コメント）。
   startImageDrag: (ids: number[]) => void
   // 枚数上限（50枚）・累積バイト上限・個別コピー失敗のいずれかで、ドラッグしたつもりの
   // 枚数より実際に渡った枚数が少なかったとき main から通知される（UX-6）。OSドラッグ中は
@@ -52,8 +51,7 @@ export interface ShioriApi {
   openUrl: (url: string) => Promise<void>
   showInFolder: (imageId: number) => Promise<void>
   showExtensionFolder: () => Promise<void>
-  // 撮ったものが置いてあるフォルダを Explorer で開く。以前は拡張のフォルダだけが開けて、
-  // 自分の何百枚の置き場所には辿り着けなかった。
+  // 保存先を選び直す。書き込めるかをその場で確かめ、これまでのぶんを移すかも聞く（ipc-shell.ts）。
   chooseCaptureRoot: () => Promise<ChooseCaptureRootResult>
   cancelCaptureMove: () => Promise<void>
   onCaptureMoveProgress: (cb: (data: { current: number; total: number }) => void) => () => void
@@ -185,7 +183,7 @@ export const CH = {
   clipboardCopyImage: 'clipboard:copyImage',
   // export (images:export / share:export で共用)
   exportProgress: 'export:progress',
-  // push (main 竊・renderer)
+  // push (main → renderer)
   captureDone: 'capture:done',
   framesVerified: 'frames:verified',
   openSettings: 'open-settings',

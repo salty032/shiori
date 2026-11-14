@@ -168,7 +168,7 @@ export type ExtensionTimecode = {
   versionMismatch?: boolean
 }
 // 設定 > データ に出す保存場所と使用量。captureDir は「撮ったものが実際に置いてある場所」で、
-// 画面にそのまま表示してフォルダを開く導線にも使う（変更はできない）。
+// 画面にそのまま表示してフォルダを開く導線にも使う（変えるのは chooseCaptureRoot）。
 export type StorageInfo = {
   captureDir: string
   captureBytes: number

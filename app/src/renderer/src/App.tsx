@@ -375,7 +375,7 @@ export default function App() {
   useEffect(() => window.api.onWhatsNew(({ version, notes }) => setWhatsNew([{ version, notes }])), [])
 
   // 撮り逃したコマの検証（verify-clip.ts）は保存の後にバックグラウンドで終わる。反映しないと
-  // 「N コマ未取得」（未検証）の表示が、検証済みの行に残り続ける。
+  // 保存直後の数（撮り逃し・総数）が、検証で数が変わった行に残り続ける。
   // **misaligned も必ず一緒に流す。** 落とすと、録画した直後の 1 本だけコマ送りの表示が
   // 赤いのに詳細パネルが黙る（アプリを開き直すまで直らない）。
   useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported, misaligned, unreportedMeasured }) =>
