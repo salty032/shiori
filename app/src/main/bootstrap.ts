@@ -13,13 +13,13 @@ import { registerCapturedMedia } from './capture/captured-media'
 import { registerVideoIpc, startVideo } from './video'
 import { loadSettings, saveSettings, consumeSettingsLoadProblem, onSettingsPersistFailed, stripDedicatedSettingKeys } from './system/settings'
 import { checkExtensionUpdate, installedExtensionPath } from './browser/extension-updater'
-import { startExtensionBridge, browserStepLabels } from './browser/extension-bridge'
+import { startExtensionBridge, extensionSettingsMessage } from './browser/extension-bridge'
 import { migrateThumbnailsToOwnDir } from './capture/migrate-thumbnails'
 import { sweepOrphanFilesIfDue } from './capture/sweep-orphans'
 import { downloadedUpdateVersion, initAutoUpdater, quitAndInstallUpdate } from './system/updater'
 import { thumbPathFor } from './system/paths'
 import { registerCapfileScheme, registerCapfileProtocol } from './system/capfile-protocol'
-import { normalizeCaptureHotkey, captureHotkeyMainKey } from './browser/hotkey'
+import { normalizeCaptureHotkey } from './browser/hotkey'
 import { createImageThumb } from './capture/image-thumb'
 import {
   getMainWindow,
@@ -183,9 +183,8 @@ export function bootstrap(): void {
       // 言語変更に自動では追随しない。言語が実際に変わったときだけ組み直す。
       if (saved.language !== prevLang) rebuildTrayMenu()
       setAllowedExtensionIds(saved.allowedExtensionIds)
-      // stepLabels はブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
-      // settings メッセージに載せて配る。言語を変えたときもこの再送で届く。
-      broadcastMessage({ type: 'settings', frameFps: saved.frameFps, frameFpsAuto: saved.frameFpsAuto, captureKey: captureHotkeyMainKey(saved.captureHotkey), stepLabels: browserStepLabels() })
+      // 拡張へも配り直す（言語を変えたときの文言もこれで届く。extension-bridge.ts の注記）。
+      broadcastMessage(extensionSettingsMessage(saved))
     })
     handleTrusted(CH.captureSetHotkey, (_event, hotkey: string) => {
       const normalized = normalizeCaptureHotkey(hotkey)
@@ -195,7 +194,7 @@ export function bootstrap(): void {
         const updated = { ...loadSettings(), captureHotkey: normalized }
         saveSettings(updated)
         // content.js の Prime Video キー抑止がホットキー変更に追随するよう再送する
-        broadcastMessage({ type: 'settings', frameFps: updated.frameFps, frameFpsAuto: updated.frameFpsAuto, captureKey: captureHotkeyMainKey(normalized), stepLabels: browserStepLabels() })
+        broadcastMessage(extensionSettingsMessage(updated))
       }
       return ok
     })

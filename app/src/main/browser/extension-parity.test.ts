@@ -90,9 +90,11 @@ describe('extension との受け渡しの経路', () => {
   it('コマ送りの文言が main → background.js → content.js の3段を素通りする', () => {
     const bridgeTs = readFileSync(join(__dirname, './extension-bridge.ts'), 'utf-8')
     const bootstrapTs = readFileSync(join(__dirname, '../bootstrap.ts'), 'utf-8')
-    // 拡張へ渡すのは接続時（extension-bridge）と設定変更時（bootstrap）の2経路。両方見る。
+    // 拡張へ渡すのは接続時（extension-bridge）と設定変更時（bootstrap）の2経路。組み立ては
+    // extensionSettingsMessage だけにあり、bootstrap が自前で組み立て直していないことを見る。
     expect(bridgeTs).toMatch(/stepLabels: browserStepLabels\(\)/)
-    expect(bootstrapTs).toMatch(/stepLabels: browserStepLabels\(\)/)
+    expect(bootstrapTs).toMatch(/broadcastMessage\(extensionSettingsMessage\(/)
+    expect(bootstrapTs).not.toMatch(/type: 'settings'/)
     expect(bridgeTs).toMatch(/blocked: t\('video\.stepBlocked'\), dropped: t\('video\.stepDropped'\)/)
     for (const src of [backgroundJs, contentJs]) {
       expect(src).toMatch(/blocked: stepLabel\(msg\.stepLabels\?\.blocked\)/)

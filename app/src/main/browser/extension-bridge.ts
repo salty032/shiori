@@ -9,7 +9,7 @@
 import { Notification } from 'electron'
 import { startWsServer, onExtensionMessage, onWsClientConnect } from './ws-server'
 import { bundledExtPath, readVersion } from './extension-updater'
-import { loadSettings } from '../system/settings'
+import { loadSettings, type Settings } from '../system/settings'
 import { captureHotkeyMainKey } from './hotkey'
 import { setLastTimecode, markFocusedTimecodeNow, getLastFocusedTimecodeAt } from './timecode'
 import { setBrowserWindowPos, setVideoRect, setBrowserFullscreen, shouldSuppressBrowserTargetUpdate } from '../capture/capture'
@@ -24,6 +24,21 @@ export function browserStepLabels(): { blocked: string; dropped: string } {
   return { blocked: t('video.stepBlocked'), dropped: t('video.stepDropped') }
 }
 
+// 拡張へ送る settings メッセージ。**組み立てはここだけ**——接続時・設定保存時・ホットキー変更時の
+// 3 か所で別々に書いていた頃は、拡張へ項目を足すとき 1 か所でも書き忘れると、その経路から送った
+// 設定だけが届かなかった（画面には何も出ない）。
+// stepLabels はブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
+// ここに載せて配る。言語を変えたときも設定保存時の再送で届く。
+export function extensionSettingsMessage(s: Settings): object {
+  return {
+    type: 'settings',
+    frameFps: s.frameFps ?? 24,
+    frameFpsAuto: s.frameFpsAuto !== false,
+    captureKey: captureHotkeyMainKey(s.captureHotkey),
+    stepLabels: browserStepLabels()
+  }
+}
+
 export function startExtensionBridge(): void {
   // 拡張から届く timecode の version とバンドル版を比べ、古い拡張が動いていれば
   // 「再読み込みが必要」を出す。OS 通知は起動ごとに 1 回、見逃した後のために設定画面にも
@@ -33,8 +48,7 @@ export function startExtensionBridge(): void {
   let staleNotified = false
   const wsSettings = loadSettings()
   onWsClientConnect((send) => {
-    const s = loadSettings()
-    send({ type: 'settings', frameFps: s.frameFps ?? 24, frameFpsAuto: s.frameFpsAuto !== false, captureKey: captureHotkeyMainKey(s.captureHotkey), stepLabels: browserStepLabels() })
+    send(extensionSettingsMessage(loadSettings()))
   })
   // listen 開始前に接続コールバックを登録し、起動直後の接続にも必ず設定を返す。
   startWsServer({ allowedExtensionIds: wsSettings.allowedExtensionIds })
