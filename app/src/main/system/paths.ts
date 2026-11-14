@@ -1,8 +1,9 @@
 import { app } from 'electron'
 import { mkdir, realpath, stat } from 'fs/promises'
 import { realpathSync } from 'fs'
-import { basename, extname, isAbsolute, join, parse, relative, resolve, sep } from 'path'
+import { basename, extname, isAbsolute, join, parse, resolve } from 'path'
 import { loadSettings } from './settings'
+import { isChildPath } from './child-path'
 
 // 既定の置き場所。**保存先を変えても、ここは常に「開いてよい場所」に残す**——
 // 変える前に撮ったものはここにあり、記録しているのは絶対パスなので、外すと開けなくなる。
@@ -70,11 +71,6 @@ export function thumbnailDir(): string {
 export function thumbPathFor(originalPath: string, ext = '.jpg'): string {
   const stem = basename(originalPath).replace(/\.[^.]+$/, '')
   return join(thumbnailDir(), `${stem}_t${ext}`)
-}
-
-function isChildPath(base: string, target: string): boolean {
-  const rel = relative(base, target)
-  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
 }
 
 // 保存先に選んでよいフォルダか。問題が無ければ null。

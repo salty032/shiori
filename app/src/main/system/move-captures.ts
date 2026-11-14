@@ -19,7 +19,8 @@
 // 消えても作り直せるうえ、容量も原本に比べれば些細。
 import { constants } from 'fs'
 import { copyFile, mkdir, stat, unlink } from 'fs/promises'
-import { dirname, relative, resolve, isAbsolute, sep } from 'path'
+import { dirname, relative, resolve } from 'path'
+import { isChildPath } from './child-path'
 
 export type MoveTarget = { id: number; from: string; to: string }
 
@@ -31,11 +32,6 @@ export type MoveOutcome =
   // その人が前から置いていたファイルかもしれず、後の巻き戻しで消してしまう。
   // failedPath は conflict のときだけ移動先、それ以外は元のファイルを指す。
   | { ok: false; reason: 'canceled' | 'failed' | 'conflict'; failedPath?: string }
-
-function isUnder(base: string, target: string): boolean {
-  const rel = relative(base, target)
-  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
-}
 
 // どのファイルをどこへ移すかを決める。**新しい場所からの相対の形は元のまま保つ**——
 // 年月のサブフォルダも、昔のフラット置きのファイルも、そのままの並びで移る。
@@ -54,8 +50,8 @@ export function planCaptureMove(
   for (const row of rows) {
     if (!row.filepath) continue
     const from = resolve(row.filepath)
-    if (isUnder(dest, from)) continue
-    const base = bases.find((root) => isUnder(root, from))
+    if (isChildPath(dest, from)) continue
+    const base = bases.find((root) => isChildPath(root, from))
     if (!base) continue
     targets.push({ id: row.id, from, to: resolve(dest, relative(base, from)) })
   }

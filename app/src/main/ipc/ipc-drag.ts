@@ -10,9 +10,10 @@
 //    メインプロセスを数ms止めることになるが、対象は MAX_DRAG_FILES 枚までに絞っている。
 import { app, nativeImage } from 'electron'
 import { copyFileSync, mkdirSync, rmSync, statSync } from 'fs'
-import { extname, isAbsolute, join, relative, resolve, sep } from 'path'
+import { extname, join, resolve } from 'path'
 import { getImage } from '../db/db'
 import { resolveRealCapturePathSync } from '../system/paths'
+import { isChildPath } from '../system/child-path'
 import { onTrusted, sendToRenderer } from '../system/windows'
 import {
   sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, optionalPositiveInteger
@@ -54,8 +55,7 @@ function resetDragTempDir(): string {
 // ただの画像ファイルのドロップと区別が付かず、同じ画像が二重に増えてしまう。
 // 複製は必ずこの temp 配下にしか置かないので、パスで判別できる。
 export function isDragTempPath(candidate: string): boolean {
-  const rel = relative(dragTempDir(), resolve(candidate))
-  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
+  return isChildPath(dragTempDir(), resolve(candidate))
 }
 
 export function cleanupDragTempDir(): void {
