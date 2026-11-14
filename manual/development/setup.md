@@ -38,8 +38,8 @@ npm run fetch-ffmpeg          # fetch only if missing
 node scripts/fetch-ffmpeg.mjs --force   # force a re-fetch
 ```
 
-The URL and SHA256 are pinned inside the script. **Do not swap in a GPL build** — Shiori
-itself is under a proprietary license, so bundling GPL ffmpeg would create a license conflict
+The URL and SHA256 are pinned inside the script. **Do not swap in a GPL build** — bundling GPL ffmpeg
+would bring GPL obligations to the download and could stop Shiori from being distributed under the MIT License
 (see [NOTICE.md](../../NOTICE.md) for details).
 
 ## Run

@@ -48,9 +48,8 @@ The author accepts no liability for any damages arising from its use.
 
 ## License
 
-This software is provided under a personal-use (proprietary) license.
-Only personal, non-commercial use is permitted; redistribution, distributing modified
-versions, and commercial use are prohibited. See [LICENSE](LICENSE) for details. Third-party licenses are listed in [NOTICE.md](NOTICE.md).
+Released under the [MIT License](LICENSE). Anyone may use, modify and redistribute it, as long as the copyright notice and license text are kept.
+Licenses of the other software bundled with Shiori are in [NOTICE.md](NOTICE.md).
 
 ## Development
 

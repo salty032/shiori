@@ -38,8 +38,8 @@ node scripts/fetch-ffmpeg.mjs --force   # 強制的に取り直す
 ```
 
 URL と SHA256 はスクリプト内で固定されています。**GPL ビルドに差し替えないでください。**
-Shiori 本体は proprietary ライセンスのため、GPL 版 ffmpeg を同梱すると
-ライセンスが衝突します（詳細は [NOTICE.md](../../NOTICE.md)）。
+GPL 版 ffmpeg を同梱すると、配布物に GPL の義務がかかり、Shiori を MIT ライセンスのまま
+配れなくなる余地が生まれます（詳細は [NOTICE.md](../../NOTICE.md)）。
 
 ## 起動
 

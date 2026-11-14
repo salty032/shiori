@@ -2,8 +2,8 @@
 //
 // ffmpeg は 92MB あるためリポジトリには含めず、セットアップ時にここで降らせる
 // （以前 ffmpeg-static が node_modules に置いていたのと同じ扱い）。
-// バイナリは LGPL ビルドで固定する。GPL ビルドに差し替わると Shiori 本体（proprietary）の
-// ライセンスと衝突しうるため、URL とハッシュをピン留めして取り違えを防ぐ。
+// バイナリは LGPL ビルドで固定する。GPL ビルドに差し替わると配布物に GPL の義務がかかり、Shiori 本体を MIT のまま
+// 配れなくなる余地が生まれるため、URL とハッシュをピン留めして取り違えを防ぐ。
 //
 // 使い方: node scripts/fetch-ffmpeg.mjs [--force]
 import { createHash } from 'crypto'
