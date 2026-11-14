@@ -4,6 +4,7 @@ import { realpathSync } from 'fs'
 import { basename, extname, isAbsolute, join, parse, resolve } from 'path'
 import { loadSettings } from './settings'
 import { isChildPath } from './child-path'
+import { MEDIA_EXTS } from './media-exts'
 
 // 既定の置き場所。**保存先を変えても、ここは常に「開いてよい場所」に残す**——
 // 変える前に撮ったものはここにあり、記録しているのは絶対パスなので、外すと開けなくなる。
@@ -87,7 +88,6 @@ export function captureRootProblem(dir: string): 'not-absolute' | 'filesystem-ro
   return null
 }
 
-const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.webm', '.mp4'])
 
 // 原本と表示用サムネの両方を許可ベースとする。
 //
@@ -109,7 +109,7 @@ export function resolveCapturePath(candidate: unknown): string | null {
 
   const target = resolve(candidate)
   if (!allowedBases().some((base) => isChildPath(base, target))) return null
-  if (!ALLOWED_EXTENSIONS.has(extname(target).toLowerCase())) return null
+  if (!MEDIA_EXTS.has(extname(target).toLowerCase())) return null
   return target
 }
 
@@ -154,7 +154,7 @@ export function resolveRealCapturePathSync(candidate: unknown): string | null {
     const realTarget = resolve(realpathSync(target))
     const bases = [...captureBases(), thumbnailDir()].map(resolveRealBaseSync)
     if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
-    if (!ALLOWED_EXTENSIONS.has(extname(realTarget).toLowerCase())) return null
+    if (!MEDIA_EXTS.has(extname(realTarget).toLowerCase())) return null
     return realTarget
   } catch {
     return null
@@ -169,7 +169,7 @@ export async function resolveRealCapturePath(candidate: unknown): Promise<string
     const realTarget = resolve(await realpath(target))
     const bases = await Promise.all([...captureBases(), thumbnailDir()].map(resolveRealBase))
     if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
-    if (!ALLOWED_EXTENSIONS.has(extname(realTarget).toLowerCase())) return null
+    if (!MEDIA_EXTS.has(extname(realTarget).toLowerCase())) return null
     return realTarget
   } catch {
     return null

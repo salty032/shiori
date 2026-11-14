@@ -3,6 +3,7 @@ import { extname, join, resolve } from 'path'
 import { app } from 'electron'
 import { thumbnailDir } from '../system/paths'
 import { countImages, listReferencedPaths } from '../db/db'
+import { MEDIA_EXTS } from '../system/media-exts'
 
 // 削除は「DB 行を消す → 実ファイルを消す」の順で行う（ipc-images.ts の設計）。
 // 後半が失敗すると DB から参照されないファイルが残る。この掃除で自動削除するのは
@@ -34,9 +35,8 @@ async function lastSuccessfulSweepMs(): Promise<number | null> {
   }
 }
 
-// resolveCapturePath と同じ許可拡張子。ユーザーが captures フォルダに置いた
-// 無関係なファイル（メモ、zip 等）を巻き込まないよう、扱う形式だけを対象にする。
-const SWEEPABLE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.webm', '.mp4'])
+// ユーザーが captures フォルダに置いた無関係なファイル（メモ、zip 等）を巻き込まないよう、
+// 扱う形式（MEDIA_EXTS）だけを対象にする。
 
 export interface SweepCandidate {
   path: string
@@ -59,7 +59,7 @@ export function selectOrphans(
   for (const r of referenced) if (r) keys.add(pathKey(r))
 
   return candidates.filter((c) => {
-    if (!SWEEPABLE_EXTENSIONS.has(extname(c.path).toLowerCase())) return false
+    if (!MEDIA_EXTS.has(extname(c.path).toLowerCase())) return false
     if (nowMs - c.mtimeMs < MIN_AGE_MS) return false
     return !keys.has(pathKey(c.path))
   })

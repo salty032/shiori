@@ -13,14 +13,13 @@ import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { CH } from '../../shared/api'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { beginTask, endTask } from '../system/busy'
+import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
 
-const IMPORT_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 // nativeImage が確実にデコードできる形式（Electron が対応を明記しているのは PNG / JPEG のみ）。
 // この範囲では「寸法もサムネも取れない＝中身が画像ではない」と断定できるので取り込みを失敗にする。
 // webp / gif を含めてはいけない：nativeImage は読めなくても表示は Chromium が行う（サムネが
 // 無い行は原本を直接表示する）ため、正常なファイルを弾いてしまう。
 const DECODABLE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg'])
-const IMPORT_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 const MAX_IMPORT_FILES = 200
 // インポート動画の尺上限（秒）。録画クリップの上限と同じく著作権対策の割り切りで、
 // 設定でも緩和しない固定値。フルエピソードの取り込みを構造的に防ぐ。長尺トリマーの
@@ -61,7 +60,7 @@ async function collectImportFiles(inputPaths: string[]): Promise<{ files: string
       // 食い潰し、対応ファイルがほとんど取り込まれなくなるため。直接ドロップされた単体ファイル
       // （depth===0）は従来どおり通し、後段のループで「unsupported extension」エラーとして案内する。
       const ext = extname(p).toLowerCase()
-      if (depth === 0 || IMPORT_IMAGE_EXTS.has(ext) || IMPORT_VIDEO_EXTS.has(ext)) result.push(p)
+      if (depth === 0 || IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext)) result.push(p)
     }
   }
   for (const p of inputPaths) {
@@ -155,8 +154,8 @@ export function registerImportHandlers(): void {
         if (typeof rawPath !== 'string' || !rawPath) continue
 
         const ext = extname(rawPath).toLowerCase()
-        const isImage = IMPORT_IMAGE_EXTS.has(ext)
-        const isVideo = IMPORT_VIDEO_EXTS.has(ext)
+        const isImage = IMAGE_EXTS.has(ext)
+        const isVideo = VIDEO_EXTS.has(ext)
         if (!isImage && !isVideo) { errors.push(`unsupported: ${basename(rawPath)}`); continue }
 
         let srcStat: Awaited<ReturnType<typeof stat>>

@@ -6,9 +6,8 @@
 import { basename, extname } from 'path'
 import { MAX_TAG_LENGTH, MAX_TEXT_LENGTH, normalizeTagName } from './ipc-validation'
 import { MAX_MEMO_LENGTH } from '../../shared/constants'
+import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
 
-export const SHARE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
-export const SHARE_VIDEO_EXTS = new Set(['.webm', '.mp4'])
 
 // 取り込んだ素材の captured_at は取り込み時刻にそろえ、metadata.jsonl の値は
 // original_captured_at として別に持つ（画面には出していない）。
@@ -114,8 +113,8 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
   if (!safeFile || safeFile !== entry.file) return { error: `unsafe filename: ${entry.file}` }
 
   const ext = extname(safeFile).toLowerCase()
-  const isVideo = SHARE_VIDEO_EXTS.has(ext)
-  if (!SHARE_IMAGE_EXTS.has(ext) && !isVideo) return { error: `unsupported extension: ${safeFile}` }
+  const isVideo = VIDEO_EXTS.has(ext)
+  if (!IMAGE_EXTS.has(ext) && !isVideo) return { error: `unsupported extension: ${safeFile}` }
 
   let thumbFile: string | null = null
   let thumbExt: string | null = null
@@ -124,7 +123,7 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     if (safeThumb && safeThumb === entry.thumb) {
       const candidateExt = extname(safeThumb).toLowerCase() || '.png'
       // サムネは常に画像（動画クリップのサムネも .png で保存される。video/ffmpeg.ts 参照）。
-      if (SHARE_IMAGE_EXTS.has(candidateExt)) {
+      if (IMAGE_EXTS.has(candidateExt)) {
         thumbFile = safeThumb
         thumbExt = candidateExt
       }

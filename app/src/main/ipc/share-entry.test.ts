@@ -2,7 +2,8 @@ import { vi, describe, expect, it } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { parseShareEntry, isValidCapturedAt, SHARE_IMAGE_EXTS, SHARE_VIDEO_EXTS } from './share-entry'
+import { parseShareEntry, isValidCapturedAt } from './share-entry'
+import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
 
 const NOW = 1700000000000
 
@@ -37,7 +38,7 @@ describe('parseShareEntry', () => {
   })
 
   it('対応する画像拡張子はすべて通り mediaType=image になる', () => {
-    for (const ext of SHARE_IMAGE_EXTS) {
+    for (const ext of IMAGE_EXTS) {
       const result = parseShareEntry(JSON.stringify({ file: `a${ext}` }), NOW)
       expect(result).not.toBeNull()
       expect(result).not.toHaveProperty('error')
@@ -46,7 +47,7 @@ describe('parseShareEntry', () => {
   })
 
   it('対応する動画拡張子はすべて通り mediaType=video になる', () => {
-    for (const ext of SHARE_VIDEO_EXTS) {
+    for (const ext of VIDEO_EXTS) {
       const result = parseShareEntry(JSON.stringify({ file: `a${ext}` }), NOW)
       expect(result).not.toBeNull()
       expect(result).not.toHaveProperty('error')
