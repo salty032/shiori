@@ -20,6 +20,7 @@ import { beginTask, endTask } from '../system/busy'
 import { sendToRenderer } from '../system/windows'
 import { loadSettings, saveSettings } from '../system/settings'
 import { t } from '../system/i18n'
+import { formatBytes } from '../../shared/format'
 import type { ChooseCaptureRootResult } from '../../shared/types'
 
 // 移動の中止フラグ。**押した瞬間に立てて、次の 1 件の前に見る**——今コピー中の 1 件は
@@ -64,19 +65,6 @@ async function confirmMove(
   return response === 0
 }
 
-// 確認ダイアログに出す容量。renderer の formatBytes と同じ刻みにする（同じ数字を
-// 2 か所で違う丸め方にすると、設定画面の使用量と食い違って見える）。
-function formatBytes(bytes: number): string {
-  if (bytes < 1000) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let value = bytes / 1024
-  let unit = 0
-  while (value >= 1000 && unit < units.length - 1) {
-    value /= 1024
-    unit++
-  }
-  return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`
-}
 
 export function registerShellHandlers(): void {
   handleTrusted(CH.shellOpenUrl, (_event, url: string) => {
