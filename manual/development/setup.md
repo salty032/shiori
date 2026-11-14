@@ -1,6 +1,6 @@
 # Development setup
 
-[日本語](SETUP.md) ・ **English**
+[日本語](setup.ja.md) ・ **English**
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ node scripts/fetch-ffmpeg.mjs --force   # force a re-fetch
 
 The URL and SHA256 are pinned inside the script. **Do not swap in a GPL build** — Shiori
 itself is under a proprietary license, so bundling GPL ffmpeg would create a license conflict
-(see NOTICE.md for details).
+(see [NOTICE.md](../../NOTICE.md) for details).
 
 ## Run
 
