@@ -29,7 +29,7 @@ function captureSubDir(capturedAtMs: number): string {
   return join(captureDir(), `${y}-${m}`)
 }
 
-// 書き込み先の年月サブフォルダを作成して返す。新規キャプチャ/インポート/エクスポートの
+// 書き込み先の年月サブフォルダを作成して返す。キャプチャ・録画・トリミング・取り込みの
 // 保存はすべてこれを経由する。既存ファイルは移動しない（フラット直下に残ったままで
 // 引き続き読める。resolveCapturePath は captureDir 配下を再帰的に許可している）。
 export async function ensureCaptureSubDir(capturedAtMs: number): Promise<string> {
@@ -38,8 +38,6 @@ export async function ensureCaptureSubDir(capturedAtMs: number): Promise<string>
   return dir
 }
 
-// 表示用の軽量サムネイルは原本（captureDir）と物理的に分離する。
-// 再生成可能なキャッシュなので「サムネだけ全消し」「原本だけバックアップ」が安全にできる。
 // これから撮るものを書ける状態か。**撮る前に見る。**
 //
 // 保存先には外付けドライブも選べる。抜けている状態で撮ると保存の書き込みで失敗し、
@@ -61,6 +59,8 @@ export async function captureRootReachable(): Promise<boolean> {
   }
 }
 
+// 表示用の軽量サムネイルは原本（captureDir）と物理的に分離する。
+// 再生成可能なキャッシュなので「サムネだけ全消し」「原本だけバックアップ」が安全にできる。
 export function thumbnailDir(): string {
   return join(app.getPath('userData'), 'thumbnails')
 }

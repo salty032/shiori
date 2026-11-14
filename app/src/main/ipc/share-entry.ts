@@ -99,8 +99,8 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
   try {
     const parsed: unknown = JSON.parse(line)
     // JSON.parse は "null" / "123" / "[]" のような非オブジェクトでも成功する。素通しすると
-    // 直後の entry.file 参照が null で TypeError になり、ipc-share の取り込みループには
-    // catch が無いため（finally のみ）、1行の破損でインポート全体が reject される。
+    // 直後の entry.file 参照が null で TypeError になる（取り込みループに catch が無かった頃は、
+    // 1行の破損でインポート全体が止まった）。行ごとの理由として返す。
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       return { error: `invalid entry: ${line.slice(0, 50)}` }
     }

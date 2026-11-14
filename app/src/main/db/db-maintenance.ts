@@ -228,7 +228,7 @@ export function restoreDatabase(backupPath: string, dbPath: string): void {
 /**
  * 復元したことを次の起動へ伝える目印。
  *
- * 復元の直後はアプリを起動し直す（`bootstrap.ts` の recoverDatabase）ので、メモリ上の変数では
+ * 復元の直後はアプリを起動し直す（`db-startup.ts` の recoverDatabase）ので、メモリ上の変数では
  * 引き継げない。ダイアログはボタンを押した瞬間に消えるため、「何が含まれていないのか」を
  * 起動後の画面にも出せないと、戻したこと自体を忘れたまま使い続けることになる。
  * `.thumbnails-migrated` / `.orphan-sweep-last` と同じ、userData 直下の目印ファイル。

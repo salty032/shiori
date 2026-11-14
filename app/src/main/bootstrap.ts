@@ -57,8 +57,6 @@ function sendNoticeWhenRendererReady(level: 'info' | 'warning' | 'error', messag
   whenRendererReady(() => sendNotice(level, message))
 }
 
-// ブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
-// settings メッセージに載せて配る。言語変更時も設定保存の再送に乗る。
 export function bootstrap(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   // **Shiori 自身は GPU を使わない。** 使うのは Electron の既定だっただけで、GPU プロセスは一度画面を
@@ -152,8 +150,7 @@ export function bootstrap(): void {
       return
     }
     migrateThumbnailsToOwnDir().catch((err) => console.warn('[migrate-thumb] failed', err))
-    // ファイル削除に失敗して DB から切り離された実ファイルの回収。ユーザーには見えず
-    // 自分で消す手段もないので、アプリ側で黙って片付ける（非致命・バックグラウンド）。
+    // サムネが未生成の行を補う（ipc-images.ts。非致命・バックグラウンド）。
     backfillThumbnails().catch((err) => console.warn('[thumbgen] backfill failed', err))
     // 拡張との WebSocket と、そこから届く再生時刻・ウィンドウ位置の受け口。
     startExtensionBridge()
@@ -186,6 +183,8 @@ export function bootstrap(): void {
       // 言語変更に自動では追随しない。言語が実際に変わったときだけ組み直す。
       if (saved.language !== prevLang) rebuildTrayMenu()
       setAllowedExtensionIds(saved.allowedExtensionIds)
+      // stepLabels はブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
+      // settings メッセージに載せて配る。言語を変えたときもこの再送で届く。
       broadcastMessage({ type: 'settings', frameFps: saved.frameFps, frameFpsAuto: saved.frameFpsAuto, captureKey: captureHotkeyMainKey(saved.captureHotkey), stepLabels: browserStepLabels() })
     })
     handleTrusted(CH.captureSetHotkey, (_event, hotkey: string) => {

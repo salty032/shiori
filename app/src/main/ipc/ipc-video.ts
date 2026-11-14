@@ -69,16 +69,6 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
   return FRAME_QUALITY.reused
 }
 
-// 素材のコマ表とファイルの PTS から、コマ送り用の並びを作る。
-//
-// 表があれば「素材のコマ N が写っているフレーム」の PTS だけを素材の順で並べ直す。
-// ファイルのフレームをそのまま辿ると、画面キャプチャが吐いた枚数（実測 33〜50枚/秒）で
-// コマ送りすることになり、素材のコマ（23.976fps 等）とは対応しない。
-// 撮れなかったコマは直前と同じ PTS になり、絵が変わらないまま 1 コマ進む。
-//
-// 表が無い・表の frameIndex がファイルの範囲外（＝対応が取れていない）ときは退避して
-// ファイルのフレームをそのまま返し、**素材のコマ単位ではないことを sourceBased で明示する**。
-// 黙って別の刻みへ落ちるのが最悪なので、呼び出し側が画面に出せる形で返す。
 // 表から抜けている区間を拾う（ClipGap のコメント参照）。
 //
 // **数え方は frame-feed.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
@@ -113,6 +103,16 @@ function fileFrameDur(pts: number[], i: number): number {
   return i > 0 ? pts[i] - pts[i - 1] : 0
 }
 
+// 素材のコマ表とファイルの PTS から、コマ送り用の並びを作る。
+//
+// 表があれば「素材のコマ N が写っているフレーム」の PTS だけを素材の順で並べ直す。
+// ファイルのフレームをそのまま辿ると、画面キャプチャが吐いた枚数（実測 33〜50枚/秒）で
+// コマ送りすることになり、素材のコマ（23.976fps 等）とは対応しない。
+// 撮れなかったコマは直前と同じ PTS になり、絵が変わらないまま 1 コマ進む。
+//
+// 表が無い・表の frameIndex がファイルの範囲外（＝対応が取れていない）ときは退避して
+// ファイルのフレームをそのまま返し、**素材のコマ単位ではないことを sourceBased で明示する**。
+// 黙って別の刻みへ落ちるのが最悪なので、呼び出し側が画面に出せる形で返す。
 export function buildClipFrames(pts: number[], table: StoredFrame[] | null): ClipFrames {
   const usable = table?.filter((f) => f.frameIndex >= 0 && f.frameIndex < pts.length) ?? []
   if (usable.length === 0) {

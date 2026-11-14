@@ -24,7 +24,7 @@ function addColumnIfMissing(sql: string): void {
     // 列が既に存在する（＝このマイグレーションは実行済み）以外のエラーは、ディスクフル・
     // 破損等で ALTER が本当に失敗したことを意味する。ここを warn で握りつぶすと、
     // 一部の列が欠けた半端なスキーマのまま起動が続行し、後続クエリが不可解に壊れる。
-    // throw して initDb 呼び出し元（bootstrap.ts）の起動失敗ダイアログに乗せる（N-2）。
+    // throw して initDb 呼び出し元（db-startup.ts）の起動失敗ダイアログに乗せる（N-2）。
     if (!/duplicate column/i.test(message)) throw err
   }
 }
@@ -75,7 +75,7 @@ export function initDb(): void {
   let problem: string | null
   // 開いた直後の pragma と quick_check は、DB でないファイル・壊れたファイルだと値ではなく
   // 例外（SQLITE_NOTADB / SQLITE_CORRUPT*）で落ちる。**そのときも閉じてから投げる。**
-  // 開いたままだと Windows ではファイルを動かせず、呼び出し元（bootstrap.ts）の
+  // 開いたままだと Windows ではファイルを動かせず、呼び出し元（db-startup.ts）の
   // 壊れた DB の退避が EBUSY で失敗し、復元そのものができなくなる。
   try {
     db.pragma('journal_mode = WAL')
@@ -89,7 +89,7 @@ export function initDb(): void {
 
     // 開けたことと壊れていないことは別。ここを通さないと、壊れたファイルへ以降の移行と
     // 書き込みを重ねてしまい、気づいたときには退避も上書き済みになる。壊れていたら
-    // 呼び出し元（bootstrap.ts）が復元を提案するので、ここでは閉じて投げるだけにする。
+    // 呼び出し元（db-startup.ts）が復元を提案するので、ここでは閉じて投げるだけにする。
     problem = integrityProblem(runner)
   } catch (err) {
     // 閉じる側の失敗で元の例外（＝復元を提案するかの判定材料）を上書きしない。

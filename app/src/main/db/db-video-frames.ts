@@ -57,9 +57,9 @@ export interface StoredFrame {
 const VERIFY_CODE: Record<FrameVerify, number> = { unknown: 0, same: 1, changed: 2 }
 const VERIFY_NAME: FrameVerify[] = ['unknown', 'same', 'changed']
 
-// 直列化は DB アクセスから切り離した純粋関数にする。better-sqlite3 は Electron の ABI で
-// ビルドされ素の Node からは読めないため、実 DB を張るテストが書けない。壊れると
-// コマ送りが静かに従来動作へ落ちる箇所なので、ここだけでも検証できる形にしておく。
+// 直列化は DB アクセスから切り離した純粋関数にする。壊れるとコマ送りが静かに従来動作へ
+// 落ちる箇所なので、DB を用意しなくても単体で検証できる形にしておく（実 DB を通すテストは
+// test-sqlite-shim.ts の包みで書ける）。
 //
 // 配列の配列で持つ。1クリップで千数百要素になるため、キー名を繰り返さない。
 // 4 要素目（検証結果）と 5 要素目（対応のずれ）、6 要素目（presentedFrames）、7 要素目

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 // db.ts は electron の app.getPath を読むため、import 時点でモックが要る。
-// better-sqlite3 は Electron の ABI 向けにビルドされており素の Node からは読み込めないので、
-// 実 DB を張るテストは書けない。ここでは DB アクセスから切り離した直列化だけを検証する。
+// ここでは DB アクセスから切り離した直列化だけを検証する（実 DB を通すテストは
+// test-sqlite-shim.ts の包みで書ける。db-tags.test.ts が例）。
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
 // 数え直し（backfillFrameCounts）だけは DB を読むので、その 2 か所だけ差し替える。

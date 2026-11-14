@@ -1,4 +1,4 @@
-// レコーダーウィンドウ専用 IPC（recorder:getCrop / recorder:error / recorder:done）。
+// レコーダーウィンドウ専用 IPC（recorder:* の合図の受け口。準備・開始・停止・失敗・保存）。
 // recorder:* は ShioriApi の CH 定数の対象外（別契約・別検証方式。preload/recorder.ts 参照）。
 import { ipcMain } from 'electron'
 import { unlink } from 'fs/promises'

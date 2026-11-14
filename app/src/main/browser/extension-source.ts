@@ -2,7 +2,7 @@
 //
 // content.js / background.js はバンドラ無しで配布される素の script なので import できない。
 // そのため回帰テストは「読み込んで、必要な関数だけ切り出して評価する」形を取る
-// （extension-parity / extension-frame-step / extension-step-landing の 3 本が同じことをする）。
+// （browser/extension-*.test.ts がこの形を共有する）。
 //
 // **テスト専用。** main の実行時バンドルは index.ts から辿るので、ここは入らない。
 import { readFileSync } from 'fs'

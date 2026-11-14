@@ -395,7 +395,7 @@ export function saveSettings(s: unknown): void {
 
 // saveSettings はディスク反映を待たずに返るため、直後にプロセスが終了すると
 // 最後の変更だけ書き込まれずに巻き戻る（テーマ変更 → 即終了、など）。終了経路では
-// これを await してキューを空にしてから終わること（bootstrap の before-quit）。
+// これを await してキューを空にしてから終わること（shutdown.ts の before-quit）。
 // アップデート適用も app.quit() 経由で before-quit を通るので、同じ経路で守られる。
 //
 // _persistChain は catch 済みで reject しない。await 中に新しい saveSettings が

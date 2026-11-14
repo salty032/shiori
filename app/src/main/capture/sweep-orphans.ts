@@ -125,7 +125,7 @@ export async function sweepOrphanFiles(): Promise<{ removed: number; bytes: numb
 }
 
 // 孤立ファイルは削除失敗などでまれに生じるだけで、毎起動直後に全ファイルを stat する必要はない。
-// 大規模ライブラリでは原本＋サムネの走査が秒単位になり得るため、成功済みなら7日間は省略する。
+// 大規模ライブラリではサムネの走査が秒単位になり得るため、成功済みなら7日間は省略する。
 // マーカーは掃除が最後まで終わった後にだけ書く。途中で例外になれば次回起動で再試行される。
 export async function sweepOrphanFilesIfDue(nowMs = Date.now()): Promise<{ skipped: boolean; removed: number; bytes: number }> {
   const lastSuccessMs = await lastSuccessfulSweepMs()

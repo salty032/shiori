@@ -348,7 +348,8 @@ export function logVerifyResult(imageId: number, result: VerifyResult | null): v
   )
 }
 
-// 印を付けた表を救えるかの判定（recheckMarkedClips から使う）。
+// 表がファイルと対応しているかの判定。起動時の見直し（recheckMarkedClips）と、録画直後に
+// 段差が見えたときの裏取り（verify-clip.ts の verifyClipFrames）の両方から使う。
 //
 // **録画時の判定（findFrameDivergence）とは別物。** あちらは供給時刻とファイル内 PTS を
 // 添字で 1 対 1 に突き合わせるので、ファイル側のコマが 1 枚落ちただけで全部ダメと出る。

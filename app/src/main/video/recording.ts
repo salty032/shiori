@@ -89,8 +89,6 @@ async function requestRecordingTarget(): Promise<TimecodeMsg | null> {
   })
 }
 
-// 録画開始時のデスクトップソース解決。capture.ts が保持するブラウザウィンドウ位置
-// （コア state）を読み取り専用アクセサ経由で参照する。
 // 直近の録画対象ディスプレイのリフレッシュレート（Hz）。取得フレームレートの上限に使う。
 // getDesktopSourceId が解決したディスプレイをそのまま覚える（録画対象と別の画面の Hz で
 // 上限を決めても意味が無いため）。
@@ -146,6 +144,8 @@ export function wasRecordingDisplayAmbiguous(): boolean {
   return lastDisplayAmbiguous
 }
 
+// 録画開始時のデスクトップソース解決。capture.ts が保持するブラウザウィンドウ位置
+// （コア state）を読み取り専用アクセサ経由で参照する。
 async function getDesktopSourceId(): Promise<string | null> {
   const rect = getBrowserWindowRect()
   if (!rect) return null

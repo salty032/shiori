@@ -42,7 +42,8 @@ export function startExtensionBridge(): void {
   onExtensionMessage((msg) => {
     if (msg.type === 'timecode') {
       if (msg.focused) markFocusedTimecodeNow()
-      // フォーカス中のタブを優先。フォーカスタイムコードが30秒以上届いていない場合は
+      // フォーカス中のタブを優先。フォーカスタイムコードが30秒以上届いていない場合は、
+      // フォーカスの無いタブからのものも受け付ける。
       const accept = msg.focused || Date.now() - getLastFocusedTimecodeAt() > 30_000
       if (accept) {
         setLastTimecode({ title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null })

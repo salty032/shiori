@@ -342,7 +342,7 @@ async function notifyCaptureDone(
 }
 
 async function captureScreen(): Promise<string> {
-  // ホットキー連打による並行実行を防ぐ。並行すると pendingTimecode・setOpacity・
+  // ホットキー連打による並行実行を防ぐ。並行すると pendingTimecode（bootstrap.ts）・
   // pre/post-capture のグローバル状態が競合し、復元順や保存メタデータがズレる。
   //
   // **守るのは撮るところまで。** 保存（ファイル書き込み・サムネ・DB 登録）まで握ると、
@@ -406,7 +406,7 @@ async function captureScreen(): Promise<string> {
     }
 
     // スクショ取得時点でピクセルは確定済み。ここで即UIを復元し、ブラウザのプレーヤーUIが
-    // 隠れている時間を、後続の保存パイプライン（クロップ・サムネ生成・DB挿入・色抽出）ぶん
+    // 隠れている時間を、後続の保存パイプライン（クロップ・サムネ生成・DB挿入）ぶん
     // 引きずらないようにする。finally でも呼ぶが runPostCapture が exactly-once を保証する。
     runPostCapture()
 

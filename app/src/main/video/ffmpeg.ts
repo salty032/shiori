@@ -196,8 +196,8 @@ const SIGNATURE_BYTES = SIGNATURE_GRID * SIGNATURE_GRID
 
 // クリップの全フレームを 32x32 のグレースケールへ落として取り出す。
 //
-// 録画中ではなく録画後に行う。唯一の制約資源である画面キャプチャの供給レート
-// （実測 31枚/秒）を、解析のために1枚たりとも削りたくないため。フル デコードを伴うので
+// 録画中ではなく録画後に行う。唯一の制約資源である画面キャプチャの供給レートを、
+// 解析のために1枚たりとも削りたくないため。フル デコードを伴うので
 // 保存後のバックグラウンド処理として呼ぶこと。
 interface FrameSignatures {
   /** 各フレームを 32x32 グレースケールへ落とした署名。添字はファイル内のフレーム番号 */
@@ -230,7 +230,8 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
   // 保持するとテキストだけで署名本体より重くなる。
   // showinfo は縮小の後ろに置く。showinfo は毎フレーム画素の検査値を計算するので、前に置くと
   // 元の解像度で計算する（実測: 1687x948・30 秒の録画で 2.6s → 1.4s。pts も署名も 1 枚残らず同じ）。
-  // 録画の完了通知はこの処理を待って出る（recorder-ipc.ts）ので、ここの遅さがそのまま通知の遅れになる。
+  // 録画の完了通知に添える撮り逃しの数はこの処理を待って出る（recorder-ipc.ts）ので、ここの遅さが
+  // そのまま「確認中」の表示が続く長さになる。
   const pts: number[] = []
   const { stdout } = await runFfmpegCollectStdout([
     '-hide_banner',
@@ -420,7 +421,7 @@ export async function trimWebm(
     '-avoid_negative_ts', 'make_zero',
     outPath
   )
-  // 進捗が要らない呼び出しでは行の解析ごと省く（サムネ生成など一瞬で終わるものが大半）。
+  // 進捗が要らない呼び出しでは行の解析ごと省く。
   const total = outSec - inSec
   const watch = onProgress && total > 0
     ? (line: string): void => {
