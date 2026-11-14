@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import type { Filters } from '../hooks/useFilters'
+import { useLatestRef } from '../hooks/useLatestRef'
 import { s, space } from '../styles'
 import { serviceLabel } from '../services'
 import { XIcon, ChevronDownIcon } from './Icon'
@@ -149,16 +150,20 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
 
   // tag/site/プレフィックスの3種は排他表示なので、現在表示中のものを単一リストに正規化し、
   // ↑↓/Enter/Escape をこのリストに対して動かす（キーボード操作の実体は表示中のリストが何であれ共通）。
+  // 候補を押したときの処理は、押した時点の最新を呼ぶ（作り置いた一覧が古い検索文字を掴まないように）。
+  // 下の関数は宣言が後ろにあるが、呼ばれるのは押したときなので問題ない。
+  const actionsRef = useLatestRef({ confirmTag, confirmSite, confirmPrefix, replaceSearchSuffix, setSearchImmediate, updateSearchImmediate })
   const activeSuggestions = useMemo(() => {
-    if (activePrefix === 'tag') return tagSuggestions.map((tag) => ({ key: tag, onConfirm: () => confirmTag(tag) }))
-    if (activePrefix === 'site') return siteSuggestions.map((host) => ({ key: host, onConfirm: () => confirmSite(host) }))
-    if (activePrefix === 'type') return typeSuggestions.map(({ value }) => ({ key: value, onConfirm: () => replaceSearchSuffix(TYPE_PREFIX_RE, `type:${value}`, true) }))
+    const a = (): typeof actionsRef.current => actionsRef.current
+    if (activePrefix === 'tag') return tagSuggestions.map((tag) => ({ key: tag, onConfirm: () => a().confirmTag(tag) }))
+    if (activePrefix === 'site') return siteSuggestions.map((host) => ({ key: host, onConfirm: () => a().confirmSite(host) }))
+    if (activePrefix === 'type') return typeSuggestions.map(({ value }) => ({ key: value, onConfirm: () => a().replaceSearchSuffix(TYPE_PREFIX_RE, `type:${value}`, true) }))
     if (activePrefix === null) return [
-      ...prefixSuggestions.map(({ prefix }) => ({ key: prefix, onConfirm: () => confirmPrefix(prefix) })),
-      ...historySuggestions.map((h) => ({ key: `history:${h}`, onConfirm: () => setSearchImmediate(h) })),
+      ...prefixSuggestions.map(({ prefix }) => ({ key: prefix, onConfirm: () => a().confirmPrefix(prefix) })),
+      ...historySuggestions.map((h) => ({ key: `history:${h}`, onConfirm: () => a().setSearchImmediate(h) })),
     ]
     return []
-  }, [activePrefix, tagSuggestions, siteSuggestions, typeSuggestions, historySuggestions, prefixSuggestions])
+  }, [activePrefix, tagSuggestions, siteSuggestions, typeSuggestions, historySuggestions, prefixSuggestions, actionsRef])
 
   useEffect(() => { setHighlightedIndex(-1) }, [activeSuggestions])
   useEffect(() => {
@@ -262,6 +267,8 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     return () => document.removeEventListener('mousedown', handler, true)
   }, [searchFocused, searchInputRef])
 
+  const setTagFilters = filters.setTagFilters
+  const removeSearchTagRef = useLatestRef(onRemoveSearchTag)
   const activeFilterChips = useMemo<ActiveFilter[]>(() => {
     const chips: ActiveFilter[] = []
     const siteMatch = filters.search.match(/(?:^|\s)site:(\S+)/i)
@@ -270,19 +277,19 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     // 存在しない値では出さない。tag: と違い site: は候補から選ぶ想定のため）。
     const searchSite = typed ? filters.sites.find((host) => host.toLowerCase() === typed) : undefined
     if (searchSite) {
-      chips.push({ onRemove: () => updateSearchImmediate((prev) => prev.replace(/(?:^|\s)site:\S+/i, '').replace(/\s+/g, ' ').trim()) })
+      chips.push({ onRemove: () => actionsRef.current.updateSearchImmediate((prev) => prev.replace(/(?:^|\s)site:\S+/i, '').replace(/\s+/g, ' ').trim()) })
     }
     const activeTags = [...new Set([...filters.tagFilters, ...searchTags])]
     for (const tag of activeTags) {
       chips.push({
         onRemove: () => {
-          filters.setTagFilters((prev) => prev.filter((t) => t !== tag))
-          onRemoveSearchTag(tag)
+          setTagFilters((prev) => prev.filter((t) => t !== tag))
+          removeSearchTagRef.current(tag)
         },
       })
     }
     return chips
-  }, [filters.search, filters.sites, filters.tagFilters, searchTags])
+  }, [filters.search, filters.sites, filters.tagFilters, searchTags, actionsRef, setTagFilters, removeSearchTagRef])
 
   return (
     // data-sticky-header: 矩形選択の当たり判定から外すための目印（useSelection の

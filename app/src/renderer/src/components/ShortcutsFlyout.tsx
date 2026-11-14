@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { shortcutGroups } from '../shortcuts'
 import { useT } from '../i18n'
+import { useLatestRef } from '../hooks/useLatestRef'
 import { font, radius, space, weight } from '../styles'
 
 const CLOSE_MS = 100
@@ -43,18 +44,20 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
     setClosing(true)
     window.setTimeout(onClose, CLOSE_MS)
   }
+  // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
+  const closeRef = useLatestRef(close)
 
   useEffect(() => {
     const onPointerDown = (e: MouseEvent): void => {
       const target = e.target as Node
       if (panelRef.current?.contains(target)) return
       if (anchorEl?.contains(target)) return
-      close()
+      closeRef.current()
     }
     // 表示中は背後のグリッドへキーを流さない（Escape で裏の選択まで解除されるのを防ぐ）。
     const onKey = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape') closeRef.current()
     }
     window.addEventListener('mousedown', onPointerDown, true)
     window.addEventListener('keydown', onKey, true)
@@ -62,7 +65,7 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
       window.removeEventListener('mousedown', onPointerDown, true)
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [onClose, anchorEl, closing])
+  }, [anchorEl, closeRef])
 
   return (
     <div ref={panelRef} style={{ ...s.flyout, left: pos?.left ?? 0, bottom: pos?.bottom ?? 0, visibility: pos ? 'visible' : 'hidden', animation: closing ? 'shioriPopoverOut 0.1s ease-out forwards' : 'shioriPopoverIn 0.1s ease-out' }}>

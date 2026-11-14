@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { color, control, font, modal, radius, space, weight } from '../styles'
 import { XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
 
 const CLOSE_MS = 110
@@ -44,13 +45,16 @@ export default function ConfirmDialog({
     window.setTimeout(onClose, CLOSE_MS)
   }
 
+  // キーの受け口からは常に最新の閉じる・確定を呼ぶ（どちらも下で宣言）。
+  const closeRef = useLatestRef(close)
+  const confirmRef = useLatestRef(handleConfirm)
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       e.stopPropagation()
       if (busy) return
       if (e.key === 'Escape') {
         e.preventDefault()
-        close()
+        closeRef.current()
         return
       }
       if (e.key === 'Enter' && !e.isComposing) {
@@ -59,12 +63,12 @@ export default function ConfirmDialog({
         // （そのボタン自身の onClick が正しく呼ばれる）。
         if (document.activeElement instanceof HTMLButtonElement) return
         e.preventDefault()
-        handleConfirm()
+        void confirmRef.current()
       }
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [busy, closing])
+  }, [busy, closeRef, confirmRef])
 
   async function handleConfirm(): Promise<void> {
     if (busy) return

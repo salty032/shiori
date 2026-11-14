@@ -45,7 +45,7 @@ export default function ClipHotkeySettings({ onCapturingChange, placement }: Pro
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [capturing])
+  }, [capturing, t])
 
   async function updateClipNotify(enabled: boolean): Promise<void> {
     // window.api.setSettings は main 側で loadSettings() とマージされる部分パッチなので、

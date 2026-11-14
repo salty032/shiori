@@ -122,7 +122,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
   // TanStack Virtual は estimateSize が変わっても測定キャッシュを自動では破棄しない
   // （グリッド側の App.tsx と同じ対処）。ウィンドウ幅・サムネサイズ変更で行数/行高
   // （rows[].size）が変わったときに再測定し、translateY のズレ（行の重なり・空白）を防ぐ。
-  useEffect(() => { virtualizer.measure() }, [rows])
+  useEffect(() => { virtualizer.measure() }, [virtualizer, rows])
 
   useImperativeHandle(ref, () => ({
     scrollToFlatIndex(flatIndex: number): void {

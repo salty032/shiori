@@ -7,6 +7,7 @@ import { XIcon } from './Icon'
 import SettingsDataTab from './SettingsDataTab'
 import { s } from './settingsStyles'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLatestRef } from '../hooks/useLatestRef'
 import ClipHotkeySettings from '../video/ClipHotkeySettings'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
@@ -108,15 +109,17 @@ export default function SettingsModal(p: Props) {
   // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
   const extensionVersionMismatch = extensionConnected && p.extensionStatus?.data.versionMismatch === true
 
+  // Esc の受け口から常に最新の閉じる処理を呼ぶ（closeSettings は下で宣言）。
+  const closeSettingsRef = useLatestRef(closeSettings)
   // モーダル表示中はすべてのキーイベントの window 伝搬を遮断する
   useEffect(() => {
     const block = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape' && !capturing && !clipCapturing) closeSettings()
+      if (e.key === 'Escape' && !capturing && !clipCapturing) closeSettingsRef.current()
     }
     document.addEventListener('keydown', block)
     return () => document.removeEventListener('keydown', block)
-  }, [capturing, clipCapturing])
+  }, [capturing, clipCapturing, closeSettingsRef])
 
   useEffect(() => {
     if (!capturing) return
@@ -138,7 +141,7 @@ export default function SettingsModal(p: Props) {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [capturing])
+  }, [capturing, t])
 
   const [activeTab, setActiveTab] = useState<TabId>('general')
 

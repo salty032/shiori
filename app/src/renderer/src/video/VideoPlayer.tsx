@@ -6,6 +6,7 @@ import {
   type GapIndex, type ReadoutKind
 } from './frameReadout'
 import { useT, type Translate } from '../i18n'
+import { useLatestRef } from '../hooks/useLatestRef'
 import { font, radius, weight } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
@@ -174,6 +175,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     setReadout(kind)
   }
 
+  // 下の effect から呼ぶコマ送りの関数と刻み幅は、描画ごとに作り直される（言語・表の読み込み）。
+  // 付け直さずに、呼ぶ時点の最新を使う。
+  const frameActionsRef = useLatestRef({ moveFrames, refreshFrameReadout, goToFrame, updateVcTime, stepSec })
   useEffect(() => {
     framesRef.current = null
     frameIdxRef.current = null
@@ -203,14 +207,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
       const pending = pendingStepsRef.current
       pendingStepsRef.current = 0
-      if (pending !== 0) moveFrames(pending)
-      else refreshFrameReadout()
+      if (pending !== 0) frameActionsRef.current.moveFrames(pending)
+      else frameActionsRef.current.refreshFrameReadout()
     }
     window.api.getClipFrames(id)
       .then(settle)
       .catch((err) => { console.warn('[video] clip frames unavailable', err); settle(null) })
     return () => { canceled = true }
-  }, [id, preloadFrameTable])
+  }, [id, preloadFrameTable, frameActionsRef])
 
   // この実測行の次に、推定したアニメの抜けが何コマあるか。
   function missingAfter(idx: number): number {
@@ -551,6 +555,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       v.volume = lastVolume
       v.muted = lastMuted
     }
+    // 開いたとき（id が変わったとき）の速さ・自動再生で始めるだけ。速さを変えるたびに
+    // ここが走ると、再生位置や音量の復元まで巻き戻る。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // 表示種別が変わったとき（読み込み完了・取得失敗）と言語切り替えで書き直す。
@@ -558,7 +565,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   //
   // playing も見る：再生中は書き換えを止めているので、止めた瞬間に最後のコマへ追いつかせる
   // 必要がある（これが無いと、再生して止めたときだけ古い番号が残る）。
-  useEffect(() => { refreshFrameReadout() }, [readout, t, playing])
+  useEffect(() => { frameActionsRef.current.refreshFrameReadout() }, [readout, t, playing, frameActionsRef])
 
   useEffect(() => {
     if (pauseWhen) { videoRef.current?.pause(); setFramePlay(false) }
@@ -622,12 +629,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // **止まったことは画面に出る**（ボタンの色が戻り、コマ表示は最後の番号のまま残る）。
       if (pts.length > 0 && cur >= pts.length - 1) {
         if (!vcLoopRef.current) { setFramePlay(false); return }
-        goToFrame(0)
-      } else if (pts.length === 0 && isFinite(v.duration) && v.currentTime >= v.duration - stepSec) {
+        frameActionsRef.current.goToFrame(0)
+      } else if (pts.length === 0 && isFinite(v.duration) && v.currentTime >= v.duration - frameActionsRef.current.stepSec) {
         if (!vcLoopRef.current) { setFramePlay(false); return }
         v.currentTime = 0
       } else {
-        moveFrames(1)
+        frameActionsRef.current.moveFrames(1)
       }
       const started = performance.now()
       afterSeek(() => {
@@ -642,9 +649,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const cur = currentFrameIdx()
     const atEnd = pts.length > 0
       ? cur >= pts.length - 1
-      : isFinite(v.duration) && v.currentTime >= v.duration - stepSec
+      : isFinite(v.duration) && v.currentTime >= v.duration - frameActionsRef.current.stepSec
     if (atEnd) {
-      if (pts.length > 0) goToFrame(0)
+      if (pts.length > 0) frameActionsRef.current.goToFrame(0)
       else v.currentTime = 0
       timer = setTimeout(advance, holdSec * 1000)
     } else {
@@ -653,8 +660,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       advance()
     }
     return () => { alive = false; if (timer) clearTimeout(timer) }
-    // moveFrames / goToFrame は ref しか読まないので、依存に並べる必要はない。
-  }, [framePlay, speed, id])
+    // 関数と刻み幅は frameActionsRef から最新を読む。依存に並べると、表の読み込みなどで
+    // 作り直されるたびにコマ再生が付け直され、押した直後の 1 コマ送りがもう一度走る。
+  }, [framePlay, speed, id, frameActionsRef])
 
   // 再生中のシークバーは**コマの届く間隔ではなく再生の時計に追従させる**。
   //
@@ -668,13 +676,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     if (!v || !playing) return
     let handle = 0
     const tick = (): void => {
-      updateVcTime(v.currentTime)
+      frameActionsRef.current.updateVcTime(v.currentTime)
       handle = requestAnimationFrame(tick)
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-    // vcDuration は updateVcTime が割合と時刻ラベルに使うため、確定したら張り直す。
-  }, [playing, vcDuration])
+    // updateVcTime は vcDuration を読むが、frameActionsRef から最新を呼ぶので張り直さなくてよい。
+  }, [playing, frameActionsRef])
 
   // 再生中のコマ番号（実フレーム）の追従。timeupdate は仕様上 4Hz 程度でしか発火せず、
   // コマを追う用途では現在位置のズレがそのまま誤読につながるので、対応環境では

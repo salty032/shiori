@@ -50,6 +50,7 @@ const ROW_GAP = space.x4
 export default function App() {
   const { t, tp } = useT()
   const toast = useToast()
+  const showToast = toast.showToast
   const settings = useSettings(toast.showToast)
   const filters = useFilters(settings.settings, settings.setSettings, toast.showToast)
 
@@ -84,18 +85,19 @@ export default function App() {
   const imageList = useImageList(toast.showToast)
   const timeline = useTimeline(viewMode === 'timeline', toast.showToast)
 
+  const requestMoreTimeline = timeline.requestMore
   const loadOlderTimeline = useCallback(async (): Promise<void> => {
     const scroller = mainRef.current
     const beforeHeight = scroller?.scrollHeight ?? 0
     const beforeTop = scroller?.scrollTop ?? 0
-    await timeline.requestMore()
+    await requestMoreTimeline()
     // 古い項目が既存作品のグループへ合流すると、現在位置より上の高さが増える。
     // ボタンを押した位置が大きく跳ねないよう、増えた高さぶんだけスクロール位置を補正する。
     window.requestAnimationFrame(() => {
       if (!scroller) return
       scroller.scrollTop = beforeTop + Math.max(0, scroller.scrollHeight - beforeHeight)
     })
-  }, [timeline.requestMore])
+  }, [requestMoreTimeline])
 
   const updateSetupGuide = useCallback((patch: Partial<SetupGuideState>): void => {
     setSetupGuide((current) => {
@@ -165,9 +167,10 @@ export default function App() {
 
   // ビューアを開くたびに DetailPanel の表示状態をデフォルト（表示）へ戻す。
   // 画像間の移動（viewerIdx が非nullのまま変わる）では再実行しない。
+  const viewerOpen = viewerIdx !== null
   useEffect(() => {
-    if (viewerIdx !== null) setDetailPanelHiddenInViewer(false)
-  }, [viewerIdx !== null])
+    if (viewerOpen) setDetailPanelHiddenInViewer(false)
+  }, [viewerOpen])
 
   // useSelection はグリッド/タイムラインで矩形選択の当たり判定を切り替えるため最新の viewMode を ref で参照する。
   const gridActiveRef = useLatestRef(viewMode === 'grid')
@@ -283,6 +286,9 @@ export default function App() {
     }
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
+    // clearSelection は描画ごとに作り直されるが、触るのは選択の state と ref だけなので、
+    // 選択が変わったときに掴み直せば足りる（毎描画で付け外ししない）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection.selectedIds])
 
   const tagger = useTagger(toast.showToast, filters.refreshTags)
@@ -361,8 +367,8 @@ export default function App() {
 
   // メインプロセスからの通知 → トースト
   useEffect(() => {
-    return window.api.onAppNotice(({ level, message }) => toast.showToast(message, level))
-  }, [])
+    return window.api.onAppNotice(({ level, message }) => showToast(message, level))
+  }, [showToast])
 
   // 更新後の初回起動時、RELEASE_NOTES にそのバージョンの文面があれば「変更点」モーダルを出す
   // （文面が無いバージョンでは main 側が上の app:notice トーストにフォールバックする）。
@@ -386,8 +392,8 @@ export default function App() {
   // ドロップ完了後にまとめて届く。
   // t は言語ごとに作り直される。依存に入れないと、言語を切り替えた後もこれだけ前の言語で出る。
   useEffect(() => window.api.onImagesDragTruncated(({ requested, copied }) =>
-    toast.showToast(t('toast.dragTruncated', { requested, copied }), 'warning')
-  ), [t, toast.showToast])
+    showToast(t('toast.dragTruncated', { requested, copied }), 'warning')
+  ), [t, showToast])
 
   // ResizeObserver: measure grid wrapper width + offsetTop for virtualizer
   // useLayoutEffect + 初回同期測定で、起動直後に ResizeObserver の初回発火を
@@ -421,14 +427,15 @@ export default function App() {
   }, [viewMode])
 
   // force virtualizer to re-measure when row height or column count changes
-  useEffect(() => { virtualizer.measure() }, [rowHeight, columns])
+  useEffect(() => { virtualizer.measure() }, [virtualizer, rowHeight, columns])
 
+  const requestMoreGrid = imageList.requestMore
   // infinite scroll: trigger requestMore when last visible row is near end
   useEffect(() => {
     if (viewMode !== 'grid' || !imageList.hasMore || imageList.loading) return
     const last = virtualItems[virtualItems.length - 1]
-    if (last !== undefined && last.index >= rowCount - 2) imageList.requestMore()
-  }, [virtualItems, rowCount, imageList.hasMore, imageList.loading, viewMode])
+    if (last !== undefined && last.index >= rowCount - 2) requestMoreGrid()
+  }, [virtualItems, rowCount, imageList.hasMore, imageList.loading, viewMode, requestMoreGrid])
 
   // ビューア表示中も末尾付近に近づいたら追加読み込みする（スクロール起点の無限スクロールは
   // ビューアを開いている間は発火しないため）。これで未読み込みの画像へもそのまま移動でき、
@@ -436,8 +443,8 @@ export default function App() {
   useEffect(() => {
     if (viewMode !== 'grid' || viewerIdx === null) return
     if (!imageList.hasMore || imageList.loading) return
-    if (viewerIdx >= imageList.images.length - 10) imageList.requestMore()
-  }, [viewerIdx, imageList.images.length, imageList.hasMore, imageList.loading, viewMode])
+    if (viewerIdx >= imageList.images.length - 10) requestMoreGrid()
+  }, [viewerIdx, imageList.images.length, imageList.hasMore, imageList.loading, viewMode, requestMoreGrid])
 
   // ビューア表示中は DetailPanel もビューアの現在画像に追従する（グリッド選択とは独立、P1）。
   const single = useMemo(() => {
@@ -463,7 +470,7 @@ export default function App() {
     if (!quickTagTargetIds || quickTagTargetIds.length !== 1) return tp('detail.imageCount', quickTagTargetIds?.length ?? 0)
     const img = activeImages.find((x) => x.id === quickTagTargetIds[0])
     return img?.title ? cleanTitle(img.title, settings.settings.titleStrip) : tp('detail.imageCount', 1)
-  }, [activeImages, quickTagTargetIds, settings.settings.titleStrip])
+  }, [activeImages, quickTagTargetIds, settings.settings.titleStrip, tp])
 
   // サムネイル右クリック: 未選択の画像なら単一選択に切り替えてからメニューを開く。
   // 既に選択済みの画像上なら現在の複数選択を維持し、メニューはその選択全体に作用する。

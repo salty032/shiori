@@ -429,6 +429,8 @@ export function useSelection({
     }
   }
 
+  // 受け口は一度だけ付ける。中から呼ぶ関数・props は描画ごとに作り直されるので、押した時点の最新を呼ぶ。
+  const keyActionsRef = useLatestRef({ clearSelection, deleteViewerImage, requestDelete, setViewerId, showToast, undoPendingDelete })
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
       const { viewerIdx, images } = latestRef.current
@@ -437,12 +439,12 @@ export function useSelection({
       if (viewerIdx !== null) {
         if (!isEditing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
           const next = viewerIdx + (e.key === 'ArrowRight' ? 1 : -1)
-          if (next >= 0 && next < images.length) setViewerId(images[next].id)
+          if (next >= 0 && next < images.length) keyActionsRef.current.setViewerId(images[next].id)
           return
         }
         if (!isEditing && e.key === 'Delete') {
           const img = images[viewerIdx]
-          if (img) deleteViewerImage(img.id, viewerIdx)
+          if (img) keyActionsRef.current.deleteViewerImage(img.id, viewerIdx)
           return
         }
         // ビューア表示中でも Undo/Redo（削除の取り消し含む）だけは共通ハンドラへ通す。
@@ -452,7 +454,7 @@ export function useSelection({
       }
       if (!isEditing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
-        if (!e.shiftKey && undoPendingDelete()) return
+        if (!e.shiftKey && keyActionsRef.current.undoPendingDelete()) return
         if (e.shiftKey) redoSelection(); else undoSelection()
         return
       }
@@ -491,7 +493,7 @@ export function useSelection({
             // B10: listAllImages は上限（5000件）でキャップされるため、実件数がそれを
             // 超えている場合は「全選択のつもりが一部しか選ばれていない」ことを明示する。
             if (count > rows.length) {
-              showToast(t('toast.selectAllTruncated', { shown: rows.length.toLocaleString(currentLocale()), total: count.toLocaleString(currentLocale()) }), 'warning')
+              keyActionsRef.current.showToast(t('toast.selectAllTruncated', { shown: rows.length.toLocaleString(currentLocale()), total: count.toLocaleString(currentLocale()) }), 'warning')
             }
           })
           .catch((err) => {
@@ -501,7 +503,7 @@ export function useSelection({
           })
         return
       }
-      if (e.key === 'Escape' && !isEditing) { clearSelection(); return }
+      if (e.key === 'Escape' && !isEditing) { keyActionsRef.current.clearSelection(); return }
       // 開くのは Enter だけ。**Space は「動画の再生/一時停止」専用に空けてある**ので、
       // ここでも開くには使わない（一覧では開く・ビューアでは再生、と場所で意味が変わると、
       // ビューア内で媒体ごとに変わっていたのと同じ分かりにくさが場所違いで再発する）。
@@ -514,7 +516,7 @@ export function useSelection({
         const openIdx = focused !== null && focused >= 0 && focused < images.length ? focused : selectedIdx
         if (openIdx < 0) return
         e.preventDefault()
-        setViewerId(images[openIdx].id)
+        keyActionsRef.current.setViewerId(images[openIdx].id)
         return
       }
       if ((GRID_NAV_KEYS as readonly string[]).includes(e.key)) {
@@ -562,11 +564,11 @@ export function useSelection({
       if (isEditing || e.key !== 'Delete') return
       const { selectedIds } = latestRef.current
       if (selectedIds.size === 0) return
-      requestDelete(new Set(selectedIds))
+      keyActionsRef.current.requestDelete(new Set(selectedIds))
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [keyActionsRef, gridActiveRef, navigationColumnsRef])
 
   // サムネを掴んで動かしたときに、選択中の画像を他アプリへドラッグ&ドロップで渡す。
   // main 側が OS のドラッグを開始した時点でマウスは OS のドラッグループに奪われ、以降
@@ -591,6 +593,8 @@ export function useSelection({
     if (ids.length > 0) window.api.startImageDrag(ids)
   }
 
+  // 受け口は一度だけ付ける。中から呼ぶ関数・props は描画ごとに作り直されるので、押した時点の最新を呼ぶ。
+  const pointerActionsRef = useLatestRef({ clientToSelectionLocal, hitTestSelectionBox, scheduleRubberHit, selectIndex, startFileDrag, updateAutoScroll })
   useEffect(() => {
     function onMouseMove(e: MouseEvent): void {
       // OS のドラッグ中は renderer に mousemove が届かない。ボタンを離した状態で再び
@@ -602,25 +606,25 @@ export function useSelection({
       // サムネ上で押して動かした = 画像そのものを掴んだ、と解釈して他アプリへのドラッグに入る
       // （エクスプローラ等と同じ挙動）。矩形選択は何もない場所からの開始に限る。
       if (rubberStartedFromThumb.current && Math.abs(e.clientX - rubberAnchor.current.clientX) + Math.abs(e.clientY - rubberAnchor.current.clientY) > 4) {
-        startFileDrag()
+        pointerActionsRef.current.startFileDrag()
         return
       }
-      scheduleRubberHit()
-      updateAutoScroll(e.clientY)
+      pointerActionsRef.current.scheduleRubberHit()
+      pointerActionsRef.current.updateAutoScroll(e.clientY)
     }
     function onMouseUp(): void {
       selfDragRef.current = false
       // ドラッグせずに離した = ただのクリック。ここで初めて選択をその1枚に畳む。
       if (collapseOnMouseUp.current !== null) {
-        selectIndex(collapseOnMouseUp.current)
+        pointerActionsRef.current.selectIndex(collapseOnMouseUp.current)
         collapseOnMouseUp.current = null
       }
       cancelScheduledRubberHit()
       if (rubberAnchor.current) {
         const { x: cx, y: cy } = rubberCurrent.current
-        const current = clientToSelectionLocal(cx, cy)
+        const current = pointerActionsRef.current.clientToSelectionLocal(cx, cy)
         if (current && (Math.abs(cx - rubberAnchor.current.clientX) > 4 || Math.abs(cy - rubberAnchor.current.clientY) > 4)) {
-          const result = hitTestSelectionBox(rubberAnchor.current.localX, rubberAnchor.current.localY, current.x, current.y)
+          const result = pointerActionsRef.current.hitTestSelectionBox(rubberAnchor.current.localX, rubberAnchor.current.localY, current.x, current.y)
           if (rubberCtrl.current) {
             setSelectedIds((prev) => { const next = new Set(prev); result.forEach((id) => next.add(id)); return next })
           } else {
@@ -646,7 +650,7 @@ export function useSelection({
       stopAutoScroll()
       cancelScheduledRubberHit()
     }
-  }, [])
+  }, [pointerActionsRef])
 
   // 一覧を押したときに、メモ欄・検索欄などへ残っているフォーカスを外す。
   //

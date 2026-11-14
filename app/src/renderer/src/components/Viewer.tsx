@@ -7,6 +7,7 @@ import VideoPlayer, { type VideoPlayerHandle } from '../video/VideoPlayer'
 import { useOverlayOpen } from '../overlaySignal'
 import { useT } from '../i18n'
 import type { Timesheet } from '../hooks/useTimesheet'
+import { useLatestRef } from '../hooks/useLatestRef'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -99,16 +100,21 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   // **捕獲段階で受けて、取ったキーはほかへ流さない。** 一覧側（useSelection）も window で
   // ←→（前後のクリップへ）と Delete（クリップを消す）を聞いており、先に登録されている。
   // 後から聞くだけでは、列を移ったつもりでクリップが替わり、記入を消したつもりでクリップが消える。
+  const handleTimesheetKey = timesheet.handleKey
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       const el = e.target as HTMLElement | null
       const tag = el?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return
-      if (timesheet.handleKey(e)) e.stopImmediatePropagation()
+      if (handleTimesheetKey(e)) e.stopImmediatePropagation()
     }
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [timesheet.handleKey])
+  }, [handleTimesheetKey])
+
+  // 下のキー操作から呼ぶ関数は描画ごとに作り直されるので、押した時点の最新を呼ぶ
+  // （関数の宣言は後ろにあるが、呼ばれるのは押したとき）。
+  const keyActionsRef = useLatestRef({ close, setIndex, zoomByKeyboard })
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -153,12 +159,12 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') {
         e.preventDefault()
         if (e.key === '0') { setZoom(1); setPan({ x: 0, y: 0 }); return }
-        zoomByKeyboard(e.key === '-' ? 0.8 : 1.25)
+        keyActionsRef.current.zoomByKeyboard(e.key === '-' ? 0.8 : 1.25)
         return
       }
       if (e.key === 'Home' || e.key === 'End') {
         e.preventDefault()
-        setIndex(e.key === 'Home' ? 0 : images.length - 1)
+        keyActionsRef.current.setIndex(e.key === 'Home' ? 0 : images.length - 1)
         return
       }
       if (e.key === 'Tab') {
@@ -176,11 +182,11 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
       // 意味が入れ替わる（しかも動画では、止めるつもりが閉じるという実害のある事故になる）。
       if (e.key !== 'Escape' && (e.key !== 'Enter' || e.isComposing)) return
       e.preventDefault()
-      close()
+      keyActionsRef.current.close()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closing, images, index, zoom, pan, onToggleDetailPanel])
+  }, [closing, images, index, zoom, pan, onToggleDetailPanel, keyActionsRef])
 
   // +/-/0: ホイールズームと同じ倍率係数(1.25/0.8)で、画像の描画矩形中心を基準にズームする
   // （マウスカーソル基準の handleWheel と違い、キーボード操作にはカーソル位置の意味がないため）。
@@ -250,6 +256,8 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
     }
   }
 
+  // 位置の計算は表示中の素材の寸法を読むので、回した時点の最新を使う。
+  const panMathRef = useLatestRef({ clampPan, panForZoomAt })
   // React 17+ はホイールイベントをルートに passive: true で登録するため、onWheel prop 内の
   // preventDefault は無効（console に intervention 警告が出るだけで効果がない）。
   // ズームには scroll 連鎖の阻止が必須なので、ref に対して passive: false で自前登録する。
@@ -266,12 +274,13 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
         setPan({ x: 0, y: 0 })
         return
       }
+      const { clampPan, panForZoomAt } = panMathRef.current
       setPan(clampPan(panForZoomAt(e.clientX, e.clientY, nextZoom, zoom, pan), nextZoom))
       setZoom(nextZoom)
     }
     el.addEventListener('wheel', onWheelNative, { passive: false })
     return () => el.removeEventListener('wheel', onWheelNative)
-  }, [zoom, pan, images, index])
+  }, [zoom, pan, images, index, panMathRef])
 
   function toggleZoomAt(clientX: number, clientY: number): void {
     if (zoom > 1) {

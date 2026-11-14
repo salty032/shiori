@@ -8,6 +8,7 @@ import { XIcon } from '../components/Icon'
 import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from './videoControls'
 import type { TrimProgress } from '../../../shared/api.video'
 import { useT, type MessageKey } from '../i18n'
+import { useLatestRef } from '../hooks/useLatestRef'
 
 type Props = {
   image: ImageRow
@@ -171,6 +172,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   // 超えてから戻ることになり、切り出さないはずのコマが見えてしまう）。
   // 停止中の移動は制限しない（コマ送りやタイムラインクリックで範囲外を確認することは
   // あるため、閉じ込めるのは再生中だけにする）。
+  // コマごとの位置の書き込みは、呼ぶ時点の最新を使う（updatePos は下で宣言）。
+  const updatePosRef = useLatestRef(updatePos)
   useEffect(() => {
     const v = videoRef.current
     if (!v || !playing) return
@@ -186,15 +189,15 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
       if (!alive) return
       if (meta.mediaTime >= exportOutSec - FRAME_EPS) {
         v.currentTime = inSec
-        updatePos(inSec)
+        updatePosRef.current(inSec)
       } else {
-        updatePos(meta.mediaTime)
+        updatePosRef.current(meta.mediaTime)
       }
       handle = rv.requestVideoFrameCallback!(tick)
     }
     handle = rv.requestVideoFrameCallback(tick)
     return () => { alive = false; rv.cancelVideoFrameCallback?.(handle) }
-  }, [playing, inSec, exportOutSec, dur])
+  }, [playing, inSec, exportOutSec, dur, updatePosRef])
 
   useVcStyles()
 
@@ -487,13 +490,14 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   // 表の取得が終わったら、保留していたコマ送りをまとめて動かす。
   // **取得に失敗したときも動かす**——そこでは推定の刻みしか無いが、押した手を握り潰さない
   // 方を採る（ビューアの settle と同じ判断）。
-  // 依存は ptsLoading だけ。stepPlayhead は取得後の framePts を掴んだこの描画の版を使う。
+  // 走らせるのは ptsLoading が変わったときだけ。stepPlayhead は取得後の framePts を掴んだ最新の版を呼ぶ。
+  const stepPlayheadRef = useLatestRef(stepPlayhead)
   useEffect(() => {
     if (ptsLoading) return
     const pending = pendingStepsRef.current
     pendingStepsRef.current = 0
-    if (pending !== 0) stepPlayhead(pending)
-  }, [ptsLoading])
+    if (pending !== 0) stepPlayheadRef.current(pending)
+  }, [ptsLoading, stepPlayheadRef])
 
   // ネイティブシーク（video controls や外部操作）後に displayedSecRef を更新する
   function handleSeeked(): void {

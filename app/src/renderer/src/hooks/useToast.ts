@@ -29,6 +29,19 @@ const EXIT_MS = 300
 // 実際に元に戻せる猶予と表示時間を一致させる意図で個別に ms を明示している。
 const DEFAULT_TOAST_MS = 4000
 
+// 上限超過分を押し出す。アクション付き（「元に戻す」等）は実際の操作猶予（例: 削除の
+// Undo タイマー）と表示が食い違うと紛らわしいため、可能な限りアクションなしの最古側から
+// 落とす。Array.prototype.sort は安定ソートなので、同じ「アクション有無」内では元の順序
+// （＝古い順）が保たれる。全件アクション付きのときだけ最古から落ちる。
+function withinLimit(list: ToastItem[]): { kept: ToastItem[]; evictedIds: number[] } {
+  if (list.length <= MAX_TOASTS) return { kept: list, evictedIds: [] }
+  const overflow = list.length - MAX_TOASTS
+  const byEvictability = [...list].sort((a, b) => Number(Boolean(a.action)) - Number(Boolean(b.action)))
+  const evictedIds = byEvictability.slice(0, overflow).map((t) => t.id)
+  const evictedSet = new Set(evictedIds)
+  return { kept: list.filter((t) => !evictedSet.has(t.id)), evictedIds }
+}
+
 // 画面下中央にトーストを複数スタック表示する。以前は単一スロットで新しい通知が来ると
 // 即座に置き換えていたため、削除の「元に戻す」付きトーストが表示期限の途中で
 // 別の通知（キャプチャ完了など）に消されてしまう問題があった。
@@ -39,25 +52,27 @@ export function useToast() {
   const idRef = useRef(0)
   const timersRef = useRef<Map<number, number>>(new Map())
 
-  const clearTimer = (id: number): void => {
+  // 下の補助関数は ref と setToasts しか触らないので、初回のものを使い続けてよい。
+  // useCallback で固定しておくと、showToast などの依存に入れても作り直されない。
+  const clearTimer = useCallback((id: number): void => {
     const timer = timersRef.current.get(id)
     if (timer !== undefined) {
       window.clearTimeout(timer)
       timersRef.current.delete(id)
     }
-  }
+  }, [])
 
-  const removeToast = (id: number): void => {
+  const removeToast = useCallback((id: number): void => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
-  }
+  }, [])
 
   // 即座に配列から消さず、まず closing:true にして shioriToastOut を再生してから除去する。
-  const beginClose = (id: number): void => {
+  const beginClose = useCallback((id: number): void => {
     setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, closing: true } : t)))
     window.setTimeout(() => removeToast(id), EXIT_MS)
-  }
+  }, [removeToast])
 
-  const scheduleDismiss = (id: number, ms: number | undefined): void => {
+  const scheduleDismiss = useCallback((id: number, ms: number | undefined): void => {
     clearTimer(id)
     const duration = ms ?? DEFAULT_TOAST_MS
     const timer = window.setTimeout(() => {
@@ -65,20 +80,7 @@ export function useToast() {
       beginClose(id)
     }, duration)
     timersRef.current.set(id, timer)
-  }
-
-  // 上限超過分を押し出す。アクション付き（「元に戻す」等）は実際の操作猶予（例: 削除の
-  // Undo タイマー）と表示が食い違うと紛らわしいため、可能な限りアクションなしの最古側から
-  // 落とす。Array.prototype.sort は安定ソートなので、同じ「アクション有無」内では元の順序
-  // （＝古い順）が保たれる。全件アクション付きのときだけ最古から落ちる。
-  const withinLimit = (list: ToastItem[]): { kept: ToastItem[]; evictedIds: number[] } => {
-    if (list.length <= MAX_TOASTS) return { kept: list, evictedIds: [] }
-    const overflow = list.length - MAX_TOASTS
-    const byEvictability = [...list].sort((a, b) => Number(Boolean(a.action)) - Number(Boolean(b.action)))
-    const evictedIds = byEvictability.slice(0, overflow).map((t) => t.id)
-    const evictedSet = new Set(evictedIds)
-    return { kept: list.filter((t) => !evictedSet.has(t.id)), evictedIds }
-  }
+  }, [clearTimer, beginClose])
 
   const showToast = useCallback<ShowToast>((message, tone = 'info', ms, action) => {
     const id = ++idRef.current
@@ -90,7 +92,7 @@ export function useToast() {
     })
     scheduleDismiss(id, ms)
     return id
-  }, [])
+  }, [clearTimer, scheduleDismiss])
 
   // 「進捗中...」のように、同じ操作の続きとして既存トーストの内容を差し替える。
   // 対象の id が既に消えていた場合（タイムアウト/上限落ち）は新規追加として扱う。
@@ -105,12 +107,12 @@ export function useToast() {
       return kept
     })
     scheduleDismiss(id, ms)
-  }, [])
+  }, [clearTimer, scheduleDismiss])
 
   const dismissToast = useCallback<DismissToast>((id) => {
     clearTimer(id)
     beginClose(id)
-  }, [])
+  }, [clearTimer, beginClose])
 
   return { showToast, updateToast, dismissToast, toasts }
 }

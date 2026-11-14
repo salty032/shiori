@@ -3,6 +3,7 @@ import type { ExtensionTimecode } from '../types'
 import type { SetupGuideState } from '../setupGuideState'
 import { control, font, modal, radius, space, weight } from '../styles'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
 import { XIcon } from './Icon'
 
@@ -42,15 +43,17 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
     setClosing(true)
     window.setTimeout(onClose, CLOSE_MS)
   }
+  // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
+  const closeRef = useLatestRef(close)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape') { e.preventDefault(); close() }
+      if (e.key === 'Escape') { e.preventDefault(); closeRef.current() }
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [closing])
+  }, [closeRef])
 
   const steps = [
     {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { control, font, modal, radius, space, weight } from '../styles'
 import { ChevronDownIcon, XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
 import type { ReleaseNoteEntry } from '../../../shared/releaseNotes'
 
@@ -34,6 +35,8 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
     setClosing(true)
     window.setTimeout(onClose, CLOSE_MS)
   }
+  // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
+  const closeRef = useLatestRef(close)
 
   function toggle(version: string): void {
     setOpen((cur) => (cur.includes(version) ? cur.filter((v) => v !== version) : [...cur, version]))
@@ -46,12 +49,12 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
       e.stopPropagation()
       if (e.key === 'Escape') {
         e.preventDefault()
-        close()
+        closeRef.current()
       }
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [closing])
+  }, [closeRef])
 
   const single = entries.length === 1
 

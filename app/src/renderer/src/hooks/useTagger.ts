@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLatestRef } from './useLatestRef'
 import type { ShowToast } from './useToast'
 import { t, tp } from '../i18n'
 
@@ -15,20 +16,23 @@ export function useTagger(showToast: ShowToast, onTagsDone: () => void) {
     setTaggerProgress(p)
     if (p >= 1) { setTaggerProgress(null); setTaggerReady(true) }
   }), [])
+  // 通知の購読は一度だけ。中から呼ぶ関数は、通知が来た時点の最新を呼ぶ。
+  const onTagsDoneRef = useLatestRef(onTagsDone)
+  const showToastRef = useLatestRef(showToast)
   useEffect(() => window.api.onTaggerDone(() => {
     setTaggerDoneKey((k) => k + 1)
-    onTagsDone()
-  }), [])
+    onTagsDoneRef.current()
+  }), [onTagsDoneRef])
   useEffect(() => window.api.onTaggerError((msg) =>
-    showToast(t('toast.taggingError', { message: msg }), 'error')
-  ), [])
+    showToastRef.current(t('toast.taggingError', { message: msg }), 'error')
+  ), [showToastRef])
   useEffect(() => window.api.onTaggerRetagProgress(setRetagProgress), [])
   useEffect(() => window.api.onTaggerRetagDone(({ tagged, canceled }) => {
     setRetagProgress(null)
     setTaggerDoneKey((k) => k + 1)
-    onTagsDone()
-    showToast(canceled ? tp('toast.taggingStopped', tagged) : tp('toast.tagged', tagged), canceled ? 'warning' : 'success')
-  }), [])
+    onTagsDoneRef.current()
+    showToastRef.current(canceled ? tp('toast.taggingStopped', tagged) : tp('toast.tagged', tagged), canceled ? 'warning' : 'success')
+  }), [onTagsDoneRef, showToastRef])
 
   async function handleTaggerDelete(): Promise<void> {
     const { removedTags } = await window.api.taggerDelete()

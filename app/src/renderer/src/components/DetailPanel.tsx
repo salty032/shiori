@@ -148,15 +148,17 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   // 選択を連続移動したときにフル解像度デコード待ちでパネル反映が遅れるのを防ぐ。
   const [fullImageSrc, setFullImageSrc] = useState<string | null>(null)
 
+  const singleId = single?.id
+  const singleIsVideo = single?.media_type === 'video'
   useEffect(() => {
-    if (!single || single.media_type === 'video') return
+    if (singleId == null || singleIsVideo) return
     setFullImageSrc(null)
     let canceled = false
     const preload = new Image()
-    preload.onload = () => { if (!canceled) setFullImageSrc(mediaUrl(single.id)) }
-    preload.src = mediaUrl(single.id)
+    preload.onload = () => { if (!canceled) setFullImageSrc(mediaUrl(singleId)) }
+    preload.src = mediaUrl(singleId)
     return () => { canceled = true }
-  }, [single?.id, single?.media_type])
+  }, [singleId, singleIsVideo])
 
   const bulkSuggestions = useMemo(() => {
     return tagSuggestions(bulkTagInput, allTags, (tag) => bulkTagMap.get(tag)?.coverage !== 'all')
@@ -181,6 +183,9 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
       const pending = pendingMemoSaveRef.current
       if (pending) void persistMemo(pending, false)
     }
+    // 上のとおり、選択画像が変わったときだけ走らせる。single の中身（タグ付けの完了などで
+    // 差し替わる）や persistMemo の作り直しでは走らせない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [single?.id])
 
   useEffect(() => () => {

@@ -7,6 +7,7 @@
 // 選択の付け替え（削除後にどれを選ぶか・Undo でどれに戻すか）は選択側の担当なので、
 // selectAfterDelete / restoreSelectionAfterUndo として呼び出し元から受け取る。
 import { useEffect, useRef } from 'react'
+import { useLatestRef } from './useLatestRef'
 import type { ImageRow, DeleteImageResult } from '../types'
 import type { DismissToast, ShowToast, UpdateToast } from './useToast'
 import type { RemovedImagesSnapshot } from '../stores/imageStore'
@@ -234,12 +235,15 @@ export function usePendingDeletion({
     setViewerId(next?.id ?? null)
   }
 
+  // **この受け口は一度だけ付ける。** 付け直すと片付け（下の return）が走り、猶予中の削除が
+  // その場で確定してしまう。中から呼ぶ確定処理は、終了した時点の最新を呼ぶ。
+  const commitRef = useLatestRef(commitPendingDelete)
   useEffect(() => {
     const flushPendingDelete = (): void => {
       const list = pendingDeletesRef.current
       if (list.length === 0) return
       pendingDeletesRef.current = []
-      for (const pending of list) commitPendingDelete(pending, false)
+      for (const pending of list) commitRef.current(pending, false)
     }
     // トレイの「終了」等でウィンドウごと畳まれる場合、この effect のクリーンアップは
     // JS コンテキストごと破棄されるため走らない。pagehide はウィンドウが閉じる過程で
@@ -251,7 +255,7 @@ export function usePendingDeletion({
       window.removeEventListener('pagehide', flushPendingDelete)
       flushPendingDelete()
     }
-  }, [])
+  }, [commitRef])
 
   // 削除直後か（ダブルクリックでのビューアオープンを無視する判定）。
   function openSuppressed(): boolean {

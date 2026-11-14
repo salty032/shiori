@@ -96,9 +96,11 @@ export default function TimesheetPanel({ sheet, fps }: Props) {
 
   // コマ送りに追従して現在行を見える位置へ寄せる。**block: 'nearest' にする**——常に中央へ
   // 寄せると 1 コマ送るたびに表全体が動き、どこを見ているか分からなくなる。
+  // sheet.current は ref ではなく今のコマの行番号（名前のせいで検査が ref と取り違えるので取り出す）。
+  const currentRow = sheet.current
   useEffect(() => {
     currentRowRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [sheet.current, sheet.currentGap])
+  }, [currentRow, sheet.currentGap])
 
   const { total, rows, marks, current, currentGap, track, pending } = sheet
   // いま居る位置が rows の何行目か。推定抜けの中なら、手前の実測行からその分だけ進める。
