@@ -18,6 +18,14 @@ function getFfmpegPath(): string {
 const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000  // 5分
 const FFPROBE_TIMEOUT_MS = 60 * 1000      // 1分
 
+// 入力は必ずこれで開く。取り込み・共有の受け取りでは他人が作ったファイルを読むが、ffmpeg は
+// 拡張子でなく中身で形式を決めるため、拡張子だけ動画の concat 台本やプレイリストを渡されると
+// 別のファイルを読みに行く余地がある。Shiori が扱う入れ物（webm/mkv と mp4 系）と
+// ローカルファイルだけに絞る。
+function inputArgs(path: string): string[] {
+  return ['-format_whitelist', 'matroska,mov', '-protocol_whitelist', 'file', '-i', path]
+}
+
 // 1 本の動画から解析するフレーム数の上限。録画は 30 秒（強制上限 40 秒）、取り込みも
 // 30 秒までで、取得レートの上限が 120枚/秒なので、正規の素材は 4,800 コマを超えない。
 // 尺の申告が嘘のファイルでもここで必ず止まるよう、4 倍の余裕を見た固定値を置く。
@@ -226,7 +234,7 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
   const pts: number[] = []
   const { stdout } = await runFfmpegCollectStdout([
     '-hide_banner',
-    '-i', inputPath,
+    ...inputArgs(inputPath),
     '-an',
     '-fps_mode', 'passthrough',
     '-vf', `scale=${SIGNATURE_GRID}:${SIGNATURE_GRID}:flags=area,format=gray,showinfo`,
@@ -262,7 +270,7 @@ export async function getFrameSignatures(inputPath: string): Promise<FrameSignat
 export async function getVideoFramePts(inputPath: string): Promise<number[]> {
   const pts: number[] = []
   const { timedOut } = await runFfmpegCollect([
-    '-i', inputPath,
+    ...inputArgs(inputPath),
     '-vf', 'showinfo',
     '-an',
     '-f', 'null',
@@ -286,7 +294,7 @@ export async function getVideoFramePts(inputPath: string): Promise<number[]> {
 export async function getVideoMeta(inputPath: string): Promise<{ duration: number | null; fps: number | null; codec: string | null }> {
   const { stderr } = await runFfmpegCollect([
     '-hide_banner',
-    '-i', inputPath
+    ...inputArgs(inputPath)
   ])
 
   const durationMatch = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr)
@@ -386,7 +394,7 @@ export async function trimWebm(
   const preSeek = Math.max(0, inSec - 2)
   if (preSeek > 0) args.push('-ss', String(preSeek))
   args.push(
-    '-i', inputPath,
+    ...inputArgs(inputPath),
     '-ss', String(inSec - preSeek),
     '-to', String(outSec - preSeek),
     // 録画側は「アニメの線画・ベタ塗りは同じビットレートなら VP9 が明確に有利」という
@@ -463,7 +471,7 @@ export function h264Args(
 ): string[] {
   return [
     '-y',
-    '-i', inputPath,
+    ...inputArgs(inputPath),
     // **これが無いとコマ数が変わる。** 録画は「画面が変化したぶんだけ」フレームを吐く
     // 可変フレームレートで、mp4 の既定（固定フレームレート）に落とすと ffmpeg が
     // 足りない位置にコマを複製する。実測では 237 コマが 240 コマに水増しされ、
@@ -511,7 +519,7 @@ export async function getTimelineStrip(inputPath: string, duration: number, coun
   try {
     await runFfmpeg([
       '-y',
-      '-i', inputPath,
+      ...inputArgs(inputPath),
       // tpad で最終フレームを尺いっぱいまで複製してから fps で抜く。
       // 録画は「画面が変化したぶんだけ」フレームを吐く（recorder.ts の acquireScreenStream
       // 参照）ため、末尾が静止したクリップでは最終フレームの PTS がコンテナの尺より
@@ -534,7 +542,7 @@ export async function extractThumb(videoPath: string, thumbPath: string): Promis
   await mkdir(dirname(thumbPath), { recursive: true })
   const args: string[] = [
     '-y',
-    '-i', videoPath,
+    ...inputArgs(videoPath),
     '-frames:v', '1',
     '-f', 'image2',
     thumbPath
