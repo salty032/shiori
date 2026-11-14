@@ -55,7 +55,7 @@ export function useConfirmActions(opts: UseConfirmActionsOptions) {
   }
 
   async function confirmDeleteTagGlobally(tag: string): Promise<void> {
-    // サイドバーの件数バッジ廃止に伴い常時取得の tagCounts をやめ、削除確認時にオンデマンドで数える（F-7）。
+    // 確認に出す枚数は、その場で DB に数え直す（F-7）。
     const count = await window.api.countImages({ tags: [tag] })
     setConfirmDialog({
       title: t('confirm.deleteTag.title'),

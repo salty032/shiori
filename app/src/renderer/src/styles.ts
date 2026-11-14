@@ -259,7 +259,7 @@ export const s: Record<string, CSSProperties> = {
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'opacity 0.15s ease' },
   thumbImgVertical: { objectFit: 'contain' as const },
   // サムネが読めなかったとき。**無地で済ませない**——ファイルが消えたのか読み込み中なのかが
-  // 画面から分からず、黙って欠けた状態になる。一番小さいセル（横120px）では文字が折り返す。
+  // 画面から分からず、黙って欠けた状態になる。一番小さいセル（S＝横150px）では文字が折り返す。
   thumbFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' as const, background: 'linear-gradient(135deg, var(--bg-surface), var(--bg-page))' },
   thumbFallbackText: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: weight.normal, textAlign: 'center' as const, lineHeight: 1.35 },
   // 題名は本文と同じ濃さ（--text-primary）。**濃さを上げられるのは太さを下げたから。**
@@ -380,7 +380,7 @@ export const s: Record<string, CSSProperties> = {
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
   gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
   shortcutsBtn: { flex: 'none', width: 34, padding: 0, justifyContent: 'center' },
-  // 設定ボタンの下に置く小さなリンク列（変更点・不具合報告）。常に見えることが目的なので
+  // 設定ボタンの下に置く小さなリンク列（使い方・不具合報告）。常に見えることが目的なので
   // 隠さないが、毎回押すものではないので文字サイズと色で視線の重さを下げる。
   // **リンクは単語の途中で折らない。** 幅 192px にリンクが 2〜3 個並ぶので、放っておくと
   // 「不具合・要望を報／告」のように行の途中で切れる。1 個ずつを塊として扱い、入らなければ

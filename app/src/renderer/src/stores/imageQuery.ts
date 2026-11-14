@@ -1,7 +1,7 @@
 import type { ImageQuery } from '../types'
 import type { CommittedFilters } from './filterStore'
 
-// 検索文字列のパース（tag:/from:/to:）と確定フィルタを 1 つの ImageQuery にまとめる。
+// 検索文字列のパース（tag:/site:/type:/from:/to:）と確定フィルタを 1 つの ImageQuery にまとめる。
 // グリッド一覧・タイムライン・件数集計が共有する「フィルタとは何か」の単一定義。
 // ストア（imageStore）とフック双方から参照するため、循環参照回避でここに独立させている。
 

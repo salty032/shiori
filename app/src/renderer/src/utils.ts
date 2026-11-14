@@ -229,8 +229,8 @@ export function formatBytes(bytes: number): string {
   return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10} ${units[unit]}`
 }
 
-// メディア URL の解決口。既定は Electron の capfile:// プロトコル（bootstrap.ts が処理する）。
-// Web デモ版は capfile:// を持てないため、起動時に web/mockApi.ts が同梱アセットの URL を
+// メディア URL の解決口。既定は Electron の capfile:// プロトコル（main の capfile-protocol.ts が処理する）。
+// Web デモ版は capfile:// を持てないため、起動時に demo/mockApi.ts が同梱アセットの URL を
 // 返す関数へ差し替える。差し替え口だけを置く形にして、
 // 呼び出し側（ThumbCell / Viewer / VideoPlayer）は分岐を持たない。
 type MediaUrlResolver = (id: number, kind: 'media' | 'thumb') => string

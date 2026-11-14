@@ -110,7 +110,7 @@ export function useSelection({
 
   // 確定フィルタの同一性。変化したら選択をクリアする（下の useEffect）。
   const filterQueryKey = useFilterStore(selectQueryKey)
-  // 「次のフィルタ変更ではクリアしない」一度きりのフラグ（色フィルタ等で選択維持）。
+  // 「次のフィルタ変更ではクリアしない」一度きりのフラグ（詳細パネルのタグから絞り込んだときに選択を保つ）。
   const preserveSelectionRef = useRef(false)
 
   const selectionHistory = useRef<Set<number>[]>([])
@@ -721,10 +721,9 @@ export function useSelection({
     requestDelete(new Set(selectedIds))
   }
 
-  // ids を明示すれば selectedIds を無視してその画像だけ書き出す。ビューア表示中に
-  // 書き出しは選択の仕組みとは独立している（排他と結果の通知だけ）。
-  // DetailPanel の「エクスポート」はビューアの現在画像を対象にするため、
-  // 呼び出し元（App.tsx）が ids を渡す（P1）。
+  // ids を明示すれば selectedIds を無視してその画像だけ書き出す。ビューア表示中の
+  // DetailPanel の「エクスポート」はビューアの現在画像を対象にするため、呼び出し元（App.tsx）が
+  // ids を渡す（P1）。書き出し自体は選択の仕組みとは独立している（排他と結果の通知だけ）。
   const exportSelected = useExportSelected({ getDefaultIds: () => [...selectedIds], showToast })
 
   return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, openIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce, selfDragRef }

@@ -9,7 +9,8 @@ export const DETAIL_MIN_WIDTH = 300
 export const DETAIL_MAX_WIDTH = 600
 export const DETAIL_DEFAULT_WIDTH = 300
 
-// 中央の一覧に残したい幅。サムネ最大（220px）が 2 列＋余白で並ぶ下限。
+// 中央の一覧に残したい幅。サムネが最大 220px だった頃に「2 列＋余白で並ぶ下限」として決めた値
+// （今の最大 320px では、この幅だと 1 列になる）。
 export const MIN_CONTENT_WIDTH = 520
 
 function clamp(v: number, lo: number, hi: number): number {

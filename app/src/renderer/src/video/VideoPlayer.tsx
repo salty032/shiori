@@ -591,7 +591,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   //
   // 素材のコマは等間隔に並ぶので、これは**時間軸を一様に伸ばした減速**であり、コマ打ちの
   // 溜め（3 コマ続く絵は 3 倍の時間そこに留まる）はそのまま残る。
-  // 映像要素は止めたまま動かすので、コマ番号と「流用 / 要確認」も出たままになる。
+  // 映像要素は止めたまま動かすので、コマ番号と「撮り逃し / 要注意」も出たままになる。
   useEffect(() => {
     if (!framePlay || speed === null) return
     const holdSec = speed
@@ -703,7 +703,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // 再生を止めた位置からそのままコマ送りを続けられるよう、添字も追い続ける。
       // 再生中は自分のシークと競合しないので、ここは実測をそのまま反映してよい。
       // 添字は追い続けるが、**コマ表示は書き換えない**。再生中は毎フレーム値が変わるため、
-      // 書き換えると番号も「流用 / 要確認」の注記も高速に明滅して読めたものではなくなる
+      // 書き換えると番号も「撮り逃し / 要注意」の注記も高速に明滅して読めたものではなくなる
       // （そもそも再生中は隠している。下の JSX を参照）。
       const pts = framesRef.current?.pts
       if (pts && pts.length > 0) { frameIdxRef.current = findFrameIdx(pts, meta.mediaTime); gapOffsetRef.current = 0 }
@@ -802,7 +802,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           }}
         />
         {/* コマ表示は**止まっている間だけ**出す。
-            コマ番号も「流用 / 要確認」も 1 コマを見定めるための情報で、再生中は毎フレーム
+            コマ番号も「撮り逃し / 要注意」も 1 コマを見定めるための情報で、再生中は毎フレーム
             変わるため出しても読めず、注記が明滅して映像の邪魔にしかならない。
             コマ送りは必ず一時停止させるので、送った瞬間から見える。 */}
         {readout !== 'off' && (

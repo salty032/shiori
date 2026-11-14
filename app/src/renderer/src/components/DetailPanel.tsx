@@ -132,7 +132,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   }, [single, t])
 
   // **並べない。重い方だけを出す。** コマ送りの表示（VideoPlayer）と同じ扱いにする。
-  // 要注意が出ている時点でそのクリップは数えられず、未取得を足しても判断は変わらない。
+  // 要注意が出ている時点でそのクリップは数えられず、撮り逃しを足しても判断は変わらない。
   // 順は 要注意（数えられない）→ 撮り逃し（絵が無い）。
   const frameNote = unreliableNote ?? uncapturedNote
 
@@ -425,7 +425,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     統一し、grid の行・列だけを明示的に指定する。 */}
                 {/* コマ精度の注記。**段としては積まず、長さの真下へ重ねる**——開く人が必ず
                     見る情報なので下へ埋めないが、段を取ると注記の有無で高さが変わり、
-                    開くクリップごとに下の並びがずれる。右端を基準に並べ、順は要注意→未取得
+                    開くクリップごとに下の並びがずれる。右端を基準に並べ、順は要注意→撮り逃し
                     （重い方が先）。片方だけでも右端は動かないので、開くクリップごとに
                     印の位置が飛ばない。 */}
                 {frameNote && (

@@ -42,7 +42,6 @@ import VideoTrimmerModal from './video/VideoTrimmerModal'
 import { useT } from './i18n'
 import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, saveSetupGuideState, type SetupGuideState } from './setupGuideState'
 
-// サムネイル同士の余白。縦（行間）は広め・横（列間）は狭めにする。
 // タイル同士の隙間。上下と左右で同じにする（違うと格子が歪んで見える）。
 const COL_GAP = space.x4
 const ROW_GAP = space.x4

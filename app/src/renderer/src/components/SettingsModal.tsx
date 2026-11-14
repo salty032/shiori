@@ -87,7 +87,7 @@ export default function SettingsModal(p: Props) {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
-  // 自動アップデートが適用されたかをいつでも確認できるよう、データタブにバージョンを表示する
+  // 自動アップデートが適用されたかをいつでも確認できるよう、情報タブにバージョンを表示する
   const [appVersion, setAppVersion] = useState<string | null>(null)
   useEffect(() => {
     window.api.getAppVersion().then(setAppVersion).catch(() => {})

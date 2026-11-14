@@ -45,7 +45,7 @@ export default function SettingsDataTab(p: Props) {
       <>
         {/* 撮ったものの置き場所は、これまでアプリのどこにも出ていなかった。拡張のフォルダは
             開けるのに自分の何百枚には辿り着けない状態だったので、パスをそのまま出して開ける
-            ようにする。保存先の変更は既存ファイルの移動と DB のパス書き換えを伴うため別件。 */}
+            ようにする。 */}
         <div style={{ ...s.group, ...s.groupFirst }}>
           <div style={s.section}>{t('settings.storage')}</div>
           <div style={s.actionRow}>

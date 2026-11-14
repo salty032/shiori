@@ -148,7 +148,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     return null
   }, [filters.search, searchFocused])
 
-  // tag/site/プレフィックスの3種は排他表示なので、現在表示中のものを単一リストに正規化し、
+  // tag/site/type/プレフィックス（と検索履歴）は排他表示なので、現在表示中のものを単一リストに正規化し、
   // ↑↓/Enter/Escape をこのリストに対して動かす（キーボード操作の実体は表示中のリストが何であれ共通）。
   // 候補を押したときの処理は、押した時点の最新を呼ぶ（作り置いた一覧が古い検索文字を掴まないように）。
   // 下の関数は宣言が後ろにあるが、呼ばれるのは押したときなので問題ない。

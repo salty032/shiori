@@ -40,7 +40,7 @@ let canvasStream: MediaStream | null = null
 let stopTimer: ReturnType<typeof setTimeout> | null = null
 let frameTimer: ReturnType<typeof setInterval> | null = null
 let recordingToken = 0
-// main（recording.ts）が recorder:start ごとに発行する sessionId。renderer 内部の
+// main（recording.ts）が recorder:prepare ごとに発行する sessionId。renderer 内部の
 // recordingToken とは別の値空間（main 側のセッション識別用）なので、reportError/sendDone に
 // 載せて送り返す用に直近の値を保持しておく。
 let currentSessionId = 0
@@ -195,13 +195,11 @@ const MAX_SOURCE_FPS_BITRATE_FACTOR = 2
 
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
   const maxFrameRate = captureFps(fps)
-  // ideal も併記しているが、実測では供給レートは変わらなかった（23.976fps の素材に対し
-  // 33.6 → 33.7 枚/秒）。この環境の実力値は 33〜41枚/秒で、描画とエンコードを止めても
-  // 41.5枚/秒までしか出ない＝詰まっているのはキャプチャ本体側。ハードウェア
-  // アクセラレーション OFF が必須（SPEC）なことによるソフトウェア合成の負荷と見られる。
-  //
-  // 素材 24fps に対し供給が 34枚/秒では 2 倍に届かないため、素材 1 コマぶんの表示区間に
-  // 1 枚も撮れない箇所が 5〜7% 生じる。避けられないので、フレーム表側で「未取得」として
+  // ideal も併記しているが、ideal だけでは供給レートは変わらなかった（ティッカーを入れる前の
+  // 実測。23.976fps の素材に対し 33.6 → 33.7 枚/秒。当時は 33〜41枚/秒が頭打ちで、
+  // 24fps でも素材 1 コマぶんの表示区間に 1 枚も撮れない箇所が 5〜7% 出ていた）。
+  // 今はティッカー（startCaptureTicker）で約 50枚/秒まで上がり 24fps は足りるが、30/60fps 素材と
+  // 高負荷時は今も 2 倍に届かない。避けられないので、フレーム表側で「撮り逃し」として
   // 印を付けてユーザーへ見せる（frame-feed.ts の captured を参照）。
   const videoConstraints = { cursor: 'never', frameRate: { ideal: maxFrameRate, max: maxFrameRate } } as any
   const videoMandatory = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate } } as any
@@ -674,10 +672,10 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
 // 録画もファイル保存も伴わない。段階（capture / draw / encode）を変えながら一定時間
 // 供給枚数を数え、上限を決めているのがどこかを切り分ける。
 //
-// 実測で分かっていること: rVFC の観測漏れは 0、video 要素が受け取った総数も
+// 作った当時（2026-08-01）に分かっていたこと: rVFC の観測漏れは 0、video 要素が受け取った総数も
 // コールバック回数とほぼ同数（capture-diag.ts）。つまり「読み出し方」ではないところまでは
-// 絞れているが、キャプチャ本体・描画・エンコード・そもそも画面が変化していない、の
-// どれなのかはまだ分かっていない。ここを埋めるための計測。
+// 絞れていたが、キャプチャ本体・描画・エンコード・そもそも画面が変化していない、の
+// どれなのかを埋めるための計測。今の問いと条件は main の supply-bench.ts の VARIANTS の上にある。
 async function runBenchVariant(variant: BenchVariant, seconds: number): Promise<BenchResult> {
   const base: BenchResult = {
     name: variant.name, seconds, frames: 0, distinct: 0, totalVideoFrames: null, width: 0, height: 0

@@ -401,7 +401,8 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
           {/* U-6: End は読み込み済み分の末尾（images.length-1）までしか移動しないため、
               未読み込みが残る間はカウンタと End の到達点がズレる。実害は小さい
               （後続ロードで辿れる）ため、挙動は変えずツールチップで補足するに留める。 */}
-          {/* 撮り逃し 0 のクリップでしか出ない。出ていない理由を説明する文言は置かない
+          {/* 表を作れるクリップ（24fps 前後・撮り逃しが少ない。shared/timesheet.ts の canBuildTimesheet）でしか出ない。
+              出ていない理由を説明する文言は置かない
               （出ない＝このクリップでは保証できない、という一点だけが意味）。 */}
           {timesheet.ready && (
             <button

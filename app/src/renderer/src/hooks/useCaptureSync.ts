@@ -6,7 +6,7 @@ import type { ShowToast } from './useToast'
 import { t } from '../i18n'
 
 interface CaptureSyncOptions {
-  // キャプチャでライブラリ内容が変わったときのサイドバー再取得（サービス/カラー）
+  // キャプチャでライブラリ内容が変わったときのサイドバー再取得（サービス/タグ）
   onLibraryChanged: () => void
   showToast: ShowToast
   // タイムライン表示中かどうか（P-1）。非表示中は reloadTimeline（先頭ページの再取得）を
@@ -28,7 +28,7 @@ export function useCaptureSync(opts: CaptureSyncOptions): void {
   const ref = useLatestRef(opts)
   useEffect(() => {
     // フォルダドロップ等で capture:done が件数分連打されると、Timeline先頭ページの再取得と
-    // サイドバー集計（sites/colors）が件数分バーストする。reloadGrid
+    // サイドバー集計（sites/tags）が件数分バーストする。reloadGrid
     // （フィルタ中のみ）/ reloadTimeline / onLibraryChanged はまとめてトレーリング
     // デバウンスし、markNewCaptured と（先頭挿入で足りる場合の）prependToGrid だけ
     // 即時のまま保つ（キャプチャ1枚の体感即時性を落とさないため）。
