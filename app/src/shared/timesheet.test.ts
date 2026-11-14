@@ -189,11 +189,17 @@ describe('canBuildTimesheet', () => {
     expect(canBuildTimesheet(clip(q), 24)).toBe(false)
   })
 
-  // 供給（実測 51枚/秒）が 60 コマに足りず、流用が常時 11〜17% 出る。
-  it('60fps 素材は従来どおり外れる（流用が割合を超えるため）', () => {
-    const q = captured(100)
-    for (let i = 0; i < 15; i++) q[i * 6] = FRAME_QUALITY.reused
-    expect(canBuildTimesheet(clip(q), 59.94)).toBe(false)
+  // タイムシートは 1 秒 24 コマの表。30fps のアニメはプルダウンで水増しした素材で、
+  // 素材のコマが作画のコマと対応しない。全コマ撮れていても出さない。
+  it('24fps 近辺の素材でだけ出す（23.976 は出す、25・29.97・30・60 は出さない）', () => {
+    const frames = clip(captured(100))
+    expect(canBuildTimesheet(frames, 23.976)).toBe(true)
+    expect(canBuildTimesheet(frames, 23.95)).toBe(true)
+    expect(canBuildTimesheet(frames, 24)).toBe(true)
+    expect(canBuildTimesheet(frames, 25)).toBe(false)
+    expect(canBuildTimesheet(frames, 29.97)).toBe(false)
+    expect(canBuildTimesheet(frames, 30)).toBe(false)
+    expect(canBuildTimesheet(frames, 59.94)).toBe(false)
   })
 
   // 流用より重い。出ている絵が何なのか分からない＝打った位置がどのコマかも決められない。

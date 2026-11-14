@@ -152,8 +152,20 @@ export function expandMarks(marks: readonly TimesheetMark[], rows: readonly numb
 //
 // この条件で、表そのものが無いクリップ（取り込み動画・対応が崩れて表を捨てたもの）も
 // 自動的に外れる。
+//
+// ## 24fps 近辺の素材だけ
+//
+// **タイムシートは 1 秒 24 コマの表**なので、素材のコマがそのまま作画のコマになるのは 24fps
+// （配信では 23.976fps）の素材だけ。29.97/30fps のアニメはほぼ 24 コマの絵をプルダウンで
+// 水増ししたもので、素材のコマに番号を打っても作画のコマと対応しない。30fps の素材は
+// 打てても意味が無いので開かない（2026-11-14 の指示）。60fps も同じ理由でここで外れる。
+// fps は録画ごとの実測（float）なので、23.976 の揺れを含むよう幅を持たせる。
+export const TIMESHEET_FPS_MIN = 23.5
+export const TIMESHEET_FPS_MAX = 24.5
+
 export function canBuildTimesheet(frames: ClipFrames | null | undefined, fps: number | null | undefined): boolean {
   if (typeof fps !== 'number' || !Number.isFinite(fps) || fps <= 0) return false
+  if (fps < TIMESHEET_FPS_MIN || fps > TIMESHEET_FPS_MAX) return false
   if (!frames || !frames.sourceBased || frames.pts.length === 0) return false
   // quality は sourceBased のときだけ pts と同じ長さで入る。欠けている＝コマごとの
   // 確からしさが分からないということなので、その時点で出さない。
