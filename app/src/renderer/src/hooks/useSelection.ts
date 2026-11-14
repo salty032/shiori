@@ -9,6 +9,7 @@ import { useLatestRef } from './useLatestRef'
 import { usePendingDeletion } from './usePendingDeletion'
 import { useExportSelected } from './useExportSelected'
 import { t, currentLocale } from '../i18n'
+import { isEditingTarget } from '../utils'
 
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
@@ -434,8 +435,7 @@ export function useSelection({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
       const { viewerIdx, images } = latestRef.current
-      const tag = (e.target as HTMLElement).tagName
-      const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
+      const isEditing = isEditingTarget(e.target)
       if (viewerIdx !== null) {
         if (!isEditing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
           const next = viewerIdx + (e.key === 'ArrowRight' ? 1 : -1)
@@ -663,8 +663,7 @@ export function useSelection({
   // blur に紐づく保存が「前の画像の文字」を「今の画像」へ書きに行く。
   function releaseTextInputFocus(): void {
     const active = document.activeElement as HTMLElement | null
-    if (!active) return
-    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable) active.blur()
+    if (isEditingTarget(active)) active?.blur()
   }
 
   function handleGridMouseDown(e: React.MouseEvent<HTMLDivElement>): void {

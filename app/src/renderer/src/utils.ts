@@ -360,3 +360,13 @@ export function createSoftScroller(): (el: HTMLElement, top: number) => void {
     raf = requestAnimationFrame(step)
   }
 }
+
+// 文字を打っている最中か（キー操作を流さない・入力欄から抜けさせる判定）。**判定はここだけ**——
+// 別々に書くと、入力欄の種類を 1 か所にだけ足したとき、その欄で打った文字が別の画面のショートカットに
+// 化ける。
+export function isEditingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
+}

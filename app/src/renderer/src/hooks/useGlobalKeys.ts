@@ -3,6 +3,7 @@ import { useLatestRef } from './useLatestRef'
 import type { ImageRow } from '../types'
 import type { ShowToast } from './useToast'
 import { t } from '../i18n'
+import { isEditingTarget } from '../utils'
 
 interface GlobalKeysOptions {
   searchInputRef: React.RefObject<HTMLInputElement | null>
@@ -17,12 +18,6 @@ interface GlobalKeysOptions {
   showToast: ShowToast
 }
 
-function isEditingTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null
-  if (!el) return false
-  const tag = el.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
-}
 
 // アプリ全体のグローバルキー操作をまとめて担当する。
 // 空依存で 1 回だけ登録し、最新の props は useLatestRef 経由で読む

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ImageRow } from '../types'
-import { cleanTitle, mediaUrl, thumbSrc } from '../utils'
+import { cleanTitle, isEditingTarget, mediaUrl, thumbSrc } from '../utils'
 import { s, weight } from '../styles'
 import { XIcon } from './Icon'
 import VideoPlayer, { type VideoPlayerHandle } from '../video/VideoPlayer'
@@ -103,9 +103,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   const handleTimesheetKey = timesheet.handleKey
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      const el = e.target as HTMLElement | null
-      const tag = el?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return
+      if (isEditingTarget(e.target)) return
       if (handleTimesheetKey(e)) e.stopImmediatePropagation()
     }
     window.addEventListener('keydown', handleKeyDown, true)
@@ -118,10 +116,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      const el = e.target as HTMLElement | null
-      const tag = el?.tagName
-      const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el?.isContentEditable)
-      if (isEditing) return
+      if (isEditingTarget(e.target)) return
       if (images[index].media_type === 'video'
         && (e.key === 'ArrowUp' || e.key === 'ArrowDown')
         && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
