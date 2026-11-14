@@ -76,6 +76,7 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
   const setViewerId = vi.fn()
   const scrollToIndex = vi.fn()
   const onLibraryChanged = vi.fn()
+  const setConfirmDialog = vi.fn()
 
   const options: UseSelectionOptions = {
     images,
@@ -91,11 +92,12 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
     restoreImages,
     gridActiveRef: { current: true },
     onLibraryChanged,
+    setConfirmDialog,
     ...overrides,
   }
 
   const { result, unmount } = renderHook((props: UseSelectionOptions) => useSelection(props), { initialProps: options })
-  return { result, unmount, images, showToast, updateToast, dismissToast, removeImages, restoreImages, setViewerId, scrollToIndex, onLibraryChanged }
+  return { result, unmount, images, showToast, updateToast, dismissToast, removeImages, restoreImages, setViewerId, scrollToIndex, onLibraryChanged, setConfirmDialog }
 }
 
 beforeEach(() => {
@@ -260,6 +262,45 @@ describe('Ctrl+A（全選択）', () => {
 
     // 新しいフィルタの上に古い選択が復活していないこと
     expect(result.current.selectedIds.size).toBe(0)
+  })
+})
+
+describe('まとめて削除する前の確認', () => {
+  it('99 件までは確認せずにそのまま削除の猶予に入る', () => {
+    const images = makeImages(99)
+    const { result, removeImages, setConfirmDialog } = setup({ images })
+
+    act(() => result.current.setSelectedIds(new Set(images.map((img) => img.id))))
+    act(() => { result.current.deleteSelected() })
+
+    expect(setConfirmDialog).not.toHaveBeenCalled()
+    expect(removeImages).toHaveBeenCalledTimes(1)
+  })
+
+  it('100 件からは確認を出し、確定するまで一覧から外さない', () => {
+    const images = makeImages(100)
+    const { result, removeImages, setConfirmDialog } = setup({ images })
+
+    act(() => result.current.setSelectedIds(new Set(images.map((img) => img.id))))
+    act(() => { result.current.deleteSelected() })
+
+    expect(setConfirmDialog).toHaveBeenCalledTimes(1)
+    expect(removeImages).not.toHaveBeenCalled()
+
+    const dialog = setConfirmDialog.mock.calls[0][0]
+    act(() => { dialog.onConfirm() })
+    expect(removeImages).toHaveBeenCalledWith(new Set(images.map((img) => img.id)))
+  })
+
+  it('Delete キーでも同じ確認を出す', () => {
+    const images = makeImages(100)
+    const { result, removeImages, setConfirmDialog } = setup({ images })
+
+    act(() => result.current.setSelectedIds(new Set(images.map((img) => img.id))))
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true })) })
+
+    expect(setConfirmDialog).toHaveBeenCalledTimes(1)
+    expect(removeImages).not.toHaveBeenCalled()
   })
 })
 

@@ -203,6 +203,8 @@ export const en: Record<keyof typeof ja, string> = {
   'confirm.deleteTag.message.other': 'Remove the tag “{tag}” from all {count} images? This cannot be undone.',
   'confirm.deleteModel.title': 'Delete AI tagging model',
   'confirm.deleteModel.message': 'Using it again means downloading the roughly 600 MB model a second time. Every AI tag added so far will also be removed from your whole library — manual tags are kept. This cannot be undone.',
+  'confirm.bulkDelete.title': 'Delete images',
+  'confirm.bulkDelete.message': 'Delete {count} items? You can undo with Ctrl+Z within 15 seconds.',
 
   // ── Toasts ────────────────────────────
   'toast.captureRegisterFailed': 'Could not add the capture to your library. Restart Shiori and try again.',

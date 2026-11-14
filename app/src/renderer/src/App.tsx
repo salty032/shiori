@@ -242,6 +242,7 @@ export default function App() {
     restoreImages,
     gridActiveRef,
     onLibraryChanged,
+    setConfirmDialog,
   })
 
   // ファイルのドロップ取り込み（枠の出し入れと取り込み後の通知）。

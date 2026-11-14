@@ -215,6 +215,8 @@ export const ja = {
   'confirm.deleteTag.message.other': 'タグ「{tag}」を{count}枚の画像すべてから削除しますか？この操作は元に戻せません。',
   'confirm.deleteModel.title': 'AIタグ付けモデルを削除',
   'confirm.deleteModel.message': '再度使うには約600MBのモデルをダウンロードする必要があります。これまでに付与されたAIタグ（手動タグは除く）もライブラリ全体から削除されます。この操作は元に戻せません。',
+  'confirm.bulkDelete.title': '画像を削除',
+  'confirm.bulkDelete.message': '{count}件を削除します。15秒以内なら Ctrl+Z で元に戻せます',
 
   // ── トースト ───────────────────
   'toast.captureRegisterFailed': 'キャプチャ画像の登録に失敗しました。アプリを再起動してもう一度試してください。',

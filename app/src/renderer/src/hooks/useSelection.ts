@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ImageRow } from '../types'
 import type { DismissToast, ShowToast, UpdateToast } from './useToast'
+import type { ConfirmDialogState } from './useConfirmActions'
 import type { RemovedImagesSnapshot } from '../stores/imageStore'
 import { selectQueryKey, getCommitted, useFilterStore } from '../stores/filterStore'
 import { buildImageQuery } from '../stores/imageQuery'
@@ -79,7 +80,13 @@ export interface UseSelectionOptions {
   // その画像にしか付いていなかったタグ・サービスはライブラリから消えるが、renderer が
   // 持っている集計は起動時・タグ操作時にしか更新されないため、ここで明示的に取り直す。
   onLibraryChanged: () => void
+  // まとめて削除する前の確認を出す（App の確認ダイアログ）。
+  setConfirmDialog: (state: ConfirmDialogState | null) => void
 }
+
+// これ以上の件数を一度に消すときだけ確認を挟む。Ctrl+A は最大 5000 件を選ぶので、
+// Delete 一押しで大量に消え、元に戻すトーストも数秒で消える。少ない件数は今までどおり確認しない。
+const BULK_DELETE_CONFIRM_MIN = 100
 
 export function useSelection({
   images,
@@ -95,6 +102,7 @@ export function useSelection({
   restoreImages,
   gridActiveRef,
   onLibraryChanged,
+  setConfirmDialog,
 }: UseSelectionOptions) {
   const [selectedIds, setSelectedIdsState] = useState<Set<number>>(new Set())
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
@@ -554,8 +562,7 @@ export function useSelection({
       if (isEditing || e.key !== 'Delete') return
       const { selectedIds } = latestRef.current
       if (selectedIds.size === 0) return
-      const ids = new Set(selectedIds)
-      queueDelete(ids)
+      requestDelete(new Set(selectedIds))
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -694,9 +701,20 @@ export function useSelection({
     dragThumbId.current = Number.isFinite(id) ? id : null
   }
 
+  // 一覧からの削除の入口（Delete キー・メニュー）。ビューア内の 1 件削除は通らない。
+  function requestDelete(ids: Set<number>): void {
+    if (ids.size < BULK_DELETE_CONFIRM_MIN) { queueDelete(ids); return }
+    setConfirmDialog({
+      title: t('confirm.bulkDelete.title'),
+      message: t('confirm.bulkDelete.message', { count: ids.size.toLocaleString(currentLocale()) }),
+      confirmLabel: t('action.delete'),
+      danger: true,
+      onConfirm: () => queueDelete(ids),
+    })
+  }
+
   async function deleteSelected(): Promise<void> {
-    const ids = new Set(selectedIds)
-    queueDelete(ids)
+    requestDelete(new Set(selectedIds))
   }
 
   // ids を明示すれば selectedIds を無視してその画像だけ書き出す。ビューア表示中に
