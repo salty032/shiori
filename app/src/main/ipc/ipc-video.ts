@@ -19,6 +19,7 @@ import { frameGaps } from '../video/frame-gaps'
 import { framesVerifiedPayload, verifyClipFrames } from '../video/verify-clip'
 import { getCachedClipFrames, setCachedClipFrames } from '../video/clip-frames-cache'
 import { applyAnimeGapEstimates } from '../video/frame-verify'
+import { MIN_TRIM_SECONDS } from '../../shared/constants'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
 const trimmingIds = new Set<number>()
@@ -178,7 +179,7 @@ export function registerVideoHandlers(): void {
     if (!validId) return { ok: false, error: 'invalid_id' }
     if (typeof inSec !== 'number' || !Number.isFinite(inSec) || inSec < 0)
       return { ok: false, error: 'invalid_in' }
-    if (typeof outSec !== 'number' || !Number.isFinite(outSec) || outSec <= inSec || outSec - inSec < 0.1)
+    if (typeof outSec !== 'number' || !Number.isFinite(outSec) || outSec <= inSec || outSec - inSec < MIN_TRIM_SECONDS)
       return { ok: false, error: 'invalid_out' }
     if (trimmingIds.has(validId)) return { ok: false, error: 'already_trimming' }
 

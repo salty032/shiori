@@ -154,7 +154,7 @@ export function registerShareHandlers(): void {
         const metadataPath = join(srcDir, 'metadata.jsonl')
         const metadataStat = await stat(metadataPath)
         if (!metadataStat.isFile() || metadataStat.size > MAX_SHARE_METADATA_BYTES) {
-          return { canceled: false, count: 0, errors: [t('error.metadataTooLarge')] }
+          return { canceled: false, count: 0, errors: [t('error.metadataTooLarge', { mb: MAX_SHARE_METADATA_BYTES / (1024 * 1024) })] }
         }
         content = await readFile(metadataPath, 'utf-8')
       } catch {
@@ -332,7 +332,7 @@ export function registerShareHandlers(): void {
           const settingsPath = join(srcDir, 'settings.json')
           const settingsStat = await stat(settingsPath)
           if (!settingsStat.isFile() || settingsStat.size > MAX_SHARE_SETTINGS_BYTES) {
-            errors.push(t('error.settingsTooLarge'))
+            errors.push(t('error.settingsTooLarge', { mb: MAX_SHARE_SETTINGS_BYTES / (1024 * 1024) }))
           } else {
             const settingsRaw = await readFile(settingsPath, 'utf-8')
             const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }

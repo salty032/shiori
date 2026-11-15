@@ -9,6 +9,7 @@ import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl
 import type { TrimProgress } from '../../../shared/api.video'
 import { useT, type MessageKey } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
+import { MIN_TRIM_SECONDS } from '../../../shared/constants'
 
 type Props = {
   image: ImageRow
@@ -118,7 +119,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const fps = Math.max(1, image.fps ?? settings.frameFps ?? 30)
   const step = 1 / fps  // rVFC フォールバック用
 
-  const canTrim = !ptsLoading && exportOutSec - inSec >= 0.1 && dur > 0
+  const canTrim = !ptsLoading && exportOutSec - inSec >= MIN_TRIM_SECONDS && dur > 0
 
   // トリム画面を開いたらフレーム時刻テーブルを生成
   useEffect(() => {
@@ -759,8 +760,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             {!ptsLoading && ptsError && <span style={s.ptsWarn}>{t('trim.analyzeFailed')}</span>}
             {/* 保存ボタンが灰色になる理由。**押せない状態を黙って出さない**——
                 以前は範囲を詰めすぎると理由も出ずにボタンだけ死んでいた。 */}
-            {!ptsLoading && dur > 0 && exportOutSec - inSec < 0.1 && (
-              <span style={s.ptsWarn}>{t('trim.tooShort')}</span>
+            {!ptsLoading && dur > 0 && exportOutSec - inSec < MIN_TRIM_SECONDS && (
+              <span style={s.ptsWarn}>{t('trim.tooShort', { seconds: MIN_TRIM_SECONDS })}</span>
             )}
             <span style={s.shortcutHint}>{t('trim.shortcutHint')}</span>
           </div>

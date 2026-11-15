@@ -19,7 +19,7 @@ import { t, tp } from '../i18n'
 // 削除の取り消し猶予。トーストが消えた後も Ctrl+Z で戻せるよう、**表示時間より長くとる**。
 // トースト自体を猶予いっぱい出しっぱなしにすると、連続削除で同じ通知が積み上がって邪魔になる。
 // 見えている間だけしか戻せないわけではないことは、トーストの文言（toast.deleted）で伝える。
-const DELETE_UNDO_MS = 15000
+export const DELETE_UNDO_MS = 15000
 const DELETE_TOAST_MS = 4000
 
 // 猶予（DELETE_UNDO_MS）が明けるまで確定しない削除 1 件分。

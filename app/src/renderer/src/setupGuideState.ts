@@ -44,6 +44,9 @@ export function saveSetupGuideState(
   }
 }
 
+// 数える段の数（completedSetupSteps が足す 3 つ）。「完了 n / 3」の 3 はここから出す。
+export const SETUP_STEP_COUNT = 3
+
 export function completedSetupSteps(state: SetupGuideState): number {
   return Number(state.browserPrepared) + Number(state.extensionReady) + Number(state.firstCaptureDone)
 }

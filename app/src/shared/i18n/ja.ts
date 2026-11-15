@@ -160,9 +160,9 @@ export const ja = {
   'notice.recordingTimeout': '録画処理がタイムアウトしました。もう一度お試しください。',
 
   // ── データ書き出し / 読み込み ─────────────────────────────────
-  'error.metadataTooLarge': 'metadata.jsonl が大きすぎます（上限64MB）',
+  'error.metadataTooLarge': 'metadata.jsonl が大きすぎます（上限{mb}MB）',
   'error.metadataMissing': 'metadata.jsonl が見つかりません',
-  'error.settingsTooLarge': 'settings.json が大きすぎます（上限1MB）',
+  'error.settingsTooLarge': 'settings.json が大きすぎます（上限{mb}MB）',
 
   // ── ショートカット一覧（サイドバーのフライアウト） ────
   'shortcuts.heading': 'ショートカット',
@@ -196,7 +196,7 @@ export const ja = {
   'shortcuts.closeViewer': 'ビューアを閉じる',
   'shortcuts.viewerSpace': '動画の再生 / 一時停止（画像では何も起きません）',
   'shortcuts.toggleMute': '音を消す / 戻す（動画）',
-  'shortcuts.viewerVolume': '音量を5%上げる / 下げる（動画。タイムシート表示中はコマ送り）',
+  'shortcuts.viewerVolume': '音量を{percent}%上げる / 下げる（動画。タイムシート表示中はコマ送り）',
   'shortcuts.toggleZoom': 'ズームのオン・オフ切り替え（画像のみ）',
   'shortcuts.zoomInOutReset': 'ズームイン / アウト / リセット',
   'shortcuts.toggleDetails': '詳細パネルの表示切り替え',
@@ -216,7 +216,7 @@ export const ja = {
   'confirm.deleteModel.title': 'AIタグ付けモデルを削除',
   'confirm.deleteModel.message': '再度使うには約600MBのモデルをダウンロードする必要があります。これまでに付与されたAIタグ（手動タグは除く）もライブラリ全体から削除されます。この操作は元に戻せません。',
   'confirm.bulkDelete.title': '画像を削除',
-  'confirm.bulkDelete.message': '{count}件を削除します。15秒以内なら Ctrl+Z で元に戻せます',
+  'confirm.bulkDelete.message': '{count}件を削除します。{seconds}秒以内なら Ctrl+Z で元に戻せます',
 
   // ── トースト ───────────────────
   'toast.captureRegisterFailed': 'キャプチャ画像の登録に失敗しました。アプリを再起動してもう一度試してください。',
@@ -444,7 +444,7 @@ export const ja = {
   'sidebar.viewGrid': 'グリッド',
   'sidebar.viewTimeline': 'タイムライン',
   'sidebar.setupLink': '使い方',
-  'sidebar.setupProgress': 'セットアップ {completed}/3',
+  'sidebar.setupProgress': 'セットアップ {completed}/{total}',
 
   // ── ホットキー / クリップ設定 ──
   'hotkey.unsupportedCombo': 'このキーの組み合わせは使用できません',
@@ -471,7 +471,7 @@ export const ja = {
   'trim.shortcutHint': ', / . コマ送り · I / O 範囲設定 · Space 再生 / 一時停止 · M ミュート',
   'trim.workingPercent': 'トリミング中... {percent}%',
   'trim.finishing': '仕上げています...',
-  'trim.tooShort': '切り出す長さが足りません（0.1 秒以上必要です）',
+  'trim.tooShort': '切り出す長さが足りません（{seconds} 秒以上必要です）',
   // main が返す符丁を訳す。以前はそのまま出していた（画面に「エラー：invalid_out」と出ていた）。
   'trim.errNotFound': 'この動画が見つかりませんでした。',
   'trim.errRange': '切り出す範囲が正しくありません。',
@@ -528,7 +528,7 @@ export const ja = {
   'detail.imageCount.other': '{count}枚',
 
   // ── トースト（App） ──
-  'toast.importTruncatedSuffix': '（200件の上限を超えたため一部は取り込まれていません）',
+  'toast.importTruncatedSuffix': '（{max}件の上限を超えたため一部は取り込まれていません）',
   'toast.importFailedSuffix': '（{count}件は取り込めませんでした）',
   'toast.imported.one': '{count}枚を取り込みました',
   'toast.imported.other': '{count}枚を取り込みました',

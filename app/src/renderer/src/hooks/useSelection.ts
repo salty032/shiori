@@ -10,6 +10,7 @@ import { usePendingDeletion } from './usePendingDeletion'
 import { useExportSelected } from './useExportSelected'
 import { t, currentLocale } from '../i18n'
 import { isEditingTarget } from '../utils'
+import { DELETE_UNDO_MS } from './usePendingDeletion'
 
 const AUTO_SCROLL_EDGE = 72
 const AUTO_SCROLL_MAX_SPEED = 18
@@ -709,7 +710,7 @@ export function useSelection({
     if (ids.size < BULK_DELETE_CONFIRM_MIN) { queueDelete(ids); return }
     setConfirmDialog({
       title: t('confirm.bulkDelete.title'),
-      message: t('confirm.bulkDelete.message', { count: ids.size.toLocaleString(currentLocale()) }),
+      message: t('confirm.bulkDelete.message', { count: ids.size.toLocaleString(currentLocale()), seconds: DELETE_UNDO_MS / 1000 }),
       confirmLabel: t('action.delete'),
       danger: true,
       onConfirm: () => queueDelete(ids),

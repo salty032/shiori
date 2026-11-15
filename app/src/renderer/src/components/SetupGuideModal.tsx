@@ -7,6 +7,7 @@ import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
 import { XIcon } from './Icon'
 import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
+import { SETUP_STEP_COUNT } from '../setupGuideState'
 
 const EXTENSION_TIMEOUT_MS = 15_000
 
@@ -102,7 +103,7 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
         <div style={s.header}>
           <div>
             <div style={s.title}>{t('setup.title')}</div>
-            <div style={s.subtitle}>{t('setup.progress', { completed, total: 3 })}</div>
+            <div style={s.subtitle}>{t('setup.progress', { completed, total: SETUP_STEP_COUNT })}</div>
           </div>
           <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
         </div>

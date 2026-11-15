@@ -11,6 +11,7 @@
 // （モジュール読み込み時に文字列を焼き込むと、言語切り替えで更新されない）。
 // keys 側も「矢印キー」「ダブルクリック」のように訳が要るものがあるので t を通す。
 import type { Translate } from './i18n'
+import { VOLUME_STEP } from './video/volumeStep'
 
 type ShortcutGroup = { title: string; items: { keys: string; desc: string }[] }
 
@@ -48,7 +49,7 @@ export function shortcutGroups(t: Translate['t']): ShortcutGroup[] {
         { keys: 'Enter / Escape', desc: t('shortcuts.closeViewer') },
         { keys: 'Space', desc: t('shortcuts.viewerSpace') },
         { keys: 'M', desc: t('shortcuts.toggleMute') },
-        { keys: '↑ / ↓', desc: t('shortcuts.viewerVolume') },
+        { keys: '↑ / ↓', desc: t('shortcuts.viewerVolume', { percent: Math.round(VOLUME_STEP * 100) }) },
         { keys: t('shortcuts.keys.doubleClick'), desc: t('shortcuts.toggleZoom') },
         { keys: '+ / - / 0', desc: t('shortcuts.zoomInOutReset') },
         { keys: 'Tab', desc: t('shortcuts.toggleDetails') },

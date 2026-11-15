@@ -9,6 +9,7 @@ import { useT } from '../i18n'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { MODAL_CLOSE_MS, modalPanelAnimation } from '../motion'
+import { VOLUME_STEP } from '../video/volumeStep'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -122,7 +123,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
         && (e.key === 'ArrowUp' || e.key === 'ArrowDown')
         && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         e.preventDefault()
-        videoPlayerRef.current?.adjustVolume(e.key === 'ArrowUp' ? 0.05 : -0.05)
+        videoPlayerRef.current?.adjustVolume(e.key === 'ArrowUp' ? VOLUME_STEP : -VOLUME_STEP)
         return
       }
       if (e.code === 'Space') {

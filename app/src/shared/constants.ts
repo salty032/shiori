@@ -17,3 +17,10 @@ export const MAX_MEMO_LENGTH = 5000
 // 一覧を 1 回に引く件数の上限と、指定が壊れていたときの既定。IPC の検証と DB の両方がこれで切る。
 export const MAX_IMAGE_LIST_LIMIT = 200
 export const DEFAULT_IMAGE_LIST_LIMIT = 50
+
+// 1 回の取り込み（ドロップ・フォルダ選択）で受け入れるファイル数の上限。超えたぶんは取り込まず、
+// 画面に件数つきで伝える（toast.importTruncatedSuffix）。
+export const MAX_IMPORT_FILES = 200
+
+// トリミングで切り出せる最短の長さ（秒）。画面の「保存」ボタンと main の検証が同じ値で切る。
+export const MIN_TRIM_SECONDS = 0.1

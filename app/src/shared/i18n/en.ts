@@ -151,9 +151,9 @@ export const en: Record<keyof typeof ja, string> = {
   'notice.recordingTimeout': 'Recording timed out. Please try again.',
 
   // ── Library export / import ──────────────────────────────────
-  'error.metadataTooLarge': 'metadata.jsonl is too large (64 MB limit)',
+  'error.metadataTooLarge': 'metadata.jsonl is too large ({mb} MB limit)',
   'error.metadataMissing': 'metadata.jsonl not found',
-  'error.settingsTooLarge': 'settings.json is too large (1 MB limit)',
+  'error.settingsTooLarge': 'settings.json is too large ({mb} MB limit)',
 
   // ── Shortcut list (sidebar flyout) ──────────────
   'shortcuts.heading': 'Shortcuts',
@@ -184,7 +184,7 @@ export const en: Record<keyof typeof ja, string> = {
   'shortcuts.closeViewer': 'Close the viewer',
   'shortcuts.viewerSpace': 'Play / pause video (does nothing for images)',
   'shortcuts.toggleMute': 'Mute / unmute (video)',
-  'shortcuts.viewerVolume': 'Volume up / down by 5% (video; steps frames while the timesheet is open)',
+  'shortcuts.viewerVolume': 'Volume up / down by {percent}% (video; steps frames while the timesheet is open)',
   'shortcuts.toggleZoom': 'Toggle zoom (images only)',
   'shortcuts.zoomInOutReset': 'Zoom in / out / reset',
   'shortcuts.toggleDetails': 'Show or hide the details panel',
@@ -204,7 +204,7 @@ export const en: Record<keyof typeof ja, string> = {
   'confirm.deleteModel.title': 'Delete AI tagging model',
   'confirm.deleteModel.message': 'Using it again means downloading the roughly 600 MB model a second time. Every AI tag added so far will also be removed from your whole library — manual tags are kept. This cannot be undone.',
   'confirm.bulkDelete.title': 'Delete images',
-  'confirm.bulkDelete.message': 'Delete {count} items? You can undo with Ctrl+Z within 15 seconds.',
+  'confirm.bulkDelete.message': 'Delete {count} items? You can undo with Ctrl+Z within {seconds} seconds.',
 
   // ── Toasts ────────────────────────────
   'toast.captureRegisterFailed': 'Could not add the capture to your library. Restart Shiori and try again.',
@@ -389,7 +389,7 @@ export const en: Record<keyof typeof ja, string> = {
   'sidebar.viewGrid': 'Grid',
   'sidebar.viewTimeline': 'Timeline',
   'sidebar.setupLink': 'How to use',
-  'sidebar.setupProgress': 'Setup {completed}/3',
+  'sidebar.setupProgress': 'Setup {completed}/{total}',
 
   // ── Hotkey / clip settings ──
   'hotkey.unsupportedCombo': 'That key combination cannot be used',
@@ -414,7 +414,7 @@ export const en: Record<keyof typeof ja, string> = {
   'trim.shortcutHint': ', . step a frame · I/O set in/out · Space play/pause · M mute',
   'trim.workingPercent': 'Trimming... {percent}%',
   'trim.finishing': 'Finishing up...',
-  'trim.tooShort': 'The selected range is too short (0.1 seconds minimum).',
+  'trim.tooShort': 'The selected range is too short ({seconds} seconds minimum).',
   'trim.errNotFound': 'This video could not be found.',
   'trim.errRange': 'The selected range is not valid.',
   'trim.errBusy': 'This video is already being trimmed.',
@@ -457,7 +457,7 @@ export const en: Record<keyof typeof ja, string> = {
   'detail.imageCount.other': '{count} images',
 
   // ── Toasts (App) ──
-  'toast.importTruncatedSuffix': ' (over the 200-item limit, so some were left out)',
+  'toast.importTruncatedSuffix': ' (over the {max}-item limit, so some were left out)',
   'toast.importFailedSuffix': ' ({count} could not be imported)',
   'toast.imported.one': 'Imported {count} item',
   'toast.imported.other': 'Imported {count} items',

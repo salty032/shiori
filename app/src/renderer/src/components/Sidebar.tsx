@@ -36,6 +36,7 @@ import appIcon16 from '../../../../build/icon16.png'
 import appIcon24 from '../../../../build/icon24.png'
 import appIcon32 from '../../../../build/icon32.png'
 import { useT } from '../i18n'
+import { SETUP_STEP_COUNT } from '../setupGuideState'
 
 // サイドバーに出すタグの下限枚数。「上位N件」で切ると、AIタグ付けがキャプチャ1枚につき
 // 十数個のタグを付けるせいで撮影・削除のたびに各タグの件数が動き、境界のタグが順位を
@@ -462,7 +463,7 @@ export default function Sidebar({
         {setupCompleted < 3 && (
           <button className="shiori-hover-tint" style={{ ...s.sidebarSetupBtn, ...s.sidebarSetupBtnTodo }} onClick={onShowSetup}>
             <span style={s.sidebarSetupMark}>{setupCompleted}</span>
-            <span>{t('sidebar.setupProgress', { completed: setupCompleted })}</span>
+            <span>{t('sidebar.setupProgress', { completed: setupCompleted, total: SETUP_STEP_COUNT })}</span>
           </button>
         )}
         <div style={s.sidebarControls}>
