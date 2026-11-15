@@ -1,7 +1,7 @@
 // 一括削除（images:deleteBulk）の回帰テスト。
 //
 // 守っているのは 2 つ。**DB の行を先に消し、実ファイルは後**（逆だとファイルの無い行が一覧に残る）。
-// **ファイルが消せなくても DB は戻さない**（孤立ファイルは次の起動で回収される。戻すと消したはずの行が復活する）。
+// **ファイルが消せなくても DB は戻さない**（戻すと消したはずの行が復活する。孤立した原本は残る——自動回収はサムネイルだけ）。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()

@@ -43,8 +43,8 @@ let isImagesExportCanceled = false
 // ここへ来る時点で取り消し機会は過ぎている。以降はアプリが最後まで後始末する。
 //
 // DB 行は既に削除済みなので、ここでの失敗は巻き戻さず孤立ファイルとして残すだけ
-// （逆順で起きうるゴースト行を構造的に避ける設計）。残っても次回起動の sweep-orphans が
-// 回収するため、ユーザーのディスクに居座り続けることはない。
+// （逆順で起きうるゴースト行を構造的に避ける設計）。次回起動の sweep-orphans が回収するのは
+// サムネイルだけで、**原本は残る**（判定を誤っても取り出せるよう、原本は走査しない）。
 // ENOENT（既に無い）は正常系として黙殺する。
 async function removeImageFiles(
   image: { filepath: string; thumb_path: string | null },

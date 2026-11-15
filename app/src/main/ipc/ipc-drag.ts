@@ -79,8 +79,8 @@ function uniqueName(used: Set<string>, preferred: string): string {
   }
 }
 
-// 他アプリに落ちたときのファイル名。エクスポート（images:export）と同じ規則にして、
-// 「ドラッグで出した画像」と「エクスポートした画像」の名前が食い違わないようにする。
+// 他アプリに落ちたときのファイル名。エクスポート（images:export）とほぼ同じ規則だが、
+// **題名が無いときだけ違う**——エクスポートは元ファイル名、こちらは 'capture' を使う。
 function dragFileName(
   image: { title: string | null; captured_at: number; current_time: number | null },
   srcPath: string,
