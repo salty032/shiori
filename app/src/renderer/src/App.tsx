@@ -41,6 +41,7 @@ import { isDemoMode } from './demoMode'
 import VideoTrimmerModal from './video/VideoTrimmerModal'
 import { useT } from './i18n'
 import { completedSetupSteps, loadSetupGuideState, reconcileCaptureCompletion, saveSetupGuideState, type SetupGuideState } from './setupGuideState'
+import { toastAnimation } from './motion'
 
 // タイル同士の隙間。上下と左右で同じにする（違うと格子が歪んで見える）。
 const COL_GAP = space.x4
@@ -721,8 +722,7 @@ export default function App() {
                   key={t.id}
                   style={{
                     ...s.notificationCard,
-                    animation: t.closing ? 'shioriToastOut 0.3s ease-in forwards' : 'shioriToastIn 0.22s ease-out',
-                    ...(t.tone === 'error' ? s.toastError : t.tone === 'warning' ? s.toastWarning : t.tone === 'success' ? s.toastSuccess : s.toastInfo),
+                    animation: toastAnimation(t.closing),
                   }}
                 >
                   <span style={{ ...s.toastIndicator, ...(t.tone === 'error' ? s.toastErrorMark : t.tone === 'warning' ? s.toastWarningMark : t.tone === 'success' ? s.toastSuccessMark : s.toastInfoMark) }} />

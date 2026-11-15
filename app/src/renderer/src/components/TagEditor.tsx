@@ -140,7 +140,6 @@ export default function TagEditor({ imageId, allTags, taggerDoneKey, onTagsChang
 const styles: Record<string, React.CSSProperties> = {
   tagSection: { display: 'flex', flexDirection: 'column', gap: space.x8 },
   tagLabel: { color: 'var(--text-muted)', fontSize: font.xs, fontWeight: weight.normal },
-  tagLegend: { fontSize: font.xs, color: 'var(--text-secondary)', fontWeight: weight.normal, letterSpacing: 0 },
   tagList: { display: 'flex', flexWrap: 'wrap', gap: space.x8, minHeight: 4, maxHeight: TAG_LIST_COLLAPSED_MAX_HEIGHT, overflowY: 'auto' as const, overflowX: 'hidden' as const },
   tagControlRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x8, minHeight: control.md },
   tagError: { color: color.danger, fontSize: font.sm },

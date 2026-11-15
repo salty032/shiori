@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Settings, SmartFolder } from '../types'
-import { SITE_NAME_MAP } from '../utils'
-import { DEFAULT_SERVICE_ORDER } from '../services'
+import { DEFAULT_SERVICE_ORDER, SITE_NAME_MAP } from '../services'
 import { useFilterStore } from '../stores/filterStore'
 import type { ShowToast } from './useToast'
 import { t } from '../i18n'

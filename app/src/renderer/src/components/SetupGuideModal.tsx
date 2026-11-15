@@ -6,8 +6,8 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
 import { XIcon } from './Icon'
+import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
-const CLOSE_MS = 110
 const EXTENSION_TIMEOUT_MS = 15_000
 
 type Props = {
@@ -41,7 +41,7 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
     if (closing) return
     onChange({ tutorialSeen: true })
     setClosing(true)
-    window.setTimeout(onClose, CLOSE_MS)
+    window.setTimeout(onClose, MODAL_CLOSE_MS)
   }
   // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
   const closeRef = useLatestRef(close)
@@ -97,8 +97,8 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
   ]
 
   return (
-    <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={close}>
-      <div ref={panelRef} style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} onMouseDown={(e) => e.stopPropagation()} data-modal>
+    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={close}>
+      <div ref={panelRef} style={{ ...s.panel, animation: modalPanelAnimation(closing) }} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
           <div>
             <div style={s.title}>{t('setup.title')}</div>

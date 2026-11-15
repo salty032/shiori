@@ -4,8 +4,7 @@ import { XIcon } from './Icon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
-
-const CLOSE_MS = 110
+import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
 type Props = {
   title: string
@@ -42,7 +41,7 @@ export default function ConfirmDialog({
   function close(): void {
     if (closing) return
     setClosing(true)
-    window.setTimeout(onClose, CLOSE_MS)
+    window.setTimeout(onClose, MODAL_CLOSE_MS)
   }
 
   // キーの受け口からは常に最新の閉じる・確定を呼ぶ（どちらも下で宣言）。
@@ -82,8 +81,8 @@ export default function ConfirmDialog({
   }
 
   return (
-    <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={() => { if (!busy) close() }}>
-      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
+    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={() => { if (!busy) close() }}>
+      <div style={{ ...s.panel, animation: modalPanelAnimation(closing) }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
           <div style={s.title}>{title}</div>
           <button style={s.closeBtn} onClick={close} disabled={busy} title={t('action.close')}><XIcon size={16} /></button>

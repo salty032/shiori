@@ -8,6 +8,7 @@ import { useOverlayOpen } from '../overlaySignal'
 import { useT } from '../i18n'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { useLatestRef } from '../hooks/useLatestRef'
+import { MODAL_CLOSE_MS, modalPanelAnimation } from '../motion'
 
 // フィルムストリップの 1 枚。サムネ生成失敗（ファイル欠落等）時は
 // 割れ画像になるため、フォールバックのプレースホルダに切り替える。
@@ -90,7 +91,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   function close(): void {
     if (closing) return
     setClosing(true)
-    window.setTimeout(() => setIndex(null), 110)
+    window.setTimeout(() => setIndex(null), MODAL_CLOSE_MS)
   }
 
   // **タイムシートを開いている間は、ぶつかるキーをシートに譲る。**
@@ -389,7 +390,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
   const title = img.title ? cleanTitle(img.title, titleStrip) : ''
 
   return (
-    <div ref={viewerRef} style={{ ...s.viewer, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} onClick={close}>
+    <div ref={viewerRef} style={{ ...s.viewer, animation: modalPanelAnimation(closing) }} onClick={close}>
       <div style={s.viewerTopBar} onClick={(e) => e.stopPropagation()}>
         <div style={s.viewerTitle} title={title}>{title}</div>
         <div style={s.viewerActions}>

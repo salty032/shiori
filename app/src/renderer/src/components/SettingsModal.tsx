@@ -12,6 +12,7 @@ import ClipHotkeySettings from '../video/ClipHotkeySettings'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
+import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
 export { s } from './settingsStyles'
 
@@ -43,8 +44,6 @@ type Props = {
   /** 「情報」タブから変更点モーダルを開く（設定画面自身は中身を持たない） */
   onShowWhatsNew: (entries: ReleaseNoteEntry[]) => void
 }
-
-const CLOSE_MS = 110
 
 // M-4: 表示ラベルと状態識別子を分離する（ラベル文言の変更が型・状態キーの変更を兼ねないように）。
 type TabId = 'general' | 'capture' | 'tag' | 'data' | 'about'
@@ -195,7 +194,7 @@ export default function SettingsModal(p: Props) {
     if (closing) return
     flushPendingFps()
     setClosing(true)
-    window.setTimeout(p.onClose, CLOSE_MS)
+    window.setTimeout(p.onClose, MODAL_CLOSE_MS)
   }
 
   const panelRef = useRef<HTMLDivElement>(null)
@@ -225,8 +224,8 @@ export default function SettingsModal(p: Props) {
   }, [])
 
   return (
-    <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={closeSettings}>
-      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
+    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={closeSettings}>
+      <div style={{ ...s.panel, animation: modalPanelAnimation(closing) }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
           <span style={s.title}>{t('menu.settings')}</span>
           <button style={s.close} onClick={closeSettings} title={t('action.close')}><XIcon size={17} /></button>

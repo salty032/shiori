@@ -2,6 +2,7 @@ import type { ImageRow, ImageTag, ImageTagSource } from './types'
 import { MAX_BULK_IDS, MAX_TAG_LENGTH } from '../../shared/constants'
 import { normalizeSearchText } from '../../shared/normalize'
 import { urlHost } from '../../shared/url-host'
+import { SITE_NAME_MAP } from './services'
 
 export { MAX_TAG_LENGTH }
 
@@ -177,21 +178,6 @@ export function splitHighlight(text: string, query: string): TextSegment[] {
     normCursor = normIdx + q.length
   }
   return segments.length > 0 ? segments : [{ text, match: false }]
-}
-
-export const SITE_NAME_MAP: Record<string, string> = {
-  'youtube.com': 'YouTube',
-  'netflix.com': 'Netflix',
-  'nicovideo.jp': 'niconico',
-  'abema.tv': 'ABEMA',
-  'amazon.co.jp': 'Prime Video',
-  'primevideo.com': 'Prime Video',
-  'disneyplus.com': 'Disney+',
-  'tv.dmm.com': 'DMM TV',
-  'video.unext.jp': 'U-NEXT',
-  'animestore.docomo.ne.jp': 'dアニメストア',
-  'bilibili.com': 'Bilibili',
-  'bilibili.tv': 'Bilibili',
 }
 
 export function siteName(url: string | null): string | null {

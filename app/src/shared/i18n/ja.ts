@@ -284,8 +284,6 @@ export const ja = {
   'tag.quickHint': 'Enter で追加 · Shift+Enter で連続追加 · Esc で閉じる',
   'tag.addFailed': 'タグの追加に失敗しました',
   'tag.sectionTitle': 'タグ',
-  'tag.legendManual': '手動',
-  'tag.legendAi': 'AI',
   'tag.clickToFilter': 'クリックで絞り込み / 絞り込み中なら解除',
   'tag.rightClickToDelete': '（右クリックで削除）',
   'tag.deleteNamed': 'タグ「{tag}」を削除',
@@ -337,7 +335,6 @@ export const ja = {
   // **ビューアでは未取得と区別する。** 押した先で何が起きるかが違う——未取得は止まれて
   // 絵だけ流用、抜けは止まれず何コマも先へ進む。数えている最中はその差が要る。
   // 一方、詳細タイルは合計しか出せないので、そちらでは未取得と合算する。
-  'viewer.frameGapAfter': '{count} コマ抜け',
   // 枚数に裏が取れていない抜け（ClipGap.measured が false）。**確定と同じ文言で出さない。**
   // 枚数は前後の時刻の差を、残っているコマの間隔で割って出した推定で、欠けたコマからは
   // 検算できない。1 枚違うと、そこから下のコマ番号が全部ずれる——しかも画面には出ない。
@@ -374,11 +371,6 @@ export const ja = {
   'timesheet.copy': 'コピー',
   'timesheet.copied': 'コピーしました',
   'timesheet.copyHint': 'タイムシートソフトに貼り付けられる形式でコピーします（{sec} 秒 {frames} コマ）',
-  // 表の見出し。紙のタイムシートの欄名に合わせる。
-  'timesheet.colSec': '秒',
-  'timesheet.colFrame': 'コマ',
-  'timesheet.colCell': 'セル',
-  'timesheet.colMemo': 'メモ',
   'shortcuts.viewerTimesheet': 'タイムシート表示中：動画番号を入力 / 確定して次のコマへ',
   'shortcuts.viewerTimesheetSymbols': 'タイムシート表示中：○（中割り）/ ●（逆シート）/ ×（カラ）。テンキーの / - * でも入力できます',
 
@@ -389,8 +381,6 @@ export const ja = {
   // ── グリッド / タイムライン ──
   'grid.noMatches': '該当する画像がありません',
   'grid.noMatchesHint': '検索語を短くするか、絞り込み条件を外すと見つかることがあります。',
-  // 絞り込みを外すのは「解除」で通す（「検索をクリア」は入力欄を空にする操作なので別）。
-  'grid.clearFilters': 'フィルタを解除',
   'grid.empty': 'まだ画像がありません',
   'grid.loadFailed': '一覧を読み込めませんでした',
   'thumb.loadFailed': '画像を読み込めません',
@@ -440,6 +430,7 @@ export const ja = {
   // 「保存済みの」まで入れるとサイドバー幅で 2 行に折り返し、空の状態の方が場所を取っていた。
   // ただし**何が無いのかは残す**（見出しが上にあっても、単に「まだありません」では読めない）。
   'sidebar.noSmartFolders': 'フォルダはまだありません',
+  // 絞り込みを外すのは「解除」で通す（「検索をクリア」は入力欄を空にする操作なので別）。
   'sidebar.clearTagFilters': 'タグフィルタをすべて解除',
   'sidebar.aiTagSuffix': '（AIタグ）',
   'sidebar.tagDeleteHint': '（右クリック / Shift+F10 でタグ自体を削除）',
@@ -560,10 +551,6 @@ export const ja = {
   'update.ready': 'v{version} の準備ができました',
   'update.restart': '再起動して更新',
   'update.later': '今は更新しない',
-  'onboarding.step1': '1. 拡張機能フォルダを Chrome に読み込みます',
-  'onboarding.step2': '2. 対応サイトで動画を開きます',
-  'onboarding.step3.before': '3. 取りたい場面で ',
-  'onboarding.step3.after': ' を押します',
   'onboarding.openExtensionFolder': '拡張機能フォルダを開く',
   'onboarding.dropHint': 'または、フォルダや画像をここにドロップして取り込めます',
   'onboarding.lead': '最初のキャプチャまで、ブラウザの準備を3ステップで案内します。',
@@ -588,8 +575,6 @@ export const ja = {
   'setup.captureDetail': 'キャプチャキー: {hotkey}',
   'setup.captureDone': '最初のキャプチャを保存済み',
   'setup.captureWaiting': 'キャプチャ待ち',
-  'setup.allDone': '準備完了です。このガイドはサイドバーからいつでも開けます。',
-  'setup.reopenHint': '途中で閉じても、サイドバーの「セットアップ」から再開できます。',
   'setup.finish': '完了',
   'setup.closeForNow': '今は閉じる',
   'tour.start': '実際の画面で使い方を試す',

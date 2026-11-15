@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { TOAST_EXIT_MS } from '../motion'
 
 type ToastTone = 'info' | 'success' | 'warning' | 'error'
 type ToastAction = { label: string; onClick: () => void }
@@ -19,8 +20,6 @@ type ToastItem = {
 
 // 同時に積み上げる最大件数。超えたら最古のものを落とす。
 const MAX_TOASTS = 3
-// 消滅アニメーションの長さ(ms)。App.tsx の shioriToastOut 指定秒数と合わせる。
-const EXIT_MS = 300
 
 // ms を明示指定しない呼び出しは全トーン共通でこの秒数に統一する。呼び出し側ごとに
 // バラバラだと、素早く連続操作したときに短命なトーストだけ先に消えて
@@ -69,7 +68,7 @@ export function useToast() {
   // 即座に配列から消さず、まず closing:true にして shioriToastOut を再生してから除去する。
   const beginClose = useCallback((id: number): void => {
     setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, closing: true } : t)))
-    window.setTimeout(() => removeToast(id), EXIT_MS)
+    window.setTimeout(() => removeToast(id), TOAST_EXIT_MS)
   }, [removeToast])
 
   const scheduleDismiss = useCallback((id: number, ms: number | undefined): void => {

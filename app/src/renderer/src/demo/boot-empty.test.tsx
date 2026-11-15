@@ -3,6 +3,7 @@ import { afterEach, beforeAll, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { installMockApi } from './mockApi'
 import type { DemoManifest } from './manifest'
+import { ja } from '../../../shared/i18n/ja'
 
 // Web デモ版に素材が 1 件も無いときの第一画面。
 //
@@ -43,6 +44,7 @@ it('画像が 0 件なら、デスクトップ版の初回案内ではなくデ�
 
   // 押しても断られるだけのボタンと、デモでは成立しない手順が出ていないこと。
   // ここが本題なので、デモ文言が出ていることより厳しく見る。
-  expect(container.textContent).not.toContain('拡張機能フォルダを開く')
-  expect(container.textContent).not.toContain('対応サイトで動画を開きます')
+  // 文言は ja.ts から引く（直書きだと、文言を変えたときに何も確かめなくなる）。
+  expect(container.textContent).not.toContain(ja['onboarding.lead'])
+  expect(container.textContent).not.toContain(ja['onboarding.startSetup'])
 })

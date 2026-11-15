@@ -193,7 +193,6 @@ export const s: Record<string, CSSProperties> = {
   searchPrefixMenu: { position: 'absolute' as const, top: 'calc(100% + 1px)', left: -1, right: -1, zIndex: 201, background: 'rgba(var(--surface-rgb), 0.97)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-strong))', borderRadius: radius.md, padding: '4px 0', boxShadow: '0 6px 14px rgba(var(--scrim-rgb), 0.4)' },
   searchPrefixItem: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', minHeight: control.md, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const },
   searchDateHint: { padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm },
-  searchDateWarning: { padding: '6px 12px', color: 'var(--warning)', fontSize: font.xs },
   searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-soft))', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: radius.md, display: 'flex', alignItems: 'center' },
   smartFolderEmpty: { fontSize: font.sm, color: 'var(--text-secondary)', padding: '3px 0 2px', lineHeight: 1.5 },
   smartFolderCreateInput: { flex: 1, minWidth: 0, height: control.lg, background: 'var(--bg-content)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 9px', fontSize: font.sm, fontWeight: weight.normal, outline: 'none', boxSizing: 'border-box' as const },
@@ -276,7 +275,6 @@ export const s: Record<string, CSSProperties> = {
   skeletonCell: { background: 'var(--bg-surface)', border: '2px solid var(--border-default)', borderRadius: radius.md, animation: 'shioriSkeletonPulse 1.4s ease-in-out infinite' },
   empty: { color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column' as const, gap: space.x12, alignItems: 'center', justifyContent: 'center', textAlign: 'center' as const, width: '100%', minHeight: 'calc(100vh - 190px)' },
   emptyTitle: { color: 'var(--text-primary)', fontSize: font.xl, fontWeight: weight.medium },
-  emptySteps: { display: 'flex', flexDirection: 'column' as const, gap: space.x4, color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.6, textAlign: 'left' as const },
   emptyActions: { display: 'flex', gap: space.x8, flexWrap: 'wrap' as const, justifyContent: 'center' },
   emptyBtn: { padding: '7px 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.base, fontWeight: weight.medium },
   emptyBtnSub: { background: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-strong)' },
@@ -285,7 +283,6 @@ export const s: Record<string, CSSProperties> = {
   // 数行の文章を入れるとグリッド幅いっぱいに伸びて 1 行が長くなりすぎる。
   emptyLead: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75, maxWidth: 520, textAlign: 'center' as const },
   loadingMore: { textAlign: 'center', padding: 16, color: 'var(--text-secondary)', fontSize: font.base },
-  filterBtn: { background: 'none', border: 'none', borderRadius: radius.md, cursor: 'pointer', fontSize: font.base, textAlign: 'left' as const, padding: '6px 8px' },
   // スマートフォルダの 1 行。**これ以上小さくしない。** 縦に詰めたくて一番小さい段
   // （control.sm）まで落としたことがあるが、行が痩せて別物になっただけだった。
   // 実際に縦を食っていたのは行の大きさではなく、行の前に常に置いてある挿入線
@@ -375,7 +372,6 @@ export const s: Record<string, CSSProperties> = {
   sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const },
   sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: weight.medium },
   sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)', fontSize: 10, fontWeight: weight.strong },
-  sidebarSetupMarkDone: { background: 'rgba(var(--success-rgb), 0.12)', borderColor: 'rgba(var(--success-rgb), 0.4)', color: 'var(--success)' },
   sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
   gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
@@ -407,10 +403,6 @@ export const s: Record<string, CSSProperties> = {
   // いつでも読み直せるから細くできるが、ここは目を戻したときにはもう無い。
   toastMessage: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.sm, fontWeight: weight.medium, lineHeight: 1.45, whiteSpace: 'normal' as const, wordBreak: 'break-word' as const },
   toastActionBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), var(--edge-faint))', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
-  toastInfo: {},
-  toastSuccess: {},
-  toastWarning: {},
-  toastError: {},
   toastInfoMark: { background: 'var(--accent)' },
   toastSuccessMark: { background: 'var(--success)' },
   toastWarningMark: { background: 'var(--warning)' },

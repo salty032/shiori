@@ -5,8 +5,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
 import type { ReleaseNoteEntry } from '../../../shared/releaseNotes'
-
-const CLOSE_MS = 110
+import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
 type Props = {
   entries: ReleaseNoteEntry[]
@@ -33,7 +32,7 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
   function close(): void {
     if (closing) return
     setClosing(true)
-    window.setTimeout(onClose, CLOSE_MS)
+    window.setTimeout(onClose, MODAL_CLOSE_MS)
   }
   // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
   const closeRef = useLatestRef(close)
@@ -59,8 +58,8 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
   const single = entries.length === 1
 
   return (
-    <div style={{ ...s.overlay, animation: closing ? 'shioriOverlayOut 0.11s ease-out forwards' : 'shioriOverlayIn 0.12s ease-out' }} onMouseDown={close}>
-      <div style={{ ...s.panel, animation: closing ? 'shioriPopOut 0.11s ease-out forwards' : 'shioriPopIn 0.15s ease-out' }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
+    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={close}>
+      <div style={{ ...s.panel, animation: modalPanelAnimation(closing) }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
         <div style={s.header}>
           <div style={s.title}>{single ? t('whatsNew.title', { version: entries[0].version }) : t('whatsNew.historyTitle')}</div>
           <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
