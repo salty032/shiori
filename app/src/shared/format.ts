@@ -2,8 +2,8 @@
 // **2 か所で別々に持たない**——同じ数字が画面ごとに違う丸め方で出ると、どちらかが間違って見える。
 //
 // 桁数を揃えるのではなく有効数字を揃える——12 GB / 210 MB / 8.4 GB のように、10 未満だけ
-// 小数第1位まで出す。1000 未満で単位を上げるのは、999 MB の次が 1.0 GB になるより
-// 0.98 GB のほうが読みにくいため。
+// 小数第1位まで出す。単位は 1024 ではなく 1000 に届いた時点で上げる（999 MB の次は 1 GB で、
+// 1000〜1023 MB のような 4 桁は出さない）。
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '—'
   if (bytes < 1024) return `${Math.round(bytes)} B`

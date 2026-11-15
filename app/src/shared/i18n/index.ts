@@ -11,6 +11,12 @@ import { en } from './en'
 export type { Lang }
 export type MessageKey = keyof typeof ja
 
+// 件数で語形が変わる文言の語幹。辞書に `<語幹>.one` と `<語幹>.other` の両方があるものだけ。
+// 文字列で受けると、打ち間違い・片方の消し忘れが typecheck を通り、その文言を出す瞬間に落ちる。
+export type PluralBase = {
+  [K in MessageKey]: K extends `${infer B}.one` ? (`${B}.other` extends MessageKey ? B : never) : never
+}[MessageKey]
+
 const DICTS: Record<Lang, Record<MessageKey, string>> = { ja, en }
 
 // {name} 形式のプレースホルダだけを差し込む。式や書式指定は持たせない
@@ -32,7 +38,7 @@ export function translate(lang: Lang, key: MessageKey, params?: Params): string 
 // count は params にも自動で渡すので、辞書側は {count} をそのまま書ける。
 export function translatePlural(
   lang: Lang,
-  base: string,
+  base: PluralBase,
   count: number,
   params?: Params
 ): string {

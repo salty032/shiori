@@ -136,9 +136,6 @@ export const ja = {
   // ── 録画 / クリップ ───────────────────────────────────────────
   'notice.recordingNoAudio': '音声なしで録画しています（音声デバイスの初期化に失敗しました）。',
   'notice.videoRegionNotFound': '動画の表示領域を特定できませんでした。ページを再読み込みして、もう一度お試しください。',
-  // 録画開始の合図から、記録を始めるまでの待ち（recording.ts の waitForSteadyFrames）。
-  // 落ち着きを確認できないまま始めたときだけ出す。**黙って始めない** —— 待つ作りにした以上、
-  // 待っても駄目だったことは画面から読めないと「待ったから大丈夫」と誤解される。
   'notice.recordingEmpty': '録画データが空でした。短すぎる録画は保存されません。',
   'notice.screenCapturePermission':
     '画面録画の権限がありません。ブラウザのハードウェアアクセラレーションをオフにして、もう一度お試しください。',
@@ -149,6 +146,9 @@ export const ja = {
   'notice.clipSavedWithMissed': '録画を保存しました（{duration}{notes}・撮り逃し {count}コマ）',
   'notice.clipSavedChecking': '録画を保存しました（{duration}{notes}・撮り逃し 確認中）',
   'notice.clipSavedNoMissed': '録画を保存しました（{duration}{notes}・撮り逃し なし）',
+  // 録画開始の合図から、記録を始めるまでの待ち（recording.ts の waitForSteadyFrames）。
+  // 落ち着きを確認できないまま始めたときだけ、完了通知に添える。**黙って始めない** —— 待つ作りにした以上、
+  // 待っても駄目だったことは画面から読めないと「待ったから大丈夫」と誤解される。
   'notice.clipNoteStartGap': '・先頭に抜けの可能性あり',
   'notice.clipNoteArming': '・冒頭に準備中の表示が写っている可能性あり',
   'notice.videoNotDetected':
@@ -309,14 +309,14 @@ export const ja = {
   // タイムシートは以前から「撮り逃し」で、詳細とビューアだけ「未取得」だった。
   // 「取得」はこのアプリで取得日時・使用量の取得にも使っていて意味が 3 つある。
   'viewer.frameNeedsReview': '撮り逃し',
+  // この録画の状態（コマ番号を押すと開く一覧。frameReadout.ts の clipStatus）。
+  // **意味の説明は出さない**——この録画のどこがダメか・大丈夫かだけ。混ぜると読めない。
   // 表から抜けている区間（ClipGap）。撮り逃し（流用）とは別物で、**コマ自体が表に無い**。
   // コマ送りするとその区間が飛ぶのに、出さないと画面からは気づけない。
+  'viewer.statusLabelGap': '抜け',
   // 対応がずれているコマ（StoredFrame.misaligned）。表全体を捨てる代わりの印。
   // **流用より重い**——流用は「絵が無いので直前を出している」と分かっているが、
   // こちらは今出ている絵が何なのか分からない。
-  // この録画の状態（コマ番号を押すと開く一覧。frameReadout.ts の clipStatus）。
-  // **意味の説明は出さない**——この録画のどこがダメか・大丈夫かだけ。混ぜると読めない。
-  'viewer.statusLabelGap': '抜け',
   'viewer.statusMisaligned': 'コマ {from} 以降の {count} コマで、絵と元の動画のコマの対応がずれています。',
   'viewer.statusMissingSevere': '元の動画の {total} コマのうち {count} コマ（{pct}%）が録画にありません。',
   'viewer.statusGap': '{places} か所で、合わせて {count} コマ抜けています（最初はコマ {from} の次）。',
@@ -469,10 +469,10 @@ export const ja = {
   'trim.analyzing': 'フレーム解析中...',
   'trim.analyzeFailed': 'フレームを解析できませんでした（コマ位置の精度が下がります）',
   'trim.shortcutHint': ', / . コマ送り · I / O 範囲設定 · Space 再生 / 一時停止 · M ミュート',
-  // main が返す符丁をそのまま出していた（画面に「エラー：invalid_out」と出ていた）。
   'trim.workingPercent': 'トリミング中... {percent}%',
   'trim.finishing': '仕上げています...',
   'trim.tooShort': '切り出す長さが足りません（0.1 秒以上必要です）',
+  // main が返す符丁を訳す。以前はそのまま出していた（画面に「エラー：invalid_out」と出ていた）。
   'trim.errNotFound': 'この動画が見つかりませんでした。',
   'trim.errRange': '切り出す範囲が正しくありません。',
   'trim.errBusy': 'この動画は、いま別のトリミングを実行中です。',

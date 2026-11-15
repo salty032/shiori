@@ -13,7 +13,7 @@ import { useMemo } from 'react'
 import { useSettingsStore } from './stores/settingsStore'
 import {
   translate, translatePlural, LOCALE_TAG,
-  type MessageKey, type Params, type Lang
+  type MessageKey, type Params, type Lang, type PluralBase
 } from '../../shared/i18n'
 
 export type { MessageKey, Lang }
@@ -21,7 +21,7 @@ export type { MessageKey, Lang }
 export type Translate = {
   t: (key: MessageKey, params?: Params) => string
   // 英語で件数により語形が変わる文言用。辞書に `<base>.one` / `<base>.other` を置く。
-  tp: (base: string, count: number, params?: Params) => string
+  tp: (base: PluralBase, count: number, params?: Params) => string
   // toLocaleString / toLocaleDateString へ渡す BCP 47 タグ。引数なしで呼ぶと OS ロケール
   // 依存になり、表示言語と書式がちぐはぐになるため必ずこれを渡す。
   locale: string
@@ -49,7 +49,7 @@ export function t(key: MessageKey, params?: Params): string {
   return translate(currentLang(), key, params)
 }
 
-export function tp(base: string, count: number, params?: Params): string {
+export function tp(base: PluralBase, count: number, params?: Params): string {
   return translatePlural(currentLang(), base, count, params)
 }
 
