@@ -57,7 +57,7 @@ export const MAX_EPOCH_MS = 4_102_444_800_000
 // **この値の差がそのまま「通知が来なかったコマ数」になる**ので、壊れた値が入ると
 // 抜けの枚数が黙って狂う。入口で落とす。
 export const MAX_PRESENTED_FRAMES = 100_000_000
-// コマ通知に添えるそのコマの絵（白黒）の一辺。録画の画像の署名（ffmpeg.ts の SIGNATURE_GRID）と同じ大きさで、
+// コマ通知に添えるそのコマの絵（白黒）の一辺。録画の画像の署名（ffmpeg.ts の SIGNATURE_GRID・frame-test.cjs）もこの値を読み、
 // app はこの 2 つを照合してどの画像がそのコマかを決める。base64 で送るので長さは決まっている。
 export const FRAME_THUMB_SIZE = 32
 export const FRAME_THUMB_BASE64_LENGTH = Math.ceil((FRAME_THUMB_SIZE * FRAME_THUMB_SIZE) / 3) * 4

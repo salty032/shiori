@@ -457,10 +457,6 @@ function keepAnswers() {
 //
 // 素材コマの正解は mediaTime × fps から出す。mediaTime はブラウザが表示したコマの時刻そのもの
 // なので、ここが合っていれば「どのコマを見せたか」の記録は正しい。
-// ffmpeg.ts の SIGNATURE_GRID と同じ大きさ。違うと録画直後とは別の「絵が変わった」で作り直すことになる。
-// ffmpeg.ts は electron を読み込むのでここからは読めない。
-const SIGNATURE_GRID = 32
-
 function parseArgs(argv) {
   const ids = []
   let prod = false
@@ -480,7 +476,11 @@ function parseArgs(argv) {
 }
 
 // getFrameSignatures（ffmpeg.ts）と同じ取り出し方。
+// 一辺は ffmpeg.ts の SIGNATURE_GRID と同じ原本（wire-limits.ts）から読む。違うと録画直後とは別の
+// 「絵が変わった」で作り直すことになる。ffmpeg.ts は electron を読み込むのでここからは読めない。
+// loadAppModules() の後でしか呼ばれない（.ts を読む仕掛けがそこで入る）。
 function readSignatures(file) {
+  const { FRAME_THUMB_SIZE: SIGNATURE_GRID } = require('../src/shared/wire-limits.ts')
   const bytes = SIGNATURE_GRID * SIGNATURE_GRID
   return new Promise((resolve, reject) => {
     const chunks = []

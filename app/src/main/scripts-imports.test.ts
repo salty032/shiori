@@ -12,10 +12,11 @@ const requires = readdirSync(scriptsDir)
   .filter((f) => /\.(c|m)?js$/.test(f))
   .flatMap((f) => {
     const text = readFileSync(join(scriptsDir, f), 'utf8')
-    return [...text.matchAll(/const \{([^}]*)\} = require\('(\.\.\/src\/[^']+\.ts)'\)/g)].map((m) => ({
+    const pattern = /(?:const \{([^}]*)\} = require\('(\.\.\/src\/[^']+\.ts)'\))|(?:import \{([^}]*)\} from '(\.\.\/src\/[^']+\.ts)')/g
+    return [...text.matchAll(pattern)].map((m) => ({
       script: f,
-      file: m[2],
-      names: m[1].split(',').map((n) => n.trim().split(':')[0].trim()).filter(Boolean)
+      file: m[2] ?? m[4],
+      names: (m[1] ?? m[3]).split(',').map((n) => n.trim().split(/[:\s]/)[0]).filter(Boolean)
     }))
   })
 

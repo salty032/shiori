@@ -4,6 +4,7 @@ import { dirname, join } from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import { StderrCollector } from './ffmpeg-stderr'
+import { FRAME_THUMB_SIZE } from '../../shared/wire-limits'
 // ffmpeg は npm パッケージ経由ではなく resources に直接同梱する。
 // ffmpeg-static は GPL-3.0-or-later で公開されており、その JS を本体プロセスが require すると
 // Shiori 本体まで GPL の派生物と解される余地が生まれる（本体は MIT で配りたい）。
@@ -191,7 +192,8 @@ function runFfmpegCollectStdout(
 // 元の絵を復元する用途ではない。細かくするほどエンコードのノイズを拾って「変わった」に
 // 倒れやすくなり、粗くするほど小さな変化（口パク等）を見落とす。32 は 1920x1080 に対して
 // 1セル 60x34px 相当で、キャラの口ほどの領域でも複数セルが動く粒度。
-export const SIGNATURE_GRID = 32
+// **拡張が控えるコマの絵と同じ大きさ**（照合するため）なので、値の原本は wire-limits.ts の FRAME_THUMB_SIZE。
+export const SIGNATURE_GRID = FRAME_THUMB_SIZE
 const SIGNATURE_BYTES = SIGNATURE_GRID * SIGNATURE_GRID
 
 // クリップの全フレームを 32x32 のグレースケールへ落として取り出す。
