@@ -4,7 +4,8 @@
 // **外へ渡す前に必ず絞る。** URL は safeExternalUrl、パスは DB に載っている画像の
 // 実体だけ（resolveRealCapturePath）。ここを緩めると、renderer から任意の場所を
 // 開かせられる経路になる。
-import { BrowserWindow, dialog, shell } from 'electron'
+import { BrowserWindow, shell } from 'electron'
+import { showMessageBoxOver, showOpenDialogOver } from '../system/dialogs'
 import { mkdir, stat, unlink, writeFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { CH } from '../../shared/api'
@@ -59,9 +60,7 @@ async function confirmMove(
     message: t('dialog.moveCaptures.message', { count: String(count), size: formatBytes(bytes), dest }),
     detail: t('dialog.moveCaptures.detail'),
   }
-  const { response } = parent
-    ? await dialog.showMessageBox(parent, options)
-    : await dialog.showMessageBox(options)
+  const { response } = await showMessageBoxOver(options, parent)
   return response === 0
 }
 
@@ -97,9 +96,7 @@ export function registerShellHandlers(): void {
       defaultPath: captureDir(),
       properties: ['openDirectory' as const, 'createDirectory' as const],
     }
-    const picked = parent
-      ? await dialog.showOpenDialog(parent, options)
-      : await dialog.showOpenDialog(options)
+    const picked = await showOpenDialogOver(options, parent)
     if (picked.canceled || picked.filePaths.length === 0) return { ok: false, reason: 'canceled' }
 
     const chosen = resolve(picked.filePaths[0])

@@ -55,7 +55,7 @@ export function stripDedicatedSettingKeys(
 const EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 const DEFAULTS: Settings = { ...SETTINGS_DEFAULTS, allowedExtensionIds: [EXTENSION_ID] }
 const MAX_STRINGS = 100
-const MAX_TEXT_LENGTH = 200
+const MAX_SETTING_TEXT_LENGTH = 200
 const MAX_SMART_FOLDERS = 50
 // 保存先の文字数。Windows の実用上の上限（260）に少し余裕を持たせる。
 const MAX_PATH_LENGTH = 400
@@ -71,7 +71,7 @@ function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value
     .filter((item): item is string => typeof item === 'string')
-    .map((item) => item.trim().slice(0, MAX_TEXT_LENGTH))
+    .map((item) => item.trim().slice(0, MAX_SETTING_TEXT_LENGTH))
     .filter(Boolean)
     .slice(0, MAX_STRINGS)
 }
@@ -85,7 +85,7 @@ function nullableText(value: unknown): string | null {
   if (value === null) return null
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
-  return trimmed ? trimmed.slice(0, MAX_TEXT_LENGTH) : null
+  return trimmed ? trimmed.slice(0, MAX_SETTING_TEXT_LENGTH) : null
 }
 
 export function smartFolders(value: unknown): SmartFolder[] {

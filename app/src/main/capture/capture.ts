@@ -1,4 +1,5 @@
 import { globalShortcut, nativeImage, screen as electronScreen, desktopCapturer, type Display, type NativeImage } from 'electron'
+import { displayAtWindowCenter } from './window-display'
 import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
@@ -203,14 +204,14 @@ export function canCaptureVideo(): boolean {
 export function computeVideoCrop(
   frameW: number,
   frameH: number,
-  display?: ReturnType<typeof electronScreen.getDisplayNearestPoint>
+  display?: Display
 ): CropRect | null {
   if (!browserWindow || !videoRect) return null
 
   const { left: wl, top: wt, width: ww, height: wh, innerWidth, innerHeight } = browserWindow
   const { left: vl, top: vt, width: vw, height: vh } = videoRect
 
-  const edisp = display ?? electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
+  const edisp = display ?? displayAtWindowCenter(browserWindow)
   const screenshotDpr = frameW / edisp.bounds.width
 
   // 最大化時 Windows はウィンドウを画面外に約8px はみ出して配置し、window.screen* が
@@ -383,8 +384,7 @@ async function captureScreen(): Promise<string> {
 
     // 撮影対象のディスプレイはブラウザウィンドウの中心点で解決する。computeVideoCrop にも
     // 同じ Display を渡し、撮影画像と bounds が必ず同一モニターを指すようにする。
-    const { left: wl, top: wt, width: ww, height: wh } = browserWindow!
-    const electronDisplay = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
+    const electronDisplay = displayAtWindowCenter(browserWindow!)
 
     // 先に BitBlt（約 20ms）で写し、だめなら desktopCapturer（約 350ms）へ。理由は gdi-capture.ts。
     // **映像部分が黒く写ったら、プレーヤーUIを戻す前に撮り直す。** BitBlt だけが黒くなる環境が

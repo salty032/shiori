@@ -14,7 +14,7 @@
 // 録画・保存は一切行わない。ライブラリを汚さずに何度でも試せるようにするため。
 import { desktopCapturer, globalShortcut, ipcMain } from 'electron'
 import { getBrowserWindowRect } from '../capture/capture'
-import { screen as electronScreen } from 'electron'
+import { displayAtWindowCenter } from '../capture/window-display'
 import { getRecorderWindow, isTrustedRecorderSender, setPendingDisplaySource } from './recorder-window'
 import { isRecordingInProgress } from './recording'
 import type { BenchRequest, BenchResult, BenchVariant } from '../../shared/recorder-api'
@@ -71,10 +71,7 @@ async function resolveScreenSourceId(): Promise<string | null> {
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
   const rect = getBrowserWindowRect()
   if (rect) {
-    const display = electronScreen.getDisplayNearestPoint({
-      x: Math.round(rect.left + rect.width / 2),
-      y: Math.round(rect.top + rect.height / 2)
-    })
+    const display = displayAtWindowCenter(rect)
     const matched = sources.find((s) => s.display_id === String(display.id))
     if (matched) return matched.id
   }

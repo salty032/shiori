@@ -23,6 +23,13 @@ export function optionalPositiveInteger(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
 }
 
+// 画面から来た ID の配列を、重複を除いた正の整数だけにする（配列でなければ空）。並びは最初に出た順。
+// 上限で切るのは呼ぶ側（切る前の件数を使う経路があるため）。
+export function uniqueImageIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map(optionalPositiveInteger).filter((id): id is number => id != null))]
+}
+
 export function optionalText(value: unknown, max = MAX_TEXT_LENGTH): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()

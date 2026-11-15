@@ -1,6 +1,7 @@
 // 動画クリップ録画のステートマシン。録画状態（isRecording / isRecordingStarting /
 // recordingMeta）を保持し、開始・停止・状態リセット・ホットキー処理を提供する。
-import { desktopCapturer, screen as electronScreen } from 'electron'
+import { desktopCapturer } from 'electron'
+import { displayAtWindowCenter } from '../capture/window-display'
 import { broadcastMessage, onExtensionMessage, type ExtensionMessage } from '../browser/ws-server'
 import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRect } from '../capture/capture'
 import { loadSettings } from '../system/settings'
@@ -149,8 +150,7 @@ export function wasRecordingDisplayAmbiguous(): boolean {
 async function getDesktopSourceId(): Promise<string | null> {
   const rect = getBrowserWindowRect()
   if (!rect) return null
-  const { left: wl, top: wt, width: ww, height: wh } = rect
-  const edisp = electronScreen.getDisplayNearestPoint({ x: Math.round(wl + ww / 2), y: Math.round(wt + wh / 2) })
+  const edisp = displayAtWindowCenter(rect)
   lastDisplayHz = Number.isFinite(edisp.displayFrequency) && edisp.displayFrequency > 0
     ? edisp.displayFrequency
     : null

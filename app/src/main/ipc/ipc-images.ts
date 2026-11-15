@@ -1,8 +1,8 @@
 // 画像一覧・件数・エクスポート・取得・タイトル/メモ更新・サムネ一括生成・削除の IPC ハンドラ。
-import { dialog } from 'electron'
+import { showOpenDialogOver } from '../system/dialogs'
 import { access, stat, copyFile, unlink } from 'fs/promises'
 import { basename, extname } from 'path'
-import { getMainWindow, handleTrusted, sendToRenderer } from '../system/windows'
+import { handleTrusted, sendToRenderer } from '../system/windows'
 import {
   listImages, countImages, listImagesAll, listSites,
   getImage, deleteImagesBulk, updateImageTitle, updateImageMemo,
@@ -15,7 +15,8 @@ import {
   MAX_EXPORT_IDS,
   optionalText, optionalPositiveInteger,
   imageQuery, imageListRequest,
-  sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, uniqueExportPath
+  sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, uniqueExportPath,
+  uniqueImageIds,
 } from './ipc-validation'
 import { CH } from '../../shared/api'
 import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../../shared/constants'
@@ -154,19 +155,11 @@ export function registerImageHandlers(): void {
     isImagesExporting = true
     beginTask('export')
     try {
-      const uniqueIds = Array.isArray(imageIds)
-        ? [...new Set(imageIds.map(optionalPositiveInteger).filter((id): id is number => id != null))]
-        : []
+      const uniqueIds = uniqueImageIds(imageIds)
       const truncated = uniqueIds.length > MAX_EXPORT_IDS
       const ids = uniqueIds.slice(0, MAX_EXPORT_IDS)
 
-      // 親ウィンドウを渡さないとダイアログがモーダル化されず、他ウィンドウの操作で
-      // 背面に隠れると「押したのに何も起きない」ように見える（BUG-3）。
-      const win = getMainWindow()
-      const dialogOptions: Electron.OpenDialogOptions = { title: t('dialog.exportFolder'), properties: ['openDirectory'] }
-      const { canceled, filePaths } = win
-        ? await dialog.showOpenDialog(win, dialogOptions)
-        : await dialog.showOpenDialog(dialogOptions)
+      const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.exportFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
       isImagesExportCanceled = false
       const dest = filePaths[0]
@@ -280,9 +273,7 @@ export function registerImageHandlers(): void {
   })
 
   handleTrusted(CH.imagesDeleteBulk, async (_event, ids: unknown): Promise<DeleteImageResult[]> => {
-    const validIds = Array.isArray(ids)
-      ? [...new Set(ids.map(optionalPositiveInteger).filter((id): id is number => id != null))].slice(0, MAX_BULK_IDS)
-      : []
+    const validIds = uniqueImageIds(ids).slice(0, MAX_BULK_IDS)
     if (validIds.length === 0) return []
 
     const found = validIds

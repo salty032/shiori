@@ -6,7 +6,7 @@ import {
   addTag, getImageTags, removeImageTag, addTagsBulk, getImageTagsBulk,
   addTagBulk, removeTagBulk, removeTagFromAllImages, deleteAllAiTags
 } from '../db/db-tags'
-import { optionalPositiveInteger, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from './ipc-validation'
+import { optionalPositiveInteger, uniqueImageIds, optionalText, normalizeTagName, tagSource, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from './ipc-validation'
 import { resolveRealCapturePath } from '../system/paths'
 import { CH } from '../../shared/api'
 import { MAX_BULK_IDS } from '../../shared/constants'
@@ -17,8 +17,7 @@ let isRetagging = false
 let isRetagCanceled = false
 
 function validImageIds(imageIds: unknown): number[] {
-  if (!Array.isArray(imageIds)) return []
-  return [...new Set(imageIds.map(optionalPositiveInteger).filter((id): id is number => id != null))].slice(0, MAX_BULK_IDS)
+  return uniqueImageIds(imageIds).slice(0, MAX_BULK_IDS)
 }
 
 export function registerTaggerHandlers(): void {

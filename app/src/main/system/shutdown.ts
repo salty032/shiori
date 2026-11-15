@@ -1,9 +1,10 @@
 // プロセス終了の入口を集約する。通常終了と更新適用のどちらでも、実行中の処理を同じ基準で
 // 確認し、設定の書き込みを待ってから終了する。
-import { app, dialog, globalShortcut } from 'electron'
+import { app, globalShortcut } from 'electron'
+import { showMessageBoxOver } from './dialogs'
 import { activeTaskLabels } from './busy'
 import { flushSettings } from './settings'
-import { getMainWindow, setQuitting } from './windows'
+import { setQuitting } from './windows'
 import { stopWsServer } from '../browser/ws-server'
 import { cleanupDragTempDir } from '../ipc/ipc-drag'
 import { isRecordingInProgress } from '../video/recording'
@@ -37,10 +38,7 @@ async function confirmExitWhileBusy(kind: 'update' | 'quit'): Promise<boolean> {
     message: t('dialog.updateBusy.message', { tasks: labels.join(t('list.separator')) }),
     detail
   }
-  const win = getMainWindow()
-  const { response } = win
-    ? await dialog.showMessageBox(win, options)
-    : await dialog.showMessageBox(options)
+  const { response } = await showMessageBoxOver(options)
   return response === 0
 }
 

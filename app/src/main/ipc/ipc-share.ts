@@ -1,8 +1,8 @@
 // 一括共有（ライブラリ全体のエクスポート / インポート / スマートフォルダ設定の取り込み）の IPC ハンドラ。
-import { dialog } from 'electron'
+import { showOpenDialogOver } from '../system/dialogs'
 import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
 import { join, basename } from 'path'
-import { getMainWindow, handleTrusted, sendToRenderer, safeExternalUrl } from '../system/windows'
+import { handleTrusted, sendToRenderer, safeExternalUrl } from '../system/windows'
 import { listImagesForExport } from '../db/db'
 import { decodeFrames, encodeFrames, getVideoFrames, restoreVideoFrames } from '../db/db-video-frames'
 import { loadSettings, saveSettings, smartFolders } from '../system/settings'
@@ -51,12 +51,7 @@ export function registerShareHandlers(): void {
     isShareExporting = true
     beginTask('export')
     try {
-      // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
-      const exportWin = getMainWindow()
-      const exportDialogOptions: Electron.OpenDialogOptions = { title: t('dialog.exportFolder'), properties: ['openDirectory'] }
-      const { canceled, filePaths } = exportWin
-        ? await dialog.showOpenDialog(exportWin, exportDialogOptions)
-        : await dialog.showOpenDialog(exportDialogOptions)
+      const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.exportFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
       isShareExportCanceled = false
 
@@ -149,12 +144,7 @@ export function registerShareHandlers(): void {
     isShareImporting = true
     beginTask('library-import')
     try {
-      // 親ウィンドウ未指定だとモーダル化されず背面に隠れうる（BUG-3）。
-      const importWin = getMainWindow()
-      const importDialogOptions: Electron.OpenDialogOptions = { title: t('dialog.importFolder'), properties: ['openDirectory'] }
-      const { canceled, filePaths } = importWin
-        ? await dialog.showOpenDialog(importWin, importDialogOptions)
-        : await dialog.showOpenDialog(importDialogOptions)
+      const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.importFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
       isShareImportCanceled = false
 

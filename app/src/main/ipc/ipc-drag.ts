@@ -16,7 +16,8 @@ import { resolveRealCapturePathSync } from '../system/paths'
 import { isChildPath } from '../system/child-path'
 import { onTrusted, sendToRenderer } from '../system/windows'
 import {
-  sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, optionalPositiveInteger
+  sanitizeFilename, formatDateForFilename, formatTimecodeForFilename,
+  uniqueImageIds,
 } from './ipc-validation'
 import { CH } from '../../shared/api'
 
@@ -94,9 +95,7 @@ function dragFileName(
 
 export function registerDragHandlers(): void {
   onTrusted(CH.imagesStartDrag, (event, ids: unknown) => {
-    const uniqueIds = Array.isArray(ids)
-      ? [...new Set(ids.map(optionalPositiveInteger).filter((id): id is number => id != null))]
-      : []
+    const uniqueIds = uniqueImageIds(ids)
     const imageIds = uniqueIds.slice(0, MAX_DRAG_FILES)
     if (imageIds.length === 0) return
 

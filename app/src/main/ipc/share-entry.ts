@@ -90,7 +90,7 @@ const MAX_REASONABLE_DIMENSION = 16_384
 // 二重にparseしてメモリを圧迫しないよう、1クリップ単位でも上限を持つ。
 export const MAX_SHARE_FRAME_TABLE_BYTES = 2 * 1024 * 1024
 
-function optionalPositiveInteger(value: unknown, max: number): number | null {
+function positiveIntegerUpTo(value: unknown, max: number): number | null {
   return Number.isInteger(value) && (value as number) > 0 && (value as number) <= max
     ? value as number
     : null
@@ -188,8 +188,8 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     fps: isVideo && typeof entry.fps === 'number' && Number.isFinite(entry.fps) && entry.fps > 0 && entry.fps <= MAX_REASONABLE_FPS
       ? entry.fps
       : null,
-    width: optionalPositiveInteger(entry.width, MAX_REASONABLE_DIMENSION),
-    height: optionalPositiveInteger(entry.height, MAX_REASONABLE_DIMENSION),
+    width: positiveIntegerUpTo(entry.width, MAX_REASONABLE_DIMENSION),
+    height: positiveIntegerUpTo(entry.height, MAX_REASONABLE_DIMENSION),
     frameTableData: isVideo && typeof entry.frame_table === 'string' && entry.frame_table.length <= MAX_SHARE_FRAME_TABLE_BYTES
       ? entry.frame_table
       : null,
