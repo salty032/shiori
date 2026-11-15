@@ -11,6 +11,7 @@
 // コマは逆戻りさせない。どの画像も当たらなかったコマは撮り逃し（前の画像を流用）として出す。
 // 決めた理由と試して却下したことは docs/SPEC.md「録画全体で辻褄を合わせて決める（frame-align.ts）」。
 import type { FrameMatch, SourceFrame } from './frame-feed'
+import { collapseDuplicateReports, medianInterval } from './frame-series'
 
 // 時刻が区間から外れた量をこの幅で割って 2 乗する。
 const TIME_TOLERANCE_MS = 6
@@ -104,11 +105,6 @@ function align(
   return { frameOf, cost: last[end] }
 }
 
-function medianInterval(drawnAt: readonly number[]): number {
-  const gaps = drawnAt.slice(1).map((t, i) => t - drawnAt[i]).sort((a, b) => a - b)
-  return gaps.length ? gaps[gaps.length >> 1] : 0
-}
-
 export interface AlignResult<T extends FrameMatch> {
   matches: T[]
   delayMs: number
@@ -130,8 +126,7 @@ export function alignWholeRecording<T extends FrameMatch>(
   // 素材のコマが撮影の間隔より短い録画（59.94fps）には使わない。半分ほどのコマが一度も写らず変わり目が
   // 手がかりにならないので、時刻だけで選ぶより外れた（テスト動画 2 本で注記なしの外れ 71 → 177）。
   if (periodMs <= medianInterval(drawnAt)) return null
-  const frames: SourceFrame[] = []
-  for (const f of source) if (frames[frames.length - 1]?.mediaTime !== f.mediaTime) frames.push(f)
+  const frames = collapseDuplicateReports(source)
   const starts = frames.map((f) => f.displayAt)
   const ends = starts.map((s, k) => k + 1 < starts.length ? starts[k + 1] : s + (s - (starts[k - 1] ?? s) || periodMs))
 

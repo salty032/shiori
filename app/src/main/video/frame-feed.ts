@@ -9,6 +9,7 @@
 // 駆動するのではなく、録画後に時刻で突き合わせる。displayAt はコマが画面に出た瞬間に
 // ページ側で刻まれるので、通知が遅れても値は正しいまま残る。
 import { onExtensionMessage } from '../browser/ws-server'
+import { collapseDuplicateReports, medianInterval } from './frame-series'
 
 export interface SourceFrame {
   /** 素材自身のタイムライン上の時刻（秒）。素材のコマを一意に識別する */
@@ -232,10 +233,7 @@ export interface ReportDelay {
 // 重複通知を畳んだコマ列から通知の遅れを要約する（ReportDelay 参照）。
 export function summarizeReportDelay(source: SourceFrame[]): ReportDelay | null {
   const delays: number[] = []
-  let prevMediaTime: number | null = null
-  for (const f of source) {
-    if (prevMediaTime === f.mediaTime) continue
-    prevMediaTime = f.mediaTime
+  for (const f of collapseDuplicateReports(source)) {
     if (Number.isFinite(f.receivedAt) && Number.isFinite(f.displayAt)) delays.push(f.receivedAt - f.displayAt)
   }
   if (delays.length === 0) return null
@@ -260,32 +258,13 @@ export function matchFrames(
 ): MatchResult | null {
   if (source.length === 0 || drawnAt.length === 0) return null
 
-  // 同じ素材コマが2回以上通知されることがある（コンポジタが同じフレームを再提示すると
-  // ページ側の rVFC がもう一度発火する）。mediaTime が同じなら同じコマなので、最初の通知
-  // ——実際に画面へ出た時刻——だけを残す。
-  //
+  // 同じ素材コマの重複通知を畳む（presentedFrames の詰め直しも。collapseDuplicateReports）。
   // 畳まないと2つ目は必ず「専用の絵が無い」と判定される。1つ目が絵を確保した直後なので、
   // 次に別の絵が来るまで同じフレームを指すため。撮り逃しでも何でもないのに枚数を水増しする。
   // 録画側は同じ理由で既に重複を潰しており（recorder.ts の lastDrawnMediaTime）、
   // 素材側だけ潰していなかった。
-  //
-  // **presentedFrames はここで詰め直す。** あの値は「合成へ送られた回数」なので、同じコマの
-  // 再提示でも増える。畳んだ後の隣り合うコマで差を取ると、再提示のぶんだけ「通知が来なかった
-  // コマ」に見えてしまう——**抜けを水増しし、灰色の行を増やす方向の誤り**で、コマ番号が
-  // 後ろへずれる。ここまでに落とした重複の数を引いておけば、差は「別のコマが何枚送られたか」
-  // になる。
-  const frames: SourceFrame[] = []
-  let duplicateReports = 0
-  for (const f of source) {
-    const prev = frames[frames.length - 1]
-    if (prev && prev.mediaTime === f.mediaTime) {
-      duplicateReports++
-      continue
-    }
-    frames.push(
-      f.presentedFrames == null ? f : { ...f, presentedFrames: f.presentedFrames - duplicateReports }
-    )
-  }
+  const frames = collapseDuplicateReports(source)
+  const duplicateReports = source.length - frames.length
 
   // 素材のコマ周期。複製の位置（OffsetReplica）と録画範囲の判定の両方で使う。
   // drops（格子に空いた穴＝通知が来なかったコマ）も同じ当てはめから出る。捨てずに持ち帰る。
@@ -711,7 +690,7 @@ export function frameGaps(samples: readonly GapSample[]): FrameGap[] {
   if (samples.length < 3) return []
   const diffs: number[] = []
   for (let i = 1; i < samples.length; i++) diffs.push(samples[i].mediaTime - samples[i - 1].mediaTime)
-  const median = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
+  const median = medianInterval(samples.map((s) => s.mediaTime))
   if (!(median > 0)) return []
   const gaps: FrameGap[] = []
   for (let i = 0; i < diffs.length; i++) {
@@ -831,7 +810,7 @@ export function isSteadySequence(mediaTimes: number[]): boolean {
   const diffs: number[] = []
   for (let i = 1; i < recent.length; i++) diffs.push(recent[i] - recent[i - 1])
   // 素材のコマ長は取得できないことがある（fps 不明・再生開始直後）ので、間隔の中央値で代用する。
-  const period = [...diffs].sort((a, b) => a - b)[diffs.length >> 1]
+  const period = medianInterval(recent)
   if (!(period > 0)) return false
   return diffs.every((d) => Math.round(d / period) < SETTLE_BIG_GAP)
 }

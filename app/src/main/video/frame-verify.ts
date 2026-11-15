@@ -22,6 +22,7 @@
 // コマ打ちを出すことが最悪の結果になる。特定できないものは特定できないと出す。
 import type { FrameVerify, StoredFrame } from '../db/db-video-frames'
 import { frameGaps } from './frame-feed'
+import { medianInterval } from './frame-series'
 
 // 「絵が変わった」と判定するしきい値。
 //
@@ -120,13 +121,7 @@ export function applyAnimeGapEstimates(
     delete frame.animeGapMissing
     return frame
   })
-  const diffs: number[] = []
-  for (let i = 1; i < frames.length; i++) {
-    const d = frames[i].mediaTime - frames[i - 1].mediaTime
-    if (d > 0 && Number.isFinite(d)) diffs.push(d)
-  }
-  diffs.sort((a, b) => a - b)
-  const period = diffs[diffs.length >> 1]
+  const period = medianInterval(frames.map((f) => f.mediaTime), { positiveOnly: true })
   let estimated = 0
   if (period > 0 && filePts.length === signatures.length) {
     for (const gap of frameGaps(frames)) {
@@ -379,9 +374,7 @@ export function checkTableAgainstFile(frames: StoredFrame[], pts: number[]): Tab
   if (trimmed.length < 3) return { frames: [], misaligned: 0, worstMs: 0 }
 
   // 素材のコマ長は表の mediaTime の間隔から出す（fps 列は空のことがある）。
-  const gaps: number[] = []
-  for (let i = 1; i < trimmed.length; i++) gaps.push(trimmed[i].mediaTime - trimmed[i - 1].mediaTime)
-  const period = [...gaps].sort((a, b) => a - b)[gaps.length >> 1]
+  const period = medianInterval(trimmed.map((f) => f.mediaTime))
   if (!(period > 0)) return { frames: [], misaligned: 0, worstMs: 0 }
 
   // **基準は先頭の行。** ずれの中央値を基準にすると「多数派が正しい」ことになり、後半が
