@@ -52,6 +52,7 @@ vi.mock('../system/settings', () => ({
 }))
 
 vi.mock('../system/paths', () => ({
+  captureFileName: (ts: number, ext: string) => `cap_${ts}_${Math.random().toString(36).slice(2)}${ext}`,
   resolveRealCapturePath: vi.fn(async (p: string) => p),
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
   thumbnailDir: vi.fn(() => '/mock/thumbnails'),
@@ -65,9 +66,9 @@ vi.mock('./ipc-validation', () => ({
 
 // 30秒上限の実装（ipc-import.ts）は他にも多数の依存を引き込むため、ここでは定数のみ
 // 差し替える。上限値自体が変わったら share 側もこの値で追随することを確認する。
-vi.mock('./ipc-import', () => ({
-  MAX_IMPORT_VIDEO_SECONDS: 30,
-  IMPORT_VIDEO_SECONDS_EPS: 0.5
+// 尺の判定は本物を使う（境界値を確かめるテストなので）。
+vi.mock('./ipc-import', async (importOriginal) => ({
+  importDurationError: (await importOriginal<typeof import('./ipc-import')>()).importDurationError
 }))
 
 const registerCapturedMedia = vi.fn(async (_params: unknown) => ({ ok: true, id: 1 }))

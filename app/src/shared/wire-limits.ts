@@ -267,3 +267,9 @@ export function writeGeneratedBlock(source: string, id: string, text: string): s
   const body = text.split('\n').join(eol) + eol
   return source.replace(blockPattern(id), (_all, head: string, _old: string, tail: string) => head + body + tail)
 }
+
+// Chrome 拡張の ID の形（a〜p の 32 文字）。許可リストの読み込み（settings.ts）と接続元の照合
+// （ws-server.ts）で同じ形を使う。片方だけ変えると、許可したはずの拡張が黙って弾かれる。
+export function isChromeExtensionId(value: string): boolean {
+  return /^[a-p]{32}$/.test(value)
+}

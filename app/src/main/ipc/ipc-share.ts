@@ -2,17 +2,16 @@
 import { dialog } from 'electron'
 import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
 import { join, basename } from 'path'
-import { randomUUID } from 'crypto'
 import { getMainWindow, handleTrusted, sendToRenderer, safeExternalUrl } from '../system/windows'
 import { listImagesForExport } from '../db/db'
 import { decodeFrames, encodeFrames, getVideoFrames, restoreVideoFrames } from '../db/db-video-frames'
 import { loadSettings, saveSettings, smartFolders } from '../system/settings'
-import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from '../system/paths'
+import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor, captureFileName } from '../system/paths'
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../../shared/api'
 import { MAX_SHARE_FRAME_TABLE_BYTES, buildShareEntry, parseShareEntry } from './share-entry'
 import { extractThumb, getVideoMeta } from '../video/ffmpeg'
-import { MAX_IMPORT_VIDEO_SECONDS, IMPORT_VIDEO_SECONDS_EPS } from './ipc-import'
+import { importDurationError } from './ipc-import'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { createProgressThrottle } from '../system/progress-throttle'
 import { beginTask, endTask } from '../system/busy'
@@ -198,10 +197,9 @@ export function registerShareHandlers(): void {
           try { srcStat = await stat(srcFile) } catch { errors.push(`file not found: ${parsed.file}`); continue }
           if (srcStat.size > MAX_MEDIA_FILE_BYTES) { errors.push(`file too large: ${parsed.file}`); continue }
 
-          const uid = randomUUID()
           const ts = Date.now()
           const dir = await ensureCaptureSubDir(parsed.capturedAt)
-          const destFile = join(dir, `cap_${ts}_${uid}${parsed.ext}`)
+          const destFile = join(dir, captureFileName(ts, parsed.ext))
 
           let thumbDest: string | null = null
           if (parsed.thumbFile && parsed.thumbExt) {
@@ -248,10 +246,9 @@ export function registerShareHandlers(): void {
             }
             // 通常のファイル取り込み（ipc-import.ts）と同じ尺上限を適用する。ここを素通りさせると
             // metadata.jsonl を手編集した共有バンドル経由で著作権対策の30秒上限を回避できてしまう。
-            if (duration == null || duration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
-              errors.push(duration == null
-                ? `duration unknown: ${parsed.file}`
-                : `too long (${Math.round(duration)}s > ${MAX_IMPORT_VIDEO_SECONDS}s): ${parsed.file}`)
+            const durationError = importDurationError(duration, parsed.file)
+            if (durationError) {
+              errors.push(durationError)
               try { await unlink(destFile) } catch {}
               if (thumbDest) try { await unlink(thumbDest) } catch {}
               continue

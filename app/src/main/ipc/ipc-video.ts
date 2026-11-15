@@ -1,7 +1,6 @@
 // 動画クリップのフレーム PTS 取得・トリミング（再エンコード）の IPC ハンドラ。
 import { unlink } from 'fs/promises'
 import { join } from 'path'
-import { randomUUID } from 'crypto'
 import { handleTrusted, sendToRenderer } from '../system/windows'
 import { beginTask, endTask } from '../system/busy'
 import { getImage } from '../db/db'
@@ -9,7 +8,7 @@ import { getImageTags } from '../db/db-tags'
 import { getVideoFrames, restoreVideoFrames, saveFrameTable, saveVideoFrames } from '../db/db-video-frames'
 import type { StoredFrame } from '../db/db-video-frames'
 import { optionalPositiveInteger } from './ipc-validation'
-import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor } from '../system/paths'
+import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor, captureFileName } from '../system/paths'
 import { trimWebm, extractThumb, getFrameSignatures, getVideoFramePts, getTimelineStrip, getVideoDuration } from '../video/ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
@@ -237,8 +236,7 @@ export function registerVideoHandlers(): void {
 
     const ts = Date.now()
     const dir = await ensureCaptureSubDir(ts)
-    const uid = randomUUID()
-    const webmOut = join(dir, `cap_${ts}_${uid}.webm`)
+    const webmOut = join(dir, captureFileName(ts, '.webm'))
     // サムネは原本（captureDir）と分離して thumbnailDir 配下に置く（アプリ全体の規約）。
     // ここで captureDir に直接書くと分離が崩れ、migrate-thumbnails も再実行しないため残り続ける。
     const thumbOut = thumbPathFor(webmOut, '.png')

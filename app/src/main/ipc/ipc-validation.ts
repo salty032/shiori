@@ -3,17 +3,16 @@
 import { join, extname } from 'path'
 import { access } from 'fs/promises'
 import type { ImageQuery, ImageListRequest, SortOrder } from '../../shared/types'
-import { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../../shared/constants'
+import { DEFAULT_IMAGE_LIST_LIMIT, MAX_IMAGE_LIST_LIMIT, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../../shared/constants'
 
-export const MAX_IMAGE_LIMIT = 200
 export const MAX_TEXT_LENGTH = 500
 export const MAX_TAGS_PER_FILTER = 50
 export const MAX_EXPORT_IDS = 1000
 export { MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH }
 
 function clampImageLimit(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 50
-  return Math.min(MAX_IMAGE_LIMIT, Math.max(1, Math.trunc(value)))
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_IMAGE_LIST_LIMIT
+  return Math.min(MAX_IMAGE_LIST_LIMIT, Math.max(1, Math.trunc(value)))
 }
 
 function optionalNumber(value: unknown): number | undefined {

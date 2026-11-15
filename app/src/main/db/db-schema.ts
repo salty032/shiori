@@ -5,6 +5,7 @@ import { app } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { buildSearchText, SEARCH_NORMALIZE_VERSION } from '../../shared/normalize'
+import { urlHost } from '../../shared/url-host'
 import {
   DatabaseCorruptError, DatabaseMigrationBackupError, SCHEMA_VERSION, assertSchemaCompatible,
   backupDatabase, backupIsDue, integrityProblem, pruneBackups, readSchemaVersion,
@@ -418,7 +419,7 @@ export function initDb(): void {
   const backfill = db.transaction(() => {
     for (const { id, url } of rows) {
       // URL 不正時は host='' で「処理済み・ホストなし」を記録し、毎起動の再スキャンを防ぐ
-      try { setHost.run(new URL(url).hostname.replace(/^www\./, ''), id) } catch { setHost.run('', id) }
+      setHost.run(urlHost(url) ?? '', id)
     }
   })
   backfill()

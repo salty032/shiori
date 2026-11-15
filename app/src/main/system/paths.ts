@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { mkdir, realpath, stat } from 'fs/promises'
 import { realpathSync } from 'fs'
+import { randomUUID } from 'crypto'
 import { basename, extname, isAbsolute, join, parse, resolve } from 'path'
 import { loadSettings } from './settings'
 import { isChildPath } from './child-path'
@@ -29,6 +30,12 @@ function captureSubDir(capturedAtMs: number): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   return join(captureDir(), `${y}-${m}`)
+}
+
+// 保存する原本のファイル名。**全体で一意であることにサムネの置き場所が依存している**
+// （thumbPathFor は basename をキーにする）ので、保存する経路はすべてこれで名前を作る。
+export function captureFileName(capturedAtMs: number, ext: string): string {
+  return `cap_${capturedAtMs}_${randomUUID()}${ext}`
 }
 
 // 書き込み先の年月サブフォルダを作成して返す。キャプチャ・録画・トリミング・取り込みの
@@ -143,6 +150,19 @@ function resolveRealBaseSync(dir: string): string | null {
   }
 }
 
+// 実パスで照合する置き場所（保存先とサムネイル）。同期版と非同期版で同じ並びを使う。
+function realTargetBases(): string[] {
+  return [...captureBases(), thumbnailDir()]
+}
+
+// 実パスを辿った先が、許可した置き場所の中の扱う形式のファイルか。**同期版と非同期版の判定はこれ 1 つ**
+// ——別々に書くと、ドラッグでだけ出せる（または出せない）ファイルが黙ってできる。
+function acceptRealTarget(realTarget: string, realBases: (string | null)[]): string | null {
+  if (!realBases.some((b) => b !== null && isChildPath(b, realTarget))) return null
+  if (!MEDIA_EXTS.has(extname(realTarget).toLowerCase())) return null
+  return realTarget
+}
+
 // resolveRealCapturePath の同期版。ドラッグ開始（webContents.startDrag）は dragstart の
 // 同期的な流れの中で呼ばないと OS のドラッグループに入れず、await を1つでも挟むと
 // ドラッグが始まらないため、その経路でだけ使う（ipc-drag.ts）。それ以外は非同期版を使うこと。
@@ -152,10 +172,7 @@ export function resolveRealCapturePathSync(candidate: unknown): string | null {
 
   try {
     const realTarget = resolve(realpathSync(target))
-    const bases = [...captureBases(), thumbnailDir()].map(resolveRealBaseSync)
-    if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
-    if (!MEDIA_EXTS.has(extname(realTarget).toLowerCase())) return null
-    return realTarget
+    return acceptRealTarget(realTarget, realTargetBases().map(resolveRealBaseSync))
   } catch {
     return null
   }
@@ -167,10 +184,7 @@ export async function resolveRealCapturePath(candidate: unknown): Promise<string
 
   try {
     const realTarget = resolve(await realpath(target))
-    const bases = await Promise.all([...captureBases(), thumbnailDir()].map(resolveRealBase))
-    if (!bases.some((b) => b !== null && isChildPath(b, realTarget))) return null
-    if (!MEDIA_EXTS.has(extname(realTarget).toLowerCase())) return null
-    return realTarget
+    return acceptRealTarget(realTarget, await Promise.all(realTargetBases().map(resolveRealBase)))
   } catch {
     return null
   }

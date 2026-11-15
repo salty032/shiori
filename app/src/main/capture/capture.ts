@@ -2,8 +2,7 @@ import { globalShortcut, nativeImage, screen as electronScreen, desktopCapturer,
 import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
-import { randomUUID } from 'crypto'
-import { ensureCaptureSubDir, captureRootReachable } from '../system/paths'
+import { ensureCaptureSubDir, captureRootReachable, captureFileName } from '../system/paths'
 import { captureDisplayGdi } from './gdi-capture'
 import { t } from '../system/i18n'
 import { loadSettings } from '../system/settings'
@@ -317,7 +316,7 @@ function videoAreaLooksBlack(image: NativeImage, display: Display): boolean {
 
 export async function writeCaptureFile(dir: string, data: Buffer, ext = '.png'): Promise<string> {
   for (let i = 0; i < 5; i++) {
-    const filepath = join(dir, `cap_${Date.now()}_${randomUUID()}${ext}`)
+    const filepath = join(dir, captureFileName(Date.now(), ext))
     try {
       await writeFile(filepath, data, { flag: 'wx' })
       return filepath

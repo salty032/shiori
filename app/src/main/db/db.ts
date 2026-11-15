@@ -2,17 +2,18 @@
 // スキーマと起動処理は db-schema.ts、タグは db-tags.ts、フレーム表は db-video-frames.ts。
 import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase } from '../../shared/types'
 import { buildSearchText, normalizeSearchText } from '../../shared/normalize'
+import { urlHost } from '../../shared/url-host'
+import { DEFAULT_IMAGE_LIST_LIMIT, MAX_IMAGE_LIST_LIMIT } from '../../shared/constants'
 import { getDb, prepare } from './db-core'
 import { pruneOrphanTags } from './db-tags'
 
-const MAX_LIST_LIMIT = 200
 // ランダムソートはカーソルページングできず一括返却するため、グリッドでも
 // ライブラリ全体からサンプリングできるよう専用の上限を設ける（タイムラインと揃える）。
 const MAX_RANDOM_LIMIT = 5000
 
 function clampLimit(limit: number): number {
-  if (!Number.isFinite(limit)) return 50
-  return Math.min(MAX_LIST_LIMIT, Math.max(1, Math.trunc(limit)))
+  if (!Number.isFinite(limit)) return DEFAULT_IMAGE_LIST_LIMIT
+  return Math.min(MAX_IMAGE_LIST_LIMIT, Math.max(1, Math.trunc(limit)))
 }
 
 // LIKE のワイルドカード（% _）と '\' をリテラル扱いにする。SQL 側は ESCAPE '\' を付ける。
@@ -103,8 +104,7 @@ type UnlistedColumn = Exclude<keyof ImageRowBase, (typeof PUBLIC_IMAGE_COLUMN_NA
 export const allPublicColumnsListed: [UnlistedColumn] extends [never] ? true : UnlistedColumn = true
 
 export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & { source?: 'capture' | 'import' }): number {
-  let host: string | null = null
-  try { if (params.url) host = new URL(params.url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
+  const host = params.url ? urlHost(params.url) : null
   const source = params.source ?? 'capture'
   const searchText = buildSearchText(params.title, params.memo)
   const stmt = prepare(

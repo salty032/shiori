@@ -1,6 +1,7 @@
 import type { ImageRow, ImageTag, ImageTagSource } from './types'
 import { MAX_BULK_IDS, MAX_TAG_LENGTH } from '../../shared/constants'
 import { normalizeSearchText } from '../../shared/normalize'
+import { urlHost } from '../../shared/url-host'
 
 export { MAX_TAG_LENGTH }
 
@@ -195,12 +196,8 @@ export const SITE_NAME_MAP: Record<string, string> = {
 
 export function siteName(url: string | null): string | null {
   if (!url) return null
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, '')
-    return SITE_NAME_MAP[host] ?? host
-  } catch {
-    return null
-  }
+  const host = urlHost(url)
+  return host == null ? null : SITE_NAME_MAP[host] ?? host
 }
 
 export function formatTime(sec: number | null): string {

@@ -6,8 +6,9 @@ import {
   sanitizeFilename, imageQuery, imageListRequest,
   formatDateForFilename, formatTimecodeForFilename,
   normalizeTagName, optionalText, tagsFilter,
-  MAX_IMAGE_LIMIT, MAX_TAGS_PER_FILTER, MAX_TAG_LOOKUP_LENGTH,
+  MAX_TAGS_PER_FILTER, MAX_TAG_LOOKUP_LENGTH,
 } from './ipc-validation'
+import { MAX_IMAGE_LIST_LIMIT } from '../../shared/constants'
 
 describe('sanitizeFilename', () => {
   it('禁止文字を _ に置換', () => {
@@ -136,8 +137,8 @@ describe('imageListRequest', () => {
     expect(imageListRequest({ limit: -5 }).limit).toBe(1)
   })
 
-  it(`limit: 上限 ${MAX_IMAGE_LIMIT} 超でクランプ`, () => {
-    expect(imageListRequest({ limit: 99999 }).limit).toBe(MAX_IMAGE_LIMIT)
+  it(`limit: 上限 ${MAX_IMAGE_LIST_LIMIT} 超でクランプ`, () => {
+    expect(imageListRequest({ limit: 99999 }).limit).toBe(MAX_IMAGE_LIST_LIMIT)
   })
 
   it('limit: NaN → 既定 50', () => {

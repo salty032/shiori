@@ -2,10 +2,9 @@
 import { clipboard, nativeImage } from 'electron'
 import { stat, copyFile, writeFile, readdir, unlink } from 'fs/promises'
 import { join, basename, extname } from 'path'
-import { randomUUID } from 'crypto'
 import { handleTrusted } from '../system/windows'
 import { getImage } from '../db/db'
-import { ensureCaptureSubDir, thumbPathFor, resolveRealCapturePath } from '../system/paths'
+import { ensureCaptureSubDir, thumbPathFor, resolveRealCapturePath, captureFileName } from '../system/paths'
 import { MAX_TEXT_LENGTH } from './ipc-validation'
 import { isDragTempPath } from './ipc-drag'
 import { createImageThumb } from '../capture/image-thumb'
@@ -27,6 +26,16 @@ const MAX_IMPORT_FILES = 200
 export const MAX_IMPORT_VIDEO_SECONDS = 30
 // 尺の丸め誤差で 30.0x 秒の動画を弾かないための許容幅。
 export const IMPORT_VIDEO_SECONDS_EPS = 0.5
+
+// 取り込む動画の尺を確かめ、受け入れられなければ理由を返す。取り込みと共有の読み込みで
+// 同じ判定・同じ文言にする（片方だけ変えると、同じ動画が経路によって入ったり弾かれたりする）。
+export function importDurationError(duration: number | null, name: string): string | null {
+  if (duration == null) return `duration unknown: ${name}`
+  if (duration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
+    return `too long (${Math.round(duration)}s > ${MAX_IMPORT_VIDEO_SECONDS}s): ${name}`
+  }
+  return null
+}
 
 // nativeImage のデコードと動画プローブは main プロセスで動く。大量取り込み中にもう一度
 // ドロップされても二重に走らせず、DB・ディスク・イベントループへの負荷を重ねない。
@@ -77,8 +86,7 @@ export function registerImportHandlers(): void {
 
     const ts = Date.now()
     const dir = await ensureCaptureSubDir(ts)
-    const uid = randomUUID()
-    const destFile = join(dir, `cap_${ts}_${uid}.png`)
+    const destFile = join(dir, captureFileName(ts, '.png'))
     await writeFile(destFile, img.toPNG())
 
     const thumbFile = thumbPathFor(destFile)
@@ -174,14 +182,10 @@ export function registerImportHandlers(): void {
             importedDuration = meta.duration
             importedFps = meta.fps
           } catch { importedDuration = null }
-          if (importedDuration == null) { errors.push(`duration unknown: ${basename(rawPath)}`); continue }
-          if (importedDuration > MAX_IMPORT_VIDEO_SECONDS + IMPORT_VIDEO_SECONDS_EPS) {
-            errors.push(`too long (${Math.round(importedDuration)}s > ${MAX_IMPORT_VIDEO_SECONDS}s): ${basename(rawPath)}`)
-            continue
-          }
+          const durationError = importDurationError(importedDuration, basename(rawPath))
+          if (durationError) { errors.push(durationError); continue }
         }
 
-        const uid = randomUUID()
         const ts = Date.now()
         // 取得時間は取り込んだ時刻にそろえる。元ファイルの更新日時をそのまま使っていた頃は、
         // 他人からもらった画像が自分のキャプチャと日付順で混ざり、一覧のどこに何が増えたのか
@@ -190,7 +194,7 @@ export function registerImportHandlers(): void {
         const originalCapturedAt = Math.floor(srcStat.mtimeMs) || null
         const capturedAt = ts
         const dir = await ensureCaptureSubDir(capturedAt)
-        const destFile = join(dir, `cap_${ts}_${uid}${ext}`)
+        const destFile = join(dir, captureFileName(ts, ext))
 
         try { await copyFile(rawPath, destFile) } catch { errors.push(`copy failed: ${basename(rawPath)}`); continue }
 

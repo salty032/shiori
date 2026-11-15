@@ -13,3 +13,7 @@ export const MAX_TAG_LENGTH = 64
 export const MAX_TAG_LOOKUP_LENGTH = 100
 
 export const MAX_MEMO_LENGTH = 5000
+
+// 一覧を 1 回に引く件数の上限と、指定が壊れていたときの既定。IPC の検証と DB の両方がこれで切る。
+export const MAX_IMAGE_LIST_LIMIT = 200
+export const DEFAULT_IMAGE_LIST_LIMIT = 50

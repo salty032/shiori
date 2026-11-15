@@ -1,8 +1,8 @@
-import { app } from 'electron'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { captureDir, thumbnailDir } from './paths'
 import { modelDir } from '../capture/tagger'
+import { databasePath } from '../db/db-schema'
 
 // 設定 > データ に出す「今どれだけ溜まっているか」。
 //
@@ -53,7 +53,7 @@ export type StorageUsage = {
 }
 
 export async function collectStorageUsage(): Promise<StorageUsage> {
-  const dbPath = join(app.getPath('userData'), 'Shiori.db')
+  const dbPath = databasePath()
   // WAL モードの SQLite は本体・-wal・-shm の3つで1つの実体。本体だけ見せると
   // 書き込みが多い時期に実際の占有量と食い違う。
   const [captureBytes, thumbnailBytes, modelBytes, db, wal, shm] = await Promise.all([

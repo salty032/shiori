@@ -41,6 +41,7 @@ vi.mock('fs/promises', () => ({
 vi.mock('../db/db', () => ({ getImage: vi.fn(() => null) }))
 
 vi.mock('../system/paths', () => ({
+  captureFileName: (ts: number, ext: string) => `cap_${ts}_${Math.random().toString(36).slice(2)}${ext}`,
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
   thumbPathFor: vi.fn((p: string, ext = '.jpg') => `${p}${ext}`),
   resolveRealCapturePath: vi.fn(async (p: string) => p),

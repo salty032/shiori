@@ -5,6 +5,7 @@ import { createReadStream } from 'fs'
 import { Readable } from 'stream'
 import { getImage } from '../db/db'
 import { resolveRealCapturePath } from './paths'
+import { MEDIA_CONTENT_TYPES } from './media-exts'
 
 // renderer が撮影済みのファイルを読むための独自プロトコル（`capfile://`）。
 //
@@ -23,12 +24,6 @@ export function registerCapfileScheme(): void {
   ])
 }
 
-// 動画(webm)を含む capfile プロトコル。
-const EXT_CONTENT_TYPE: Record<string, string> = {
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp', '.gif': 'image/gif',
-  '.webm': 'video/webm', '.mp4': 'video/mp4'
-}
 
 /** id で指定された撮影済みファイルの実パスを引く。DB に無ければ null。 */
 async function resolveRequestedFile(url: URL): Promise<string | null> {
@@ -81,7 +76,7 @@ export function registerCapfileProtocol(): void {
       return new Response('Not found', { status: 404 })
     }
 
-    const contentType = EXT_CONTENT_TYPE[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
+    const contentType = MEDIA_CONTENT_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
 
     // 動画の <video> シークで Range リクエストが飛んでくるため 206/416 に対応する
     // （画像に対して送られても無害）。

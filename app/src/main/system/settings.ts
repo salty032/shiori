@@ -6,6 +6,7 @@ import { normalizeCaptureHotkey } from '../browser/hotkey'
 import type { SmartFolder, Settings, Lang } from '../../shared/types'
 import { langFromLocale } from '../../shared/i18n'
 import { SETTINGS_DEFAULTS } from '../../shared/settingsDefaults'
+import { isChromeExtensionId } from '../../shared/wire-limits'
 
 export type { SmartFolder, Settings }
 
@@ -142,7 +143,7 @@ function extensionIdList(value: unknown): string[] {
   return value
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim().toLowerCase())
-    .filter((item) => /^[a-p]{32}$/.test(item))
+    .filter(isChromeExtensionId)
     .slice(0, MAX_STRINGS)
 }
 
@@ -353,7 +354,7 @@ async function persistToDisk(data: Settings): Promise<void> {
     } catch (err) {
       await unlink(tmp).catch(() => {})
       const code = (err as NodeJS.ErrnoException).code
-      const transient = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES'
+      const transient = code != null && TRANSIENT_CODES.has(code)
       if (!transient) {
         // 空き容量不足（ENOSPC）など、待っても直らない失敗。**本体へ直接は書かない**——
         // 直接書きは本体を先に空にしてから書くので、同じ理由で途中で失敗すると settings.json が

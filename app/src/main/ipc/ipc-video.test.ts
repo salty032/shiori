@@ -54,6 +54,7 @@ vi.mock('../db/db-video-frames', async (importOriginal) => {
 })
 
 vi.mock('../system/paths', () => ({
+  captureFileName: (ts: number, ext: string) => `cap_${ts}_${Math.random().toString(36).slice(2)}${ext}`,
   resolveRealCapturePath: vi.fn(async (p: string) => p),
   ensureCaptureSubDir: vi.fn(async () => '/mock/captures'),
   thumbPathFor: vi.fn((p: string) => `${p}.thumb.png`)
