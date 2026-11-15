@@ -14,7 +14,7 @@ import { captureHotkeyMainKey } from './hotkey'
 import { setLastTimecode, markFocusedTimecodeNow, getLastFocusedTimecodeAt, setLastExtensionVersion } from './timecode'
 import { setBrowserWindowPos, setVideoRect, setBrowserFullscreen, shouldSuppressBrowserTargetUpdate } from '../capture/capture'
 import { sendToRenderer } from '../system/windows'
-import { compareVersions } from '../system/version'
+import { compareVersions } from '../../shared/version'
 import { CH } from '../../shared/api'
 import { t } from '../system/i18n'
 

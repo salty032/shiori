@@ -1,4 +1,5 @@
 import type { Lang } from './types'
+import { compareVersions } from './version'
 
 // バージョンごとの「変更点お知らせ」文面。リリースのたびに手動で1エントリ追記する。
 // キーは package.json の version と一致させること。
@@ -330,15 +331,6 @@ export function allReleaseNotes(lang: Lang): ReleaseNoteEntry[] {
   return Object.entries(RELEASE_NOTES)
     .map(([version, byLang]) => ({ version, notes: byLang[lang] ?? [] }))
     .filter((e) => e.notes.length > 0)
-    .sort((a, b) => compareVersionDesc(a.version, b.version))
+    .sort((a, b) => compareVersions(b.version, a.version))
 }
 
-function compareVersionDesc(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pb[i] ?? 0) - (pa[i] ?? 0)
-    if (d !== 0) return d
-  }
-  return 0
-}

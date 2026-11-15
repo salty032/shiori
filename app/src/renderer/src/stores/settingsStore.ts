@@ -6,8 +6,8 @@ import { SETTINGS_DEFAULTS } from '../../../shared/settingsDefaults'
 // 循環になる（今は t() が遅延評価なので動いているだけで、初期化順に依存している）。
 // 表示言語はこのストア自身が持っているので、渡してしまえば循環は要らない。
 import { translate } from '../../../shared/i18n'
+import type { ShowToast } from '../hooks/useToast'
 
-type ShowToast = (message: string, tone?: 'info' | 'success' | 'warning' | 'error', ms?: number) => void
 
 type SettingsStoreState = {
   settings: Settings

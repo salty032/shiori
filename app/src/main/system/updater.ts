@@ -6,7 +6,7 @@ import { readdirSync, rmSync } from 'fs'
 import { CH } from '../../shared/api'
 import { setQuitting } from './windows'
 import { flushSettings } from './settings'
-import { compareVersions } from './version'
+import { compareVersions } from '../../shared/version'
 
 // electron-updater は DL したインストーラを %LOCALAPPDATA%\<appName>-updater\pending に置くが、
 // 適用後に自分で消してはくれない。100MB 級の .exe が居座り続けるので起動時に掃除する。

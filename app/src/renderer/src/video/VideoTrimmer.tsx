@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { color, control, font, radius, space, weight } from '../styles'
-import { cleanTitle, mediaUrl } from '../utils'
+import { cleanTitle, isEditingTarget, mediaUrl } from '../utils'
 import { FRAME_EPS, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
@@ -455,9 +455,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     //
     // Space はフォーカスの残ったボタンをブラウザが押し直すが、下の preventDefault が
     // それも同時に止めるので、二重に効くことはない（ビューアが元からこの形）。
-    const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
-      || (e.target instanceof HTMLElement && e.target.isContentEditable)
-    if (typing) return
+    if (isEditingTarget(e.target)) return
     if (e.key === ',' || e.key === '.') {
       e.preventDefault()
       stepPlayhead(e.key === '.' ? 1 : -1)

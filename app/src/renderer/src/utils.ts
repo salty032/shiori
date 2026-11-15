@@ -226,7 +226,7 @@ export function thumbSrc(img: ImageRow): string {
 // タイムラインの実描画(TimelineView.tsx)が同じ式をそれぞれ持っていると、
 // gap の値がどこか一箇所だけズレたときに「見た目の列数とナビゲーションの列数が
 // 静かに食い違う」バグを生みやすいため、ここに一本化する。
-export type GridLayout = { columns: number; cellWidth: number; cellHeight: number }
+export type GridCellLayout = { columns: number; cellWidth: number; cellHeight: number }
 // **高さは整数に丸める。幅は丸めない。**
 // 幅は「画面幅を列数で割り切る」値なので端数が出る（例 233.43px）。そのまま 9/16 を掛けると
 // 行の高さも小数になり、仮想リストが行を index × 行高 の位置へ置くので、1 行ぶん送るたびに
@@ -235,7 +235,7 @@ export type GridLayout = { columns: number; cellWidth: number; cellHeight: numbe
 // 縦だけ整数にすれば送り幅が毎回同じになる。幅は横方向にしか効かないので丸めない
 //（丸めると列の合計が画面幅に届かず、右端に半端な余りが残る）。
 // 代償：セルの縦横比が厳密な 16:9 から最大 0.5px ずれる。絵は cover で敷いているので見えない。
-export function computeGridLayout(containerWidth: number, minCellWidth: number, gap: number): GridLayout {
+export function computeGridLayout(containerWidth: number, minCellWidth: number, gap: number): GridCellLayout {
   if (containerWidth <= 0) return { columns: 1, cellWidth: minCellWidth, cellHeight: Math.round(minCellWidth * 9 / 16) }
   const columns = Math.max(1, Math.floor((containerWidth + gap) / (minCellWidth + gap)))
   const cellWidth = (containerWidth - gap * (columns - 1)) / columns

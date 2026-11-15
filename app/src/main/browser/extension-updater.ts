@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs'
-import { compareVersions } from '../system/version'
+import { compareVersions } from '../../shared/version'
 
 export function bundledExtPath(): string {
   return app.isPackaged
