@@ -20,33 +20,29 @@ vi.mock('../system/windows', () => ({
 const listImagesForExportMock = vi.fn(() => [] as Record<string, unknown>[])
 const getVideoFramesMock = vi.fn((_id: number) => null as { mediaTime: number; frameIndex: number; captured: boolean; verified?: string }[] | null)
 const restoreVideoFramesMock = vi.fn()
-const encodeFramesMock = vi.fn((frames: { mediaTime: number; frameIndex: number; captured: boolean; verified?: string }[]) =>
-  JSON.stringify(frames.map((f) => [f.mediaTime, f.frameIndex, f.captured ? 1 : 0, f.verified === 'changed' ? 2 : f.verified === 'same' ? 1 : 0])))
-const decodeFramesMock = vi.fn((data: string) => {
-  try {
-    const rows = JSON.parse(data) as [number, number, number, number][]
-    if (!Array.isArray(rows) || rows.length === 0) return null
-    return rows.map(([mediaTime, frameIndex, captured, verified]) => ({
-      mediaTime,
-      frameIndex,
-      captured: captured === 1,
-      verified: verified === 2 ? 'changed' : verified === 1 ? 'same' : 'unknown',
-    }))
-  } catch {
-    return null
-  }
-})
+// コマ表の符号化は本物を通す（手写しのモックは本物の形から外れても気づけない）。
+const encodeFramesMock = vi.fn()
+const decodeFramesMock = vi.fn()
 
 vi.mock('../db/db', () => ({
   listImagesForExport: () => listImagesForExportMock(),
 }))
 
-vi.mock('../db/db-video-frames', () => ({
-  getVideoFrames: (id: number) => getVideoFramesMock(id),
-  restoreVideoFrames: (...args: unknown[]) => restoreVideoFramesMock(...args),
-  encodeFrames: (frames: Parameters<typeof encodeFramesMock>[0]) => encodeFramesMock(frames),
-  decodeFrames: (data: string) => decodeFramesMock(data),
-}))
+vi.mock('../db/db-video-frames', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../db/db-video-frames')>()
+  return {
+    getVideoFrames: (id: number) => getVideoFramesMock(id),
+    restoreVideoFrames: (...args: unknown[]) => restoreVideoFramesMock(...args),
+    encodeFrames: (frames: Parameters<typeof actual.encodeFrames>[0]) => {
+      encodeFramesMock(frames)
+      return actual.encodeFrames(frames)
+    },
+    decodeFrames: (data: string) => {
+      decodeFramesMock(data)
+      return actual.decodeFrames(data)
+    },
+  }
+})
 
 vi.mock('../system/settings', () => ({
   // i18n の t()（ダイアログ文言など）が loadSettings().language を読むため言語を明示する。
@@ -111,6 +107,7 @@ let metadataContent = ''
 let frameTableContent = ''
 
 import { registerShareHandlers } from './ipc-share'
+import { decodeFrames } from '../db/db-video-frames'
 
 const extractThumbMock = vi.fn(async (_videoPath: string, _thumbPath: string) => {})
 const getVideoMetaMock = vi.fn(async (_videoPath: string): Promise<{ duration: number | null; fps: number | null }> => ({ duration: null, fps: null }))
@@ -279,7 +276,11 @@ describe('share:export - v2研究用メタデータ', () => {
     })
     expect(entry.frame_table_file).toBe('clip.webm.frames.json')
     const frameWrite = writeFileMock.mock.calls.find((call) => String(call[0]).endsWith('.frames.json'))
-    expect(frameWrite?.[1]).toBe(JSON.stringify([[0, 0, 1, 0], [1 / 24, 0, 0, 2]]))
+    // 読み戻すと元の表になること（符号化の形そのものは db-video-frames のテストが見る）。
+    expect(decodeFrames(String(frameWrite?.[1]))).toEqual([
+      { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
+      { mediaTime: 1 / 24, frameIndex: 0, captured: false, verified: 'changed' },
+    ])
   })
 })
 

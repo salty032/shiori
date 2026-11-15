@@ -10,7 +10,7 @@ import { loadSettings, saveSettings, smartFolders } from '../system/settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor } from '../system/paths'
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../../shared/api'
-import { MAX_SHARE_FRAME_TABLE_BYTES, parseShareEntry } from './share-entry'
+import { MAX_SHARE_FRAME_TABLE_BYTES, buildShareEntry, parseShareEntry } from './share-entry'
 import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { MAX_IMPORT_VIDEO_SECONDS, IMPORT_VIDEO_SECONDS_EPS } from './ipc-import'
 import { registerCapturedMedia } from '../capture/captured-media'
@@ -106,30 +106,7 @@ export function registerShareHandlers(): void {
             frameTableFile = null
           }
         }
-        return JSON.stringify({
-          version: 2,
-          file: filename,
-          ...(thumbFilename ? { thumb: thumbFilename } : {}),
-          url: item.url,
-          current_time: item.current_time,
-          title: item.title,
-          tags: item.manualTags,
-          memo: item.memo,
-          // 書き出すのは自分で撮った素材だけ（listImagesForExport が source='capture' に絞る）
-          // なので、ここの captured_at は常に自分が撮った時刻。取り込んだ素材の
-          // original_captured_at がここへ回ることは無い。
-          captured_at: item.captured_at,
-          ...(item.width != null ? { width: item.width } : {}),
-          ...(item.height != null ? { height: item.height } : {}),
-          ...(item.media_type === 'video' ? {
-            media_type: 'video',
-            duration: item.duration,
-            fps: item.fps,
-            ...(frameTableFile ? { frame_table_file: frameTableFile } : {}),
-            ambiguous_frames: item.ambiguous_frames ?? null,
-            unreported_frames: item.unreported_frames ?? null,
-          } : {}),
-        })
+        return JSON.stringify(buildShareEntry(item, { file: filename, thumb: thumbFilename, frameTable: frameTableFile }))
       }
       const lines: string[] = []
       let count = 0

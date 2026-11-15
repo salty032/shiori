@@ -2,7 +2,7 @@ import { vi, describe, expect, it } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { parseShareEntry, isValidCapturedAt } from './share-entry'
+import { buildShareEntry, parseShareEntry, isValidCapturedAt } from './share-entry'
 import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
 
 const NOW = 1700000000000
@@ -55,13 +55,37 @@ describe('parseShareEntry', () => {
     }
   })
 
-  it('動画エントリの duration は正の有限値のみ受け付ける', () => {
-    const ok = parseShareEntry(JSON.stringify({ file: 'a.webm', duration: 12.5 }), NOW)
-    expect((ok as { duration: number | null }).duration).toBe(12.5)
-    const bad = parseShareEntry(JSON.stringify({ file: 'a.webm', duration: -1 }), NOW)
-    expect((bad as { duration: number | null }).duration).toBeNull()
-    const missing = parseShareEntry(JSON.stringify({ file: 'a.webm' }), NOW)
-    expect((missing as { duration: number | null }).duration).toBeNull()
+  // 書く側と読む側は同じ型（ShareEntry）を使う。読む側の項目を足して書く側を忘れると、ここが落ちる。
+  it('書き出した行をそのまま読める（書く側と読む側の往復）', () => {
+    const item = {
+      url: 'https://example.com/watch', current_time: 12.5, title: 'title', memo: 'memo',
+      captured_at: 1_700_000_000_000, width: 1280, height: 720, media_type: 'video' as const,
+      duration: 10, fps: 23.976, ambiguous_frames: 3, unreported_frames: 1, manualTags: ['tag_a']
+    }
+    const line = JSON.stringify(buildShareEntry(item, { file: 'clip.webm', thumb: 'clip.png', frameTable: 'clip.webm.frames.json' }))
+    expect(parseShareEntry(line, NOW)).toEqual({
+      file: 'clip.webm', ext: '.webm', thumbFile: 'clip.png', thumbExt: '.png',
+      capturedAt: NOW, originalCapturedAt: item.captured_at,
+      title: 'title', currentTime: 12.5, url: 'https://example.com/watch', tags: ['tag_a'], memo: 'memo',
+      mediaType: 'video', fps: 23.976, width: 1280, height: 720,
+      frameTableData: null, frameTableFile: 'clip.webm.frames.json', ambiguousFrames: 3
+    })
+  })
+
+  it('画像の行も往復できる（動画だけの項目は付かない）', () => {
+    const item = {
+      url: null, current_time: null, title: null, memo: null, captured_at: 1_700_000_000_000,
+      width: null, height: null, media_type: 'image' as const, duration: null, fps: null,
+      ambiguous_frames: null, unreported_frames: null, manualTags: []
+    }
+    const line = JSON.stringify(buildShareEntry(item, { file: 'a.png', thumb: null, frameTable: null }))
+    expect(parseShareEntry(line, NOW)).toEqual({
+      file: 'a.png', ext: '.png', thumbFile: null, thumbExt: null,
+      capturedAt: NOW, originalCapturedAt: item.captured_at,
+      title: null, currentTime: null, url: null, tags: [], memo: null,
+      mediaType: 'image', fps: null, width: null, height: null,
+      frameTableData: null, frameTableFile: null, ambiguousFrames: null
+    })
   })
 
   it('動画エントリの fps は正の有限値かつ現実的な上限内のみ受け付ける（手編集の不正値は落とす）', () => {
@@ -99,7 +123,6 @@ describe('parseShareEntry', () => {
       frameTableData: '[[0,0,1,0]]',
       frameTableFile: 'clip.webm.frames.json',
       ambiguousFrames: 0,
-      unreportedFrames: 2,
     })
 
     const bad = parseShareEntry(JSON.stringify({
@@ -118,7 +141,6 @@ describe('parseShareEntry', () => {
       frameTableData: null,
       frameTableFile: null,
       ambiguousFrames: null,
-      unreportedFrames: null,
     })
   })
 
@@ -134,7 +156,6 @@ describe('parseShareEntry', () => {
       frameTableData: null,
       frameTableFile: null,
       ambiguousFrames: null,
-      unreportedFrames: null,
     })
   })
 

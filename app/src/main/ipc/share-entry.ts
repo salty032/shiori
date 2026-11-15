@@ -7,6 +7,7 @@ import { basename, extname } from 'path'
 import { MAX_TAG_LENGTH, MAX_TEXT_LENGTH, normalizeTagName } from './ipc-validation'
 import { MAX_MEMO_LENGTH } from '../../shared/constants'
 import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
+import type { ImageRow } from '../../shared/types'
 
 
 // 取り込んだ素材の captured_at は取り込み時刻にそろえ、metadata.jsonl の値は
@@ -22,25 +23,62 @@ export function isValidCapturedAt(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < MAX_REASONABLE_CAPTURED_AT
 }
 
-interface RawShareEntry {
-  version?: number
-  file?: unknown
-  thumb?: unknown
-  url?: unknown
-  current_time?: unknown
-  title?: unknown
-  tags?: unknown
-  memo?: unknown
-  captured_at?: unknown
-  media_type?: unknown
-  duration?: unknown
-  fps?: unknown
-  width?: unknown
-  height?: unknown
-  frame_table?: unknown
-  frame_table_file?: unknown
-  ambiguous_frames?: unknown
-  unreported_frames?: unknown
+// metadata.jsonl の 1 行の形。**書く側（buildShareEntry）と読む側（parseShareEntry）はこの型 1 つを使う。**
+// 別々に持つと、片方だけ項目を変えても verify が通ったまま取り込みで黙って落ちる。
+export interface ShareEntry {
+  version: 2
+  file: string
+  thumb?: string
+  url: string | null
+  current_time: number | null
+  title: string | null
+  tags: string[]
+  memo: string | null
+  captured_at: number
+  width?: number
+  height?: number
+  media_type?: 'video'
+  // 取り込み側は使わない（尺は実体から測り直す。手編集で 30 秒上限を抜けられないように）。
+  duration?: number | null
+  fps?: number | null
+  frame_table_file?: string
+  ambiguous_frames?: number | null
+  // 取り込み側は使わない（抜けは受け取った表から数え直す。restoredFrameCounts）。
+  unreported_frames?: number | null
+}
+
+// 読む側はどの項目も壊れている前提で受ける。frame_table は古い版がコマ表を行の中に入れていた頃の項目。
+type RawShareEntry = { [K in keyof ShareEntry]?: unknown } & { frame_table?: unknown }
+
+// 書き出しは自分で撮った素材だけ（listImagesForExport が source='capture' に絞る）なので、
+// captured_at は常に自分が撮った時刻。取り込んだ素材の original_captured_at がここへ回ることは無い。
+export function buildShareEntry(
+  item: Pick<ImageRow,
+    'url' | 'current_time' | 'title' | 'memo' | 'captured_at' | 'width' | 'height' |
+    'media_type' | 'duration' | 'fps' | 'ambiguous_frames' | 'unreported_frames'> & { manualTags: string[] },
+  files: { file: string; thumb: string | null; frameTable: string | null }
+): ShareEntry {
+  return {
+    version: 2,
+    file: files.file,
+    ...(files.thumb ? { thumb: files.thumb } : {}),
+    url: item.url,
+    current_time: item.current_time,
+    title: item.title,
+    tags: item.manualTags,
+    memo: item.memo,
+    captured_at: item.captured_at,
+    ...(item.width != null ? { width: item.width } : {}),
+    ...(item.height != null ? { height: item.height } : {}),
+    ...(item.media_type === 'video' ? {
+      media_type: 'video' as const,
+      duration: item.duration,
+      fps: item.fps,
+      ...(files.frameTable ? { frame_table_file: files.frameTable } : {}),
+      ambiguous_frames: item.ambiguous_frames ?? null,
+      unreported_frames: item.unreported_frames ?? null,
+    } : {}),
+  }
 }
 
 // fps は表示用の付随情報であり、duration のような著作権対策の判定には使わない。
@@ -80,7 +118,6 @@ interface ParsedShareEntry {
   tags: string[]
   memo: string | null
   mediaType: 'image' | 'video'
-  duration: number | null
   fps: number | null
   width: number | null
   height: number | null
@@ -88,7 +125,6 @@ interface ParsedShareEntry {
   frameTableData: string | null
   frameTableFile: string | null
   ambiguousFrames: number | null
-  unreportedFrames: number | null
 }
 
 // 戻り値: 成功時は ParsedShareEntry、検証エラー時は { error }、file フィールドが
@@ -149,9 +185,6 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     tags,
     memo: typeof entry.memo === 'string' ? entry.memo.slice(0, MAX_MEMO_LENGTH) || null : null,
     mediaType: isVideo ? 'video' : 'image',
-    duration: isVideo && typeof entry.duration === 'number' && Number.isFinite(entry.duration) && entry.duration > 0
-      ? entry.duration
-      : null,
     fps: isVideo && typeof entry.fps === 'number' && Number.isFinite(entry.fps) && entry.fps > 0 && entry.fps <= MAX_REASONABLE_FPS
       ? entry.fps
       : null,
@@ -166,6 +199,5 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
       ? entry.frame_table_file
       : null,
     ambiguousFrames: isVideo ? optionalNonNegativeInteger(entry.ambiguous_frames) : null,
-    unreportedFrames: isVideo ? optionalNonNegativeInteger(entry.unreported_frames) : null,
   }
 }
