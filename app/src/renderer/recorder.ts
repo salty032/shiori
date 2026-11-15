@@ -44,6 +44,8 @@ let recordingToken = 0
 // recordingToken とは別の値空間（main 側のセッション識別用）なので、reportError/sendDone に
 // 載せて送り返す用に直近の値を保持しておく。
 let currentSessionId = 0
+// このウィンドウで済ませた準備の回数（診断用。CaptureDiag.priorPrepares）。
+let prepareCount = 0
 
 // frameTimer/stopTimer/rVfcRunning はモジュール変数だが、常に「最新の recordingToken を
 // 持つセッション」だけが所有する。呼び出し元セッションの token が現在の recordingToken と
@@ -300,6 +302,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   if (recorder && recorder.state !== 'inactive') return
   const token = ++recordingToken
   currentSessionId = sessionId
+  const priorPrepares = prepareCount++
 
   let stream: MediaStream
   let audioFailed = false
@@ -552,18 +555,33 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   let recorderFailed = false
   // 尺は供給を止めた時点まで。閉じるまでの待ち（STOP_FLUSH_MS）を含めると、ファイルの絵より長くなる。
   let supplyStoppedAt: number | null = null
+  // 記録の開始と停止の時刻（診断専用。録画そのものには影響しない。CaptureDiag の注記参照）。
+  let recStartCalledAt: number | null = null
+  let sinkOpenedAt: number | null = null
+  let recStartedAt: number | null = null
+  let firstChunkAt: number | null = null
+  let recStopCalledAt: number | null = null
+  const stopRecorder = (): void => {
+    recStopCalledAt ??= Date.now()
+    rec.stop()
+  }
   const finishAfterFlush = (): void => {
     supplyStoppedAt ??= Date.now()
     // 音声は待たずにここで止める。待つあいだも録り続けると、止めた後の音がファイルに入り、
     // 供給を止めた時点で測った尺より音声がはみ出す。映像は requestFrame しない限り増えないので、
     // 両方ともこの時点で終わり、待つのはエンコード待ちの絵の書き出しだけになる。
     audioTracks.forEach((t) => t.stop())
-    setTimeout(() => { if (rec.state === 'recording') rec.stop() }, STOP_FLUSH_MS)
+    setTimeout(() => { if (rec.state === 'recording') stopRecorder() }, STOP_FLUSH_MS)
   }
   finishRecorder = finishAfterFlush
 
+  rec.onstart = () => { recStartedAt ??= Date.now() }
+
   rec.ondataavailable = (e) => {
-    if (e.data.size > 0) localChunks.push(e.data)
+    if (e.data.size > 0) {
+      firstChunkAt ??= Date.now()
+      localChunks.push(e.data)
+    }
   }
 
   rec.onerror = (event) => {
@@ -572,12 +590,13 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     window.recorderApi.reportError('media_recorder_error', sessionId)
     if (rec.state === 'recording') {
       stopFrameSupply(token)
-      rec.stop()
+      stopRecorder()
     }
   }
 
   rec.onstop = async () => {
-    const duration = ((supplyStoppedAt ?? Date.now()) - sessionStartedAt) / 1000
+    const recStoppedAt = Date.now()
+    const duration = ((supplyStoppedAt ?? recStoppedAt) - sessionStartedAt) / 1000
     cleanup(stream, cs, token)
     // resetState はモジュール変数（recorder/mediaStream/canvasStream）を消す。
     // 既に次のセッションが始まっていて recorder が入れ替わっていたら、
@@ -625,7 +644,17 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
         streamWidth: video.videoWidth || null,
         streamHeight: video.videoHeight || null,
         cropWidth: crop.w,
-        cropHeight: crop.h
+        cropHeight: crop.h,
+        recStartCalledAt,
+        sinkOpenedAt,
+        recStartedAt,
+        firstChunkAt,
+        supplyStoppedAt,
+        recStopCalledAt,
+        recStoppedAt,
+        chunkCount: localChunks.length,
+        priorPrepares,
+        mimeType
       })
     } catch (err) {
       console.error('[recorder] finalize failed', err)
@@ -634,6 +663,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   }
 
   try {
+    recStartCalledAt = Date.now()
     rec.start(100)
   } catch (err) {
     console.error('[recorder] start failed', err)
@@ -647,6 +677,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   // （frame-sink.ts）。ファイルの 1 枚目は、rec.start() の時点でキャンバスに描いてあった絵
   // ——requestFrame していなくても MediaRecorder が書く。open() がそれを 1 枚目として数える。
   sink.open()
+  sinkOpenedAt = Date.now()
   // 供給の実測は録画そのものについて出す。準備中のぶんを混ぜると、立ち上がりの荒れが
   // 録画の診断に化けて「供給が足りていない」と読めてしまう。
   callbacks = 0

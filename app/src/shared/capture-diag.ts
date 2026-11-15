@@ -69,4 +69,37 @@ export interface CaptureDiag {
   /** 実際に記録した画素数（クロップ後）。画質を語るときの母数（logBitrateDiag 参照） */
   cropWidth: number | null
   cropHeight: number | null
+  /**
+   * 記録（MediaRecorder）の開始と停止の時刻（epoch ミリ秒。取れなければ null）。
+   *
+   * **数えた枚数とファイルの枚数が合わない録画の原因を、1 本で追うため。** 2026-10-31〜11-07 に
+   * 6 本出たが（先頭で 33 枚・1 枚、途中で 10〜23 枚）、どこで落ちたかを確かめる材料がどこにも
+   * 残っていなかった。drawnAt（供給した各フレームの時刻）と並べると、「記録が実際に始まる前に
+   * 数えた枚数」「最初のデータが出る前に数えた枚数」がそのまま出る。
+   *
+   *   recStartCalledAt … start() を呼んだ時刻
+   *   sinkOpenedAt     … 数え始めた時刻（frame-sink.ts の open）
+   *   recStartedAt     … start イベントが来た時刻
+   *   firstChunkAt     … 最初のデータ（中身のある dataavailable）が来た時刻
+   *   supplyStoppedAt  … 供給を止めた時刻
+   *   recStopCalledAt  … stop() を呼んだ時刻
+   *   recStoppedAt     … stop イベントが来た時刻
+   */
+  recStartCalledAt: number | null
+  sinkOpenedAt: number | null
+  recStartedAt: number | null
+  firstChunkAt: number | null
+  supplyStoppedAt: number | null
+  recStopCalledAt: number | null
+  recStoppedAt: number | null
+  /** 中身のある dataavailable の回数（100ms ごとに 1 回のはず。取れなければ null） */
+  chunkCount: number | null
+  /**
+   * このレコーダーウィンドウで、この録画より前に済ませた準備の回数（0 ＝作りたてのウィンドウでの 1 本目）。
+   * 「閉じたらメモリを空ける」設定では録画のたびに作り直すので毎回 0 になる。先頭の欠落が
+   * 作りたてのときにだけ起きるのかを見分けるため。
+   */
+  priorPrepares: number | null
+  /** 実際に使った記録の形式（例 video/webm;codecs=vp9,opus。取れなければ null） */
+  mimeType: string | null
 }

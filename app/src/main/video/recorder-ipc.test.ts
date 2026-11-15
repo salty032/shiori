@@ -3,6 +3,8 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 vi.mock('electron', () => ({
+  // 診断に添える版（保存経路には関与しない）。
+  app: { getVersion: () => '0.0.0-test', getPath: () => '/mock/userData' },
   ipcMain: {
     on: (channel: string, listener: (...args: unknown[]) => unknown) => {
       handlers.set(channel, listener)

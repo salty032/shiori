@@ -1,12 +1,13 @@
 // レコーダーウィンドウ専用 IPC（recorder:* の合図の受け口。準備・開始・停止・失敗・保存）。
 // recorder:* は ShioriApi の CH 定数の対象外（別契約・別検証方式。preload/recorder.ts 参照）。
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import { unlink } from 'fs/promises'
 import { computeVideoCrop, writeCaptureFile } from '../capture/capture'
 import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { loadSettings } from '../system/settings'
 import { beginTask, endTask } from '../system/busy'
 import { sendBrowserNotice, sendFailureNotice } from '../browser/browser-notice'
+import { getLastExtensionVersion } from '../browser/timecode'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
 import { verifyClipFrames } from './verify-clip'
@@ -49,6 +50,15 @@ const MAX_FRAME_RATE_FOR_VALIDATION = 240
 function recordedStartTime(frameTable: { matches: { mediaTime: number }[] } | null): number | null {
   const first = frameTable?.matches[0]?.mediaTime
   return typeof first === 'number' && Number.isFinite(first) && first >= 0 ? first : null
+}
+
+// 診断に添えるのは配信サービスのホスト名だけ（作品名の入りうる URL は残さない）。
+function hostOf(url: string | null | undefined): string | null {
+  try {
+    return url ? new URL(url).hostname : null
+  } catch {
+    return null
+  }
 }
 
 function formatClipDuration(seconds: number): string {
@@ -275,7 +285,19 @@ export function registerRecorderIpc(): void {
           // 全コマが黙って別の絵を指す）。以前は撮り逃しがあるときだけ呼んでいたが、
           // それだと「最も精度が良く見えるクリップ」ほど照合されないことになる。
           // 待たずに投げっぱなしにする — 保存の完了通知を遅らせないため。
-          verified = verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceFrames)
+          verified = verifyClipFrames(result.id, webmPath, frameTable.matches, drawnAt, sourceFrames, {
+            appVersion: app.getVersion(),
+            extensionVersion: getLastExtensionVersion(),
+            lowMemoryMode: loadSettings().lowMemoryMode === true,
+            sessionId,
+            durationSec: duration,
+            sourceFps,
+            captureFps: meta?.captureFps ?? null,
+            displayHz: meta?.displayHz ?? null,
+            host: hostOf(meta?.url),
+            capture: parsedDiag,
+            startDoubts
+          })
         } catch (err) {
           console.error('[clip] saveVideoFrames failed', err)
         }

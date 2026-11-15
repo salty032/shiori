@@ -25,6 +25,17 @@ export function setLastTimecode(tc: Timecode): void {
   lastTimecodeAt = Date.now()
 }
 
+// 拡張が最後に名乗った版。録画の診断に添える（どの版の拡張で撮ったかを後から確かめるため）。
+let lastExtensionVersion: string | null = null
+
+export function getLastExtensionVersion(): string | null {
+  return lastExtensionVersion
+}
+
+export function setLastExtensionVersion(version: string): void {
+  lastExtensionVersion = version
+}
+
 export function getLastFocusedTimecodeAt(): number {
   return lastFocusedTimecodeAt
 }

@@ -24,7 +24,7 @@ import { alignWholeRecording } from './frame-align'
 import { isRecordingInProgress } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH, type FramesVerified } from '../../shared/api'
-import { writeCorrespondenceDiagnostic } from './frame-correspondence-diag'
+import { writeCorrespondenceDiagnostic, type DiagContext } from './frame-correspondence-diag'
 
 // 検証で確定した枚数を画面へ反映させる。
 //
@@ -72,16 +72,20 @@ export async function verifyClipFrames(
   videoPath: string,
   table: StoredFrame[],
   drawnAt: number[] | null,
-  source: SourceFrame[] = []
+  source: SourceFrame[] = [],
+  // 録画したときの状況（診断ファイルに添えるだけ。照合には使わない）。
+  diagContext: DiagContext | null = null
 ): Promise<number | null> {
   try {
     const { signatures, pts } = await getFrameSignatures(videoPath)
     if (drawnAt !== null) {
       await writeCorrespondenceDiagnostic(
         imageId, drawnAt, pts, table, source.map((f) => ({
-          mediaTime: f.mediaTime, displayAt: f.displayAt, presentedAt: f.presentedAt ?? null, calledAt: f.calledAt ?? null,
+          mediaTime: f.mediaTime, displayAt: f.displayAt, presentedFrames: f.presentedFrames ?? null,
+          presentedAt: f.presentedAt ?? null, calledAt: f.calledAt ?? null,
           thumb: f.thumb ?? null
-        }))
+        })),
+        videoPath, diagContext
       )
     }
     if (signatures.length === 0) {

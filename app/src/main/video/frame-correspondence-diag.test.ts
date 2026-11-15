@@ -3,7 +3,9 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
-import { diagnoseCorrespondence, writeCorrespondenceDiagnostic } from './frame-correspondence-diag'
+import {
+  diagnoseCorrespondence, locateLostFrames, writeCorrespondenceDiagnostic, type DiagContext
+} from './frame-correspondence-diag'
 
 const drawn = Array.from({ length: 200 }, (_, i) => i * 20)
 const pts = drawn.map((t) => t / 1000)
@@ -71,6 +73,112 @@ describe('experimental correspondence hypotheses', () => {
     expect(diagnoseCorrespondence([0, NaN], [0]).status).toBe('invalid')
     expect(diagnoseCorrespondence(drawn, pts).status).toBe('not-short')
     expect(() => diagnoseCorrespondence(Object.freeze(drawn.slice()), Object.freeze(pts.slice(0, -1)))).not.toThrow()
+  })
+})
+
+// 供給の間隔は実録画と同じく毎回揺れる（13〜27ms）。ファイルの時刻は WebM と同じく 1ms 刻み。
+function unevenSupply(count: number): number[] {
+  let seed = 12345
+  let t = 1_700_000_000_000
+  return Array.from({ length: count }, () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    t += 13 + (seed % 1400) / 100
+    return t
+  })
+}
+// 供給のうち keep に残った分だけがファイルに入ったとして、ファイル側の時刻（秒・先頭が 0）を作る。
+function fileOf(supply: number[], lostAt: number[]): number[] {
+  const kept = supply.filter((_, i) => !lostAt.includes(i))
+  return kept.map((t) => Math.round(t - kept[0]) / 1000)
+}
+
+describe('locateLostFrames（どこで何枚落ちたかを間隔から出す）', () => {
+  const supply = unevenSupply(300)
+
+  it('先頭・途中・末尾の欠落を、枚数と位置まで分ける', () => {
+    // 先頭 3 枚、供給の 60 枚目、150〜151 枚目、末尾 2 枚が落ちた録画。
+    const lost = locateLostFrames(supply, fileOf(supply, [0, 1, 2, 60, 150, 151, 298, 299]))
+    expect(lost).toMatchObject({
+      head: 3, tail: 2,
+      // ファイル側の添字：60 − 先頭 3 ＝ 57、150 − 先頭 3 − 途中 1 ＝ 146
+      interior: [{ before: 57, count: 1 }, { before: 146, count: 2 }]
+    })
+    expect(lost!.meanErrorMs).toBeLessThan(1)
+    expect(lost!.tailOnlyMeanErrorMs).toBeGreaterThan(lost!.meanErrorMs * 3)
+  })
+
+  // 累積のずれ（段差）を見る方法では、これが「80 枚目で 1 枚落ちた」と区別できなかった
+  // （上の 'records the unresolved timestamp-only counterexample'）。間隔の並びは末尾まで
+  // ずれずに合っているので、途中の欠落にはしない。
+  it('時刻だけが途中からずれた録画の末尾欠落を、途中の欠落と取り違えない', () => {
+    const file = fileOf(supply, [299]).map((t, i) => (i >= 80 ? t + 0.02 : t))
+    expect(locateLostFrames(supply, file)).toMatchObject({ head: 0, tail: 1, interior: [] })
+  })
+
+  it('供給が等間隔で区別できないときは末尾に寄せ、区別できていないことが数字から読める', () => {
+    const lost = locateLostFrames(drawn, pts.slice(0, -2))
+    expect(lost).toMatchObject({ head: 0, tail: 2, interior: [] })
+    expect(lost!.meanErrorMs).toBe(lost!.tailOnlyMeanErrorMs)
+  })
+
+  it('足りなくない録画・壊れた時刻・足りなすぎる録画は調べない', () => {
+    expect(locateLostFrames(drawn, pts)).toBeNull()
+    expect(locateLostFrames(drawn.slice(0, -1), pts)).toBeNull()
+    expect(locateLostFrames([0, NaN, 40, 60], [0, 0.02, 0.04])).toBeNull()
+    expect(locateLostFrames(unevenSupply(400), pts.slice(0, 200))).toBeNull()
+  })
+
+  it('渡した配列を書き換えない', () => {
+    const frozenSupply = Object.freeze(supply.slice())
+    const frozenFile = Object.freeze(fileOf(supply, [10]))
+    expect(() => locateLostFrames(frozenSupply, frozenFile)).not.toThrow()
+  })
+})
+
+describe('録画したときの状況を残す', () => {
+  const context: DiagContext = {
+    appVersion: '9.9.9', extensionVersion: '9.9.8', lowMemoryMode: true, sessionId: 3, durationSec: 6,
+    sourceFps: 23.976, captureFps: 60, displayHz: 60, host: 'localhost',
+    capture: {
+      callbacks: 0, presented: 0, skippedByCallback: 0, duplicateSuppressed: 0,
+      captureTimeMissing: null, clockSkewMs: null, totalVideoFrames: null, droppedVideoFrames: null,
+      tickerTicks: null, videoBitsPerSecond: null, bitrateSourceFps: null,
+      streamWidth: null, streamHeight: null, cropWidth: null, cropHeight: null,
+      // 記録が実際に始まったのは、供給 3 枚目と 4 枚目のあいだ。
+      recStartCalledAt: drawn[0] - 5, sinkOpenedAt: drawn[0] - 4, recStartedAt: drawn[3] - 1, firstChunkAt: drawn[8] - 1,
+      supplyStoppedAt: null, recStopCalledAt: null, recStoppedAt: null,
+      chunkCount: 60, priorPrepares: 0, mimeType: 'video/webm;codecs=vp9,opus'
+    },
+    startDoubts: { notSettled: false, armingUnconfirmed: false }
+  }
+
+  it('版・状況・録画ファイルの場所・記録が始まる前に数えた枚数がファイルに入る', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shiori-correspondence-'))
+    dirs.push(dir)
+    vi.stubEnv('SHIORI_FRAME_DIAGNOSTICS_DIR', dir)
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await writeCorrespondenceDiagnostic(7, drawn, pts.slice(0, -1), [], [], 'C:/clips/a.webm', context)
+    const data = JSON.parse(await readFile(join(dir, (await readdir(dir))[0]), 'utf8'))
+    expect(data).toMatchObject({
+      schemaVersion: 1, videoPath: 'C:/clips/a.webm',
+      context: { appVersion: '9.9.9', extensionVersion: '9.9.8', lowMemoryMode: true, capture: { priorPrepares: 0 } },
+      countedBefore: { recStartCalled: 0, sinkOpened: 0, recStarted: 3, firstChunk: 8 },
+      lost: { tail: 1 }
+    })
+    // 枚数が合わなかったことは 1 行で読める。
+    expect(warn.mock.calls.flat().join(' ')).toMatch(/\[frame-loss\] image 7: supplied 200, file has 199.*start event 3, first data 8/)
+  })
+
+  // 目印（diag-log.on）の無い PC では、枚数が合わなくてもファイルは書かない。1 行だけ残す。
+  it('書き出し先が無くても、枚数が合わなかったことは 1 行残す', async () => {
+    vi.stubEnv('SHIORI_FRAME_DIAGNOSTICS_DIR', '')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    await writeCorrespondenceDiagnostic(8, drawn, pts.slice(0, -1), [])
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0][0])).toContain('[frame-loss] image 8')
+    expect(log).not.toHaveBeenCalled()
   })
 })
 

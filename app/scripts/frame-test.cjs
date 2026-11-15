@@ -378,7 +378,68 @@ function serve(argv) {
   })
     // dev.bat を開き直すと前の配信がまだ残っていることがある。落とさずに一行だけ出す。
     .on('error', (err) => console.log(`[frame-test] serve: ${err.message}`))
-    .listen(port, '127.0.0.1', () => console.log(`[frame-test] http://localhost:${port}/`))
+    .listen(port, '127.0.0.1', () => {
+      console.log(`[frame-test] http://localhost:${port}/`)
+      // 配れているときだけ控える。前の配信が残っていて listen に失敗した側は、控えも前の側に任せる
+      // （2 つ動くと同じ録画を 2 回読む）。
+      keepAnswers()
+    })
+}
+
+// ==== 正解の控え（serve が録画のたびに自動でやる）
+// テスト動画の録画は、各画像に焼き込まれた番号が正解。**録画を消すと正解も消える**ので、診断ファイル
+// （frame-diag/）が書かれるたびに録画を読んで、画像ごとの番号を frame-diag/answers/ に控える。
+// 2026-11-15、枚数の合わない録画 6 本のうち答え合わせができたのは 1 本だけだった（残りは録画が
+// 消えていたか、テスト動画でなかった）。
+//
+// 控えの中身：numbers[i] がファイルの i 枚目に焼き込まれた番号（読めなければ null）。番号の意味は上の「答えの符号」。
+// テスト動画でない録画は notTest だけを書く（次に起動したとき読み直さないため）。
+const answersDir = path.join(diagDir, 'answers')
+
+async function keepAnswersOf(name) {
+  if (!/^frame-\d+-.*\.json$/.test(name)) return
+  const out = path.join(answersDir, name)
+  if (fs.existsSync(out)) return
+  let diagFile
+  try {
+    diagFile = JSON.parse(fs.readFileSync(path.join(diagDir, name), 'utf8'))
+  } catch {
+    return   // 書きかけ。次の知らせか、次の起動で読む
+  }
+  // 録画ファイルの場所は 2026-11-15 から診断ファイルに入っている。それより前のものには無い。
+  const videoPath = diagFile.videoPath
+  if (typeof videoPath !== 'string' || !fs.existsSync(videoPath)) return
+  const bands = await readBands(ffmpeg, videoPath)
+  const readable = bands.filter(Boolean)
+  // 半分も読めないものはテスト動画ではないとみなす（score と同じ線）。
+  const answers = readable.length < bands.length / 2
+    ? { imageId: diagFile.imageId, notTest: true }
+    : {
+        imageId: diagFile.imageId, createdAt: diagFile.createdAt,
+        fps: FPS_CODES[mode(readable.map((b) => b.fpsCode))].label,
+        hold: HOLDS[mode(readable.map((b) => b.hold))].label,
+        numbers: bands.map((b) => (b ? b.number : null))
+      }
+  fs.mkdirSync(answersDir, { recursive: true })
+  fs.writeFileSync(out, JSON.stringify(answers))
+  if (!answers.notTest) console.log(`[frame-test] answers kept: image ${diagFile.imageId} (${bands.length} frames)`)
+}
+
+function keepAnswers() {
+  fs.mkdirSync(diagDir, { recursive: true })
+  // 1 本ずつ読む（録画直後はアプリも同じファイルを読んでいる）。
+  let queue = Promise.resolve()
+  const enqueue = (name) => {
+    queue = queue.then(() => keepAnswersOf(name)).catch((err) => console.log(`[frame-test] answers: ${name}: ${err.message}`))
+  }
+  for (const name of fs.readdirSync(diagDir)) enqueue(name)
+  const pending = new Map()
+  fs.watch(diagDir, (_event, name) => {
+    if (!name) return
+    // 書き終わるのを待つ。知らせは 1 つのファイルに何度か来るので、最後の知らせから数える。
+    clearTimeout(pending.get(name))
+    pending.set(name, setTimeout(() => { pending.delete(name); enqueue(name) }, 1500))
+  })
 }
 
 // ==== score

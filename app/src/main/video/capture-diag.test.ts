@@ -6,7 +6,10 @@ const zeroDiag: CaptureDiag = {
   callbacks: 0, presented: 0, skippedByCallback: 0, duplicateSuppressed: 0,
   captureTimeMissing: null, clockSkewMs: null, totalVideoFrames: null, droppedVideoFrames: null,
   tickerTicks: null, videoBitsPerSecond: null, bitrateSourceFps: null,
-  streamWidth: null, streamHeight: null, cropWidth: null, cropHeight: null
+  streamWidth: null, streamHeight: null, cropWidth: null, cropHeight: null,
+  recStartCalledAt: null, sinkOpenedAt: null, recStartedAt: null, firstChunkAt: null,
+  supplyStoppedAt: null, recStopCalledAt: null, recStoppedAt: null,
+  chunkCount: null, priorPrepares: null, mimeType: null
 }
 
 // 一定間隔で供給された想定の drawnAt を作る（epoch ミリ秒）。
@@ -167,7 +170,17 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     streamWidth: 2560,
     streamHeight: 1440,
     cropWidth: 1920,
-    cropHeight: 1080
+    cropHeight: 1080,
+    recStartCalledAt: 1_700_000_000_000,
+    sinkOpenedAt: 1_700_000_000_001,
+    recStartedAt: 1_700_000_000_040,
+    firstChunkAt: 1_700_000_000_140,
+    supplyStoppedAt: 1_700_000_030_000,
+    recStopCalledAt: 1_700_000_030_300,
+    recStoppedAt: 1_700_000_030_320,
+    chunkCount: 300,
+    priorPrepares: 2,
+    mimeType: 'video/webm;codecs=vp9,opus'
   }
 
   it('正常な値はそのまま通す', () => {
@@ -193,6 +206,15 @@ describe('parseCaptureDiag（レコーダーから届く診断値の検証）', 
     const diag = parseCaptureDiag({ ...valid, clockSkewMs: undefined })
     expect(diag).not.toBeNull()
     expect(diag?.clockSkewMs).toBeNull()
+  })
+
+  it('記録の開始・停止の時刻が欠けていても診断ごとは捨てない（古いレコーダー・取れなかった録画）', () => {
+    const diag = parseCaptureDiag({ ...valid, recStartedAt: undefined, firstChunkAt: 'soon', mimeType: 42 })
+    expect(diag).not.toBeNull()
+    expect(diag?.recStartedAt).toBeNull()
+    expect(diag?.firstChunkAt).toBeNull()
+    expect(diag?.mimeType).toBeNull()
+    expect(diag?.recStartCalledAt).toBe(1_700_000_000_000)
   })
 
   it('必須の計数が欠けている・数値でないなら診断なしとして扱う', () => {

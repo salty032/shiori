@@ -144,7 +144,18 @@ export function parseCaptureDiag(value: unknown): CaptureDiag | null {
     streamWidth: num(v.streamWidth),
     streamHeight: num(v.streamHeight),
     cropWidth: num(v.cropWidth),
-    cropHeight: num(v.cropHeight)
+    cropHeight: num(v.cropHeight),
+    recStartCalledAt: num(v.recStartCalledAt),
+    sinkOpenedAt: num(v.sinkOpenedAt),
+    recStartedAt: num(v.recStartedAt),
+    firstChunkAt: num(v.firstChunkAt),
+    supplyStoppedAt: num(v.supplyStoppedAt),
+    recStopCalledAt: num(v.recStopCalledAt),
+    recStoppedAt: num(v.recStoppedAt),
+    chunkCount: num(v.chunkCount),
+    priorPrepares: num(v.priorPrepares),
+    // 表示にしか使わない。長さだけ切る。
+    mimeType: typeof v.mimeType === 'string' ? v.mimeType.slice(0, 80) : null
   }
 }
 

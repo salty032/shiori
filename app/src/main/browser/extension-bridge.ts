@@ -11,7 +11,7 @@ import { startWsServer, onExtensionMessage, onWsClientConnect } from './ws-serve
 import { bundledExtPath, readVersion } from './extension-updater'
 import { loadSettings, type Settings } from '../system/settings'
 import { captureHotkeyMainKey } from './hotkey'
-import { setLastTimecode, markFocusedTimecodeNow, getLastFocusedTimecodeAt } from './timecode'
+import { setLastTimecode, markFocusedTimecodeNow, getLastFocusedTimecodeAt, setLastExtensionVersion } from './timecode'
 import { setBrowserWindowPos, setVideoRect, setBrowserFullscreen, shouldSuppressBrowserTargetUpdate } from '../capture/capture'
 import { sendToRenderer } from '../system/windows'
 import { compareVersions } from '../system/version'
@@ -55,6 +55,7 @@ export function startExtensionBridge(): void {
 
   onExtensionMessage((msg) => {
     if (msg.type === 'timecode') {
+      if (msg.version) setLastExtensionVersion(msg.version)
       if (msg.focused) markFocusedTimecodeNow()
       // フォーカス中のタブを優先。フォーカスタイムコードが30秒以上届いていない場合は、
       // フォーカスの無いタブからのものも受け付ける。

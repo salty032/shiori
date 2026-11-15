@@ -12,6 +12,15 @@ const MARKER = 'diag-log.on'
 // 超えたら 1 世代だけ残して作り直す（録画 1 本で数十行なので、数百本ぶん）。
 const MAX_BYTES = 5 * 1024 * 1024
 
+// 目印のある PC か。枚数の合わない録画の時刻を残す先（frame-correspondence-diag.ts）も同じ目印で決める。
+export function diagLogEnabled(): boolean {
+  try {
+    return existsSync(join(app.getPath('userData'), MARKER))
+  } catch {
+    return false
+  }
+}
+
 export function startDiagLogIfEnabled(): void {
   const dir = app.getPath('userData')
   if (!existsSync(join(dir, MARKER))) return
