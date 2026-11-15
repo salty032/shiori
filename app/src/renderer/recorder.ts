@@ -1,7 +1,9 @@
 import fixWebmDuration from 'fix-webm-duration'
-import { createFrameSink } from './frame-sink'
-import { createCaptureBoundary } from './capture-boundary'
-import type { BenchResult, BenchVariant, RecorderApi, StartData } from '../shared/recorder-api'
+import { createFrameSink, type FrameSink } from './frame-sink'
+import { createCaptureBoundary, type CaptureBoundary } from './capture-boundary'
+import { videoBitrateFor } from './recorder-bitrate'
+import type { BenchResult, BenchVariant, CropRect, RecorderApi, StartData } from '../shared/recorder-api'
+import type { CaptureDiag } from '../shared/capture-diag'
 
 export {}
 
@@ -173,28 +175,6 @@ function captureFps(fps: number): number {
   return Math.min(120, Math.max(1, fps || 60))
 }
 
-// ビットレート算出に使う供給レートの上限。main から届く実測値が壊れていても、要求ビットレートが
-// 青天井にならないようにするための多層防御（取得上限と同じ値でよい。それ以上供給されることは無い）。
-const MAX_SUPPLY_FPS_FOR_BITRATE = 120
-
-// 素材の fps に応じてビットレートを引き上げるときの基準（この fps を 1 倍とする）。
-//
-// **画質を決めるのは 1 秒あたりのビット数ではなく「素材のコマ 1 つに何ビット割けたか」**
-// （docs/SPEC.md「ビットレートと記録画素数」）。ところが上の supplyFps は内容によらず約 50枚/秒で一定なので、そこだけに
-// 連動させると素材の fps が倍になった分だけ 1 コマが痩せる。実測（2026-08-13、いずれも
-// 1920x1080）：目視合格した 24fps アニメ 391kbit/コマ・30fps アニメ 301kbit/コマ に対し、
-// 粗が見えた 60fps は 150kbit/コマ。**解像度ではなく、素材の fps で半分になっていた。**
-//
-// 基準を 30 に置くのは、合格している 2 本のうち低い方に合わせるため。こうすると
-// **24 / 30fps は 1 ビットも変わらない**（保証範囲で退行が起きない）。
-const BITRATE_BASE_SOURCE_FPS = 30
-
-// 引き上げの上限（60fps 相当）。**理由は物理**：画面キャプチャの供給は約 50枚/秒が天井で
-// （docs/SPEC.md「取得レートと供給」）、素材が 60fps を超えても記録できる別の絵はもう増えない。増やしても
-// ファイルが太るだけになる。24Mbps は過去に実測済みの 22.4Mbps の近傍でもあり、そこでは
-// エンコードが破綻しないことが分かっている（未知の水準へ踏み込まない）。
-const MAX_SOURCE_FPS_BITRATE_FACTOR = 2
-
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
   const maxFrameRate = captureFps(fps)
   // ideal も併記しているが、ideal だけでは供給レートは変わらなかった（ティッカーを入れる前の
@@ -256,8 +236,36 @@ async function acquireScreenStream(sourceId: string, fps: number): Promise<{ str
 // コーデック選択。アニメの線画・ベタ塗りは輪郭にモスキートノイズが出やすく、同じ
 // ビットレートなら VP9 の方が明確に有利なので VP9 を先に試す。VP9 が使えない環境
 // （ソフトウェアエンコーダ無効等）では従来どおり VP8 に落ちる。
-// キーフレームを入れる間隔（コマ数）。理由と実測は下の MediaRecorder 生成箇所を参照。
+// キーフレームを入れる間隔（コマ数）。
+//
+// キーフレームを詰めて録る。**録画は「見る」ためではなく「1 コマずつ止めて見る」ための
+// 素材なので、編集向きの入れ方にする**（業務用の編集ソフトがロングGOPの素材に対して
+// 全イントラのプロキシを作るのと同じ理由。こちらは自分で録っているので元から詰められる）。
+//
+// 既定に任せると約 100 コマに 1 回しか入らず、コマを 1 つ表示するのに直前のキーフレーム
+// から全部デコードし直すため、**キーフレームから遠いコマほど重くなる**。実測（2026-08-28・
+// 手元の録画を同じ Chromium で 400 コマ送った）:
+//
+//   キーフレームからの距離  0-9   10-19  30-39  50-59  70-79  90-99
+//   1 コマ進めるのにかかる  30ms   54ms  110ms  152ms  286ms  294ms
+//
+// キーフレームごとに 10ms 台へ戻るので、コマ再生の速さがのこぎり状に揺れる（むらの正体）。
+// 10 コマごとに入れると最悪でも 10 コマぶんのデコードで済み、実測は 9〜40ms に収まった
+// （中央値 85→19ms）。**素材 1 コマの長さ（24fps で 41.7ms）より短い**ので、待ち時間に隠れる。
+//
+// 値の根拠：5 コマごとにしても 19→17ms とほぼ変わらずサイズだけ増えたので 10 で止める。
+// 代償はファイルサイズ +27%（実測）。画質は落ちない——同じビットレート要求で
+// キーフレームだけ増やして比べたところ SSIM 0.9984→0.9979（差 0.04%）で、
+// ファイルはむしろ小さくなった＝他のコマからビットを奪ってはいない。
+//
+// **単位はコマ数**（時間ではない）。決めたいのは「最悪どれだけデコードするか」で、
+// それはコマ数そのものだから。供給レートが変わっても意味が変わらない。
 const KEYFRAME_INTERVAL_FRAMES = 10
+
+// 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
+// 映像に十数 Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
+// 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
+const AUDIO_BITS_PER_SECOND = 192_000
 
 const MIME_CANDIDATES = [
   'video/webm;codecs=vp9,opus',
@@ -291,19 +299,27 @@ window.recorderApi.onStart((data) => {
   resolve(data)
 })
 
-// 画面キャプチャを立ち上げ、切り抜きの下ごしらえまで済ませてから main へ「用意できた」と返す。
-//
-// **重いのはここで、記録開始ではない。** 立ち上げの瞬間、配信ページは素材のコマを描き落とす
-// （実測: YouTube 1080p 23.976fps で開始から 1.2 秒に 30 コマ）。以前はこの立ち上げが
-// 落ち着き待ちの**後ろ**にあり、待ちは負荷のかかっていないページを見ていた——つまり何も
-// 見ていないのと同じで、荒れは録画の頭にそのまま入っていた。準備を先に済ませ、本番と同じ
-// 負荷がかかった状態で待たせる。
-window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
-  if (recorder && recorder.state !== 'inactive') return
-  const token = ++recordingToken
-  currentSessionId = sessionId
-  const priorPrepares = prepareCount++
+// 準備・記録開始の途中で打ち切る。片付け・状態を戻す・main へ知らせる、の 3 つは必ず一緒に行う
+// （どれか欠けると、画面キャプチャを掴んだままになるか、main の録画状態が固着する）。
+function failRecording(stream: MediaStream, cs: MediaStream | null, token: number, sessionId: number, code: string): null {
+  cleanup(stream, cs, token)
+  resetState()
+  window.recorderApi.reportError(code, sessionId)
+  return null
+}
 
+// 準備で揃えるもの。画面キャプチャのストリームと、それを切り抜いて描く先。
+interface PreparedCapture {
+  stream: MediaStream
+  crop: CropRect
+  canvas: HTMLCanvasElement
+  ctx: CanvasRenderingContext2D
+  video: HTMLVideoElement
+}
+
+// 画面キャプチャを立ち上げ、切り抜いて描ける状態まで持っていく。途中で失敗・追い越されたら、
+// 片付けと main への知らせを済ませて null を返す。
+async function prepareCapture(sourceId: string, fps: number, sessionId: number, token: number): Promise<PreparedCapture | null> {
   let stream: MediaStream
   let audioFailed = false
   try {
@@ -318,12 +334,14 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
         : 'getUserMedia_failed',
       sessionId
     )
-    return
+    return null
   }
+  // ここだけは状態を戻さない。まだ自分の状態を何も置いておらず、戻すと追い越した側（新しい録画）の
+  // 状態を消すことになる。
   if (token !== recordingToken) {
     cleanup(stream, null, token)
     window.recorderApi.reportError('aborted', sessionId)
-    return
+    return null
   }
   if (audioFailed) window.recorderApi.reportError('audio_unavailable_fallback', sessionId)
 
@@ -334,29 +352,14 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   const streamH = settings.height ?? 1080
 
   const crop = await window.recorderApi.getCrop(streamW, streamH)
-  if (token !== recordingToken) {
-    cleanup(stream, null, token)
-    resetState()
-    window.recorderApi.reportError('aborted', sessionId)
-    return
-  }
-  if (!crop) {
-    cleanup(stream, null, token)
-    resetState()
-    window.recorderApi.reportError('crop_unavailable', sessionId)
-    return
-  }
+  if (token !== recordingToken) return failRecording(stream, null, token, sessionId, 'aborted')
+  if (!crop) return failRecording(stream, null, token, sessionId, 'crop_unavailable')
 
   const canvas = document.createElement('canvas')
   canvas.width = crop.w
   canvas.height = crop.h
   const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    cleanup(stream, null, token)
-    resetState()
-    window.recorderApi.reportError('canvas_unavailable', sessionId)
-    return
-  }
+  if (!ctx) return failRecording(stream, null, token, sessionId, 'canvas_unavailable')
 
   const video = document.createElement('video')
   video.srcObject = stream
@@ -365,37 +368,43 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     await video.play()
   } catch (err) {
     console.error('[recorder] video play failed', err)
-    cleanup(stream, null, token)
-    resetState()
-    window.recorderApi.reportError('video_play_failed', sessionId)
-    return
+    return failRecording(stream, null, token, sessionId, 'video_play_failed')
   }
-  if (token !== recordingToken) {
-    cleanup(stream, null, token)
-    resetState()
-    window.recorderApi.reportError('aborted', sessionId)
-    return
-  }
+  if (token !== recordingToken) return failRecording(stream, null, token, sessionId, 'aborted')
 
-  // 録画用の canvas ストリームは、準備中の札が消えたフレームを確認するまで作らない。
-  // ここで作ると captureStream が現在の canvas（札が写った絵）を初期フレームとして保持し、
-  // 後で canvas を描き直しても MediaRecorder の冒頭へ残る環境がある。
+  return { stream, crop, canvas, ctx, video }
+}
+
+// 画面キャプチャのフレームを切り抜いて描き続ける繰り返し。
+interface FrameLoop {
+  /**
+   * 記録へ送る先を渡す。**渡すまでは描くだけで、どこにも送らない。**
+   *
+   * 録画用の canvas ストリームは、準備中の札が消えたフレームを確認するまで作らない。
+   * 準備中に作ると captureStream が現在の canvas（札が写った絵）を初期フレームとして保持し、
+   * 後で canvas を描き直しても MediaRecorder の冒頭へ残る環境がある。
+   */
+  sendTo(track: { requestFrame(): void }): void
+  /** 供給の実測を 0 に戻す（記録が始まった時点で呼ぶ） */
+  resetCounts(): void
+  /** 供給の実測（CaptureDiag に載せる） */
+  counts(): Pick<CaptureDiag, 'callbacks' | 'presented' | 'skippedByCallback' | 'duplicateSuppressed'>
+}
+
+// 描画の繰り返しを始める。止めるのは stopFrameSupply / cleanup（rVfcRunning と frameTimer）。
+//
+// **絵は準備中から作り続ける。** 記録に送るのと数えるのだけを開始まで止める——
+// 描画を止めると準備中の負荷が本番と変わってしまい、落ち着き待ちが見ている状態が
+// 記録中の状態とずれる（それでは待つ意味が無い）。
+function startFrameLoop(
+  { video, ctx, crop }: PreparedCapture, fps: number, sink: FrameSink, captureBoundary: CaptureBoundary
+): FrameLoop {
   let csTrack: { requestFrame(): void } | null = null
 
   rVfcRunning = true
   // 供給を引き上げるティッカーを回す。録画中だけで十分なのでここで開始し、cleanup で止める。
   startCaptureTicker()
-  // 供給した各フレームが「いつ画面から取り込まれたか」（epoch ミリ秒）を数える口。
-  //
-  // 録画後に、配信ページ側が知っている素材のコマ時刻と突き合わせて「素材のコマ N は
-  // このファイルの何枚目か」を決めるために使う。時刻の変換と、**ファイルに入った枚数と
-  // ちょうど同じだけ数える**（記録開始の時点で描いてあった 1 枚は数え、それより前は数えない）
-  // という一点は frame-sink.ts が持つ（そこだけはテストから駆動できる）。
-  const sink = createFrameSink()
-  const captureBoundary = createCaptureBoundary()
-  // **絵は準備中から作り続ける。** 記録に送るのと数えるのだけを開始まで止める——
-  // 描画を止めると準備中の負荷が本番と変わってしまい、落ち着き待ちが見ている状態が
-  // 記録中の状態とずれる（それでは待つ意味が無い）。
+
   const drawFrame = (captureTime?: number): void => {
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
     captureBoundary.observe(captureTime)
@@ -449,6 +458,52 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     frameTimer = setInterval(() => { if (rVfcRunning) drawFrame() }, intervalMs)
   }
 
+  return {
+    sendTo(track) { csTrack = track },
+    resetCounts() {
+      callbacks = 0
+      presentedFirst = null
+      presentedLast = null
+      skippedByCallback = 0
+      duplicateSuppressed = 0
+    },
+    counts: () => ({
+      callbacks,
+      presented: presentedFirst !== null && presentedLast !== null ? presentedLast - presentedFirst + 1 : 0,
+      skippedByCallback,
+      duplicateSuppressed
+    })
+  }
+}
+
+// 画面キャプチャを立ち上げ、切り抜きの下ごしらえまで済ませてから main へ「用意できた」と返す。
+// 開始の合図を受けたら、準備中の札が消えたのを確かめて記録を始める。
+//
+// **重いのは準備で、記録開始ではない。** 立ち上げの瞬間、配信ページは素材のコマを描き落とす
+// （実測: YouTube 1080p 23.976fps で開始から 1.2 秒に 30 コマ）。以前はこの立ち上げが
+// 落ち着き待ちの**後ろ**にあり、待ちは負荷のかかっていないページを見ていた——つまり何も
+// 見ていないのと同じで、荒れは録画の頭にそのまま入っていた。準備を先に済ませ、本番と同じ
+// 負荷がかかった状態で待たせる。
+window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
+  if (recorder && recorder.state !== 'inactive') return
+  const token = ++recordingToken
+  currentSessionId = sessionId
+  const priorPrepares = prepareCount++
+
+  const capture = await prepareCapture(sourceId, fps, sessionId, token)
+  if (!capture) return
+  const { stream, crop, canvas, video } = capture
+
+  // 供給した各フレームが「いつ画面から取り込まれたか」（epoch ミリ秒）を数える口。
+  //
+  // 録画後に、配信ページ側が知っている素材のコマ時刻と突き合わせて「素材のコマ N は
+  // このファイルの何枚目か」を決めるために使う。時刻の変換と、**ファイルに入った枚数と
+  // ちょうど同じだけ数える**（記録開始の時点で描いてあった 1 枚は数え、それより前は数えない）
+  // という一点は frame-sink.ts が持つ（そこだけはテストから駆動できる）。
+  const sink = createFrameSink()
+  const captureBoundary = createCaptureBoundary()
+  const frameLoop = startFrameLoop(capture, fps, sink, captureBoundary)
+
   // ── ここまでが準備 ───────────────────────────────────────────────
   // 画面キャプチャは既に走っており、ページへの負荷は記録中と同じ。main はこの合図を
   // 受けてから落ち着くのを待つ（recording.ts）。**待っている間のフレームは 1 枚も
@@ -466,13 +521,14 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   if (token !== recordingToken) return
   window.recorderApi.reportStartBoundary(sessionId, cleanFrameConfirmed)
 
+  // ── ここから記録開始まで、await を挟まない ─────────────────────────
   // captureStream(0) disables automatic sampling. 準備中の札が消えた後の canvas から
   // ストリームを作る。現在の canvas は MediaRecorder が開始時に 1 枚目として書くため、
   // ここでは requestFrame() しない（二重に入る可能性を作らない）。ここから rec.start() と
   // sink.open() までは await を挟まず、映像とコマ表の先頭を一致させる。
   const cs = canvas.captureStream(0)
   canvasStream = cs
-  csTrack = cs.getVideoTracks()[0] as MediaStreamTrack & { requestFrame(): void }
+  frameLoop.sendTo(cs.getVideoTracks()[0] as MediaStreamTrack & { requestFrame(): void })
 
   const mimeType = pickMimeType()
 
@@ -481,68 +537,21 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     ? new MediaStream([...cs.getVideoTracks(), ...audioTracks])
     : cs
 
-  // 要求した映像ビットレート。診断（CaptureDiag）に載せて main のログへ出すため、
-  // MediaRecorder を作る try の外で受ける。**要求値と、ファイルから逆算した実効値の両方を
-  // 見たい**——エンコーダは要求どおりに出すとは限らず、判断材料になるのは実際に出た方。
-  let videoBitsPerSecond: number | null = null
+  // 要求した映像ビットレート。診断（CaptureDiag）に載せて main のログへ出す。**要求値と、
+  // ファイルから逆算した実効値の両方を見たい**——エンコーダは要求どおりに出すとは限らず、
+  // 判断材料になるのは実際に出た方。決め方は recorder-bitrate.ts。
+  const videoBitsPerSecond = videoBitrateFor(supplyFps, sourceFps)
   let rec: MediaRecorder
   try {
-    // 映像のビットレートは供給レートに合わせて上げる。1 秒あたりのビット数は同じでも、
-    // 枚数が増えれば 1 フレームあたりは痩せ、アニメの線画にモスキートノイズが出るため。
-    // ただし枚数の比ほどは要らない——フレームレートが上がると隣接フレームが似て、
-    // フレーム間予測が効くぶん安くなる。実測では供給 1.7 倍（29→50枚/秒）に対し
-    // ビットレート 1.5 倍（8→12Mbps）で元の画質水準に戻った。その比（枚数比の約 0.9 乗）
-    // をそのまま延長する。
-    //
-    // **基準にするのは実測の供給（supplyFps）で、取得上限（fps）ではない。** 上限を 120 に
-    // 上げても供給は 50.8枚/秒のままだったため（2026-08-12 実測）、上限に連動させると
-    // 枚数が増えていないのにビットレートだけ 1.9 倍要求することになる（実測でファイルが
-    // 45→64MB に太り、画質は変わらなかった）。main 側の recording.ts に同じ注記あり。
-    //
-    // 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
-    // 映像に十数 Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
-    // 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
-    const bitrateFps = Math.min(MAX_SUPPLY_FPS_FOR_BITRATE, Math.max(1, supplyFps || 60))
-    // 素材のコマが細かいほど 1 コマあたりが痩せる分を補う（BITRATE_BASE_SOURCE_FPS 参照）。
-    // **測れていなければ 1 倍＝従来どおり。推定で埋めない。** また下げる方向には効かせない
-    // ——24fps 未満で減らしてよいという根拠（目視）が無く、減らす側は黙って画質を損なう。
-    const sourceFactor = sourceFps && sourceFps > 0
-      ? Math.min(MAX_SOURCE_FPS_BITRATE_FACTOR, Math.max(1, sourceFps / BITRATE_BASE_SOURCE_FPS))
-      : 1
-    videoBitsPerSecond = Math.round(12_000_000 * Math.pow(Math.max(1, bitrateFps / 60), 0.9) * sourceFactor)
-    // キーフレームを詰めて録る。**録画は「見る」ためではなく「1 コマずつ止めて見る」ための
-    // 素材なので、編集向きの入れ方にする**（業務用の編集ソフトがロングGOPの素材に対して
-    // 全イントラのプロキシを作るのと同じ理由。こちらは自分で録っているので元から詰められる）。
-    //
-    // 既定に任せると約 100 コマに 1 回しか入らず、コマを 1 つ表示するのに直前のキーフレーム
-    // から全部デコードし直すため、**キーフレームから遠いコマほど重くなる**。実測（2026-08-28・
-    // 手元の録画を同じ Chromium で 400 コマ送った）:
-    //
-    //   キーフレームからの距離  0-9   10-19  30-39  50-59  70-79  90-99
-    //   1 コマ進めるのにかかる  30ms   54ms  110ms  152ms  286ms  294ms
-    //
-    // キーフレームごとに 10ms 台へ戻るので、コマ再生の速さがのこぎり状に揺れる（むらの正体）。
-    // 10 コマごとに入れると最悪でも 10 コマぶんのデコードで済み、実測は 9〜40ms に収まった
-    // （中央値 85→19ms）。**素材 1 コマの長さ（24fps で 41.7ms）より短い**ので、待ち時間に隠れる。
-    //
-    // 値の根拠：5 コマごとにしても 19→17ms とほぼ変わらずサイズだけ増えたので 10 で止める。
-    // 代償はファイルサイズ +27%（実測）。画質は落ちない——同じビットレート要求で
-    // キーフレームだけ増やして比べたところ SSIM 0.9984→0.9979（差 0.04%）で、
-    // ファイルはむしろ小さくなった＝他のコマからビットを奪ってはいない。
-    //
-    // **単位はコマ数**（時間ではない）。決めたいのは「最悪どれだけデコードするか」で、
-    // それはコマ数そのものだから。供給レートが変わっても意味が変わらない。
     // videoKeyFrameIntervalCount は Chromium 独自の指定で、標準の MediaRecorderOptions に無い。
     const options: MediaRecorderOptions & { videoKeyFrameIntervalCount: number } = {
-      mimeType, videoBitsPerSecond, audioBitsPerSecond: 192_000,
+      mimeType, videoBitsPerSecond, audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
       videoKeyFrameIntervalCount: KEYFRAME_INTERVAL_FRAMES,
     }
     rec = new MediaRecorder(recordStream, options)
   } catch (err) {
     console.error('[recorder] MediaRecorder create failed', err)
-    cleanup(stream, cs, token)
-    resetState()
-    window.recorderApi.reportError('media_recorder_failed', sessionId)
+    failRecording(stream, cs, token, sessionId, 'media_recorder_failed')
     return
   }
 
@@ -628,10 +637,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
       const quality = typeof video.getVideoPlaybackQuality === 'function' ? video.getVideoPlaybackQuality() : null
       const webmBuf = await blob.arrayBuffer()
       window.recorderApi.sendDone(webmBuf, duration, sessionId, sink.drawnAt, {
-        callbacks,
-        presented: presentedFirst !== null && presentedLast !== null ? presentedLast - presentedFirst + 1 : 0,
-        skippedByCallback,
-        duplicateSuppressed,
+        ...frameLoop.counts(),
         captureTimeMissing: sink.captureTimeMissing,
         clockSkewMs: performance.timeOrigin + performance.now() - Date.now(),
         totalVideoFrames: quality?.totalVideoFrames ?? null,
@@ -667,9 +673,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
     rec.start(100)
   } catch (err) {
     console.error('[recorder] start failed', err)
-    cleanup(stream, cs, token)
-    resetState()
-    window.recorderApi.reportError('recorder_start_failed', sessionId)
+    failRecording(stream, cs, token, sessionId, 'recorder_start_failed')
     return
   }
   // **記録が動き出した後にだけ開く。** ここから rec.start() までの間に await を挟まないこと
@@ -680,11 +684,7 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   sinkOpenedAt = Date.now()
   // 供給の実測は録画そのものについて出す。準備中のぶんを混ぜると、立ち上がりの荒れが
   // 録画の診断に化けて「供給が足りていない」と読めてしまう。
-  callbacks = 0
-  presentedFirst = null
-  presentedLast = null
-  skippedByCallback = 0
-  duplicateSuppressed = 0
+  frameLoop.resetCounts()
   tickerTicks = 0
 
   if (maxSeconds > 0) {
