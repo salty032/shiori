@@ -16,7 +16,7 @@
 //   'changed' … 前後で絵が変わっている。どのコマで変わったかは特定できない＝要確認
 // captured=true のコマでは意味を持たない（常に 'unknown'）。
 import { getDb, prepare } from './db-core'
-import { countReportDrops, reportDropsMeasured } from '../video/frame-feed'
+import { countReportDrops } from '../video/frame-feed'
 
 export type FrameVerify = 'unknown' | 'same' | 'changed'
 
@@ -224,8 +224,6 @@ export interface FrameCounts {
   uncaptured: number
   sourceFrames: number
   unreported: number
-  // 上の抜けの枚数に裏が取れているか。旧版の拡張で撮った表には累積数が無いので false。
-  unreportedMeasured: boolean
   misaligned: number
 }
 
@@ -234,7 +232,6 @@ export function countFrameTable(frames: StoredFrame[]): FrameCounts {
     uncaptured: frames.filter((frame) => !frame.captured).length,
     sourceFrames: frames.length,
     unreported: countReportDrops(frames),
-    unreportedMeasured: reportDropsMeasured(frames),
     misaligned: frames.filter((frame) => frame.misaligned).length,
   }
 }
@@ -244,11 +241,8 @@ export function countFrameTable(frames: StoredFrame[]): FrameCounts {
 function writeFrameCounts(imageId: number, counts: FrameCounts): void {
   prepare(
     'UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ?,' +
-    ' misaligned_frames = ?, unreported_measured = ? WHERE id = ?'
-  ).run(
-    counts.uncaptured, counts.sourceFrames, counts.unreported,
-    counts.misaligned, counts.unreportedMeasured ? 1 : 0, imageId
-  )
+    ' misaligned_frames = ? WHERE id = ?'
+  ).run(counts.uncaptured, counts.sourceFrames, counts.unreported, counts.misaligned, imageId)
 }
 
 // 表を保存し、そこから数えた枚数を**同じトランザクションで**書く。戻り値は書いた枚数

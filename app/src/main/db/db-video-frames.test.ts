@@ -178,9 +178,9 @@ describe('保存済みのコマ表から枚数を数え直す', () => {
     executedSql.length = 0
     storedRows.mockReturnValue([row({})])
     expect(backfillFrameCounts()).toBe(1)
-    // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1 / 裏付けなし
+    // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1
     const update = executedSql.find((entry) => entry.sql.includes('UPDATE images'))
-    expect(update?.args).toEqual([1, 6, 2, 1, 0, 7])
+    expect(update?.args).toEqual([1, 6, 2, 1, 7])
   })
 
   it('既に合っている録画は書き換えない（起動のたびに全件書き直さない）', () => {

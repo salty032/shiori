@@ -72,29 +72,35 @@ function normalizeImageRow<T extends RawImageRowBase>(row: T): Omit<T, 'current_
   return { ...row, current_time: normalizeCurrentTime(row.current_time) }
 }
 
-const PUBLIC_IMAGE_COLUMNS = [
-  '"id"',
-  '"filepath"',
-  '"captured_at"',
-  '"original_captured_at"',
-  '"title"',
-  '"current_time"',
-  '"url"',
-  '"colors"',
-  '"memo"',
-  '"media_type"',
-  '"duration"',
-  '"fps"',
-  '"width"',
-  '"height"',
-  '"uncaptured_frames"',
-  '"ambiguous_frames"',
-  '"source_frames"',
-  '"unreported_frames"',
-  '"misaligned_frames"',
-  '"thumb_path"',
-  '"source"'
-].join(', ')
+// 画面へ渡す列。**型（ImageRowBase）の列がここに全部あるかを型チェックで確かめる。**
+// 型に足して並びに足し忘れると、DB に書いた値が一覧に載らないまま verify が通っていた。
+const PUBLIC_IMAGE_COLUMN_NAMES = [
+  'id',
+  'filepath',
+  'captured_at',
+  'original_captured_at',
+  'title',
+  'current_time',
+  'url',
+  'colors',
+  'memo',
+  'media_type',
+  'duration',
+  'fps',
+  'width',
+  'height',
+  'uncaptured_frames',
+  'ambiguous_frames',
+  'source_frames',
+  'unreported_frames',
+  'misaligned_frames',
+  'thumb_path',
+  'source'
+] as const satisfies readonly (keyof ImageRowBase)[]
+const PUBLIC_IMAGE_COLUMNS = PUBLIC_IMAGE_COLUMN_NAMES.map((name) => `"${name}"`).join(', ')
+// 足りない列があると、ここがその列名を挙げて型エラーになる。
+type UnlistedColumn = Exclude<keyof ImageRowBase, (typeof PUBLIC_IMAGE_COLUMN_NAMES)[number]>
+export const allPublicColumnsListed: [UnlistedColumn] extends [never] ? true : UnlistedColumn = true
 
 export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & { source?: 'capture' | 'import' }): number {
   let host: string | null = null

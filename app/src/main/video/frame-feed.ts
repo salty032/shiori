@@ -733,12 +733,6 @@ export function countReportDrops(samples: readonly GapSample[]): number {
   return total
 }
 
-// 上の合計に裏が取れているか。**1 か所でも推定が混ざれば false。**
-// 抜けが 1 つも無ければ true（推定した枚数がそもそも無い）。
-export function reportDropsMeasured(samples: readonly GapSample[]): boolean {
-  return frameGaps(samples).every((gap) => gap.measured)
-}
-
 // トリムした新クリップ用にフレーム表を作り直す。
 //
 // フレーム表が持つのは「元ファイルの何枚目か」なので、切り出すとその番号は使えなくなる

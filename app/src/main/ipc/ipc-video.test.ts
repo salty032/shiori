@@ -201,7 +201,7 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
     getVideoFramePts.mockResolvedValue(pts)
     getVideoFrames.mockReturnValue(table)
     restoreVideoFrames.mockReset().mockReturnValue({
-      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0, unreportedMeasured: true
+      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0
     })
     registerVideoHandlers()
 
@@ -209,7 +209,7 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
 
     expect(restoreVideoFrames).toHaveBeenCalledWith(1, table.slice(0, 3), { ambiguous: 2 })
     expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, {
-      id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0, unreportedMeasured: true
+      id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0
     })
   })
 })
@@ -386,7 +386,7 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     expect(saveFrameTable).toHaveBeenCalledWith(99, [
       { mediaTime: 2, frameIndex: 0, captured: true },
       { mediaTime: 4, frameIndex: 2, captured: true },
-    ], { uncaptured: 0, sourceFrames: 2, unreported: 0, misaligned: 0, unreportedMeasured: true })
+    ], { uncaptured: 0, sourceFrames: 2, unreported: 0, misaligned: 0 })
   })
 
   // 印は行ごと引き継がれるので、件数も表から数える（0 で書くと詳細の件数と赤い表示が食い違う）。

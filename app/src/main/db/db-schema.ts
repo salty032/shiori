@@ -239,17 +239,9 @@ export function initDb(): void {
   // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
   // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_frames INTEGER')
-  // 上の枚数に裏が取れているか（1/0）。NULL は「まだ数え直していない」で、推定として扱う。
-  //
-  // **枚数は本来ずっと推定だった**——前後の時刻の差を、残っているコマの間隔で割った値。
-  // 欠けた区間の刻みは欠けたコマからは検算できず、1 枚違うとその下のコマ番号が全部ずれる
-  // （タイムシートは秒ではなくコマの通し番号を記録している）。合成へ送られたコマの累積数
-  // （rVFC の presentedFrames）と一致したときだけ 1 を書く。
-  //
-  // **列を足したのは、詳細タイルがコマ表を読まないため。** タイルはサムネの隣で軽く出す
-  // 場所で、コマ表の取得は ffmpeg のデコードを伴う（VideoPlayer の preloadFrameTable の注記）。
-  // 同じ 1 つの数を、ビューアでは「推定」・タイルでは断定、と出さないための列。
-  addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_measured INTEGER')
+  // **unreported_measured という名前の列を新しく足さない。** 以前の版が足して書いていた
+  // （どこからも読まれず廃止）ので、古い DB には古い値の入った同名の列が残っている。
+  // 同じ名前で足すと addColumnIfMissing が素通りし、古い値をそのまま読むことになる。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN misaligned_frames INTEGER')
   // コマ表を最後に見直したときの判定の版（db-video-frames の RECHECK_VERSION）。
   // 見直しは 1 本ごとに動画をまるごとデコードするので、同じ版で二度やらないための記録。

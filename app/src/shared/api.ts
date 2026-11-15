@@ -16,7 +16,6 @@ export interface FramesVerified {
   total: number | null
   unreported: number | null
   misaligned: number | null
-  unreportedMeasured: boolean
 }
 
 export interface ShioriApi {
