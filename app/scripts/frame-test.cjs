@@ -504,7 +504,7 @@ function readSignatures(file) {
 
 // 今のコードで表を作り直す。作り直せないときは理由を返す（採点は保存済みの表で続ける）。
 async function rematchTable(row, stored, noThumbs) {
-  const { matchFrames } = require('../src/main/video/frame-feed.ts')
+  const { matchFrames } = require('../src/main/video/frame-match.ts')
   const { signaturesDiffer } = require('../src/main/video/frame-verify.ts')
   const name = fs.existsSync(diagDir)
     ? fs.readdirSync(diagDir).filter((f) => f.startsWith(`frame-${row.id}-`)).sort().pop()
