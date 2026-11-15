@@ -24,6 +24,27 @@ describe('拡張の定数は wire-limits.ts からの生成物（L-1）', () => 
   }
 })
 
+// content.js のキー名の表（NAMED_CAPTURE_KEY_CODES）は生成の外にある。名前から DOM の code への対応は
+// 拡張だけが持つ知識なので、原本の hotkey.ts には置いていない。**名前の集合だけは揃っていないと**、
+// hotkey.ts にキーを足したとき background は通すのに content.js が弾き、Prime Video などでホットキーの
+// 抑止が黙って効かなくなる。
+describe('content.js のキー名の表は hotkey.ts と同じ名前を持つ', () => {
+  const table = (name: string): string[] => {
+    const m = contentJs.match(new RegExp(`const ${name} = [{]([^}]*)[}]`))
+    if (!m) throw new Error(`content.js に ${name} が見つからない`)
+    return [...m[1].matchAll(/(\w+):/g)].map((k) => k[1])
+  }
+
+  it('NAMED_CAPTURE_KEY_CODES の名前が NAMED_CAPTURE_KEY_VALUES と一致する', () => {
+    expect(new Set(table('NAMED_CAPTURE_KEY_CODES'))).toEqual(new Set(NAMED_CAPTURE_KEY_VALUES))
+  })
+
+  it('NAMED_CAPTURE_KEY_VALUES（content.js 側の綴りの違い）は、上の表にある名前だけを持つ', () => {
+    const names = new Set(NAMED_CAPTURE_KEY_VALUES)
+    for (const k of table('NAMED_CAPTURE_KEY_VALUES')) expect(names.has(k), k).toBe(true)
+  })
+})
+
 // 値そのものの妥当性は原本（TypeScript 側）だけ見れば足りる。拡張へ写った値が同じことは
 // 上のブロック比較が保証している。
 describe('原本の値が満たすべき条件', () => {
