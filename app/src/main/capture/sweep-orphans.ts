@@ -35,9 +35,6 @@ async function lastSuccessfulSweepMs(): Promise<number | null> {
   }
 }
 
-// ユーザーが captures フォルダに置いた無関係なファイル（メモ、zip 等）を巻き込まないよう、
-// 扱う形式（MEDIA_EXTS）だけを対象にする。
-
 export interface SweepCandidate {
   path: string
   mtimeMs: number
@@ -59,6 +56,8 @@ export function selectOrphans(
   for (const r of referenced) if (r) keys.add(pathKey(r))
 
   return candidates.filter((c) => {
+    // ユーザーがフォルダに置いた無関係なファイル（メモ、zip 等）を巻き込まないよう、
+    // 扱う形式（MEDIA_EXTS）だけを対象にする。
     if (!MEDIA_EXTS.has(extname(c.path).toLowerCase())) return false
     if (nowMs - c.mtimeMs < MIN_AGE_MS) return false
     return !keys.has(pathKey(c.path))

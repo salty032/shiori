@@ -5,12 +5,9 @@
 // プロセスを終わらせればモデルのメモリは確実に戻るので、release は kill で済ませる。
 import { utilityProcess, type UtilityProcess } from 'electron'
 import { join } from 'path'
+import type { TaggerHostMessage as HostMessage, TaggerInMessage } from './tagger-messages'
 
-type HostMessage =
-  | { type: 'loaded'; inputNames: string[]; outputNames: string[] }
-  | { type: 'load-error'; message: string }
-  | { type: 'result'; id: number; data: Float32Array }
-  | { type: 'run-error'; id: number; message: string }
+const send = (child: UtilityProcess, msg: TaggerInMessage): void => child.postMessage(msg)
 
 class Tensor {
   constructor(readonly type: 'float32', readonly data: Float32Array, readonly dims: number[]) {}
@@ -57,7 +54,7 @@ export class TaggerProcessSession {
           reject(new Error(msg.type === 'load-error' ? msg.message : `Unexpected message: ${msg.type}`))
         }
       })
-      child.postMessage({ type: 'load', modelPath })
+      send(child, { type: 'load', modelPath })
     })
   }
 
@@ -76,7 +73,7 @@ export class TaggerProcessSession {
         resolve: (data) => resolve({ [this.outputNames[0]]: { data } }),
         reject
       })
-      this.child.postMessage({ type: 'run', id, inputName, data: tensor.data, dims: tensor.dims })
+      send(this.child, { type: 'run', id, inputName, data: tensor.data, dims: tensor.dims })
     })
   }
 

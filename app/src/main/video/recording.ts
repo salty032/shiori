@@ -363,7 +363,7 @@ export async function startRecording(): Promise<void> {
     }
 
     const settings = loadSettings()
-    const maxSeconds = settings.clipMaxSeconds ?? 30
+    const maxSeconds = settings.clipMaxSeconds
 
     // ここまでの準備の間に停止が押されていたら始めない。まだ何も隠しておらず、キャプチャも
     // 掴んでいないので、畳むものは無い。

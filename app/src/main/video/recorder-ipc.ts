@@ -147,7 +147,6 @@ export function registerRecorderIpc(): void {
     // 誤解が実害になる。素材の fps が取れないとき（拡張未接続・非対応サイト）は空欄のまま
     // にする — getVideoMeta が tbr にフォールバックしないのと同じ方針。
     const sourceFps = getSourceFps()
-    const fps = sourceFps
 
     const meta = getRecordingMeta()
     finishRecordingState()
@@ -252,7 +251,7 @@ export function registerRecorderIpc(): void {
           memo: null,
           media_type: 'video',
           duration,
-          fps,
+          fps: sourceFps,
           thumb_path: thumbPath
         },
         filePath: webmPath,

@@ -3,7 +3,7 @@ import { join } from 'path'
 import { mkdir, readFile, access, unlink, rename } from 'fs/promises'
 import { createWriteStream, createReadStream } from 'fs'
 import { createHash } from 'crypto'
-import { taggerProcessOrt } from './tagger-process'
+import { taggerProcessOrt, type TaggerProcessSession } from './tagger-process'
 
 const MODEL_URL = 'https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/model.onnx'
 const TAGS_URL = 'https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/selected_tags.csv'
@@ -35,8 +35,13 @@ type ProgressCallback = (progress: number) => void
 type DownloadSignal = { signal?: AbortSignal }
 interface TagEntry { name: string; category: number }
 
-let ortModule: any = null
-let session: any = null
+// 推論は別プロセス（tagger-host.ts）で回す。理由は tagger-host.ts の冒頭。
+// テストは _resetTaggerStateForTest で偽物を差し込む。
+type TaggerOrt = typeof taggerProcessOrt
+type TaggerSession = Pick<TaggerProcessSession, 'inputNames' | 'outputNames' | 'run' | 'release'>
+  & { onExit?: TaggerProcessSession['onExit'] }
+let ortModule: TaggerOrt | null = null
+let session: TaggerSession | null = null
 let tagList: TagEntry[] = []
 let ensureModelPromise: Promise<void> | null = null
 let activeDownloadController: AbortController | null = null
@@ -71,11 +76,8 @@ async function unloadModel(): Promise<void> {
   }
 }
 
-async function getOrt(): Promise<any> {
-  // 推論は別プロセス（tagger-host.ts）で回す。理由は tagger-host.ts の冒頭。
-  if (!ortModule) {
-    ortModule = taggerProcessOrt
-  }
+function getOrt(): TaggerOrt {
+  if (!ortModule) ortModule = taggerProcessOrt
   return ortModule
 }
 
@@ -231,7 +233,7 @@ async function ensureVerifiedFile(
 }
 
 async function loadModel(onProgress?: ProgressCallback, options: DownloadSignal = {}): Promise<void> {
-  const ort = await getOrt()
+  const ort = getOrt()
   const dir = modelDir()
   const mp = modelPath()
   const tp = tagsPath()
@@ -384,8 +386,8 @@ export function _resetTaggerStateForTest(opts?: {
   verifiedPaths?: string[]
 }): void {
   if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
-  session = opts?.session ?? null
-  ortModule = opts?.ortModule ?? null
+  session = (opts?.session ?? null) as TaggerSession | null
+  ortModule = (opts?.ortModule ?? null) as TaggerOrt | null
   tagList = opts?.tagList ?? []
   verifiedPaths.clear()
   for (const p of opts?.verifiedPaths ?? []) verifiedPaths.add(p)

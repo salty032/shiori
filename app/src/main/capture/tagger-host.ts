@@ -6,25 +6,24 @@
 // 画面への通知がまとめて待たされる（実測で推論 1 枚約 0.25 秒・読み込み約 0.6 秒）。
 // 撮った直後にもう 1 枚押すと、ちょうどこの推論に当たる。
 import * as ort from 'onnxruntime-node'
+import type { TaggerHostMessage, TaggerInMessage } from './tagger-messages'
 
-type InMessage =
-  | { type: 'load'; modelPath: string }
-  | { type: 'run'; id: number; inputName: string; data: Float32Array; dims: number[] }
+const post = (msg: TaggerHostMessage): void => process.parentPort.postMessage(msg)
 
 let session: ort.InferenceSession | null = null
 
 process.parentPort.on('message', async (event) => {
-  const msg = event.data as InMessage
+  const msg = event.data as TaggerInMessage
   if (msg.type === 'load') {
     try {
       session = await ort.InferenceSession.create(msg.modelPath)
-      process.parentPort.postMessage({
+      post({
         type: 'loaded',
         inputNames: [...session.inputNames],
         outputNames: [...session.outputNames]
       })
     } catch (err) {
-      process.parentPort.postMessage({ type: 'load-error', message: String(err) })
+      post({ type: 'load-error', message: String(err) })
     }
     return
   }
@@ -34,9 +33,9 @@ process.parentPort.on('message', async (event) => {
       const tensor = new ort.Tensor('float32', msg.data, msg.dims)
       const output = await session.run({ [msg.inputName]: tensor })
       const data = output[session.outputNames[0]].data as Float32Array
-      process.parentPort.postMessage({ type: 'result', id: msg.id, data })
+      post({ type: 'result', id: msg.id, data })
     } catch (err) {
-      process.parentPort.postMessage({ type: 'run-error', id: msg.id, message: String(err) })
+      post({ type: 'run-error', id: msg.id, message: String(err) })
     }
   }
 })
