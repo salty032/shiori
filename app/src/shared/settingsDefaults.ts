@@ -3,11 +3,16 @@ import type { Settings } from './types'
 // main の DEFAULTS と renderer の初期表示値が別々に手書きされていると、片方だけ変えたときに
 // 初回描画の暫定値がズレる（C-4）。allowedExtensionIds だけは main 側で拡張IDを注入するため
 // ここでは空配列にしておく。
+// サムネイルの大きさの 3 段（グリッドの最小セル幅 px）。サイドバーの S/M/L と、旧値の読み替え先
+// （main の settings.ts）がここを読む。
+// 数値は「全画面でも見える」を優先して 120/160/220 から引き上げてある。
+// 1920幅の全画面（サイドバー210）で S=10列 / M=7列 / L=5列 になる並び。
+export const THUMB_SIZE_STEPS = { S: 150, M: 230, L: 320 } as const
+
 export const SETTINGS_DEFAULTS: Settings = {
   titleStrip: [],
-  // グリッドの最小セル幅。Sidebar の THUMB_SIZES の M と同じ値にしておく
-  // （既定で開いたときに S/M/L のどれも選ばれていない見た目になるのを避ける）。
-  thumbnailSize: 230,
+  // 既定は「中」。段のどれかを指さないと、既定で開いたときに S/M/L のどれも選ばれていない見た目になる。
+  thumbnailSize: THUMB_SIZE_STEPS.M,
   frameFps: 24,
   frameFpsAuto: true,
   smartFolders: [],

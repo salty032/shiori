@@ -37,6 +37,7 @@ import appIcon24 from '../../../../build/icon24.png'
 import appIcon32 from '../../../../build/icon32.png'
 import { useT } from '../i18n'
 import { SETUP_STEP_COUNT } from '../setupGuideState'
+import { THUMB_SIZE_STEPS } from '../../../shared/settingsDefaults'
 
 // サイドバーに出すタグの下限枚数。「上位N件」で切ると、AIタグ付けがキャプチャ1枚につき
 // 十数個のタグを付けるせいで撮影・削除のたびに各タグの件数が動き、境界のタグが順位を
@@ -68,15 +69,13 @@ type Props = {
   onDeleteTag: (tag: string) => void
 }
 
-// S/M/L の実寸（グリッドの最小セル幅 px）。ラベルと数値をここに1本化する
+// S/M/L のボタン。数値は THUMB_SIZE_STEPS（shared/settingsDefaults.ts）が原本
 // （以前はボタン側に [['S',120],...] を別に持っており、片方だけ直すと
 //   ハイライト位置と実際のサイズが黙ってズレる）。
-// 数値は「全画面でも見える」を優先して 120/160/220 から引き上げてある。
-// 1920幅の全画面（サイドバー210）で S=10列 / M=7列 / L=5列 になる並び。
 const THUMB_SIZES = [
-  { label: 'S', size: 150, titleKey: 'sidebar.sizeSmall' },
-  { label: 'M', size: 230, titleKey: 'sidebar.sizeMedium' },
-  { label: 'L', size: 320, titleKey: 'sidebar.sizeLarge' },
+  { label: 'S', size: THUMB_SIZE_STEPS.S, titleKey: 'sidebar.sizeSmall' },
+  { label: 'M', size: THUMB_SIZE_STEPS.M, titleKey: 'sidebar.sizeMedium' },
+  { label: 'L', size: THUMB_SIZE_STEPS.L, titleKey: 'sidebar.sizeLarge' },
 ] as const
 
 const SMART_FOLDER_LONG_PRESS_MS = 350

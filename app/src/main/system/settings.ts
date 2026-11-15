@@ -5,7 +5,7 @@ import { writeFile, rename, unlink } from 'fs/promises'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
 import type { SmartFolder, Settings, Lang } from '../../shared/types'
 import { langFromLocale } from '../../shared/i18n'
-import { SETTINGS_DEFAULTS } from '../../shared/settingsDefaults'
+import { SETTINGS_DEFAULTS, THUMB_SIZE_STEPS } from '../../shared/settingsDefaults'
 import { isChromeExtensionId } from '../../shared/wire-limits'
 
 export type { SmartFolder, Settings }
@@ -155,9 +155,10 @@ function extensionIdList(value: unknown): string[] {
 // キーに現行の3値（150/230/320）を入れてはいけない。読み込みのたびに
 // 隣の段へ移り、選んだ大きさが起動ごとに変わる。
 // 代償：表のいずれかの値をたまたま手で書いていた場合も読み替えられる。
+const { S, M, L } = THUMB_SIZE_STEPS
 const LEGACY_THUMB_SIZES: Record<number, number> = {
-  120: 150, 160: 230, 220: 320,
-  180: 150, 260: 230, 360: 320,
+  120: S, 160: M, 220: L,
+  180: S, 260: M, 360: L,
 }
 function migrateThumbnailSize(value: unknown): unknown {
   if (typeof value !== 'number') return value
