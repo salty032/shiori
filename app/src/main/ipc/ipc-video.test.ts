@@ -86,13 +86,14 @@ vi.mock('fs/promises', () => ({
 }))
 
 import {
-  registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf, invalidateClipFrames
+  registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf
 } from './ipc-video'
+import { invalidateClipFrames } from '../video/clip-frames-cache'
 import { FRAME_QUALITY } from '../../shared/api.video'
 import { VIDEO_CH } from '../../shared/api.video'
 import { CH } from '../../shared/api'
 import type { StoredFrame } from '../db/db-video-frames'
-import { countReportDrops } from '../video/frame-feed'
+import { countReportDrops } from '../video/frame-gaps'
 import { unlink } from 'fs/promises'
 import { hasActiveTasks } from '../system/busy'
 import type { ClipFrames } from '../../shared/api.video'

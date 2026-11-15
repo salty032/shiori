@@ -90,10 +90,13 @@ const buildFrameTable = vi.fn<(drawnAt: number[]) => MockFrameTable>(() => null)
 vi.mock('./frame-feed', () => ({
   getSourceFps: () => getSourceFps(),
   buildFrameTable: (drawnAt: number[]) => buildFrameTable(drawnAt),
-  logMatchResult: vi.fn(),
   getReportDelay: vi.fn(() => null),
   logReportInterruptions: vi.fn(),
   getSourceFrames: vi.fn(() => [])
+}))
+
+vi.mock('./frame-match', () => ({
+  logMatchResult: vi.fn()
 }))
 
 vi.mock('../db/db-video-frames', () => ({

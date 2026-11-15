@@ -1,7 +1,7 @@
 // 撮り逃したコマが本当に問題なのかを、録画後に絵で検証する。
 //
 // 素材のコマに専用の絵が無いと、直前のコマの絵を流用することになる
-// （frame-feed.ts の captured=false）。これが起きるのは画面キャプチャの供給が素材のコマ数の
+// （frame-match.ts の captured=false）。これが起きるのは画面キャプチャの供給が素材のコマ数の
 // 2 倍に届かないとき。
 //
 // 供給は約 50枚/秒まで引き上げてあり（recorder.ts の startCaptureTicker）、24fps 素材なら
@@ -21,7 +21,7 @@
 // 後者を「たぶん直前のコマだろう」と埋めることはしない。研究用途では、黙って間違った
 // コマ打ちを出すことが最悪の結果になる。特定できないものは特定できないと出す。
 import type { FrameVerify, StoredFrame } from '../db/db-video-frames'
-import { frameGaps } from './frame-feed'
+import { frameGaps } from './frame-gaps'
 import { medianInterval } from './frame-series'
 
 // 「絵が変わった」と判定するしきい値。

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { sliceFrameTable, type FrameMatch } from './frame-feed'
+import { sliceFrameTable } from './frame-slice'
+import { type FrameMatch } from './frame-match'
 
 // 元クリップ: 24fps 相当のフレーム表を、33fps 前後で撮れた実ファイルに対して持つ想定。
 // トリムすると先頭が削られてフレーム番号がずれ、再エンコードで枚数も変わりうるため、

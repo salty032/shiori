@@ -10,7 +10,8 @@
 //   - 絵が変わっていないのに次のコマへ進む
 // コマは逆戻りさせない。どの画像も当たらなかったコマは撮り逃し（前の画像を流用）として出す。
 // 決めた理由と試して却下したことは docs/SPEC.md「録画全体で辻褄を合わせて決める（frame-align.ts）」。
-import type { FrameMatch, SourceFrame } from './frame-feed'
+import type { FrameMatch } from './frame-match'
+import type { SourceFrame } from './frame-feed'
 import { collapseDuplicateReports, medianInterval } from './frame-series'
 
 // 時刻が区間から外れた量をこの幅で割って 2 乗する。

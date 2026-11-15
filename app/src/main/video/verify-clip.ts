@@ -7,7 +7,7 @@
 // ffmpeg でフレームの署名と表示時刻を取り出し、結果を DB へ書き戻すところだけを受け持つ。
 // 録画とトリミングの両方から同じ経路で呼べるように独立させてある。
 import { getFrameSignatures } from './ffmpeg'
-import { invalidateClipFrames } from '../ipc/ipc-video'
+import { invalidateClipFrames } from './clip-frames-cache'
 import {
   applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, signaturesDiffer,
   verifyFrameTable
@@ -17,7 +17,8 @@ import {
   countFrameTable, listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveFrameTable, saveVideoFrames,
   type FrameCounts, type StoredFrame
 } from '../db/db-video-frames'
-import { matchFrames, type SourceFrame } from './frame-feed'
+import { matchFrames } from './frame-match'
+import { type SourceFrame } from './frame-feed'
 import { refineByThumbnails } from './frame-thumbs'
 import { alignWholeRecording } from './frame-align'
 import { isRecordingInProgress } from './recording'
@@ -62,7 +63,7 @@ function notifyVerified(imageId: number, counts: FrameCounts | null, ambiguous: 
  *   トリミング経路は表の frameIndex を切り出し後の PTS 列から作り直しており、定義上ずれない
  *   ので null を渡す。
  * @param source 録画中に届いた素材のコマ通知。渡すと、取り出した絵で表を作り直す
- *   （frame-feed.ts の pictureRuns）。診断の書き出しにも使う。
+ *   （frame-match.ts の pictureRuns）。診断の書き出しにも使う。
  * @returns 決め直した撮り逃しの数。表が使えない・検証できなかったときは null。
  *   録画の完了通知はこの数を出す（保存直後の数を出すと、画面の数と食い違う）。
  */

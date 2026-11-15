@@ -14,46 +14,14 @@ import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
 import type { ClipFrames, ClipGap, FrameQuality, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { sliceFrameTable, frameGaps } from '../video/frame-feed'
+import { sliceFrameTable } from '../video/frame-slice'
+import { frameGaps } from '../video/frame-gaps'
 import { framesVerifiedPayload, verifyClipFrames } from '../video/verify-clip'
+import { getCachedClipFrames, setCachedClipFrames } from '../video/clip-frames-cache'
 import { applyAnimeGapEstimates } from '../video/frame-verify'
 
 // トリミング処理中の imageId 集合（多重トリミング防止）
 const trimmingIds = new Set<number>()
-
-// コマ情報のキャッシュ（V-13）。同じ動画のトリマーを開き直すたびに全フレームを
-// デコードする getVideoFramePts が再実行されるのを避ける。imageId 単位でキーする——
-// 画像テーブルは AUTOINCREMENT で id を再利用せず、ある imageId のファイル内容は不変
-// （トリムは新しい id を作る）なので、id をキーにすれば誤ヒットしない。
-// 上限付き LRU（Map は挿入順を保持するので、先頭が最も古いアクセス）。
-const clipFramesCache = new Map<number, ClipFrames>()
-const CLIP_FRAMES_CACHE_MAX = 24
-
-function getCachedClipFrames(id: number): ClipFrames | undefined {
-  const hit = clipFramesCache.get(id)
-  if (hit) {
-    clipFramesCache.delete(id)   // アクセスしたものを末尾（最新）へ回す
-    clipFramesCache.set(id, hit)
-  }
-  return hit
-}
-
-// 表を書き換えたら捨てる。**キャッシュは開いた時点のスナップショット**で、検証（verify-clip）
-// や起動時の見直し（recheckMarkedClips）が裏で表を書き換えても自分では気づかない。
-// 捨てないと、印が付いた／外れたクリップを開いたまま古い並びで送り続けることになる。
-export function invalidateClipFrames(id: number): void {
-  clipFramesCache.delete(id)
-}
-
-function setCachedClipFrames(id: number, frames: ClipFrames): void {
-  clipFramesCache.delete(id)
-  clipFramesCache.set(id, frames)
-  while (clipFramesCache.size > CLIP_FRAMES_CACHE_MAX) {
-    const oldest = clipFramesCache.keys().next().value
-    if (oldest === undefined) break
-    clipFramesCache.delete(oldest)
-  }
-}
 
 // 保存されたコマ 1 つを、画面へ出す確からしさ（FRAME_QUALITY）へ落とす。
 //
@@ -70,7 +38,7 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
 
 // 表から抜けている区間を拾う（ClipGap のコメント参照）。
 //
-// **数え方は frame-feed.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
+// **数え方は frame-gaps.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
 // 出る合計とコマ送りに出る場所が別の計算から出ることになる（実測 82 本中 5 本で食い違った）。
 //
 // **枚数が確定している抜けは、その枚数で数える。録画の絵からの推定より優先する。**

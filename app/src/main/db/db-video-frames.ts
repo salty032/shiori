@@ -16,7 +16,7 @@
 //   'changed' … 前後で絵が変わっている。どのコマで変わったかは特定できない＝要確認
 // captured=true のコマでは意味を持たない（常に 'unknown'）。
 import { getDb, prepare } from './db-core'
-import { countReportDrops } from '../video/frame-feed'
+import { countReportDrops } from '../video/frame-gaps'
 
 export type FrameVerify = 'unknown' | 'same' | 'changed'
 
@@ -37,7 +37,7 @@ export interface StoredFrame {
    * 合成へ送られたコマの累積数（rVFC の presentedFrames、重複通知ぶんを詰め直した値）。
    *
    * **抜けの枚数を後からでも実数で数え直すために保存する。** 前後の差から 1 を引けば、
-   * 「画面には出たが通知が来なかった」コマ数が出る（frame-feed の frameGaps）。時刻からの
+   * 「画面には出たが通知が来なかった」コマ数が出る（frame-gaps の frameGaps）。時刻からの
    * 推定は欠けた区間の刻みを仮定しており、1 枚違うだけで下のコマ番号が全部ずれる。
    *
    * 無い行＝旧版の拡張で撮ったクリップ・返さないブラウザ。従来どおり推定に落ちる。

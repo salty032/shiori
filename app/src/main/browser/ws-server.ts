@@ -33,7 +33,7 @@ export type ExtensionMessage =
   // 画面キャプチャ側の時計とは無関係で、素材の実コマを知る唯一の経路。
   //
   // presentedFrames は rVFC が返す「合成へ送られたコマの累積数」。通知が飛んでも飛んだぶん
-  // 増えているので、前後の差から通知欠落の枚数が**実数で**出る（frame-feed の frameGaps）。
+  // 増えているので、前後の差から通知欠落の枚数が**実数で**出る（frame-gaps の frameGaps）。
   // 旧版の拡張・返さないブラウザでは null になり、その場合は従来の推定に落ちる。
   //
   // presentedAt（rVFC の presentationTime）と calledAt（コールバックの時刻）は、どの時刻が実際に画面へ

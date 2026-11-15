@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { frameGaps, isSteadySequence, matchFrames, offsetVerdict, summarizeReportDelay, type SourceFrame } from './frame-feed'
+import { frameGaps } from './frame-gaps'
+import { isSteadySequence, type SourceFrame } from './frame-feed'
+import { matchFrames, offsetVerdict, summarizeReportDelay } from './frame-match'
 
 // 素材のコマ（23.976fps = 41.7083ms 間隔）と、画面キャプチャ（60Hz = 16.667ms 間隔）を
 // 合成して、対応付けが 1 対 1 に収まるかを検証する。実機を回さずに固められる部分。

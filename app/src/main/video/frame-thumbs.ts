@@ -10,7 +10,7 @@
 //
 // 決めきれないときは動かさない。同じ絵が続くコマ（コマ打ち）はどの画像でも同じ絵なので照合しない。
 // 口パクのように差が録画の圧縮の乱れと同じくらいしかないときも、近い方を決められないので動かさない。
-import type { FrameMatch } from './frame-feed'
+import type { FrameMatch } from './frame-match'
 
 const CANDIDATE_SPAN = 2
 // 隣のコマの控えとの近さの差がこれ以下なら、どちらのコマの画像か決めない。

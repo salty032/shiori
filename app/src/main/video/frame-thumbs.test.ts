@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { refineByThumbnails } from './frame-thumbs'
-import type { FrameMatch } from './frame-feed'
+import type { FrameMatch } from './frame-match'
 
 // 絵 n は、乱数で塗った 32x32。録画の画像は同じ絵に明るさの幅の違いと乱れを足したもの。
 function picture(n: number): Uint8Array {

@@ -235,7 +235,7 @@ export function initDb(): void {
   // 母数そのものが出せず、判定が黙って効かなくなる。**実測が使えるならそれを使う**。
   // NULL は表を持たないクリップ（従来の行・非対応サイト）で、そのときだけ見積もりへ落ちる。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN source_frames INTEGER')
-  // 素材にあったはずなのに、配信ページから通知が来なかったコマ数（frame-feed の reportDrops）。
+  // 素材にあったはずなのに、配信ページから通知が来なかったコマ数（frame-gaps の countReportDrops）。
   // **撮り逃し（uncaptured_frames）より悪い**——表に入っていないので上の割合の分母にも
   // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
   // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。

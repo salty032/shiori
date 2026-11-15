@@ -200,7 +200,7 @@ async function acquireScreenStream(sourceId: string, fps: number): Promise<{ str
   // 24fps でも素材 1 コマぶんの表示区間に 1 枚も撮れない箇所が 5〜7% 出ていた）。
   // 今はティッカー（startCaptureTicker）で約 50枚/秒まで上がり 24fps は足りるが、30/60fps 素材と
   // 高負荷時は今も 2 倍に届かない。避けられないので、フレーム表側で「撮り逃し」として
-  // 印を付けてユーザーへ見せる（frame-feed.ts の captured を参照）。
+  // 印を付けてユーザーへ見せる（frame-match.ts の captured を参照）。
   const videoConstraints = { cursor: 'never', frameRate: { ideal: maxFrameRate, max: maxFrameRate } } as any
   const videoMandatory = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxFrameRate } } as any
 

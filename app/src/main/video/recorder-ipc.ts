@@ -14,10 +14,8 @@ import {
   finishRecordingState, getRecordingDisplayPixels, getRecordingMeta, isCurrentRecordingSession, markArmingUnconfirmed,
   notifyRecorderPrepared, recordMeasuredSupply, releaseCaptureUi, takeSettleNote, takeStartDoubts
 } from './recording'
-import {
-  logMatchResult, buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions,
-  getSourceFrames
-} from './frame-feed'
+import { logMatchResult } from './frame-match'
+import { buildFrameTable, getSourceFps, getReportDelay, logReportInterruptions, getSourceFrames } from './frame-feed'
 import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recordedSize, summarizeSupply } from './capture-diag'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { saveFrameTable } from '../db/db-video-frames'
@@ -160,7 +158,7 @@ export function registerRecorderIpc(): void {
     // 探索の窓を素材 1 コマ幅に閉じてあるので、オフセットの曖昧さが残っても表のずれは
     // 1 コマ未満に収まる。**以前あった「飽和したら表ごと捨てる」措置は不要になったので撤去した**
     // （供給が均一な録画ほどコマ精度を失う副作用の方が大きい）。疑わしい点の判定と警告は
-    // frame-feed 側（offsetVerdict / logMatchResult）に集約してある。
+    // frame-match 側（offsetVerdict / logMatchResult）に集約してある。
     const frameTable = usableDrawnAt ? buildFrameTable(drawnAt) : null
     // 録画直後の検査が絵を取り出した後に表を作り直すのに使う。検査は非同期なので、次の録画で
     // 消える前に写しておく。

@@ -2,7 +2,7 @@
 //
 // コマ送りの精度を決めているのは「素材の1コマぶんの表示区間(24fps なら 41.7ms)に、
 // こちらのキャプチャが1枚でも撮れているか」で、撮れなかったコマは直前の絵を流用する
-// （frame-feed.ts の captured=false）。実測では 5〜7% のコマがこれに当たる。
+// （frame-match.ts の captured=false）。実測では 5〜7% のコマがこれに当たる。
 //
 // 供給を増やせるのかを判断するには、まず「どこで枚数が減っているか」を切り分ける必要がある。
 //   1. キャプチャ本体が寄越していない        → 供給を増やす余地なし。撮り逃しの補正で戦う
@@ -11,7 +11,7 @@
 // presentedFrames の飛びと video 要素が受け取った総数を数えて持ち帰る（CaptureDiag）。
 //
 // ここはその数値を1行のログにまとめるための計算だけを持つ純関数。
-import type { ReportDelay } from './frame-feed'
+import type { ReportDelay } from './frame-match'
 
 export type { CaptureDiag } from '../../shared/capture-diag'
 import type { CaptureDiag } from '../../shared/capture-diag'
@@ -93,7 +93,7 @@ export function logSupplyDiag(summary: SupplySummary | null, diag: CaptureDiag |
 
 // 2 つの時計の基準を 1 行にまとめる（1録画1行。出力は英語）。
 //
-// **オフセット（frame-feed.ts の offsetMs）が録画ごとに振れる理由を切り分けるための実測。**
+// **オフセット（frame-match.ts の offsetMs）が録画ごとに振れる理由を切り分けるための実測。**
 // 突き合わせている 2 つの時刻は、どちらも別プロセスの単調時計を各々の epoch へ直した値：
 //   displayAt = 配信ページ(Chrome)の (録画開始時の Date.now() - performance.now()) + expectedDisplayTime
 //   drawnAt   = レコーダー(Electron)の (録画開始時の Date.now() - performance.now()) + captureTime

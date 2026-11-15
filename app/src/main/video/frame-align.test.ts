@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('../browser/ws-server', () => ({ onExtensionMessage: () => () => {} }))
 
 import { alignWholeRecording } from './frame-align'
-import { matchFrames, type FrameMatch, type SourceFrame } from './frame-feed'
+import { matchFrames, type FrameMatch } from './frame-match'
+import { type SourceFrame } from './frame-feed'
 import recordings from './fixtures/frame-align-recordings.json'
 
 // 60Hz の画面で 29.97fps のテスト動画を録った実際の録画 2 本（frame-test.cjs の診断から、時刻と正解だけを抜いたもの）。

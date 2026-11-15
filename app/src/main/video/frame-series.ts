@@ -1,8 +1,8 @@
 // 素材のコマ列を読むときの共通の下ごしらえ。
 //
-// 同じ計算が frame-feed / frame-verify / frame-align に別々に書かれていて、1 か所だけ直すと
+// 同じ計算が frame-feed・frame-match / frame-verify / frame-align に別々に書かれていて、1 か所だけ直すと
 // 同じ録画の素材のコマ長や重複の扱いが経路ごとに食い違う形だった。
-// frame-align は frame-feed から型しか読まない（値を読むと ws-server まで連れてくる）ので、ここに置く。
+// frame-align は受信（frame-feed）を読まない（値を読むと ws-server まで連れてくる）ので、ここに置く。
 import type { SourceFrame } from './frame-feed'
 
 // 隣り合う時刻の間隔の中央値（偶数個なら上側）。間隔が 1 つも無ければ 0。
