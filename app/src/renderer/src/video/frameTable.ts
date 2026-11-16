@@ -6,13 +6,10 @@
 // コマを数えたい用途では使い物にならない。実 PTS を辿ることでその両方を防ぐ。
 //
 // トリマーとビューアのプレーヤー（VideoPlayer）の双方から使う。
-import { FRAME_QUALITY, SEVERE_FRAME_RATIO } from '../../../shared/api.video'
+import { FRAME_QUALITY } from '../../../shared/api.video'
+import { isMissingSevere, missingFrameCount } from '../../../shared/frame-severity'
 
 export const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
-
-// 実体は shared/api.video.ts。タイムシートの可否（shared 側）が同じ数字で決まるよう
-// 共通側へ移したが、読み手はここを見ているのでそのまま出し直す。
-export { SEVERE_FRAME_RATIO } from '../../../shared/api.video'
 
 // このクリップのコマ送りが、どこを見ても当てにならないか。
 //
@@ -23,8 +20,7 @@ export function isClipUnreliable(
 ): boolean {
   if (!frames) return false
   if ((frames.quality ?? []).some((q) => q === FRAME_QUALITY.misaligned)) return true
-  const missing = (frames.gaps ?? []).reduce((sum, g) => sum + (g.animeMissing ?? 0), 0)
-  return missing > 0 && missing / (frames.pts.length + missing) > SEVERE_FRAME_RATIO
+  return isMissingSevere(frames.pts.length, missingFrameCount(frames.gaps))
 }
 
 // idx 番目のフレームを確実に表示させるためのシーク先。

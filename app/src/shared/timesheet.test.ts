@@ -233,7 +233,7 @@ describe('canBuildTimesheet', () => {
   })
 
   // 抜けた枚数は推定値なので、多いほど並び全体が信用できない。線は撮り逃しと同じ割合・
-  // 同じ定数で引く（詳細パネルが「要注意」を出す条件と揃える）。
+  // 同じ定数で引く（ビューアが「要注意」を出す条件と揃える。式は frame-severity.ts）。
   it('抜けが多すぎるものは出さない', () => {
     const many = {
       ...clip(captured(100)), gaps: [{ afterIndex: 10, missing: 41, measured: false, animeMissing: 40 }]

@@ -7,7 +7,8 @@
 // 確かめられない。判定だけをここへ出し、書き込み（el.textContent / style）は呼び出し側に残す。
 //
 // **表示の見え方は変えていない。** 文言・色・優先順位はすべて元のまま。
-import { FRAME_QUALITY, SEVERE_FRAME_RATIO, type ClipFrames } from '../../../shared/api.video'
+import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
+import { isMissingSevere } from '../../../shared/frame-severity'
 import type { MessageKey, Translate } from '../i18n'
 
 /**
@@ -130,7 +131,7 @@ export function clipStatus(frames: ClipFrames | null, index: GapIndex, tr: Trans
   // 「抜け」の行で重ねて言わない。
   const total = index.totalWithGaps
   const missing = total - frames.pts.length
-  const severe = missing > 0 && missing / total > SEVERE_FRAME_RATIO
+  const severe = isMissingSevere(frames.pts.length, missing)
   if (severe) {
     alert(tr('viewer.statusMissingSevere', {
       count: String(missing), total: String(total), pct: String(Math.round((missing / total) * 100)),
@@ -312,7 +313,7 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
       : missingNext > 0
         ? tr('viewer.frameGapAfterEstimated', { count: String(missingNext) })
       : note ? tr(note.label) : null
-  // 未取得は、そのクリップで多いときだけ赤へ上げる（詳細パネルと同じ 5%）。
+  // 撮り逃しは、そのクリップで多いときだけ赤へ上げる（線は shared/frame-severity.ts の isReuseSevere）。
   const color = unreliable
     ? FRAME_COLOR.alert
     : unknownNext || missingNext > 0

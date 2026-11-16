@@ -11,7 +11,7 @@ import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
 import VideoPlayer from '../video/VideoPlayer'
-import { SEVERE_FRAME_RATIO } from '../video/frameTable'
+import { isReuseSevere } from '../../../shared/frame-severity'
 import { useOverlayOpen } from '../overlaySignal'
 import TrimButton from '../video/TrimButton'
 import { useT } from '../i18n'
@@ -127,7 +127,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
     // 可能性は消せず、確定できないことを確定したように見せることになる（コマ送り側と同じ）。
     return {
       text: t('detail.uncapturedFrames', { count: String(missing) }),
-      severe: (total > 0 ? missing / total : 0) > SEVERE_FRAME_RATIO
+      severe: isReuseSevere(missing, total)
     }
   }, [single, t])
 

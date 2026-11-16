@@ -1,4 +1,5 @@
-import { FRAME_QUALITY, SEVERE_FRAME_RATIO, type ClipFrames } from './api.video'
+import { FRAME_QUALITY, type ClipFrames } from './api.video'
+import { isMissingSevere, isReuseSevere, missingFrameCount } from './frame-severity'
 
 // 東映アニメーション デジタルタイムシートへ貼り付けるためのクリップボード形式。
 //
@@ -125,8 +126,10 @@ export function expandMarks(marks: readonly TimesheetMark[], rows: readonly numb
 // 通知欠落数しか無い区間は、アニメの枚数が決まらないので表を開かない。
 //
 // 抜けた枚数は録画画像からの推定値なので、多いほど並び全体が
-// 信用できない。**線は撮り逃しと同じ割合・同じ定数で引く**——詳細パネルが「要注意」を
-// 出す条件と揃えることで、「赤いのに出せる／出せないのに白い」が起きないようにする。
+// 信用できない。**線は撮り逃しと同じ割合・同じ定数で引く**——ビューアが「要注意」を
+// 出す条件（frameTable.ts の isClipUnreliable。式は frame-severity.ts）と揃えることで、
+// 「赤いのに出せる／出せないのに白い」が起きないようにする。
+// （詳細パネルの「要注意」はずれだけを見ていて、抜けの割合は見ていない。）
 //
 // **対応崩れ（misaligned）も 1 つでも不可。** 出ている絵が何なのか分からない以上、
 // 打った位置がどのコマなのかも決められない。
@@ -172,9 +175,8 @@ export function canBuildTimesheet(frames: ClipFrames | null | undefined, fps: nu
   if (frames.quality.length !== frames.pts.length) return false
   if (frames.quality.some((q) => q === FRAME_QUALITY.misaligned)) return false
   if ((frames.gaps ?? []).some((gap) => gap.animeMissing == null)) return false
-  const missing = (frames.gaps ?? []).reduce((sum, gap) => sum + (gap.animeMissing ?? 0), 0)
-  if (missing / (frames.pts.length + missing) > SEVERE_FRAME_RATIO) return false
-  return countReusedFrames(frames) / frames.quality.length <= SEVERE_FRAME_RATIO
+  if (isMissingSevere(frames.pts.length, missingFrameCount(frames.gaps))) return false
+  return !isReuseSevere(countReusedFrames(frames), frames.quality.length)
 }
 
 // 専用の絵が撮れず、直前のコマを出しているコマ数。**番号はずれていないので、これ自体は

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
-import { FRAME_EPS, findFrameIdx, frameSeekTarget, isClipUnreliable, SEVERE_FRAME_RATIO } from './frameTable'
+import { FRAME_EPS, findFrameIdx, frameSeekTarget, isClipUnreliable } from './frameTable'
+import { isReuseSevere } from '../../../shared/frame-severity'
 import {
   buildGapIndex, clipStatus, frameReadout, walkFrames,
   type GapIndex, type ReadoutKind
@@ -201,7 +202,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       const rows = frames?.pts.length ?? 0
       unreliableRef.current = isClipUnreliable(frames)
       const uncaptured = (frames?.quality ?? []).filter((q) => q === FRAME_QUALITY.reused).length
-      uncapturedSevereRef.current = rows > 0 && uncaptured / rows > SEVERE_FRAME_RATIO
+      uncapturedSevereRef.current = isReuseSevere(uncaptured, rows)
       setFrameEnd(frames && frames.pts.length > 0 ? frames.pts[frames.pts.length - 1] : null)
       setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
       onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
