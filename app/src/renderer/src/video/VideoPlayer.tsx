@@ -8,6 +8,7 @@ import {
 } from './frameReadout'
 import { useT, type Translate } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
+import { watchVideoFrames } from './videoFrameCallback'
 import { font, radius, weight } from '../styles'
 import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
@@ -691,16 +692,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   useEffect(() => {
     const v = videoRef.current
     if (!v || !playing) return
-    type RvfcVideo = HTMLVideoElement & {
-      requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number }) => void) => number
-      cancelVideoFrameCallback?: (handle: number) => void
-    }
-    const rv = v as RvfcVideo
-    if (typeof rv.requestVideoFrameCallback !== 'function') return
-    let handle = 0
-    let alive = true
-    const tick = (_now: number, meta: { mediaTime: number }): void => {
-      if (!alive) return
+    const stop = watchVideoFrames(v, (meta) => {
       // 再生を止めた位置からそのままコマ送りを続けられるよう、添字も追い続ける。
       // 再生中は自分のシークと競合しないので、ここは実測をそのまま反映してよい。
       // 添字は追い続けるが、**コマ表示は書き換えない**。再生中は毎フレーム値が変わるため、
@@ -708,10 +700,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       // （そもそも再生中は隠している。下の JSX を参照）。
       const pts = framesRef.current?.pts
       if (pts && pts.length > 0) { frameIdxRef.current = findFrameIdx(pts, meta.mediaTime); gapOffsetRef.current = 0 }
-      handle = rv.requestVideoFrameCallback!(tick)
-    }
-    handle = rv.requestVideoFrameCallback(tick)
-    return () => { alive = false; rv.cancelVideoFrameCallback?.(handle) }
+    })
+    return stop ?? undefined
   }, [playing])
 
   useVcStyles()
