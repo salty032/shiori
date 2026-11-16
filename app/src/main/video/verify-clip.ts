@@ -41,10 +41,13 @@ export function framesVerifiedPayload(
 ): FramesVerified {
   return counts
     ? {
-        id: imageId, uncaptured: counts.uncaptured, ambiguous, total: counts.sourceFrames,
-        unreported: counts.unreported, misaligned: counts.misaligned
+        id: imageId, uncaptured_frames: counts.uncaptured, ambiguous_frames: ambiguous,
+        source_frames: counts.sourceFrames, unreported_frames: counts.unreported, misaligned_frames: counts.misaligned
       }
-    : { id: imageId, uncaptured: null, ambiguous: null, total: null, unreported: null, misaligned: null }
+    : {
+        id: imageId, uncaptured_frames: null, ambiguous_frames: null,
+        source_frames: null, unreported_frames: null, misaligned_frames: null
+      }
 }
 
 function notifyVerified(imageId: number, counts: FrameCounts | null, ambiguous: number | null = null): void {

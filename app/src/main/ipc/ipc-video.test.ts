@@ -211,7 +211,7 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
 
     expect(restoreVideoFrames).toHaveBeenCalledWith(1, table.slice(0, 3), { ambiguous: 2 })
     expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, {
-      id: 1, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0
+      id: 1, uncaptured_frames: 1, ambiguous_frames: 1, source_frames: 3, unreported_frames: 0, misaligned_frames: 0
     })
   })
 })

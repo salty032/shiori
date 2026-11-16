@@ -47,7 +47,7 @@ function flat(value: number): Uint8Array {
 
 // total（素材のコマ総数）も一緒に飛ばす。分子だけ更新すると、一覧のスナップショットの中で
 // 分子と分母が別の時点の数になり、詳細パネルの割合判定が静かに狂う。
-type VerifiedPayload = { id: number; uncaptured: number | null; ambiguous: number | null; total: number | null; unreported: number | null }
+type VerifiedPayload = { id: number; uncaptured_frames: number | null; ambiguous_frames: number | null; source_frames: number | null; unreported_frames: number | null }
 
 function verifiedPayload(): VerifiedPayload | null {
   const call = sendToRenderer.mock.calls.find((c) => c[0] === CH.framesVerified)
@@ -71,7 +71,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.08, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(7, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toEqual({ id: 7, uncaptured: 1, ambiguous: 1, total: 3, unreported: 0, misaligned: 0 })
+      expect(verifiedPayload()).toEqual({ id: 7, uncaptured_frames: 1, ambiguous_frames: 1, source_frames: 3, unreported_frames: 0, misaligned_frames: 0 })
     })
   })
 
@@ -87,7 +87,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     ]
     const missed = await verifyClipFrames(10, 'clip.webm', table, null)
     expect(missed).toBe(1)
-    expect(verifiedPayload()?.uncaptured).toBe(missed)
+    expect(verifiedPayload()?.uncaptured_frames).toBe(missed)
   })
 
   it('撮り逃しが 0 でも飛ばす（未検証の表示を残さない）', () => {
@@ -98,7 +98,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.04, frameIndex: 1, captured: true }
     ]
     return verifyClipFrames(8, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toEqual({ id: 8, uncaptured: 0, ambiguous: null, total: 2, unreported: 0, misaligned: 0 })
+      expect(verifiedPayload()).toEqual({ id: 8, uncaptured_frames: 0, ambiguous_frames: null, source_frames: 2, unreported_frames: 0, misaligned_frames: 0 })
     })
   })
 
@@ -111,7 +111,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       { mediaTime: 0.04, frameIndex: 1, captured: true, misaligned: true }
     ]
     return verifyClipFrames(9, 'clip.webm', table, null).then(() => {
-      expect(verifiedPayload()).toMatchObject({ id: 9, total: 2, misaligned: 1 })
+      expect(verifiedPayload()).toMatchObject({ id: 9, source_frames: 2, misaligned_frames: 1 })
     })
   })
 
@@ -134,7 +134,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     const saved = saveVideoFrames.mock.calls.at(-1)?.[1] as StoredFrame[]
     expect(saved).toHaveLength(table.length)
     expect(saved[1].animeGapMissing).toBe(2)
-    expect(verifiedPayload()?.unreported).toBe(3)
+    expect(verifiedPayload()?.unreported_frames).toBe(3)
   })
 
   // **崩れても表を丸ごと捨てない。** 崩れた位置より手前は正しいので残し、以降の行にだけ
@@ -153,7 +153,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
       expect(saved[0].misaligned).toBeFalsy()
       expect(saved.some((f) => f.misaligned)).toBe(true)
       // 表として成立している以上、枚数は画面へ返す（「情報が無い」にしない）。
-      expect(verifiedPayload()?.total).toBe(saved.length)
+      expect(verifiedPayload()?.source_frames).toBe(saved.length)
     })
   })
 
@@ -178,7 +178,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     const saved = saveVideoFrames.mock.calls.at(-1)?.[1] as StoredFrame[]
     expect(saved).toHaveLength(10)
     expect(saved.some((f) => f.misaligned)).toBe(false)
-    expect(verifiedPayload()).toMatchObject({ id: 307, misaligned: 0, total: 10 })
+    expect(verifiedPayload()).toMatchObject({ id: 307, misaligned_frames: 0, source_frames: 10 })
   })
 
   // 逆に、ずれが末尾まで溜まっているものには従来どおり印を立てる。
@@ -200,7 +200,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     const saved = saveVideoFrames.mock.calls.at(-1)?.[1] as StoredFrame[]
     expect(saved.slice(0, 5).some((f) => f.misaligned)).toBe(false)
     expect(saved.slice(5).every((f) => f.misaligned)).toBe(true)
-    expect(verifiedPayload()).toMatchObject({ id: 12, misaligned: 5, total: 10 })
+    expect(verifiedPayload()).toMatchObject({ id: 12, misaligned_frames: 5, source_frames: 10 })
   })
 
   it('1 行も使えるところが無ければ、そのときだけ表として使わない', () => {
@@ -211,7 +211,7 @@ describe('verifyClipFrames（検証結果を画面へ反映する通知）', () 
     const table: StoredFrame[] = [{ mediaTime: 0, frameIndex: 3, captured: true }]
     return verifyClipFrames(11, 'clip.webm', table, drawnAt).then(() => {
       expect(markVideoFramesUnusable).toHaveBeenCalledWith(11, 'correspondence-break')
-      expect(verifiedPayload()).toEqual({ id: 11, uncaptured: null, ambiguous: null, total: null, unreported: null, misaligned: null })
+      expect(verifiedPayload()).toEqual({ id: 11, uncaptured_frames: null, ambiguous_frames: null, source_frames: null, unreported_frames: null, misaligned_frames: null })
     })
   })
 })

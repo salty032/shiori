@@ -379,12 +379,7 @@ export default function App() {
   // 保存直後の数（撮り逃し・総数）が、検証で数が変わった行に残り続ける。
   // **misaligned も必ず一緒に流す。** 落とすと、録画した直後の 1 本だけコマ送りの表示が
   // 赤いのに詳細パネルが黙る（アプリを開き直すまで直らない）。
-  useEffect(() => window.api.onFramesVerified(({ id, uncaptured, ambiguous, total, unreported, misaligned }) =>
-    patchImage(id, {
-      uncaptured_frames: uncaptured, ambiguous_frames: ambiguous,
-      source_frames: total, unreported_frames: unreported, misaligned_frames: misaligned
-    })
-  ), [patchImage])
+  useEffect(() => window.api.onFramesVerified(({ id, ...counts }) => patchImage(id, counts)), [patchImage])
 
   // 外部アプリへのドラッグ&ドロップが上限（枚数・累積バイト・個別コピー失敗）で
   // 一部しか渡らなかったとき通知する（UX-6）。OSドラッグ中は表示できないため、

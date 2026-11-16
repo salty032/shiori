@@ -8,15 +8,12 @@ import type {
 } from './types'
 
 // 撮り逃し・ずれ・総数を検証後の値へ置き換えさせる通知の中身（onFramesVerified）。
+// **項目名は ImageRow の列名そのまま**——画面は受け取った値を一覧の行へそのまま当てる
+// （名前を手で対応させると、列を足したときに当て忘れる）。
 // 表が使えなくなったときは枚数が全部 null（「数えられない」）。
-export interface FramesVerified {
-  id: number
-  uncaptured: number | null
-  ambiguous: number | null
-  total: number | null
-  unreported: number | null
-  misaligned: number | null
-}
+export type FramesVerifiedColumn =
+  'uncaptured_frames' | 'ambiguous_frames' | 'source_frames' | 'unreported_frames' | 'misaligned_frames'
+export type FramesVerified = { id: number } & { [K in FramesVerifiedColumn]-?: NonNullable<ImageRow[K]> | null }
 
 export interface ShioriApi {
   listImages: (req: ImageListRequest) => Promise<ImageRow[]>
