@@ -9,6 +9,7 @@ import {
   MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO, MIN_SOURCE_FRAME_MS, MAX_SOURCE_FRAME_MS,
   MAX_EPOCH_MS, MAX_PRESENTED_FRAMES, FRAME_THUMB_BASE64_LENGTH, isChromeExtensionId,
 } from '../../shared/wire-limits'
+import type { AppToExtensionMessage } from '../../shared/wire-messages'
 
 // 実際に listen できたポート。どれも確保できなければ null のまま。
 let activePort: number | null = null
@@ -56,7 +57,7 @@ export type ExtensionMessage =
 const MAX_VERSION_LENGTH = 32
 
 type MessageHandler = (msg: ExtensionMessage) => void
-type ConnectCallback = (send: (msg: object) => void) => void
+type ConnectCallback = (send: (msg: AppToExtensionMessage) => void) => void
 
 let httpServer: ReturnType<typeof createServer> | null = null
 let wss: WebSocketServer | null = null
@@ -313,8 +314,7 @@ export function startWsServer(options?: { allowedExtensionIds?: string[] }): voi
 
   wss.on('connection', (ws: WebSocket) => {
     console.log('[WS] extension connected')
-    ws.send(JSON.stringify({ type: 'connected' }))
-    const sendToClient = (msg: object): void => {
+    const sendToClient = (msg: AppToExtensionMessage): void => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
     }
     connectCallbacks.forEach((cb) => cb(sendToClient))
@@ -375,8 +375,9 @@ export function onExtensionMessage(handler: MessageHandler): () => void {
   }
 }
 
-// 全接続クライアントにメッセージをブロードキャスト
-export function broadcastMessage(msg: object): void {
+// 全接続クライアントにメッセージをブロードキャスト。送れる形は shared/wire-messages.ts だけ
+// （種類や項目名を間違えると、拡張が黙って捨てる）。
+export function broadcastMessage(msg: AppToExtensionMessage): void {
   if (!wss) return
   const data = JSON.stringify(msg)
   wss.clients.forEach((client) => {

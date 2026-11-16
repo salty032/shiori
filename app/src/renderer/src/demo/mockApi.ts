@@ -24,12 +24,13 @@ import { setMediaUrlResolver } from '../utils'
 import { normalizeSearchText } from '../../../shared/normalize'
 import { loadDemoLibrary } from './manifest'
 import { markDemoMode } from '../demoMode'
+import { DEFAULT_IMAGE_LIST_LIMIT, MAX_IMAGE_LIST_LIMIT, MAX_UNPAGED_IMAGE_LIMIT } from '../../../shared/constants'
 
 // vite.web.config.ts の define がビルド時に app/package.json の version を埋める。
 declare const __APP_VERSION__: string
 
-const MAX_LIST_LIMIT = 200
-const MAX_TIMELINE_LIMIT = 5000
+const MAX_LIST_LIMIT = MAX_IMAGE_LIST_LIMIT
+const MAX_TIMELINE_LIMIT = MAX_UNPAGED_IMAGE_LIMIT
 
 // main → renderer の push チャンネル用の最小の購読管理。preload の on* と同じく
 // 解除関数を返す契約に揃える。
@@ -140,7 +141,7 @@ export async function installMockApi(): Promise<void> {
     listImages: async (req) => {
       const limit = req.sortOrder === 'random'
         ? MAX_TIMELINE_LIMIT
-        : Math.min(MAX_LIST_LIMIT, Math.max(1, Math.trunc(req.limit ?? 50)))
+        : Math.min(MAX_LIST_LIMIT, Math.max(1, Math.trunc(req.limit ?? DEFAULT_IMAGE_LIST_LIMIT)))
       const hits = state.rows.filter((row) => matches(row, req))
       return afterCursor(sorted(hits, req.sortOrder ?? 'date_desc'), req).slice(0, limit)
     },

@@ -3,13 +3,13 @@
 import type { ImageQuery, ImageListRequest, ImageRow as ImageRowBase } from '../../shared/types'
 import { buildSearchText, normalizeSearchText } from '../../shared/normalize'
 import { urlHost } from '../../shared/url-host'
-import { DEFAULT_IMAGE_LIST_LIMIT, MAX_IMAGE_LIST_LIMIT } from '../../shared/constants'
+import { DEFAULT_IMAGE_LIST_LIMIT, MAX_IMAGE_LIST_LIMIT, MAX_UNPAGED_IMAGE_LIMIT } from '../../shared/constants'
 import { getDb, prepare } from './db-core'
 import { pruneOrphanTags } from './db-tags'
 
 // ランダムソートはカーソルページングできず一括返却するため、グリッドでも
 // ライブラリ全体からサンプリングできるよう専用の上限を設ける（タイムラインと揃える）。
-const MAX_RANDOM_LIMIT = 5000
+const MAX_RANDOM_LIMIT = MAX_UNPAGED_IMAGE_LIMIT
 
 function clampLimit(limit: number): number {
   if (!Number.isFinite(limit)) return DEFAULT_IMAGE_LIST_LIMIT
@@ -212,7 +212,7 @@ export function listImages(req: ImageListRequest = {}): ImageRowBase[] {
 
 // タイムライン表示用：カーソルページングなしでフィルタ一致を一括取得する。
 // 件数が膨大なライブラリでも描画が破綻しないよう上限でキャップする（クライアント側で作品別グルーピング）。
-const MAX_TIMELINE_LIMIT = 5000
+const MAX_TIMELINE_LIMIT = MAX_UNPAGED_IMAGE_LIMIT
 export function listImagesAll(query: ImageQuery = {}): ImageRowBase[] {
   const { where, params } = buildImageFilter(query)
   params.push(MAX_TIMELINE_LIMIT)

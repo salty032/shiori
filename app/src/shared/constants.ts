@@ -17,6 +17,8 @@ export const MAX_MEMO_LENGTH = 5000
 // 一覧を 1 回に引く件数の上限と、指定が壊れていたときの既定。IPC の検証と DB の両方がこれで切る。
 export const MAX_IMAGE_LIST_LIMIT = 200
 export const DEFAULT_IMAGE_LIST_LIMIT = 50
+// ページングせずに一括で返すとき（ランダム順・タイムライン）の上限。デモ用の window.api も同じ値で切る。
+export const MAX_UNPAGED_IMAGE_LIMIT = 5000
 
 // 1 回の取り込み（ドロップ・フォルダ選択）で受け入れるファイル数の上限。超えたぶんは取り込まず、
 // 画面に件数つきで伝える（toast.importTruncatedSuffix）。

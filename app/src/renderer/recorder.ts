@@ -3,6 +3,7 @@ import { createFrameSink, type FrameSink } from './frame-sink'
 import { createCaptureBoundary, type CaptureBoundary } from './capture-boundary'
 import { videoBitrateFor } from './recorder-bitrate'
 import type { BenchResult, BenchVariant, CropRect, RecorderApi, StartData } from '../shared/recorder-api'
+import { MAX_CAPTURE_FPS, RECORDING_AUDIO_BITS_PER_SECOND, RECORDING_KEYFRAME_INTERVAL_FRAMES } from '../shared/recorder-api'
 import type { CaptureDiag } from '../shared/capture-diag'
 
 export {}
@@ -165,14 +166,14 @@ function resetState(): void {
 // 無い間もキャプチャが同じ絵を複製して吐き続け、ファイルサイズだけが膨らむ。上限だけ
 // 上げれば「変化したぶんは確実に拾い、変化しなければ吐かない」になる。
 // 実際に要求する取得フレームレート。main（recording.ts）が録画対象ディスプレイの Hz から
-// 決めて渡すが、renderer 側でも上限を持つ（main の MAX_CAPTURE_FPS と同じ値。壊れた値が
+// 決めて渡すが、renderer 側でも同じ上限（shared/recorder-api.ts の MAX_CAPTURE_FPS）で切る（壊れた値が
 // 来ても録画を巻き込まないための多層防御）。
 //
 // **ここで 60 に潰していた頃は、高リフレッシュレート環境でもこの上限が天井になっていた。**
 // 「上限を上げても供給は増えない」という実測記録があったが、その実測自体が 60 上限の下で
 // 取られていた（供給間隔 p50 17.6ms ≒ 57Hz は、まさに 60 上限に張り付いた形）。
 function captureFps(fps: number): number {
-  return Math.min(120, Math.max(1, fps || 60))
+  return Math.min(MAX_CAPTURE_FPS, Math.max(1, fps || 60))
 }
 
 async function acquireScreenStream(sourceId: string, fps: number): Promise<{ stream: MediaStream; audioFailed: boolean }> {
@@ -236,37 +237,6 @@ async function acquireScreenStream(sourceId: string, fps: number): Promise<{ str
 // コーデック選択。アニメの線画・ベタ塗りは輪郭にモスキートノイズが出やすく、同じ
 // ビットレートなら VP9 の方が明確に有利なので VP9 を先に試す。VP9 が使えない環境
 // （ソフトウェアエンコーダ無効等）では従来どおり VP8 に落ちる。
-// キーフレームを入れる間隔（コマ数）。
-//
-// キーフレームを詰めて録る。**録画は「見る」ためではなく「1 コマずつ止めて見る」ための
-// 素材なので、編集向きの入れ方にする**（業務用の編集ソフトがロングGOPの素材に対して
-// 全イントラのプロキシを作るのと同じ理由。こちらは自分で録っているので元から詰められる）。
-//
-// 既定に任せると約 100 コマに 1 回しか入らず、コマを 1 つ表示するのに直前のキーフレーム
-// から全部デコードし直すため、**キーフレームから遠いコマほど重くなる**。実測（2026-08-28・
-// 手元の録画を同じ Chromium で 400 コマ送った）:
-//
-//   キーフレームからの距離  0-9   10-19  30-39  50-59  70-79  90-99
-//   1 コマ進めるのにかかる  30ms   54ms  110ms  152ms  286ms  294ms
-//
-// キーフレームごとに 10ms 台へ戻るので、コマ再生の速さがのこぎり状に揺れる（むらの正体）。
-// 10 コマごとに入れると最悪でも 10 コマぶんのデコードで済み、実測は 9〜40ms に収まった
-// （中央値 85→19ms）。**素材 1 コマの長さ（24fps で 41.7ms）より短い**ので、待ち時間に隠れる。
-//
-// 値の根拠：5 コマごとにしても 19→17ms とほぼ変わらずサイズだけ増えたので 10 で止める。
-// 代償はファイルサイズ +27%（実測）。画質は落ちない——同じビットレート要求で
-// キーフレームだけ増やして比べたところ SSIM 0.9984→0.9979（差 0.04%）で、
-// ファイルはむしろ小さくなった＝他のコマからビットを奪ってはいない。
-//
-// **単位はコマ数**（時間ではない）。決めたいのは「最悪どれだけデコードするか」で、
-// それはコマ数そのものだから。供給レートが変わっても意味が変わらない。
-const KEYFRAME_INTERVAL_FRAMES = 10
-
-// 音声ビットレートも明示する。未指定だと Chromium の控えめな既定値が使われ、
-// 映像に十数 Mbps 割いているのに音だけ痩せる。Opus 192kbps はステレオ音楽が
-// 十分に持つ水準で、映像側と比べれば誤差のサイズにしかならない。
-const AUDIO_BITS_PER_SECOND = 192_000
-
 const MIME_CANDIDATES = [
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp9',
@@ -545,8 +515,8 @@ window.recorderApi.onPrepare(async ({ sourceId, fps, sessionId }) => {
   try {
     // videoKeyFrameIntervalCount は Chromium 独自の指定で、標準の MediaRecorderOptions に無い。
     const options: MediaRecorderOptions & { videoKeyFrameIntervalCount: number } = {
-      mimeType, videoBitsPerSecond, audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
-      videoKeyFrameIntervalCount: KEYFRAME_INTERVAL_FRAMES,
+      mimeType, videoBitsPerSecond, audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
+      videoKeyFrameIntervalCount: RECORDING_KEYFRAME_INTERVAL_FRAMES,
     }
     rec = new MediaRecorder(recordStream, options)
   } catch (err) {

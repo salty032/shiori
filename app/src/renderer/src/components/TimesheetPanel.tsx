@@ -4,7 +4,7 @@ import { font, radius, space } from '../styles'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
-import { GAP_ROW, requiredSheetLength, timesheetGlyph, timesheetLabels, TOEI_SYMBOL, trackOf } from '../../../shared/timesheet'
+import { GAP_ROW, requiredSheetLength, timesheetGlyph, timesheetLabels, TIMESHEET_TRACKS, TOEI_SYMBOL, trackOf } from '../../../shared/timesheet'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { XIcon } from './Icon'
 
@@ -63,7 +63,8 @@ const c = {
   gapRow: '#d9dde3',
 }
 
-const CELL_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+// 列の名前（A〜）。数は TIMESHEET_TRACKS（shared/timesheet.ts）から作る。
+const CELL_COLS = Array.from({ length: TIMESHEET_TRACKS }, (_, i) => String.fromCharCode(65 + i))
 
 // マスの幅は**パネルの幅いっぱいに伸びる**（実物のマスは横長）。上限は付けない——付けると
 // 広げたときに表の右へ白い余りが出る。cell は詳細パネルの最小幅（300）に縦スクロールバーと

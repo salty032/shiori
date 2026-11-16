@@ -16,6 +16,7 @@ import { setBrowserWindowPos, setVideoRect, setBrowserFullscreen, shouldSuppress
 import { sendToRenderer } from '../system/windows'
 import { compareVersions } from '../../shared/version'
 import { CH } from '../../shared/api'
+import type { AppToExtensionMessage } from '../../shared/wire-messages'
 import { t } from '../system/i18n'
 
 // コマ送りが効かないときに拡張がページ上へ出す文言。ここと拡張で別々に持つと、
@@ -29,7 +30,7 @@ export function browserStepLabels(): { blocked: string; dropped: string } {
 // 設定だけが届かなかった（画面には何も出ない）。
 // stepLabels はブラウザ側 , / . の読み取り表示に出す文言。**拡張は文言を持たない**（原本は ja.ts）ので
 // ここに載せて配る。言語を変えたときも設定保存時の再送で届く。
-export function extensionSettingsMessage(s: Settings): object {
+export function extensionSettingsMessage(s: Settings): AppToExtensionMessage {
   return {
     type: 'settings',
     frameFps: s.frameFps,

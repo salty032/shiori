@@ -14,6 +14,7 @@ import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/
 import { sendBrowserNotice } from '../browser/browser-notice'
 import type { PrepareData, StartData } from '../../shared/recorder-api'
 import { t } from '../system/i18n'
+import { MAX_CAPTURE_FPS } from '../../shared/recorder-api'
 
 interface RecordingMeta {
   title: string | null
@@ -176,12 +177,6 @@ async function getDesktopSourceId(): Promise<string | null> {
   const source = matched ?? sources[0]
   return source?.id ?? null
 }
-
-// 取得フレームレートの上限の上限（枚/秒）。素材のコマ 1 つに撮影 1 枚以上を確保するには
-// 素材の 2 倍が要るので、対応上限の 60fps 素材に対して 120。これ以上はコマ精度に効かず、
-// ソフトウェアエンコード（ハードウェアアクセラレーション OFF が必須）の負荷と
-// ファイルサイズだけが増える。recorder-ipc.ts の MAX_FRAME_RATE_FOR_VALIDATION より小さいこと。
-export const MAX_CAPTURE_FPS = 120
 
 // 直近の録画で実際に届いた供給レート（枚/秒）。ビットレートの根拠に使う（recorder:start の
 // supplyFps）。既定の 60 は 12Mbps を較正したときの水準で、**上限の見込み値を使わない**ため

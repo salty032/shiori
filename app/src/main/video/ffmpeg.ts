@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import { StderrCollector } from './ffmpeg-stderr'
 import { FRAME_THUMB_SIZE } from '../../shared/wire-limits'
+import { RECORDING_AUDIO_BITS_PER_SECOND, RECORDING_KEYFRAME_INTERVAL_FRAMES } from '../../shared/recorder-api'
 // ffmpeg は npm パッケージ経由ではなく resources に直接同梱する。
 // ffmpeg-static は GPL-3.0-or-later で公開されており、その JS を本体プロセスが require すると
 // Shiori 本体まで GPL の派生物と解される余地が生まれる（本体は MIT で配りたい）。
@@ -369,12 +370,12 @@ export function trimBitrate(fileBytes: number | null, durationSec: number | null
   return Math.min(TRIM_MAX_BITRATE, Math.max(TRIM_MIN_BITRATE, raw))
 }
 
-// キーフレームを入れる間隔（コマ数）。**録画側と同じ値・同じ単位**（recorder.ts の
-// KEYFRAME_INTERVAL_FRAMES）。ここを指定しないと既定の約 100 コマに 1 回へ戻り、
+// キーフレームを入れる間隔（コマ数）。**録画側と同じ値・同じ単位**（shared/recorder-api.ts の
+// RECORDING_KEYFRAME_INTERVAL_FRAMES を読む）。ここを指定しないと既定の約 100 コマに 1 回へ戻り、
 // キーフレームから遠いコマほどコマ送りが重くなる（実測 30ms → 294ms）。
 // **録画で入れた間隔は焼き直しでは引き継がれない**ので、こちらでも明示する必要がある。
 // 代償はファイルサイズ +27%（録画側の実測）。
-const TRIM_KEYFRAME_INTERVAL_FRAMES = 10
+const TRIM_KEYFRAME_INTERVAL_FRAMES = RECORDING_KEYFRAME_INTERVAL_FRAMES
 
 export async function trimWebm(
   inputPath: string,
@@ -419,7 +420,7 @@ export async function trimWebm(
     '-c:a', 'libopus',
     // 録画側と同じ 192kbps を明示する。未指定だと Chromium ではなく ffmpeg の既定に
     // 落ちるが、いずれにせよ**元より痩せる方向にしか動かない**ので指定する。
-    '-b:a', '192k',
+    '-b:a', `${RECORDING_AUDIO_BITS_PER_SECOND / 1000}k`,
     '-avoid_negative_ts', 'make_zero',
     outPath
   )
@@ -499,7 +500,7 @@ export function h264Args(
     '-pix_fmt', 'yuv420p',
     // 音声が無いクリップでは無視される。
     '-c:a', 'aac',
-    '-b:a', '192k',
+    '-b:a', `${RECORDING_AUDIO_BITS_PER_SECOND / 1000}k`,
     // 先頭にインデックスを置く。編集ソフトや再生側が全部読まずに開ける。
     '-movflags', '+faststart',
     outPath

@@ -13,6 +13,7 @@ import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
 import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
+import { FRAME_FPS_MAX, FRAME_FPS_MIN } from '../../../shared/settingsDefaults'
 
 export { s } from './settingsStyles'
 
@@ -185,7 +186,7 @@ export default function SettingsModal(p: Props) {
     fpsDebounceRef.current = null
     const raw = fpsInputDraftRef.current
     const value = Number(raw)
-    if (raw && value >= 1 && value <= 60) p.onUpdateFrameFps(value)
+    if (raw && value >= FRAME_FPS_MIN && value <= FRAME_FPS_MAX) p.onUpdateFrameFps(value)
   }
 
   const [closing, setClosing] = useState(false)
@@ -377,7 +378,7 @@ export default function SettingsModal(p: Props) {
                             </button>
                           )
                         })}
-                        <input type="number" min={1} max={60} value={fpsInputDraft}
+                        <input type="number" min={FRAME_FPS_MIN} max={FRAME_FPS_MAX} value={fpsInputDraft}
                           onChange={(e) => {
                              const raw = e.target.value
                              setFpsInputDraft(raw)
@@ -385,7 +386,7 @@ export default function SettingsModal(p: Props) {
                              if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current)
                              fpsDebounceRef.current = null
                              const v = Number(raw)
-                             if (!raw || !(v >= 1 && v <= 60)) return
+                             if (!raw || !(v >= FRAME_FPS_MIN && v <= FRAME_FPS_MAX)) return
                              fpsDebounceRef.current = setTimeout(() => {
                                fpsDebounceRef.current = null
                                p.onUpdateFrameFps(v)
@@ -397,7 +398,7 @@ export default function SettingsModal(p: Props) {
                             fpsDebounceRef.current = null
                             const raw = fpsInputDraftRef.current
                             const v = Number(raw)
-                            if (raw && v >= 1 && v <= 60) p.onUpdateFrameFps(v)
+                            if (raw && v >= FRAME_FPS_MIN && v <= FRAME_FPS_MAX) p.onUpdateFrameFps(v)
                             else setFpsInputDraft(String(p.settings.frameFps))
                           }}
                           style={{ ...s.input, width: 52, textAlign: 'center' as const, padding: '6px 4px' }} />
