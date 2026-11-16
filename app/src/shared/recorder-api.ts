@@ -51,6 +51,39 @@ export interface StartData {
   cleanFrameDeadline: number
 }
 
+// レコーダーウィンドウとの窓口（recorder:*）のチャンネル名。ShioriApi の CH とは別の契約
+// （main 側の検証も isTrustedRecorderSender と別方式）なので別の表にしてあるが、**名前は両側ともここから読む**
+// ——片方だけ綴りを変えると、録画が黙って始まらない・終わらない。
+export const RECORDER_CH = {
+  prepare: 'recorder:prepare',
+  ready: 'recorder:ready',
+  startBoundary: 'recorder:startBoundary',
+  start: 'recorder:start',
+  stop: 'recorder:stop',
+  getCrop: 'recorder:getCrop',
+  done: 'recorder:done',
+  stopped: 'recorder:stopped',
+  error: 'recorder:error',
+  bench: 'recorder:bench',
+  benchResult: 'recorder:benchResult',
+} as const
+
+// レコーダーが main へ知らせる失敗の符丁。main は一部を見分けて画面の文言を変え、残りは
+// 「録画エラー: 符丁」と出す。**送る側はこの型でしか送れない**ので、打ち間違いは typecheck で落ちる。
+export type RecorderErrorCode =
+  | 'aborted'
+  | 'audio_unavailable_fallback'
+  | 'media_recorder_error'
+  | 'no_data'
+  | 'finalize_failed'
+  | 'getUserMedia_not_allowed'
+  | 'getUserMedia_failed'
+  | 'canvas_unavailable'
+  | 'crop_unavailable'
+  | 'media_recorder_failed'
+  | 'recorder_start_failed'
+  | 'video_play_failed'
+
 export interface RecorderApi {
   onPrepare: (cb: (data: PrepareData) => void) => void
   onStart: (cb: (data: StartData) => void) => void
@@ -61,7 +94,7 @@ export interface RecorderApi {
   getCrop: (streamW: number, streamH: number) => Promise<CropRect | null>
   sendDone: (webm: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: CaptureDiag) => void
   reportStopped: (sessionId: number) => void
-  reportError: (msg: string, sessionId: number) => void
+  reportError: (msg: RecorderErrorCode, sessionId: number) => void
   onBench: (cb: (data: BenchRequest) => void) => void
   sendBenchResult: (results: BenchResult[]) => void
 }

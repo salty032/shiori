@@ -18,6 +18,7 @@ import { displayAtWindowCenter } from '../capture/window-display'
 import { getRecorderWindow, isTrustedRecorderSender, setPendingDisplaySource } from './recorder-window'
 import { isRecordingInProgress } from './recording'
 import type { BenchRequest, BenchResult, BenchVariant } from '../../shared/recorder-api'
+import { RECORDER_CH } from '../../shared/recorder-api'
 
 const BENCH_HOTKEY = 'Alt+Shift+D'
 const BENCH_SECONDS = 5
@@ -106,7 +107,7 @@ function logResults(results: BenchResult[]): void {
 }
 
 export function registerSupplyBench(): void {
-  ipcMain.on('recorder:benchResult', (event, results: BenchResult[]) => {
+  ipcMain.on(RECORDER_CH.benchResult, (event, results: BenchResult[]) => {
     if (!isTrustedRecorderSender(event)) return
     running = false
     logResults(Array.isArray(results) ? results : [])
@@ -125,7 +126,7 @@ export function registerSupplyBench(): void {
       `[supply-bench] running ${VARIANTS.length} variants x ${BENCH_SECONDS}s.` +
       ' Keep the video playing until the results appear.'
     )
-    win.webContents.send('recorder:bench', { variants: VARIANTS, seconds: BENCH_SECONDS } satisfies BenchRequest)
+    win.webContents.send(RECORDER_CH.bench, { variants: VARIANTS, seconds: BENCH_SECONDS } satisfies BenchRequest)
   })
   if (!ok) console.warn(`[supply-bench] hotkey ${BENCH_HOTKEY} registration failed`)
   else console.log(`[supply-bench] press ${BENCH_HOTKEY} while a video is playing to measure the capture supply`)

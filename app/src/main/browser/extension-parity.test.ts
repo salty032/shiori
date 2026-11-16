@@ -207,7 +207,7 @@ describe('録画の準備中表示（clip-arming / clip-armed）', () => {
     const startRecording = recordingTs.slice(recordingTs.indexOf('export async function startRecording'))
     const arming = startRecording.indexOf("broadcastMessage({ type: 'clip-arming'")
     const armed = startRecording.indexOf('await clearArmingOverlay()')
-    const start = startRecording.indexOf("send('recorder:start'")
+    const start = startRecording.indexOf('send(RECORDER_CH.start')
     expect(arming).toBeGreaterThan(-1)
     expect(armed).toBeGreaterThan(arming)
     expect(start).toBeGreaterThan(armed)

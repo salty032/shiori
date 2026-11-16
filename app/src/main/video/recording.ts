@@ -15,6 +15,7 @@ import { sendBrowserNotice } from '../browser/browser-notice'
 import type { PrepareData, StartData } from '../../shared/recorder-api'
 import { t } from '../system/i18n'
 import { MAX_CAPTURE_FPS } from '../../shared/recorder-api'
+import { RECORDER_CH } from '../../shared/recorder-api'
 
 interface RecordingMeta {
   title: string | null
@@ -303,7 +304,7 @@ export function notifyRecorderPrepared(sessionId: number): void {
 // プレーヤー UI の復帰（post-capture）は finishRecordingState が送る。ここでも送ると二重になり、
 // content.js が復帰タイマーを張り直す。
 function cancelBeforeStart(): void {
-  getRecorderWindow()?.webContents.send('recorder:stop')
+  getRecorderWindow()?.webContents.send(RECORDER_CH.stop)
   finishRecordingState()
 }
 
@@ -400,7 +401,7 @@ export async function startRecording(): Promise<void> {
     // 悪化ではなく、今まで見えていなかったものが見えるということ）。
     setPendingDisplaySource(sourceId)
     const captureFps = Math.min(MAX_CAPTURE_FPS, Math.max(1, Math.round(lastDisplayHz ?? 60)))
-    getRecorderWindow()!.webContents.send('recorder:prepare', {
+    getRecorderWindow()!.webContents.send(RECORDER_CH.prepare, {
       sourceId,
       // 取得フレームレートの上限（recorder.ts の acquireScreenStream に渡す）。
       //
@@ -469,7 +470,7 @@ export async function startRecording(): Promise<void> {
     // 送信の直前**——間に非同期の待ちを挟まないこと。挟んだぶんがそのまま「停止が空振りする
     // 窓」になる。
     awaitingStart = false
-    getRecorderWindow()!.webContents.send('recorder:start', {
+    getRecorderWindow()!.webContents.send(RECORDER_CH.start, {
       // ビットレートを決めるための「実際に届く枚数」。**上限の見込みとは別物**。
       //
       // 上限を 120 にしても供給は 50.8枚/秒のままだった（2026-08-12 実測）。上限に連動させて
@@ -543,7 +544,7 @@ function stopRecording(): void {
     prepareResolver?.('aborted')
     return
   }
-  getRecorderWindow()?.webContents.send('recorder:stop')
+  getRecorderWindow()?.webContents.send(RECORDER_CH.stop)
 }
 
 // プレーヤー UI の復帰だけを先に流す（録画状態そのものは触らない）。

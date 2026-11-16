@@ -2,7 +2,7 @@ import fixWebmDuration from 'fix-webm-duration'
 import { createFrameSink, type FrameSink } from './frame-sink'
 import { createCaptureBoundary, type CaptureBoundary } from './capture-boundary'
 import { videoBitrateFor } from './recorder-bitrate'
-import type { BenchResult, BenchVariant, CropRect, RecorderApi, StartData } from '../shared/recorder-api'
+import type { BenchResult, BenchVariant, CropRect, RecorderApi, RecorderErrorCode, StartData } from '../shared/recorder-api'
 import { MAX_CAPTURE_FPS, RECORDING_AUDIO_BITS_PER_SECOND, RECORDING_KEYFRAME_INTERVAL_FRAMES } from '../shared/recorder-api'
 import type { CaptureDiag } from '../shared/capture-diag'
 
@@ -271,7 +271,7 @@ window.recorderApi.onStart((data) => {
 
 // 準備・記録開始の途中で打ち切る。片付け・状態を戻す・main へ知らせる、の 3 つは必ず一緒に行う
 // （どれか欠けると、画面キャプチャを掴んだままになるか、main の録画状態が固着する）。
-function failRecording(stream: MediaStream, cs: MediaStream | null, token: number, sessionId: number, code: string): null {
+function failRecording(stream: MediaStream, cs: MediaStream | null, token: number, sessionId: number, code: RecorderErrorCode): null {
   cleanup(stream, cs, token)
   resetState()
   window.recorderApi.reportError(code, sessionId)

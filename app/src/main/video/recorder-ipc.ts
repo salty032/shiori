@@ -21,6 +21,8 @@ import { logBitrateDiag, logClockDiag, logSupplyDiag, parseCaptureDiag, recorded
 import { registerCapturedMedia } from '../capture/captured-media'
 import { saveFrameTable } from '../db/db-video-frames'
 import { t } from '../system/i18n'
+import { RECORDER_CH } from '../../shared/recorder-api'
+import type { RecorderErrorCode } from '../../shared/recorder-api'
 
 // renderer 破損時のメモリ DoS / 不正データ対策
 const MAX_WEBM_BYTES = 1024 * 1024 * 1024 // 1GB
@@ -67,19 +69,19 @@ function formatClipDuration(seconds: number): string {
 }
 
 export function registerRecorderIpc(): void {
-  ipcMain.handle('recorder:getCrop', (event, streamW: number, streamH: number) => {
+  ipcMain.handle(RECORDER_CH.getCrop, (event, streamW: number, streamH: number) => {
     if (!isTrustedRecorderSender(event)) return null
     return computeVideoCrop(streamW, streamH)
   })
 
   // 画面キャプチャの立ち上げが済んだ合図。**記録はまだ始まっていない。**
   // main はこれを受けてから、コマ通知が落ち着くのを待つ（recording.ts の startRecording）。
-  ipcMain.on('recorder:ready', (event, sessionId: number) => {
+  ipcMain.on(RECORDER_CH.ready, (event, sessionId: number) => {
     if (!isTrustedRecorderSender(event)) return
     notifyRecorderPrepared(sessionId)
   })
 
-  ipcMain.on('recorder:startBoundary', (event, sessionId: number, confirmed: boolean) => {
+  ipcMain.on(RECORDER_CH.startBoundary, (event, sessionId: number, confirmed: boolean) => {
     if (!isTrustedRecorderSender(event) || !isCurrentRecordingSession(sessionId)) return
     // 始める瞬間には出さず、完了通知に添える（recording.ts の StartDoubts）。
     if (confirmed !== true) markArmingUnconfirmed()
@@ -88,7 +90,7 @@ export function registerRecorderIpc(): void {
   // 録画が実際に止まった合図。**保存の完了ではない**ので録画状態は触らず、隠している
   // プレーヤー UI の復帰だけを先に流す（理由は recording.ts の releaseCaptureUi）。
   // この後に重い後処理（尺補正・数十MB の転送）が続き、recorder:done がその後に届く。
-  ipcMain.on('recorder:stopped', (event, sessionId: number) => {
+  ipcMain.on(RECORDER_CH.stopped, (event, sessionId: number) => {
     if (!isTrustedRecorderSender(event)) return
     // recorder:done / recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、
     // 現在のセッションと一致しない通知は無視する。旧セッションの遅れた合図で、
@@ -97,37 +99,40 @@ export function registerRecorderIpc(): void {
     releaseCaptureUi()
   })
 
-  ipcMain.on('recorder:error', (event, msg: string, sessionId: number) => {
+  ipcMain.on(RECORDER_CH.error, (event, raw: unknown, sessionId: number) => {
     if (!isTrustedRecorderSender(event)) return
     // レコーダーウィンドウ側のレース（新しい録画が始まった後に旧セッションの通知が
     // 遅延して届く）で、新しい録画状態を巻き込んで壊さないよう、現在のセッションと
     // 一致しない通知は黙って無視する。
     if (!isCurrentRecordingSession(sessionId)) return
+    // 窓口から来た値なので文字列とは限らない。見分ける符丁は RecorderErrorCode と照らす。
+    const msg = String(raw)
+    const is = (code: RecorderErrorCode): boolean => msg === code
     // V-1: token不一致・recorder未生成での中断は「録画開始処理中に停止された」だけで
     // ユーザーへの通知は不要（そもそも録画は始まっていない）。状態リセットだけ行う。
-    if (msg === 'aborted') {
+    if (is('aborted')) {
       finishRecordingState()
       return
     }
     // V-5: audio+video が失敗し video のみで録画を継続しているだけなので、録画状態は
     // リセットしない（このあと recorder:done / recorder:error が別途届く）。
-    if (msg === 'audio_unavailable_fallback') {
+    if (is('audio_unavailable_fallback')) {
       sendBrowserNotice('warning', t('notice.recordingNoAudio'))
       return
     }
     finishRecordingState()
-    if (msg === 'crop_unavailable') {
+    if (is('crop_unavailable')) {
       sendFailureNotice('warning', t('notice.videoRegionNotFound'))
-    } else if (msg === 'no_data') {
+    } else if (is('no_data')) {
       sendFailureNotice('warning', t('notice.recordingEmpty'))
-    } else if (msg === 'getUserMedia_not_allowed') {
+    } else if (is('getUserMedia_not_allowed')) {
       sendFailureNotice('error', t('notice.screenCapturePermission'))
     } else {
       sendFailureNotice('error', t('notice.recordingError', { message: msg.slice(0, 80) }))
     }
   })
 
-  ipcMain.on('recorder:done', async (event, webmAB: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: unknown) => {
+  ipcMain.on(RECORDER_CH.done, async (event, webmAB: ArrayBuffer, duration: number, sessionId: number, drawnAt: number[], diag: unknown) => {
     if (!isTrustedRecorderSender(event)) return
     // recorder:error と同じ理由（レコーダーウィンドウ側のレース）で、現在のセッションと
     // 一致しない完了通知は無視する。新しい録画を誤って確定・保存させない。
