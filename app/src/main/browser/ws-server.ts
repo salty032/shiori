@@ -317,6 +317,7 @@ export function startWsServer(options?: { allowedExtensionIds?: string[] }): voi
     const sendToClient = (msg: AppToExtensionMessage): void => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
     }
+    sendToClient({ type: 'connected' })
     connectCallbacks.forEach((cb) => cb(sendToClient))
 
     ws.on('message', (raw, isBinary) => {
