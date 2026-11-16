@@ -12,7 +12,7 @@ import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor, captureFileN
 import { trimWebm, extractThumb, getFrameSignatures, getVideoFramePts, getTimelineStrip, getVideoDuration } from '../video/ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
-import type { ClipFrames, ClipGap, FrameQuality, TrimProgress } from '../../shared/api.video'
+import type { ClipFrames, ClipGap, FrameQuality, TrimErrorCode, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { sliceFrameTable } from '../video/frame-slice'
 import { frameGaps } from '../video/frame-gaps'
@@ -110,6 +110,11 @@ function syncFrameCountsToUsable(
   sendToRenderer(CH.framesVerified, framesVerifiedPayload(imageId, restored, restored.ambiguous))
 }
 
+// トリミングの失敗を符丁で返す。符丁は TrimErrorCode のどれか（打ち間違えると typecheck で落ちる）。
+function trimFailed(code: TrimErrorCode): { ok: false; error: TrimErrorCode } {
+  return { ok: false, error: code }
+}
+
 export function registerVideoHandlers(): void {
   handleTrusted(VIDEO_CH.videoGetClipFrames, async (_event, imageId: number) => {
     // 取得できなかったときの返り値。pts が空＝「コマの位置が分からない」で、
@@ -176,22 +181,22 @@ export function registerVideoHandlers(): void {
 
   handleTrusted(VIDEO_CH.videoTrim, async (event, imageId: number, inSec: number, outSec: number) => {
     const validId = optionalPositiveInteger(imageId)
-    if (!validId) return { ok: false, error: 'invalid_id' }
+    if (!validId) return trimFailed('invalid_id')
     if (typeof inSec !== 'number' || !Number.isFinite(inSec) || inSec < 0)
-      return { ok: false, error: 'invalid_in' }
+      return trimFailed('invalid_in')
     if (typeof outSec !== 'number' || !Number.isFinite(outSec) || outSec <= inSec || outSec - inSec < MIN_TRIM_SECONDS)
-      return { ok: false, error: 'invalid_out' }
-    if (trimmingIds.has(validId)) return { ok: false, error: 'already_trimming' }
+      return trimFailed('invalid_out')
+    if (trimmingIds.has(validId)) return trimFailed('already_trimming')
 
     const image = getImage(validId)
-    if (!image || image.media_type !== 'video') return { ok: false, error: 'not_found' }
+    if (!image || image.media_type !== 'video') return trimFailed('not_found')
 
     let realPath: string
     try {
       const resolved = await resolveRealCapturePath(image.filepath)
-      if (!resolved) return { ok: false, error: 'path_error' }
+      if (!resolved) return trimFailed('path_error')
       realPath = resolved
-    } catch { return { ok: false, error: 'path_error' } }
+    } catch { return trimFailed('path_error') }
 
     // outSec の上限検証。DB の duration が null（インポート時に ffmpeg の尺取得失敗）でも
     // ここで実ファイルから取り直して弾く。取得できなければ ffmpeg が末尾で打ち切るだけで
@@ -201,7 +206,7 @@ export function registerVideoHandlers(): void {
       try { duration = await getVideoDuration(realPath) } catch { duration = null }
     }
     if (duration != null && outSec > duration + 0.1)
-      return { ok: false, error: 'invalid_out' }
+      return trimFailed('invalid_out')
 
     const ts = Date.now()
     const dir = await ensureCaptureSubDir(ts)

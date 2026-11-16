@@ -9,7 +9,7 @@ import { MAX_TEXT_LENGTH } from './ipc-validation'
 import { isDragTempPath } from './ipc-drag'
 import { createImageThumb } from '../capture/image-thumb'
 import { extractThumb, getVideoMeta } from '../video/ffmpeg'
-import { CH } from '../../shared/api'
+import { CH, type ShioriApi } from '../../shared/api'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { beginTask, endTask } from '../system/busy'
 import { IMAGE_EXTS, VIDEO_EXTS, MAX_MEDIA_FILE_BYTES } from '../system/media-exts'
@@ -80,7 +80,7 @@ async function collectImportFiles(inputPaths: string[]): Promise<{ files: string
 }
 
 export function registerImportHandlers(): void {
-  handleTrusted(CH.clipboardPaste, async () => {
+  handleTrusted(CH.clipboardPaste, async (): ReturnType<ShioriApi['clipboardPaste']> => {
     const img = clipboard.readImage()
     if (img.isEmpty()) return { ok: false, reason: 'empty' as const }
 

@@ -2,7 +2,10 @@ import type { ShioriApi } from './api'
 
 // 動画（録画クリップ・トリミング）の型・チャンネル。api.ts と分けてあるのはファイルの
 // 大きさのためで、実際に公開される形は下の AppApi（ShioriApi と VideoApi の合成）。
-type TrimVideoResult = { ok: true; newId: number } | { ok: false; error: string }
+// トリミングの失敗の符丁。画面（VideoTrimmer の TRIM_ERROR_KEY）が文言に置き換える。**ここに足したら
+// 画面の表にも足す**（足さないと typecheck で落ちる）。符丁でない失敗は ffmpeg の生のメッセージが入る。
+export type TrimErrorCode = 'invalid_id' | 'invalid_in' | 'invalid_out' | 'already_trimming' | 'not_found' | 'path_error'
+export type TrimVideoResult = { ok: true; newId: number } | { ok: false; error: TrimErrorCode | (string & {}) }
 
 /**
  * コマ 1 つの確からしさ。素材のコマ表（video_frames）がある録画クリップにだけ付く。

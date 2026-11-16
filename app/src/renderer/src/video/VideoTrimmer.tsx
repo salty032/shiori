@@ -6,7 +6,7 @@ import { FRAME_EPS, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
 import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from './videoControls'
-import type { TrimProgress } from '../../../shared/api.video'
+import type { TrimErrorCode, TrimProgress } from '../../../shared/api.video'
 import { useT, type MessageKey } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { MIN_TRIM_SECONDS } from '../../../shared/constants'
@@ -36,13 +36,19 @@ function safeDur(d: number | null | undefined): number {
 
 // main が返す符丁を画面の言葉にする。**ここに無いものはそのまま出す**——ffmpeg の
 // 生のメッセージが入るので、潰すと失敗の手掛かりが画面から消える。
-const TRIM_ERROR_KEY: Record<string, MessageKey> = {
+const TRIM_ERROR_KEY: Record<TrimErrorCode, MessageKey> = {
   invalid_id: 'trim.errNotFound',
   not_found: 'trim.errNotFound',
   invalid_in: 'trim.errRange',
   invalid_out: 'trim.errRange',
   already_trimming: 'trim.errBusy',
   path_error: 'trim.errPath',
+}
+
+// 符丁なら文言に、そうでなければ（ffmpeg の生のメッセージ）そのまま。
+function trimErrorText(error: string, t: (key: MessageKey) => string): string {
+  const key = (TRIM_ERROR_KEY as Partial<Record<string, MessageKey>>)[error]
+  return key ? t(key) : error
 }
 
 function fileName(path: string): string {
@@ -765,7 +771,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
             )}
             <span style={s.shortcutHint}>{t('trim.shortcutHint')}</span>
           </div>
-          {error && <div style={s.errorMsg}>{t('trim.error', { message: TRIM_ERROR_KEY[error] ? t(TRIM_ERROR_KEY[error]) : error })}</div>}
+          {error && <div style={s.errorMsg}>{t('trim.error', { message: trimErrorText(error, t) })}</div>}
         </div>
 
         <div style={s.footer}>
