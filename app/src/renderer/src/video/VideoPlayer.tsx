@@ -89,6 +89,10 @@ type Props = {
   id: number
   wrapperStyle?: React.CSSProperties
   videoStyle?: React.CSSProperties
+  /** 映像を枠の中で切り取る（ビューアで拡大している間）。操作バーは枠の下端に重なるので、
+   *  映像だけ枠の外へはみ出すと、バーの暗い帯が映像の途中に浮く。ほかの動画アプリと同じく
+   *  拡大した映像は枠の中に収める。常に切らないのは、詳細欄の小さな枠でコマ番号の説明が切れるため。 */
+  clipMedia?: boolean
   autoPlay?: boolean
   pauseWhen?: boolean
   onVideoClick?: (e: React.MouseEvent<HTMLVideoElement>) => boolean
@@ -117,7 +121,7 @@ type Props = {
   onFrameIndex?: (idx: number, gap: number) => void
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, clipMedia, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
   // このクリップのコマ情報。取得できるまでは null のまま。
@@ -754,7 +758,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
       onMouseLeave={() => setHovered(false)}>
       {/* flex-basis: auto にする。高さ固定のビューアでは grow で枠を埋め、高さが中身依存の
           詳細パネルでは映像自身の高さ(16/9)を取る。flex:1(basis 0%)だと後者で潰れて小さくなる。 */}
-      <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: clipMedia ? 'hidden' : undefined }}>
         <video
           ref={videoRef}
           key={id}

@@ -425,6 +425,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
               ...s.viewerImg,
               transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
             }}
+            clipMedia={zoom > 1}
             autoPlay pauseWhen={overlayOpen} fps={img.fps ?? frameFps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
             onFramesReady={timesheet.onFramesReady} onFrameIndex={timesheet.onFrameIndex} />
         ) : (
