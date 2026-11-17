@@ -61,7 +61,7 @@ const frameLegendStyle: React.CSSProperties = {
   pointerEvents: 'auto', cursor: 'pointer',
   // 2 列の格子。**説明文の左端を揃える**ため（横並びだと語の長さで開始位置がずれる）。
   display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 6, alignItems: 'baseline',
-  padding: '10px 13px', borderRadius: radius.md, background: 'rgba(6,8,12,0.86)',
+  padding: '10px 13px', borderRadius: radius.md, background: 'rgba(26,26,26,0.86)',
   fontSize: font.xs, lineHeight: 1.5, color: 'rgba(255,255,255,0.92)',
   maxWidth: 'min(420px, calc(100% - 20px))',
   textShadow: '0 1px 3px rgba(0,0,0,0.9)',
@@ -70,7 +70,7 @@ const frameLegendStyle: React.CSSProperties = {
 const frameReadoutStyle: React.CSSProperties = {
   position: 'absolute', left: 10, bottom: VC_OVERLAY_HEIGHT + 2, zIndex: 3,
   pointerEvents: 'auto', cursor: 'help',
-  padding: '2px 7px', borderRadius: radius.md, background: 'rgba(6,8,12,0.72)',
+  padding: '2px 7px', borderRadius: radius.md, background: 'rgba(26,26,26,0.72)',
   fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', letterSpacing: 0,
   whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.9)',
   transition: 'opacity 0.15s ease',

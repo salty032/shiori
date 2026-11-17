@@ -158,6 +158,10 @@
   --danger: #d46675;
   --danger-border: #713039;
   --danger-rgb: 224, 90, 108;
+  /* 詳細欄の「動画を編集」。動画だけの操作なので他のボタンと色相を分ける。 */
+  --video-edit-bg: rgba(35, 190, 183, 0.1);
+  --video-edit-border: rgba(35, 190, 183, 0.38);
+  --video-edit-text: #5ee2dc;
 
   /* 枠の濃さ。**4 段だけ。** 以前は藍だけで 0.4/0.42/0.44/0.45/0.46/0.48/0.55 の 7 通りが
      あり、0.44 と 0.46 のように並べても見分けられない差が混ざっていた。意図で分かれた
@@ -226,6 +230,10 @@
   --danger: #c22a3f;
   --danger-border: #f3c4cb;
   --danger-rgb: 208, 28, 53;
+  /* 暗い配色の明るい水色の文字は、明るい地では薄い地に薄い文字になって読めない。 */
+  --video-edit-bg: rgba(35, 190, 183, 0.12);
+  --video-edit-border: rgba(13, 128, 122, 0.45);
+  --video-edit-text: #0d6f6a;
 
   --scrollbar-thumb: #cbcbcb;
   --scrollbar-thumb-hover: #b2b2b2;

@@ -214,7 +214,7 @@ export const s: Record<string, CSSProperties> = {
   // 余白は viewer と同様に画像鑑賞用途として意図的に非テーマの暗色で埋める
   thumbImgWrapVertical: { background: '#0d0d0d' },
   thumbVideoPlay: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.95)', fontSize: 28, pointerEvents: 'none', textShadow: '0 6px 20px rgba(0,0,0,0.7)' },
-  thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: weight.strong, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: radius.sm, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
+  thumbVideoDuration: { position: 'absolute', right: 6, top: 6, zIndex: 3, color: '#fff', fontSize: font.xs, fontWeight: weight.strong, background: 'rgba(26,26,26,0.82)', padding: '2px 6px', borderRadius: radius.sm, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   thumbHovered: { border: '2px solid var(--border-strong)', background: 'var(--bg-surface-hover)' },
   // 選択は**タイルそのものを染める。** 枠線の色も変わるが、太さは未選択と同じ 2px のまま。
   // エクスプローラーや Finder と同じで、一覧の中で選んだ項目は「地が塗られている」のが定番。
@@ -427,12 +427,12 @@ export const s: Record<string, CSSProperties> = {
   viewerMediaStack: { width: 'calc(100% - clamp(48px, 6vw, 112px))', height: 'calc(100% - clamp(136px, 18vh, 188px))', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', gap: space.x8 },
   viewerMediaFrame: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   viewerImg: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block', transformOrigin: 'center' },
-  viewerTitle: { minWidth: 0, flex: 1, color: '#d6dbea', fontSize: font.sm, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, textShadow: '0 2px 10px rgba(0,0,0,0.9)' },
+  viewerTitle: { minWidth: 0, flex: 1, color: 'rgba(255,255,255,0.92)', fontSize: font.sm, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, textShadow: '0 2px 10px rgba(0,0,0,0.9)' },
   viewerActions: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: space.x8 },
   viewerCounter: { color: 'rgba(255,255,255,0.46)', fontSize: font.base, fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' as const, letterSpacing: 0.2 },
-  viewerClose: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#999', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
+  viewerClose: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'rgba(255,255,255,0.62)', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
   viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: control.sm, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, pointerEvents: 'none' as const },
-  viewerZoomValue: { color: 'rgba(232,236,248,0.68)', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
+  viewerZoomValue: { color: 'rgba(255,255,255,0.68)', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
   filmstrip: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: space.x4, padding: '30px 80px 18px', background: 'linear-gradient(transparent, rgba(0,0,0,0.82))', zIndex: 1 },
   filmstripThumb: { width: 64, height: control.lg, objectFit: 'cover' as const, borderRadius: radius.md, cursor: 'pointer', border: '2px solid transparent', flexShrink: 0, opacity: 0.6 },
   filmstripThumbPlaceholder: { width: 64, height: control.lg, border: '2px solid transparent', flexShrink: 0, opacity: 0, pointerEvents: 'none' as const },

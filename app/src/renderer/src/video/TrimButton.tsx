@@ -8,8 +8,8 @@ import { useT } from '../i18n'
 import { control, radius, weight } from '../styles'
 
 const panelBtnStyle: React.CSSProperties = {
-  width: '100%', height: control.lg, padding: '0 12px', background: 'rgba(35,190,183,0.1)',
-  border: '1px solid rgba(35,190,183,0.38)', borderRadius: radius.md, color: '#5ee2dc',
+  width: '100%', height: control.lg, padding: '0 12px', background: 'var(--video-edit-bg)',
+  border: '1px solid var(--video-edit-border)', borderRadius: radius.md, color: 'var(--video-edit-text)',
   cursor: 'pointer', fontSize: 12, fontWeight: weight.medium,
 }
 

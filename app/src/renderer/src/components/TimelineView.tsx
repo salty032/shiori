@@ -272,7 +272,7 @@ const s: Record<string, React.CSSProperties> = {
   thumbImg: { width: '100%', objectFit: 'cover', display: 'block' },
   // サムネ上への時刻バッジは、写真のような雑多な背景に載っても読めるよう常に黒地・白文字に固定する
   // （テーマ非依存。フィルムストリップの視認性を優先し、あえて周辺UIと色を揃えない）。
-  timeBadge: { position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: font.xs, fontWeight: weight.strong, background: 'rgba(6,8,12,0.82)', padding: '2px 6px', borderRadius: radius.md, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
+  timeBadge: { position: 'absolute', left: 6, bottom: 6, color: '#fff', fontSize: font.xs, fontWeight: weight.strong, background: 'rgba(26,26,26,0.82)', padding: '2px 6px', borderRadius: radius.md, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' },
   empty: { color: 'var(--text-secondary)', textAlign: 'center', width: '100%', minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   loadMoreWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0 28px' },
   loadMoreButton: { border: '1px solid var(--border-default)', borderRadius: radius.md, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, padding: '9px 18px', cursor: 'pointer' },
