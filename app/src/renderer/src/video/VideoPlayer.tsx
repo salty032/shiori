@@ -1,16 +1,13 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
-import { FRAME_EPS, findFrameIdx, frameSeekTarget, isClipUnreliable } from './frameTable'
-import { isReuseSevere } from '../../../shared/frame-severity'
-import {
-  buildGapIndex, clipStatus, frameReadout, walkFrames,
-  type GapIndex, type ReadoutKind
-} from './frameReadout'
-import { useT, type Translate } from '../i18n'
+import { clipStatus } from './frameReadout'
+import { useT } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
+import { useFramePosition } from './useFramePosition'
+import { useFramePlay } from './useFramePlay'
 import { watchVideoFrames } from './videoFrameCallback'
 import { font, radius, weight } from '../styles'
-import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
+import type { ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 import {
   useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, SpeedControl, LoopButton, type PlaybackSpeed,
@@ -42,11 +39,6 @@ function fmtDur(sec: number): string {
 }
 
 // ReadoutKind / FRAME_COLOR / FRAME_NOTE は frameReadout.ts が原本（判定と一緒に置く）。
-
-// 表の取得が終わるまでに溜められるコマ送りの上限。
-// 押した回数ぶんは動かしたいが、キーリピートを押しっぱなしにした場合まで積むと、
-// 読み込み完了の瞬間に何十コマも飛んで「どこを見ているか分からない」状態になる。
-const MAX_PENDING_STEPS = 30
 
 // 再生中、ポインタが止まってからコントロールバーを引くまでの時間（ビューアのみ）。
 // 短いと映像を見ている間に何度も出入りしてちらつき、長いと映像の下端が隠れ続ける。
@@ -124,244 +116,26 @@ type Props = {
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, clipMedia, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
-  // このクリップのコマ情報。取得できるまでは null のまま。
-  const framesRef = useRef<ClipFrames | null>(null)
-  // 通知欠落数と、録画画像から推定したアニメの抜けコマ数を混ぜない。コマ送りと番号に使う
-  // missing は後者だけ。推定できなければ 0 のままにし、境界で「未確認」と表示する。
-  const gapIndexRef = useRef<GapIndex>(buildGapIndex(null))
-  // このクリップのコマ送りが、どこを見ても当てにならないか。
-  //
-  // **抜けが 1 つでもあれば赤、にはしない。** 実測（手元 82 本・2026-08-26）では抜けのある
-  // 録画 33 本の中身が両極端で、「1500 コマに 194 か所」の穴だらけと「899 コマに 1 コマ」が
-  // 同居していた。後者を全体不可にすると、無傷な 898 か所の境目まで捨てることになる
-  // （docs/ANIME-FRAMES.md「コマ送りの精度は命」）。欠落コマの割合で並べると 5.4% と 4.1% の間で分布が
-  // 切れていたので、そこを境にする。大きい方 24 本は全体を赤、小さい方 9 本は場所を指す。
-  const unreliableRef = useRef(false)
-  // 未取得が多いクリップか。**コマ単位ではなくクリップ単位で決める**——1 コマずつ見ても
-  // 「多いのか少ないのか」は分からず、詳細パネルは割合で赤くしている。同じ割合をここでも使う。
-  const uncapturedSevereRef = useRef(false)
-  // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
-  //
-  // 時刻で持って毎回シーク結果を実測し直すと、連打したときに前のシークの実測（非同期で
-  // 返る）が後から古い位置を書き戻し、複数のコールバックが順不同で効くため、送り先が
-  // 前後に飛んでコマ順が崩れる。添字を自分で ±1 していけば何回連打しても単調に動く。
-  // null = まだ確定していない（外部の再生位置から引き直す）。
-  const frameIdxRef = useRef<number | null>(null)
-  // 実測行の後ろに推定した抜けがあるとき、その何コマ目に居るか。0 は実測行そのもの。
-  // video_frames に偽の行は足さず、ビューア内の一時的な位置としてだけ持つ。
-  const gapOffsetRef = useRef(0)
-  // 自分のコマ送りによるシークかどうか。自分で動かした直後に外部同期（onSeeked）が
-  // 添字を引き直すと、上と同じ書き戻しが起きるため 1 回だけ読み飛ばす。
-  const selfSeekRef = useRef(false)
-  // 最後にタイムシートへ知らせた位置（同じ位置を二度知らせないため）。
-  const lastNotifiedFrameRef = useRef<string | null>(null)
-  // コマ表の取得が終わるまでに押されたコマ送りの正味の量（MAX_PENDING_STEPS で頭打ち）。
-  const pendingStepsRef = useRef(0)
-
   const { t } = useT()
-  // コマ表示はフレームごとに書き換わるので、React の再描画ではなく DOM を直接触る
-  // （時刻ラベルが updateVcTime で同じことをしているのと同じ理由。再生中は毎フレーム来る）。
-  const frameLabelRef = useRef<HTMLSpanElement>(null)
   const [legendOpen, setLegendOpen] = useState(false)
-  const [readout, setReadout] = useState<ReadoutKind>('off')
-  // 描画外（コマ送り・rVFC）から読むため ref にも持つ。state だけだと useImperativeHandle が
-  // 掴んだ古いクロージャが古い値を見る。
-  const readoutRef = useRef<ReadoutKind>('off')
-  const tRef = useRef<Translate['t']>(t)
-  tRef.current = t
-  // 描画外（コマ送り・表の取得完了）から呼ぶので ref 経由にする。props を直に掴むと、
-  // effect が作られた時点の古い関数が呼ばれる（readoutRef と同じ理由）。
-  const onFramesReadyRef = useRef(onFramesReady)
-  onFramesReadyRef.current = onFramesReady
-  const onFrameIndexRef = useRef(onFrameIndex)
-  onFrameIndexRef.current = onFrameIndex
-
-  function setReadoutKind(kind: ReadoutKind): void {
-    readoutRef.current = kind
-    setReadout(kind)
-  }
+  // いま素材の何コマ目に居るか（コマ表の取得・±1 コマ・コマ番号の表示）は useFramePosition が持つ。
+  // ここは再生・シークバー・音量・コマ再生と、画面の組み立て。
+  const position = useFramePosition({
+    videoRef, id, preloadFrameTable, stepSec, clipSource, onFramesReady, onFrameIndex,
+    onManualStep: () => setFramePlay(false),
+  })
+  const {
+    readout, readoutRef, frameLabelRef, framesRef, gapIndexRef, frameEnd,
+    currentFrameIdx, syncFrameIdx, stepFrame, goToFrame
+  } = position
 
   // 下の effect から呼ぶコマ送りの関数と刻み幅は、描画ごとに作り直される（言語・表の読み込み）。
   // 付け直さずに、呼ぶ時点の最新を使う。
-  const frameActionsRef = useLatestRef({ moveFrames, refreshFrameReadout, goToFrame, updateVcTime, stepSec })
-  useEffect(() => {
-    framesRef.current = null
-    frameIdxRef.current = null
-    gapIndexRef.current = buildGapIndex(null)
-    gapOffsetRef.current = 0
-    lastNotifiedFrameRef.current = null
-    selfSeekRef.current = false
-    pendingStepsRef.current = 0
-    setFrameEnd(null)
-    if (!preloadFrameTable) { setReadoutKind('off'); return }
-    setReadoutKind('loading')
-    let canceled = false
-    // 取得の成否どちらでも、保留していたコマ送りをそこで解放する。
-    // **保留したまま握り潰すと「押したのに動かない」で終わる**ため、失敗しても必ず動かす。
-    const settle = (frames: ClipFrames | null): void => {
-      if (canceled) return
-      framesRef.current = frames
-      // 抜けの索引（次の抜け・前までの積み上げ・母数）は frameReadout がまとめて作る。
-      gapIndexRef.current = buildGapIndex(frames)
-      // 判定は frameTable の isClipUnreliable が持つ（トリマーも同じものを読む）。
-      const rows = frames?.pts.length ?? 0
-      unreliableRef.current = isClipUnreliable(frames)
-      const uncaptured = (frames?.quality ?? []).filter((q) => q === FRAME_QUALITY.reused).length
-      uncapturedSevereRef.current = isReuseSevere(uncaptured, rows)
-      setFrameEnd(frames && frames.pts.length > 0 ? frames.pts[frames.pts.length - 1] : null)
-      setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
-      onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
-      const pending = pendingStepsRef.current
-      pendingStepsRef.current = 0
-      if (pending !== 0) frameActionsRef.current.moveFrames(pending)
-      else frameActionsRef.current.refreshFrameReadout()
-    }
-    window.api.getClipFrames(id)
-      .then(settle)
-      .catch((err) => { console.warn('[video] clip frames unavailable', err); settle(null) })
-    return () => { canceled = true }
-  }, [id, preloadFrameTable, frameActionsRef])
-
-  // この実測行の次に、推定したアニメの抜けが何コマあるか。
-  function missingAfter(idx: number): number {
-    return gapIndexRef.current.gaps.get(idx)?.missing ?? 0
-  }
-
-  // **いま居るコマの添字を答える唯一の口。** 送っている最中なら持っている添字、
-  // そうでなければ実際の再生位置から引く。
-  //
-  // 分けて書くと片方だけ直す食い違いが出る（以前は 4 か所に散らばり、コマ再生の 2 か所だけ
-  // 「分からなければ 0 コマ目」になっていた——再生し終えた位置から押しても先頭に居ることに
-  // されるので、端の判定が 1 周ぶん遅れていた）。
-  function currentFrameIdx(): number {
-    if (frameIdxRef.current !== null) return frameIdxRef.current
-    const v = videoRef.current
-    const pts = framesRef.current?.pts
-    if (!v || !pts || pts.length === 0) return 0
-    return findFrameIdx(pts, v.currentTime)
-  }
-
-  // シークバー操作・読み込み直後など、コマ送り以外の理由で位置が動いたときに
-  // 添字を実際の再生位置から引き直す。
-  function syncFrameIdx(): void {
-    if (selfSeekRef.current) { selfSeekRef.current = false; return }
-    const v = videoRef.current
-    const pts = framesRef.current?.pts
-    if (!v || !pts || pts.length === 0) return
-    const idx = findFrameIdx(pts, v.currentTime)
-    // **流れている間の添字は残さない。** 着いた先からすぐ動き出すので、残せばその瞬間に
-    // 古くなる。null にしておけば、次に押したときの位置から引き直される（onPlay と同じ理由）。
-    frameIdxRef.current = v.paused ? idx : null
-    // シークバーや再生で動いた位置からは、録画に無い仮想位置を復元できない。
-    gapOffsetRef.current = 0
-    updateFrameReadout(idx, 0)
-  }
-
-  // 現在の再生位置からコマ表示を引き直す（添字がまだ確定していない場合も含む）。
-  function refreshFrameReadout(): void {
-    updateFrameReadout(currentFrameIdx(), gapOffsetRef.current)
-  }
-
-  // コマ表示を書き換える。**何を出すかは frameReadout.ts が決める**（そちらでテストする）。
-  // ここに残すのは DOM への書き込みと、タイムシートへの通知だけ。
-  function updateFrameReadout(idx: number, gap = 0): void {
-    const el = frameLabelRef.current
-    if (!el) return
-    const out = frameReadout({
-      kind: readoutRef.current,
-      idx,
-      gap,
-      frames: framesRef.current,
-      index: gapIndexRef.current,
-      unreliable: unreliableRef.current,
-      uncapturedSevere: uncapturedSevereRef.current,
-      clipSource,
-      estimatedFps: Math.round(1 / stepSec),
-    }, tRef.current)
-    // null は「コマ表が無い」＝表示を書き換えない（従来どおり前の表示のまま）。
-    if (!out) return
-    // **番号が変わったときだけ知らせる。** 受け取る側（タイムシート）は state を書くので、
-    // 毎回呼ぶと同じ番号でも画面全体の描き直しが走る。掴んで動かしている間やコマ再生中は
-    // これが 1 秒に何度も乗り、シークの待ちに上積みされていた。
-    if (out.cur !== null) {
-      const posKey = `${out.cur}:${gap}`
-      if (posKey !== lastNotifiedFrameRef.current) {
-        lastNotifiedFrameRef.current = posKey
-        onFrameIndexRef.current?.(out.cur, gap)
-      }
-    }
-    el.textContent = out.text
-    el.style.color = out.color
-  }
-
-  // 実測行と、その間に推定した仮想コマを合わせて delta コマ歩く。
-  // 実体は frameReadout.ts（歩き方だけをテストできるように出してある）。
-  function walkFramesHere(idx: number, gap: number, delta: number, total: number): { idx: number; gap: number } {
-    return walkFrames(idx, gap, delta, total, missingAfter)
-  }
-
-  // delta コマ動かす（正で先へ、負で前へ）。
-  // コマ表があるときは隣のコマへ直接移る。表がないとき（解決役が未登録・解析失敗）だけ従来の
-  // fps 換算に落ちる。その場合は境界を必ず跨ぐよう半コマ余分に送る（進む側 +1.5 / 戻る側 -0.5）。
-  function moveFrames(delta: number): void {
-    const v = videoRef.current
-    if (!v || delta === 0) return
-    v.pause()
-    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
-    const pts = framesRef.current?.pts ?? []
-    if (pts.length > 0) {
-      const cur = currentFrameIdx()
-      const curGap = gapOffsetRef.current
-      const { idx: next, gap: nextGap } = walkFramesHere(cur, curGap, delta, pts.length)
-      frameIdxRef.current = next
-      gapOffsetRef.current = nextGap
-      // 端でも表示だけは更新する。「719 / 719」で止まっていれば、壊れているのではなく
-      // 端まで来たのだと分かる（以前は無反応で、どちらか区別できなかった）。
-      updateFrameReadout(next, nextGap)
-      if (next === cur) return
-      selfSeekRef.current = true
-      v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
-      return
-    }
-    v.currentTime = Math.max(0, Math.min(v.currentTime + stepSec * (delta + 0.5), limit))
-    updateFrameReadout(0)
-  }
-
-  // 1 コマ進む / 戻る。
-  //
-  // **コマ表の取得中は推定の刻みへ落とさず保留する。** 実測（コマ表）が数百ms 後に必ず
-  // 来るのに、その間だけ fps 換算で動かすと、開いた直後の 1〜2 手だけ素材のコマと無関係な
-  // 位置へ飛ぶ。ビューアを開いてすぐ押すのは普通の操作なので、ここは待つ方が正しい。
-  function stepFrame(dir: number): void {
-    const v = videoRef.current
-    if (!v) return
-    // 手で送ったらコマ再生は止める。自動送りと手送りが混ざると、どちらの結果として
-    // 今のコマに居るのかが分からなくなる。
-    setFramePlay(false)
-    if (readoutRef.current === 'loading') {
-      v.pause()   // 保留中でも再生は止める（押した意図は「ここで止めて見る」なので）
-      pendingStepsRef.current = Math.max(-MAX_PENDING_STEPS, Math.min(pendingStepsRef.current + dir, MAX_PENDING_STEPS))
-      return
-    }
-    moveFrames(dir)
-  }
-
-  // 指定コマへ直接移る（タイムシートの行クリック用）。
-  function goToFrame(idx: number): void {
-    const v = videoRef.current
-    const pts = framesRef.current?.pts ?? []
-    if (!v || pts.length === 0) return
-    const next = Math.max(0, Math.min(idx, pts.length - 1))
-    const moved = next !== currentFrameIdx() || gapOffsetRef.current !== 0
-    frameIdxRef.current = next
-    gapOffsetRef.current = 0
-    updateFrameReadout(next, 0)
-    if (!moved) return
-    v.pause()
-    selfSeekRef.current = true
-    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
-    v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
-  }
+  const frameActionsRef = useLatestRef({
+    moveFrames: position.moveFrames, refreshFrameReadout: position.refreshFrameReadout, goToFrame, currentFrameIdx,
+    updateVcTime, stepSec
+  })
+  const followPlaybackRef = useLatestRef(position.followPlayback)
 
   // 毎描画で最新に差し替える。useImperativeHandle の依存に props を並べると、足し忘れた
   // ものが黙って古いまま使われる（stepSec だけ並べていた頃の形）。
@@ -400,22 +174,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     v.currentTime = next
   }
 
-  // シークバーで止めた位置を、番号のコマが使っている絵へ寄せる。
-  //
-  // **録画ファイルには素材 1 コマにつき 2 枚ほど絵があり、表が使うのはそのうち 1 枚だけ。**
-  // 使っていない方で止まると、その絵がもう次のコマのものであることがある（テスト動画の
-  // 録画で、行と行の間の 228 枚のうち 56 枚）。そのままだと番号は前のコマなのに絵は次のコマで、
-  // 1 コマ進めても同じ絵が出る。寄せる幅は最大 1 コマ。掴んでいる間は寄せない（指に逆らう）。
+  // シークバーで止めた位置を、番号のコマが使っている絵へ寄せる（理由は useFramePosition の snapToShownFrame）。
   function snapToFrameShown(): void {
     snapAfterScrubRef.current = false
-    const v = videoRef.current
-    const frames = framesRef.current
-    if (!v || !v.paused || !frames?.sourceBased || frames.pts.length === 0) return
-    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
-    const target = Math.max(0, Math.min(frameSeekTarget(frames.pts, currentFrameIdx(), stepSec, frames.dur), limit))
-    if (Math.abs(v.currentTime - target) < FRAME_EPS) return
-    selfSeekRef.current = true
-    v.currentTime = target
+    position.snapToShownFrame()
   }
 
   // シークが終わったとき。添字を引き直してから、待っている行き先があればそこへ進む。
@@ -451,8 +213,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   }
 
   const [vcDuration, setVcDuration] = useState(0)
-  // 最後のコマの時刻（コマ表が取れているときだけ）。シークバーの右端に使う。
-  const [frameEnd, setFrameEnd] = useState<number | null>(null)
   const [vcVolume, setVcVolume] = useState(1)
   const [vcMuted, setVcMuted] = useState(false)
   const [vcLoop, setVcLoop] = useState(lastLoop)
@@ -589,86 +349,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
-  // コマ再生。**素材のコマを 1 つずつ、一定の時間だけ見せて自動で送る。**
-  //
-  // 倍率を下げた再生（playbackRate）との違いは、送るのがファイルのフレームではなく
-  // 素材の実コマだということ。録画クリップのファイルのフレームは画面キャプチャの供給レートの
-  // 産物なので、遅くして眺めてもそこで数えたコマ数は素材のコマ数ではない。
-  //
-  // 素材のコマは等間隔に並ぶので、これは**時間軸を一様に伸ばした減速**であり、コマ打ちの
-  // 溜め（3 コマ続く絵は 3 倍の時間そこに留まる）はそのまま残る。
-  // 映像要素は止めたまま動かすので、コマ番号と「撮り逃し / 要注意」も出たままになる。
-  useEffect(() => {
-    if (!framePlay || speed === null) return
-    const holdSec = speed
-    const v = videoRef.current
-    if (!v) return
-    v.pause()
-    let alive = true
-    let timer: ReturnType<typeof setTimeout> | null = null
-
-    // シークの完了を待ってから次のコマを数える。**間隔で撃ちっぱなしにしない**——
-    // 1 コマごとにシークが走るため、速い設定ではシークの方が長引くことがある。撃ちっぱなしだと
-    // 遅れが溜まってコマが飛ぶ。待てば実効速度が落ちるだけで、送る順番は 1 コマも欠けない。
-    // seeked が来ない場合に止まらないよう保険の上限を置く。
-    const afterSeek = (done: () => void): void => {
-      let fired = false
-      const fire = (): void => {
-        if (fired) return
-        fired = true
-        v.removeEventListener('seeked', fire)
-        clearTimeout(guard)
-        done()
-      }
-      const guard = setTimeout(fire, 1000)
-      v.addEventListener('seeked', fire)
-    }
-
-    const advance = (): void => {
-      if (!alive) return
-      // 表の読み込み中は動かさずに待つ。手のコマ送りが保留するのと同じ理由で、
-      // ここで推定の刻みへ落とすと最初の数コマだけ素材のコマと無関係な位置へ飛ぶ。
-      if (readoutRef.current === 'loading') { timer = setTimeout(advance, 100); return }
-      const pts = framesRef.current?.pts ?? []
-      const cur = currentFrameIdx()
-      // 端に着いたら、ループが入っていれば先頭へ戻し、そうでなければ止める。
-      // **止まったことは画面に出る**（ボタンの色が戻り、コマ表示は最後の番号のまま残る）。
-      if (pts.length > 0 && cur >= pts.length - 1) {
-        if (!vcLoopRef.current) { setFramePlay(false); return }
-        frameActionsRef.current.goToFrame(0)
-      } else if (pts.length === 0 && isFinite(v.duration) && v.currentTime >= v.duration - frameActionsRef.current.stepSec) {
-        if (!vcLoopRef.current) { setFramePlay(false); return }
-        v.currentTime = 0
-      } else {
-        frameActionsRef.current.moveFrames(1)
-      }
-      const started = performance.now()
-      afterSeek(() => {
-        if (!alive) return
-        timer = setTimeout(advance, Math.max(0, holdSec * 1000 - (performance.now() - started)))
-      })
-    }
-
-    // 端に着いた状態で押したら先頭へ戻してから始める。**再生し終えた直後に押すのが
-    // いちばん普通の流れ**で、そこで何も起きないとボタンが壊れているようにしか見えない。
-    const pts = framesRef.current?.pts ?? []
-    const cur = currentFrameIdx()
-    const atEnd = pts.length > 0
-      ? cur >= pts.length - 1
-      : isFinite(v.duration) && v.currentTime >= v.duration - frameActionsRef.current.stepSec
-    if (atEnd) {
-      if (pts.length > 0) frameActionsRef.current.goToFrame(0)
-      else v.currentTime = 0
-      timer = setTimeout(advance, holdSec * 1000)
-    } else {
-      // 押したらすぐ 1 コマ動く。**待たせない**——最初の 1 コマを待たせると、
-      // 遅い設定（1 コマ 1 秒）では押しても動かないのと区別が付かない。
-      advance()
-    }
-    return () => { alive = false; if (timer) clearTimeout(timer) }
-    // 関数と刻み幅は frameActionsRef から最新を読む。依存に並べると、表の読み込みなどで
-    // 作り直されるたびにコマ再生が付け直され、押した直後の 1 コマ送りがもう一度走る。
-  }, [framePlay, speed, id, frameActionsRef])
+  // コマ再生（素材のコマを 1 つずつ、一定の時間だけ見せて自動で送る）。中身は useFramePlay。
+  useFramePlay({
+    videoRef, id, framePlay, setFramePlay, speed, loopRef: vcLoopRef, readoutRef, framesRef, actionsRef: frameActionsRef
+  })
 
   // 再生中のシークバーは**コマの届く間隔ではなく再生の時計に追従させる**。
   //
@@ -696,17 +380,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   useEffect(() => {
     const v = videoRef.current
     if (!v || !playing) return
-    const stop = watchVideoFrames(v, (meta) => {
-      // 再生を止めた位置からそのままコマ送りを続けられるよう、添字も追い続ける。
-      // 再生中は自分のシークと競合しないので、ここは実測をそのまま反映してよい。
-      // 添字は追い続けるが、**コマ表示は書き換えない**。再生中は毎フレーム値が変わるため、
-      // 書き換えると番号も「撮り逃し / 要注意」の注記も高速に明滅して読めたものではなくなる
-      // （そもそも再生中は隠している。下の JSX を参照）。
-      const pts = framesRef.current?.pts
-      if (pts && pts.length > 0) { frameIdxRef.current = findFrameIdx(pts, meta.mediaTime); gapOffsetRef.current = 0 }
-    })
+    // 止めた位置からそのままコマ送りを続けられるよう、添字だけ追い続ける（コマ表示は書き換えない。
+    // 再生中は隠している。下の JSX を参照）。
+    const stop = watchVideoFrames(v, (meta) => followPlaybackRef.current(meta.mediaTime))
     return stop ?? undefined
-  }, [playing])
+  }, [playing, followPlaybackRef])
 
   useVcStyles()
 
@@ -777,7 +455,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           // 持ったままだと止めたときにはもう別のコマに居る。以前はここが残っていたため、
           // 少し流してからコマ送りを押すと、最後に送った場所へ戻ってから 1 コマ動いていた
           // （コマ表示も、止めた瞬間に古い番号が出ていた）。
-          onPlay={() => { setPlaying(true); setFramePlay(false); frameIdxRef.current = null; gapOffsetRef.current = 0 }}
+          onPlay={() => { setPlaying(true); setFramePlay(false); position.forgetPosition() }}
           onPause={() => setPlaying(false)}
           // シークバー操作など、コマ送り以外で位置が動いたときに添字を引き直す。
           onSeeked={handleSeeked}

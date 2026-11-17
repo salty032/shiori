@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findFrameIdx, frameSeekTarget } from './frameTable'
+import { addPendingStep, findFrameIdx, frameSeekTarget, MAX_PENDING_STEPS } from './frameTable'
 
 // 録画クリップの PTS は等間隔とは限らない（可変フレームレート記録）。
 // 24fps 相当（≒0.0417）の区間と、その倍・半分が混ざったテーブルで検証する。
@@ -105,5 +105,21 @@ describe('frameSeekTarget（コマ送りのシーク先）', () => {
     const dur = [0, 0, 0]
     expect(frameSeekTarget([0, 0.04, 0.08], 1, 1 / 24, dur)).toBeCloseTo(0.06, 6)
     expect(frameSeekTarget([0, 0.04, 0.08], 1, 1 / 24, [])).toBeCloseTo(0.06, 6)
+  })
+})
+
+describe('addPendingStep（コマ表の取得中に押されたコマ送りを溜める）', () => {
+  it('押した手は捨てずに、正味の量で溜める', () => {
+    expect(addPendingStep(0, 1)).toBe(1)
+    expect(addPendingStep(2, 1)).toBe(3)
+    // 行って戻れば同じコマ。
+    expect(addPendingStep(1, -1)).toBe(0)
+  })
+
+  // 押しっぱなしまで積むと、取得できた瞬間に何十コマも飛ぶ。
+  it('上限で頭打ちにする（進む側も戻る側も）', () => {
+    expect(addPendingStep(MAX_PENDING_STEPS, 1)).toBe(MAX_PENDING_STEPS)
+    expect(addPendingStep(-MAX_PENDING_STEPS, -1)).toBe(-MAX_PENDING_STEPS)
+    expect(addPendingStep(MAX_PENDING_STEPS, -1)).toBe(MAX_PENDING_STEPS - 1)
   })
 })

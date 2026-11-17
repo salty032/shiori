@@ -11,6 +11,17 @@ import { isMissingSevere, missingFrameCount } from '../../../shared/frame-severi
 
 export const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
 
+// 表の取得が終わるまでに溜められるコマ送りの上限（ビューアとトリミング画面で同じ値）。
+// 押した回数ぶんは動かしたいが、キーリピートを押しっぱなしにした場合まで積むと、
+// 読み込み完了の瞬間に何十コマも飛んで「どこを見ているか分からない」状態になる。
+export const MAX_PENDING_STEPS = 30
+
+// 取得中に押されたコマ送りを 1 手ぶん溜める（正味の量。上限で頭打ち）。
+// **押した手は捨てない**——握り潰すと「押したのに動かない」で終わる。
+export function addPendingStep(pending: number, dir: number): number {
+  return Math.max(-MAX_PENDING_STEPS, Math.min(pending + dir, MAX_PENDING_STEPS))
+}
+
 // このクリップのコマ送りが、どこを見ても当てにならないか。
 //
 // **抜けが 1 つでもあれば赤、にはしない**（docs/ANIME-FRAMES.md「コマ送りの精度は命」）。ずれ（misaligned）は

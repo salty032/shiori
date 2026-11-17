@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { trimmerStyles as s } from './trimmerStyles'
 import { cleanTitle, isEditingTarget, mediaUrl } from '../utils'
-import { FRAME_EPS, findFrameIdx, frameSeekTarget } from './frameTable'
+import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
 import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from './videoControls'
@@ -18,11 +18,6 @@ type Props = {
   onClose: () => void
   onTrimmed: () => void
 }
-
-// 表の取得が終わるまでに溜められるコマ送りの上限（ビューアと同じ値・同じ理由）。
-// 押した回数ぶんは動かしたいが、キーリピートの押しっぱなしまで積むと、取得できた瞬間に
-// 何十コマも飛んで「どこを見ているか分からない」状態になる。
-const MAX_PENDING_STEPS = 30
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -411,7 +406,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     // だけ素材のコマと無関係な位置へ飛ぶ。開いてすぐ押すのは普通の操作なので待つ方が正しい。
     // **押した手は捨てずに溜める**——握り潰すと「押したのに動かない」で終わる。
     if (ptsLoading) {
-      pendingStepsRef.current = Math.max(-MAX_PENDING_STEPS, Math.min(pendingStepsRef.current + dir, MAX_PENDING_STEPS))
+      pendingStepsRef.current = addPendingStep(pendingStepsRef.current, dir)
       return
     }
     if (hasTable) {
