@@ -136,7 +136,7 @@ export interface VideoApi {
   setClipHotkey: (hotkey: string) => Promise<boolean>
   getClipFrames: (imageId: number) => Promise<ClipFrames>
   getTimelineStrip: (imageId: number, count: number) => Promise<string | null>
-  trimVideo: (imageId: number, inSec: number, outSec: number) => Promise<TrimVideoResult>
+  trimVideo: (imageId: number, inSec: number, outSec: number, removeAudio: boolean) => Promise<TrimVideoResult>
   /**
    * トリミングの進み具合を受け取る。戻り値を呼ぶと購読をやめる。
    *

@@ -19,6 +19,8 @@ vi.mock('electron', () => ({
 import { trimWebm, trimBitrate, getVideoDuration, getVideoMeta, getFrameSignatures, getVideoFramePts, transcodeToH264, extractThumb, h264Args, h264Bitrate, SIGNATURE_GRID } from './ffmpeg'
 import { signaturesDiffer } from './frame-verify'
 
+const KEEP_AUDIO = { removeAudio: false }
+
 function runFfmpegSync(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG_BIN, args, { stdio: 'ignore' })
@@ -129,7 +131,7 @@ describe('trimWebm', () => {
     // IN/OUT はトリマーと同じく実コマの時刻へ吸着させる（OUT は「次のコマの開始時刻」）。
     const inSec = src[60]
     const outSec = src[121]
-    await trimWebm(vfrPath, outPath, inSec, outSec)
+    await trimWebm(vfrPath, outPath, inSec, outSec, KEEP_AUDIO)
     const out = await getVideoFramePts(outPath)
     expect(out.length).toBe(61)
   }, 120_000)
@@ -138,7 +140,7 @@ describe('trimWebm', () => {
     const outPath = join(dir, 'vfr-trim-pts.webm')
     const src = await getVideoFramePts(vfrPath)
     const inSec = src[60]
-    await trimWebm(vfrPath, outPath, inSec, src[121])
+    await trimWebm(vfrPath, outPath, inSec, src[121], KEEP_AUDIO)
     const out = await getVideoFramePts(outPath)
     const expected = src.slice(60, 121).map((t) => t - inSec)
     // 許容 2ms は webm のタイムスタンプの刻み（1ms）ぶん。素材 1 コマ（60fps でも 16.7ms）の
@@ -153,7 +155,7 @@ describe('trimWebm', () => {
   it('焼き直しの進み具合が届く', async () => {
     const outPath = join(dir, 'out-progress.webm')
     const seen: number[] = []
-    await trimWebm(srcPath, outPath, 1, 5, (ratio) => seen.push(ratio))
+    await trimWebm(srcPath, outPath, 1, 5, KEEP_AUDIO, (ratio) => seen.push(ratio))
     expect(seen.length).toBeGreaterThan(0)
     expect(Math.min(...seen)).toBeGreaterThanOrEqual(0)
     expect(Math.max(...seen)).toBeLessThanOrEqual(1)
@@ -163,7 +165,7 @@ describe('trimWebm', () => {
 
   it('IN=6/OUT=8 で切り出すと Duration が約2秒になる（preSeek適用時の回帰防止）', async () => {
     const outPath = join(dir, 'out.webm')
-    await trimWebm(srcPath, outPath, 6, 8)
+    await trimWebm(srcPath, outPath, 6, 8, KEEP_AUDIO)
     const duration = await getVideoDuration(outPath)
     expect(duration).not.toBeNull()
     expect(duration as number).toBeGreaterThan(1.5)
@@ -176,16 +178,39 @@ describe('trimWebm', () => {
   it('切り出した動画にもキーフレームが 10 コマごとに入る', async () => {
     const outPath = join(dir, 'out-keyframes.webm')
     // 10fps の素材を 4 秒＝約 40 コマ切り出す。10 コマごとなら 4 枚前後入る。
-    await trimWebm(srcPath, outPath, 1, 5)
+    await trimWebm(srcPath, outPath, 1, 5, KEEP_AUDIO)
     const { frames, keyFrames } = await countKeyFrames(outPath)
     expect(frames).toBeGreaterThan(30)
     // 指定が効いていなければ先頭の 1 枚だけになる。
     expect(keyFrames).toBeGreaterThanOrEqual(3)
   }, 60_000)
 
+  // 「音声を外す」。外したつもりで残っていれば、消したかった会話がそのまま残る。
+  it('音声を外すと、範囲を変えなくても切り出しても音声が残らない', async () => {
+    const whole = join(dir, 'noaudio-whole.webm')
+    const part = join(dir, 'noaudio-part.webm')
+    const duration = await getVideoDuration(srcPath)
+    await trimWebm(srcPath, whole, 0, duration as number, { removeAudio: true })
+    await trimWebm(srcPath, part, 1, 5, { removeAudio: true })
+    expect((await probeStderr(srcPath)).stderr).toMatch(/Audio:/)
+    expect((await probeStderr(whole)).stderr).not.toMatch(/Audio:/)
+    expect((await probeStderr(part)).stderr).not.toMatch(/Audio:/)
+  }, 60_000)
+
+  // 範囲を変えずに音声だけ外すときは映像を写すだけ。焼き直すと画質が落ち、コマの時刻も
+  // 動きうる（引き継いだフレーム表と黙ってずれる）。
+  it('範囲を変えずに音声だけ外すと、コマの数も時刻も元と同じ', async () => {
+    const outPath = join(dir, 'noaudio-vfr.webm')
+    const src = await getVideoFramePts(vfrPath)
+    const duration = await getVideoDuration(vfrPath)
+    await trimWebm(vfrPath, outPath, 0, duration as number, { removeAudio: true })
+    const out = await getVideoFramePts(outPath)
+    expect(out).toEqual(src)
+  }, 60_000)
+
   it('IN=1/OUT=3（preSeek=0）でも Duration が約2秒になる', async () => {
     const outPath = join(dir, 'out-short.webm')
-    await trimWebm(srcPath, outPath, 1, 3)
+    await trimWebm(srcPath, outPath, 1, 3, KEEP_AUDIO)
     const duration = await getVideoDuration(outPath)
     expect(duration).not.toBeNull()
     expect(duration as number).toBeGreaterThan(1.5)

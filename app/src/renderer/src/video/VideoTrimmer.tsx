@@ -5,7 +5,7 @@ import { cleanTitle, isEditingTarget, mediaUrl } from '../utils'
 import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
-import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle } from './videoControls'
+import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle, MuteIcon } from './videoControls'
 import type { TrimErrorCode, TrimProgress } from '../../../shared/api.video'
 import { useT, type MessageKey } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
@@ -81,6 +81,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   const [inSec, setInSec] = useState(0)
   const [outSec, setOutSec] = useState(() => safeDur(image.duration))
   const [trimming, setTrimming] = useState(false)
+  // 保存するクリップに音声を入れるか。通話の声などが入った録画から音だけ外すため。
+  const [removeAudio, setRemoveAudio] = useState(false)
   // トリミングの進み具合。null は走っていない状態。
   const [trimProgress, setTrimProgress] = useState<TrimProgress | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
@@ -392,7 +394,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     || (hasTable && (inIdx !== 0 || outIdx !== framePts.length - 1))
 
   function requestClose(): void {
-    if (boundaryChanged) setShowCloseConfirm(true)
+    if (boundaryChanged || removeAudio) setShowCloseConfirm(true)
     else onClose()
   }
 
@@ -604,7 +606,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
     // 進み具合の購読は、走っている間だけ張る（閉じたあとに届いても捨てる）。
     const offProgress = window.api.onTrimProgress((p) => { if (mountedRef.current) setTrimProgress(p) })
     try {
-      const result = await window.api.trimVideo(image.id, inSec, exportOutSec)
+      const result = await window.api.trimVideo(image.id, inSec, exportOutSec, removeAudio)
       if (result.ok) {
         onTrimmed()
         onClose()
@@ -680,6 +682,16 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
         </div>
 
         <div style={s.timelineWrap}>
+          {/* 保存する動画に音声を入れるか。PC の編集ソフトでトラックの消音がタイムラインの
+              左端（トラックの頭）にあるのに倣う。外すと斜線入りの灰色になる。 */}
+          <button
+            style={{ ...s.audioTrackBtn, ...(removeAudio ? s.audioTrackBtnOff : {}) }}
+            onClick={() => setRemoveAudio((v) => !v)}
+            disabled={trimming}
+            title={removeAudio ? t('trim.audioOffTitle') : t('trim.audioOnTitle')}
+          >
+            <span style={s.audioTrackIcon}><MuteIcon muted={removeAudio} /></span>
+          </button>
           <div
             ref={timelineRef}
             style={s.timeline}

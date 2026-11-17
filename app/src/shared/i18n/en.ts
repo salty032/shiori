@@ -55,7 +55,7 @@ export const en: Record<keyof typeof ja, string> = {
   'busy.modelDownload': 'AI model download',
   'busy.thumbRepair': 'Thumbnail repair',
   'busy.captureMove': 'Moving captures',
-  'busy.trim': 'Trimming',
+  'busy.trim': 'Video editing',
 
   // ── Fatal startup errors ─────────────────────────────────────
   'error.dbOpen':
@@ -399,8 +399,8 @@ export const en: Record<keyof typeof ja, string> = {
   'clip.hotkeyLabel': 'Recording hotkey',
   'clip.hotkeyTroubleshoot': 'If it does not work, another app (a recording tool such as the NVIDIA App) may be using the same key. Pick a different key.',
 
-  // ── Video (trimming) ──
-  'video.trim': 'Trim',
+  // ── Video editing (cut range, audio) ──
+  'video.trim': 'Edit video',
   // Readout for , / . in the browser. The extension carries no wording of its own
   'video.stepBlocked': 'Cannot step any further',
   'video.stepDropped': 'Too fast — dropped {count}',
@@ -412,18 +412,20 @@ export const en: Record<keyof typeof ja, string> = {
   'trim.analyzing': 'Analyzing frames…',
   'trim.analyzeFailed': 'Frame analysis failed (lower frame precision)',
   'trim.shortcutHint': ', . step a frame · I/O set in/out · Space play/pause · M mute',
-  'trim.workingPercent': 'Trimming... {percent}%',
+  'trim.workingPercent': 'Saving... {percent}%',
   'trim.finishing': 'Finishing up...',
   'trim.tooShort': 'The selected range is too short ({seconds} seconds minimum).',
   'trim.errNotFound': 'This video could not be found.',
   'trim.errRange': 'The selected range is not valid.',
-  'trim.errBusy': 'This video is already being trimmed.',
+  'trim.errBusy': 'This video is already being saved.',
   'trim.errPath': 'The original video file could not be opened.',
   'trim.error': 'Error: {message}',
-  'trim.working': 'Trimming…',
-  'trim.save': 'Trim and save',
-  'trim.discardTitle': 'Discard trim',
-  'trim.discardMessage': 'Your in/out points will not be saved. Close anyway?',
+  'trim.working': 'Saving…',
+  'trim.save': 'Save as new clip',
+  'trim.audioOnTitle': 'The saved clip keeps its audio (click to remove)',
+  'trim.audioOffTitle': 'The saved clip has no audio (click to keep it)',
+  'trim.discardTitle': 'Discard edits',
+  'trim.discardMessage': 'Your changes will not be saved. Close anyway?',
 
   // ── Details panel ──
   'detail.titleHint': 'Click to expand / double-click or F2 to edit',

@@ -44,7 +44,7 @@ export const ja = {
   'busy.modelDownload': 'AIモデルのダウンロード',
   'busy.thumbRepair': 'サムネイルの修復',
   'busy.captureMove': '保存先の移動',
-  'busy.trim': 'トリミング',
+  'busy.trim': '動画の編集',
 
   // ── 起動時の致命的エラー ──────────────────────────────────────
   'error.dbOpen':
@@ -454,8 +454,8 @@ export const ja = {
   'clip.hotkeyLabel': '録画ホットキー',
   'clip.hotkeyTroubleshoot': '効かないときは、ほかのアプリ（NVIDIA App などの録画ソフト）が同じキーを使っているかもしれません。別のキーにしてください。',
 
-  // ── 動画（トリミング） ──
-  'video.trim': 'トリミング',
+  // ── 動画の編集（範囲の切り出し・音声） ──
+  'video.trim': '動画を編集',
   // ブラウザ側 , / . の読み取り表示。拡張は文言を持たないので settings で配る
   'video.stepBlocked': 'これ以上進めません',
   'video.stepDropped': '入力が速すぎたため、{count}回分を省略しました',
@@ -469,19 +469,21 @@ export const ja = {
   'trim.analyzing': 'フレーム解析中...',
   'trim.analyzeFailed': 'フレームを解析できませんでした（コマ位置の精度が下がります）',
   'trim.shortcutHint': ', / . コマ送り · I / O 範囲設定 · Space 再生 / 一時停止 · M ミュート',
-  'trim.workingPercent': 'トリミング中... {percent}%',
+  'trim.workingPercent': '保存中... {percent}%',
   'trim.finishing': '仕上げています...',
   'trim.tooShort': '切り出す長さが足りません（{seconds} 秒以上必要です）',
   // main が返す符丁を訳す。以前はそのまま出していた（画面に「エラー：invalid_out」と出ていた）。
   'trim.errNotFound': 'この動画が見つかりませんでした。',
   'trim.errRange': '切り出す範囲が正しくありません。',
-  'trim.errBusy': 'この動画は、いま別のトリミングを実行中です。',
+  'trim.errBusy': 'この動画は、いま別の編集を保存中です。',
   'trim.errPath': '元の動画ファイルを開けませんでした。',
   'trim.error': 'エラー：{message}',
-  'trim.working': 'トリミング中...',
-  'trim.save': 'トリミングして保存',
-  'trim.discardTitle': 'トリミングを中止',
-  'trim.discardMessage': '開始位置と終了位置の変更は保存されません。閉じますか？',
+  'trim.working': '保存中...',
+  'trim.save': '新しいクリップとして保存',
+  'trim.audioOnTitle': '保存する動画に音声を入れます（押すと外す）',
+  'trim.audioOffTitle': '保存する動画から音声を外します（押すと戻す）',
+  'trim.discardTitle': '編集を中止',
+  'trim.discardMessage': '変更は保存されません。閉じますか？',
 
   // ── 詳細パネル ──
   'detail.titleHint': 'クリックで展開 / ダブルクリックまたは F2 で編集',

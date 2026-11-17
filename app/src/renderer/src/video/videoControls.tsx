@@ -115,7 +115,7 @@ export function PlayPauseIcon({ playing }: { playing: boolean }): React.JSX.Elem
   )
 }
 
-function MuteIcon({ muted }: { muted: boolean }): React.JSX.Element {
+export function MuteIcon({ muted }: { muted: boolean }): React.JSX.Element {
   return muted ? (
     <svg width="13" height="11" viewBox="0 0 13 11" fill="currentColor">
       <path d="M0 3.5v4h2.5L6 11V0L2.5 3.5H0z" />

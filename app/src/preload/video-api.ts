@@ -15,8 +15,8 @@ export function buildVideoApi(): VideoApi {
     getTimelineStrip: (imageId, count) =>
       ipcRenderer.invoke(VIDEO_CH.videoGetTimelineStrip, imageId, count),
 
-    trimVideo: (imageId, inSec, outSec) =>
-      ipcRenderer.invoke(VIDEO_CH.videoTrim, imageId, inSec, outSec),
+    trimVideo: (imageId, inSec, outSec, removeAudio) =>
+      ipcRenderer.invoke(VIDEO_CH.videoTrim, imageId, inSec, outSec, removeAudio),
 
     onTrimProgress: (cb) => listen(VIDEO_CH.videoTrimProgress, cb),
   }

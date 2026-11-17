@@ -179,7 +179,7 @@ export function registerVideoHandlers(): void {
     } catch { return null }
   })
 
-  handleTrusted(VIDEO_CH.videoTrim, async (event, imageId: number, inSec: number, outSec: number) => {
+  handleTrusted(VIDEO_CH.videoTrim, async (event, imageId: number, inSec: number, outSec: number, removeAudio?: unknown) => {
     const validId = optionalPositiveInteger(imageId)
     if (!validId) return trimFailed('invalid_id')
     if (typeof inSec !== 'number' || !Number.isFinite(inSec) || inSec < 0)
@@ -229,7 +229,7 @@ export function registerVideoHandlers(): void {
       // **整数のパーセントが変わったときだけ**送る。画面に出る値の刻みと送る回数が
       // 一致する（ffmpeg は 1 本の焼き直しで何百行も進捗を吐く）。
       let lastPercent = -1
-      await trimWebm(realPath, webmOut, inSec, outSec, (ratio) => {
+      await trimWebm(realPath, webmOut, inSec, outSec, { removeAudio: removeAudio === true }, (ratio) => {
         const percent = Math.floor(ratio * 100)
         if (percent === lastPercent) return
         lastPercent = percent

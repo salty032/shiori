@@ -377,11 +377,16 @@ export function trimBitrate(fileBytes: number | null, durationSec: number | null
 // 代償はファイルサイズ +27%（録画側の実測）。
 const TRIM_KEYFRAME_INTERVAL_FRAMES = RECORDING_KEYFRAME_INTERVAL_FRAMES
 
+// 「範囲を変えていない」とみなす尺の誤差。画面の終了位置は <video> の尺で、ffmpeg の測る尺と
+// 小数点以下で食い違うことがある。素材 1 コマ（60fps で約 17ms）より短く取る。
+const TRIM_WHOLE_CLIP_TOLERANCE_SEC = 0.01
+
 export async function trimWebm(
   inputPath: string,
   outPath: string,
   inSec: number,
   outSec: number,
+  options: { removeAudio: boolean },
   onProgress?: (ratio: number) => void
 ): Promise<void> {
   // 元が実際に何ビット使っているかを測る。**要求値ではなく結果**を見る（要求どおりに
@@ -390,6 +395,15 @@ export async function trimWebm(
     stat(inputPath).then((st) => st.size).catch(() => null),
     getVideoDuration(inputPath).catch(() => null)
   ])
+  // 範囲を変えずに音声だけ外すときは、映像を焼き直さずそのまま写す。焼き直すと
+  // 画質が落ちるうえ、外したいのは音だけでコマには触る理由が無い。
+  // 尺が測れなければ全体かどうか分からないので、焼き直す側へ倒す。
+  const wholeClip = inSec <= 0 && srcDuration != null && outSec >= srcDuration - TRIM_WHOLE_CLIP_TOLERANCE_SEC
+  if (options.removeAudio && wholeClip) {
+    await runFfmpeg(['-y', ...inputArgs(inputPath), '-map', '0:v', '-c:v', 'copy', '-an', outPath])
+    onProgress?.(1)
+    return
+  }
   const videoBitrate = trimBitrate(srcBytes, srcDuration)
   // 入力側で2秒前まで高速ストリームシーク（タイムスタンプは0リセットされる）→
   // 出力側はシーク後の相対時刻を指定してフレーム精確カット。
@@ -417,10 +431,9 @@ export async function trimWebm(
     '-row-mt', '1',
     '-deadline', 'good',
     '-cpu-used', '2',
-    '-c:a', 'libopus',
     // 録画側と同じ 192kbps を明示する。未指定だと Chromium ではなく ffmpeg の既定に
     // 落ちるが、いずれにせよ**元より痩せる方向にしか動かない**ので指定する。
-    '-b:a', `${RECORDING_AUDIO_BITS_PER_SECOND / 1000}k`,
+    ...(options.removeAudio ? ['-an'] : ['-c:a', 'libopus', '-b:a', `${RECORDING_AUDIO_BITS_PER_SECOND / 1000}k`]),
     '-avoid_negative_ts', 'make_zero',
     outPath
   )
