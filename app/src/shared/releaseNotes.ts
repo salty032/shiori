@@ -20,6 +20,24 @@ import { compareVersions } from './version'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.7.0': {
+    ja: [
+      '動画を編集する画面（これまでの「トリミング」）で、保存する動画から音声だけを外せるようになりました。タイムラインの左端のスピーカーのボタンを押してから保存してください。元の動画は残ります。',
+      '動画を編集する画面で −1f / +1f を押したとき、再生位置の白い線が開始・終了の線と少しずれて止まり、時刻の表示も違う数字になっていました。',
+      'ビューアで動画を拡大すると、操作バーの暗い帯が映像の途中に浮いて見えていました。',
+      '100 件以上をまとめて削除するときは、確認が出るようになりました。',
+      'タイムシートは 24 コマの録画でだけ開くようになりました。30fps の録画では、作画のコマと番号が対応しないためです。',
+      'この更新ではブラウザ拡張も入れ替わります。ブラウザの拡張機能ページで拡張を再読み込みしてください。',
+    ],
+    en: [
+      'In the video editing screen (formerly “Trim”), you can now remove just the audio from the video you save. Press the speaker button at the left end of the timeline before saving. The original video is kept.',
+      'In the video editing screen, pressing −1f / +1f left the white playhead line slightly off the start and end lines, and the time display showed a different number.',
+      'When zooming into a video in the viewer, the dark strip of the control bar appeared to float in the middle of the picture.',
+      'Deleting 100 or more items at once now asks for confirmation.',
+      'The timesheet now opens only for 24-frame recordings. In 30fps recordings, the numbers do not correspond to the drawn frames.',
+      'This update also replaces the browser extension. Please reload it on your browser’s extensions page.',
+    ],
+  },
   '1.6.3': {
     ja: [
       'Netflix で一時停止したとき、広告や「ご覧になっている作品」が全面に重なって、止めたコマが見えないことがありました。',
