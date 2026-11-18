@@ -651,8 +651,12 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
               if (!ptsLoadedRef.current) setOutSec(d)
             }}
             onTimeUpdate={(e) => {
+              // 白い線は「映っているコマの左の境目」に置く（IN/OUT の線と同じく境目を指す）。
+              // **video の時刻をそのまま描かない**——コマ送りは絵を確実に映すためにコマの
+              // 真ん中へシークする（frameSeekSec）ので、ここで生の時刻を描くと、±1f で境目に
+              // 置いた白い線がすぐ真ん中へ動き、IN/OUT の線と半コマずれて見えていた。
               const t = e.currentTarget.currentTime
-              updatePos(t)
+              updatePos(hasTable ? framePts[findFrameIdx(framePts, t)] : t)
             }}
             onSeeked={handleSeeked}
             onPlay={() => {
