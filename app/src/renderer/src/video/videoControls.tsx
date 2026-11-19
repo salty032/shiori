@@ -99,7 +99,7 @@ export const vcSeekFillStyle: React.CSSProperties = {
 export const VC_SEEK_THUMB = 12
 export const vcSeekThumbStyle: React.CSSProperties = {
   position: 'absolute', top: '50%', marginTop: -VC_SEEK_THUMB / 2, width: VC_SEEK_THUMB, height: VC_SEEK_THUMB,
-  borderRadius: 999, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.6)', pointerEvents: 'none'
+  borderRadius: radius.pill, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.6)', pointerEvents: 'none'
 }
 
 export function PlayPauseIcon({ playing }: { playing: boolean }): React.JSX.Element {
@@ -327,5 +327,5 @@ const s: Record<string, React.CSSProperties> = {
   vcVolFill: { position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(var(--accent-rgb), 1)', borderRadius: radius.md },
   // 映像ではなくアプリの面に乗る点なので、こちらは白ではなくアクセントの実色にする
   // （--accent-text は文字用で、ライトの面に置くと塗り潰しの点としては沈む）。
-  vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
+  vcVolThumb: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: radius.pill, background: 'var(--accent)', boxShadow: '0 0 0 3px rgba(var(--accent-rgb), 0.18)', pointerEvents: 'none' },
 }

@@ -14,7 +14,7 @@ export const font = {
 //   sm  = サムネの上に重なる小さなバッジ（NEW・尺）・検索語のハイライト・挿入線
 //   md  = 入力欄・ボタン・カード・メニュー・サムネイル（画面のほとんど）
 //   lg  = モーダル・浮くパネル（画面の手前に出るものだけ大きく取る）
-//   pill= タグ・トグル
+//   pill= 端を丸め切る形（タグ・トグル・状態の札・進み具合のバー・つまみ）。global.css の 999px も同じ
 //
 // **面が大きいほど丸くする。** md=4 の頃は画面のほぼ全部が直角に見えていて、資料アプリ
 // らしい硬さになっていた。いちど md=10 まで上げたが今度は丸すぎたので、その中間で止めてある。
@@ -330,7 +330,7 @@ export const s: Record<string, CSSProperties> = {
     // **上下と左右で違う値を使う。** チップは横に並んで折り返すので、左右は詰めたほうが
   // 1 行に多く入る。上下を同じだけ詰めると行同士がくっついて塊に見える。
   sidebarTagList: { display: 'flex', flexWrap: 'wrap' as const, rowGap: space.x6, columnGap: space.x4 },
-  sidebarTagChip: { maxWidth: '100%', minHeight: control.md, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.92)', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
+  sidebarTagChip: { maxWidth: '100%', minHeight: control.md, display: 'inline-flex', alignItems: 'center', gap: space.x4, padding: '6px 11px', background: 'rgba(var(--surface-rgb), 0.92)', border: '1px solid var(--border-strong)', borderRadius: radius.pill, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const, overflow: 'hidden', whiteSpace: 'nowrap' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
   sidebarTagChipText: { display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   // **由来は色、選択は塗りつぶし。** 手動=緑、AI=灰（無彩色）で、これは選んでいても
   // 変わらない。選んだかどうかは「地が塗ってあるか」で読む——非選択は地が完全に透明で
@@ -352,9 +352,9 @@ export const s: Record<string, CSSProperties> = {
   sidebarTagChipAiActive: { background: 'rgba(var(--text-rgb), 0.16)', border: '1px solid rgba(var(--text-rgb), var(--edge-base))', color: 'var(--text-primary)' },
   // TagEditor と DetailPanel の一括編集で同一定義が重複していたタグチップ／追加ボタン（C-2）。
   // 色 = 由来（緑=手動 / 灰=AI）を単一/一括/サイドバーで一貫させるため、AI版もここへ集約。
-  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.20)', border: '1px solid rgba(var(--success-rgb), var(--edge-strong))', borderRadius: 999, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
-  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--text-rgb), 0.06)', border: '1px solid var(--border-strong)', borderRadius: 999, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
-  addTagChip: { height: control.lg, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: 999, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.medium, cursor: 'pointer', lineHeight: 1 },
+  tagChipManual: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--success-rgb), 0.20)', border: '1px solid rgba(var(--success-rgb), var(--edge-strong))', borderRadius: radius.pill, color: 'var(--tag-manual)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
+  tagChipAi: { display: 'inline-flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(var(--text-rgb), 0.06)', border: '1px solid var(--border-strong)', borderRadius: radius.pill, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, userSelect: 'text' as const },
+  addTagChip: { height: control.lg, boxSizing: 'border-box' as const, display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: 'transparent', border: '1px dashed var(--border-strong)', borderRadius: radius.pill, color: 'var(--text-secondary)', fontSize: font.sm, fontWeight: weight.medium, cursor: 'pointer', lineHeight: 1 },
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium },
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid var(--border-inset)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   // サイドバー下部（セットアップ・サイズ・表示切替・設定）は毎日押すものではないのに、
@@ -371,7 +371,7 @@ export const s: Record<string, CSSProperties> = {
   // 混ざるので、ライトでは明るい地に溶けて消えていた（global.css の --border-inset 参照）。
   sidebarSetupBtn: { alignSelf: 'center', width: 192, minHeight: control.lg, boxSizing: 'border-box' as const, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const },
   sidebarSetupBtnTodo: { background: 'rgba(var(--surface-rgb), 0.52)', border: '1px solid var(--border-default)', fontWeight: weight.medium },
-  sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)', fontSize: 10, fontWeight: weight.strong },
+  sidebarSetupMark: { flexShrink: 0, width: 19, height: 19, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)', fontSize: 10, fontWeight: weight.strong },
   sidebarControls: { flexShrink: 0, alignSelf: 'center', width: 192, display: 'inline-flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, padding: 2 },
   sidebarBottom: { flexShrink: 0, alignSelf: 'center', width: 192, boxSizing: 'border-box' as const, display: 'flex', gap: space.x4 },
   gearBtn: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'transparent', border: '1px solid var(--border-inset)', borderRadius: radius.md, cursor: 'pointer', padding: '0 11px', display: 'flex', alignItems: 'center', gap: space.x8, justifyContent: 'flex-start', transition: 'color 0.12s ease' },
@@ -411,8 +411,8 @@ export const s: Record<string, CSSProperties> = {
   taskToast: { width: 'min(340px, calc(100vw - 36px))', flexDirection: 'column' as const, gap: space.x8 },
   taskHeader: { display: 'flex', alignItems: 'center', gap: space.x8 },
   taskLabel: { flex: 1, minWidth: 0, color: 'var(--text-primary)', fontSize: font.sm, fontWeight: weight.medium, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  taskBarTrack: { width: '100%', height: 4, background: 'rgba(var(--text-rgb), 0.14)', borderRadius: 999, overflow: 'hidden' },
-  taskFill: { height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width 0.25s ease' },
+  taskBarTrack: { width: '100%', height: 4, background: 'rgba(var(--text-rgb), 0.14)', borderRadius: radius.pill, overflow: 'hidden' },
+  taskFill: { height: '100%', background: 'var(--accent)', borderRadius: radius.pill, transition: 'width 0.25s ease' },
   taskDetail: { flexShrink: 0, color: 'var(--text-secondary)', fontSize: font.xs, fontWeight: weight.normal, fontVariantNumeric: 'tabular-nums' as const },
   taskCancelBtn: { flexShrink: 0, height: control.lg, padding: '0 12px', background: 'rgba(var(--text-rgb), 0.08)', border: '1px solid rgba(var(--text-rgb), var(--edge-faint))', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
   // ビューアは viewerHost（Sidebar+main のみを束ねるラッパー）を覆う絶対配置に変更（fixedではない）。
@@ -432,7 +432,7 @@ export const s: Record<string, CSSProperties> = {
   viewerActions: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: space.x8 },
   viewerCounter: { color: 'rgba(255,255,255,0.46)', fontSize: font.base, fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' as const, letterSpacing: 0.2 },
   viewerClose: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'rgba(255,255,255,0.62)', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' },
-  viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: control.sm, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, pointerEvents: 'none' as const },
+  viewerZoomHud: { position: 'absolute' as const, top: 58, left: '50%', transform: 'translateX(-50%)', zIndex: 3, display: 'inline-flex', alignItems: 'center', minHeight: control.sm, padding: '2px 8px', background: 'rgba(13,15,20,0.48)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: radius.pill, pointerEvents: 'none' as const },
   viewerZoomValue: { color: 'rgba(255,255,255,0.68)', fontSize: font.xs, fontWeight: weight.medium, fontVariantNumeric: 'tabular-nums', minWidth: 36, textAlign: 'center' as const },
   filmstrip: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: space.x4, padding: '30px 80px 18px', background: 'linear-gradient(transparent, rgba(0,0,0,0.82))', zIndex: 1 },
   filmstripThumb: { width: 64, height: control.lg, objectFit: 'cover' as const, borderRadius: radius.md, cursor: 'pointer', border: '2px solid transparent', flexShrink: 0, opacity: 0.6 },
