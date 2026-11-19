@@ -589,7 +589,7 @@ export function finishRecordingState(): void {
   // 届かない・レコーダーのクラッシュ・ウォッチドッグ）では未送のままここへ来るので、
   // 保険としての post-capture はこの経路に残っている。
   // immediate: true — 拡張側のホスト別復帰待ち（スクショ用の 1.6〜3.2 秒）を踏ませない。
-  // 録画は既に止まっているので、待っても UI が写り込む余地は無い（content.js の restoreDelayFor）。
+  // 録画は既に止まっているので、待っても UI が写り込む余地は無い（content-capture.js の restoreDelayFor）。
   if (wasRecording && !uiHoldReleased) broadcastMessage({ type: 'post-capture', immediate: true })
   uiHoldReleased = false
   setTrayRecording(false)

@@ -154,7 +154,7 @@ function resetState(): void {
 //
 // カーソル除外はここでは達成できない。cursor:'never' は仕様上の制約だが Chromium が
 // 未実装で、未知の制約は例外にならず黙って無視される（crbug 41456762）。つまりどの経路
-// でもカーソルは合成される。実際の除外は拡張機能側（content.js の hideCursor）が
+// でもカーソルは合成される。実際の除外は拡張機能側（content-capture.js の hideCursor）が
 // ページに cursor:none を当てて OS カーソル自体を消すことで行っている。制約自体は仕様
 // 準拠で無害なため、将来 Chromium が実装したときにそのまま効くよう残してある。
 //

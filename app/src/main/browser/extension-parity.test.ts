@@ -16,10 +16,11 @@ import { backgroundJs, contentJs, keyGuardJs, manifestJson } from './extension-s
 // **ここで見るのは 2 つだけ** — 生成し直し忘れと、目印の内側の手書き換え。どちらも
 // 起きても画面には何も出ない（拡張は黙って古い値で動き続ける）ので、ここで落とす。
 describe('拡張の定数は wire-limits.ts からの生成物（L-1）', () => {
-  const sources: Record<string, string> = { 'background.js': backgroundJs, 'content.js': contentJs }
+  // 生成スクリプトが書き込むファイルそのものを読む（content.js は役目ごとに分かれている）。
+  const source = (file: string): string => readFileSync(join(__dirname, '../../../../extension', file), 'utf-8')
   for (const block of renderExtensionBlocks(NAMED_CAPTURE_KEY_VALUES)) {
     it(`extension/${block.file} の「${block.id}」が生成結果と一致する（ずれていたら npm run ext:limits）`, () => {
-      expect(readGeneratedBlock(sources[block.file], block.id)).toBe(block.text)
+      expect(readGeneratedBlock(source(block.file), block.id)).toBe(block.text)
     })
   }
 })

@@ -79,7 +79,7 @@ export function createRecorderWindow(onInterrupted?: () => void): void {
   // ここで拒否（空で callback）してもレンダラーは従来方式へ退避するので録画自体は失われない。
   //
   // 注: この経路にカーソル除外の効果は無い（cursor:'never' は Chromium 未実装。詳細は
-  // recorder.ts の acquireScreenStream）。除外は拡張機能側 content.js の hideCursor が担う。
+  // recorder.ts の acquireScreenStream）。除外は拡張機能側 content-capture.js の hideCursor が担う。
   win.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer.getSources({ types: ['screen'] })
       .then((sources) => {

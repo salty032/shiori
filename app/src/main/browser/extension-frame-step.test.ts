@@ -42,7 +42,7 @@ function landOn(starts: number[], t: number): number {
 
 /**
  * 1ステップぶんを最後まで回し、着地したコマの番号・シーク回数・実測できたコマ長を返す。
- * content.js の runStepAttempt と同じ順序で initialFrameStep → planFrameStep を回す。
+ * content-step.js の runStepAttempt と同じ順序で initialFrameStep → planFrameStep を回す。
  * baseOffset は「基準が実コマの先頭ではない」状況（外部シーク直後など）の再現。
  * seedDur は近道の置き場所（実測されたコマ長。無ければ null＝近道を使わない）。
  *

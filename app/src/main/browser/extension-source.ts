@@ -8,10 +8,20 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-export const contentJs = readFileSync(join(__dirname, '../../../../extension/content.js'), 'utf-8')
-export const backgroundJs = readFileSync(join(__dirname, '../../../../extension/background.js'), 'utf-8')
-export const keyGuardJs = readFileSync(join(__dirname, '../../../../extension/key-guard.js'), 'utf-8')
-export const manifestJson = readFileSync(join(__dirname, '../../../../extension/manifest.json'), 'utf-8')
+const EXTENSION_DIR = join(__dirname, '../../../../extension')
+export const backgroundJs = readFileSync(join(EXTENSION_DIR, 'background.js'), 'utf-8')
+export const keyGuardJs = readFileSync(join(EXTENSION_DIR, 'key-guard.js'), 'utf-8')
+export const manifestJson = readFileSync(join(EXTENSION_DIR, 'manifest.json'), 'utf-8')
+
+/** content.js と一緒に読み込まれるファイル（manifest.json の順）。ページでは同じ isolated world で関数と変数を共有する。 */
+export const contentScriptFiles: string[] = (JSON.parse(manifestJson) as { content_scripts: { js: string[] }[] })
+  .content_scripts.find((entry) => entry.js.includes('content.js'))?.js ?? ['content.js']
+
+/**
+ * content.js とその仲間（content-*.js）を manifest の順につないだもの。ページで実行されるのと同じ並び。
+ * テストは関数を名前で切り出すので、どのファイルに置いたかに左右されない。
+ */
+export const contentJs = contentScriptFiles.map((file) => readFileSync(join(EXTENSION_DIR, file), 'utf-8')).join('\n')
 
 // 名前で関数 1 つ分のソースを切り出す。波括弧の対応で終端を見つけるので、
 // 関数内の文字列に `}` が含まれていても数え違えない限りは通る。

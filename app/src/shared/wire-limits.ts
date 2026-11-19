@@ -44,7 +44,7 @@ export const MAX_SCREEN_SIZE = 20_000
 export const MIN_DEVICE_PIXEL_RATIO = 0.25
 export const MAX_DEVICE_PIXEL_RATIO = 8
 // 素材のコマ間隔（ミリ秒）の許容範囲。拡張側が実測値を採用する条件（10〜120fps。
-// content.js の startFrameTracker）と揃えてある。範囲外なら null にして「測れていない」
+// content-frames.js の startFrameTracker）と揃えてある。範囲外なら null にして「測れていない」
 // 扱いにする——**壊れた値でビットレートを決めるくらいなら、従来どおりの固定値でよい。**
 export const MIN_SOURCE_FRAME_MS = 1000 / 120
 export const MAX_SOURCE_FRAME_MS = 1000 / 10
@@ -162,7 +162,7 @@ export function renderExtensionBlocks(namedCaptureKeys: ReadonlySet<string>): Ge
         { name: 'MAX_DEVICE_PIXEL_RATIO', literal: String(MAX_DEVICE_PIXEL_RATIO) },
         {
           note: [
-            '素材のコマ間隔（ミリ秒）の許容範囲。content.js の startFrameTracker が実測値を',
+            '素材のコマ間隔（ミリ秒）の許容範囲。content-frames.js の startFrameTracker が実測値を',
             '採用する条件（10〜120fps）と同じ。',
           ],
           name: 'MIN_SOURCE_FRAME_MS',
@@ -226,7 +226,7 @@ export function renderExtensionBlocks(namedCaptureKeys: ReadonlySet<string>): Ge
       ]),
     },
     {
-      file: 'content.js',
+      file: 'content-frames.js',
       id: 'frame-watchdog',
       text: render([
         {

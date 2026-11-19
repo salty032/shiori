@@ -36,7 +36,7 @@ const MIN_SCREEN_SIZE = 1
 const MAX_SCREEN_SIZE = 20000
 const MIN_DEVICE_PIXEL_RATIO = 0.25
 const MAX_DEVICE_PIXEL_RATIO = 8
-// 素材のコマ間隔（ミリ秒）の許容範囲。content.js の startFrameTracker が実測値を
+// 素材のコマ間隔（ミリ秒）の許容範囲。content-frames.js の startFrameTracker が実測値を
 // 採用する条件（10〜120fps）と同じ。
 const MIN_SOURCE_FRAME_MS = 8.333333333333334
 const MAX_SOURCE_FRAME_MS = 100
@@ -159,12 +159,12 @@ function normalizePortMessage(msg) {
     const presentedFrames = boundedNumber(msg.presentedFrames, 0, MAX_PRESENTED_FRAMES)
     const out = { type: 'frame', mediaTime, displayAt }
     if (presentedFrames != null) out.presentedFrames = presentedFrames
-    // 診断用の時刻（content.js の reportFrame 参照）。ここで落とすと app まで届かない。
+    // 診断用の時刻（content-frames.js の reportFrame 参照）。ここで落とすと app まで届かない。
     const presentedAt = boundedNumber(msg.presentedAt, 0, MAX_EPOCH_MS)
     const calledAt = boundedNumber(msg.calledAt, 0, MAX_EPOCH_MS)
     if (presentedAt != null) out.presentedAt = presentedAt
     if (calledAt != null) out.calledAt = calledAt
-    // コマの絵（content.js の frameThumb）。32x32 の白黒を base64 にしたものだけを通す。
+    // コマの絵（content-frames.js の frameThumb）。32x32 の白黒を base64 にしたものだけを通す。
     if (typeof msg.thumb === 'string' && THUMB_BASE64.test(msg.thumb)) out.thumb = msg.thumb
     return out
   }
@@ -248,7 +248,7 @@ function normalizeServerMessage(data) {
       requestId: typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : undefined
     }
   }
-  // immediate: ホスト別の復帰待ちを踏まずにすぐ戻す（クリップ録画のみ。content.js の
+  // immediate: ホスト別の復帰待ちを踏まずにすぐ戻す（クリップ録画のみ。content-capture.js の
   // restoreDelayFor を参照）。
   if (msg.type === 'post-capture') return { type: 'post-capture', immediate: msg.immediate === true }
   if (msg.type === 'notice') {

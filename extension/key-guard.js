@@ -13,7 +13,7 @@
 // 見ていればその機能は発動する。DMM TV は , / . が再生速度に当たっており、keydown だけを
 // 塞いだ版では**コマ送りは正常に効いたまま倍速だけが変わり続けた**（2026-08-15 実機）。
 // 倍速が変われば素材の時間軸が打鍵のたびに伸縮するので、研究用途では致命的。
-// content.js の suppressCaptureKey が keydown/keyup/keypress の 3 つとも塞いでいるのも同じ理由。
+// content-capture.js の suppressCaptureKey が keydown/keyup/keypress の 3 つとも塞いでいるのも同じ理由。
 // **奪ったキーは、離すところまで奪い切る。**
 //
 // **なぜ content.js 本体を document_start にしないか。** 本体はタイトル取得を持っており、

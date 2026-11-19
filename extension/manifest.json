@@ -84,7 +84,7 @@
         "*://*.bilibili.tv/*",
         "http://localhost/*"
       ],
-      "js": ["content.js"],
+      "js": ["content-frames.js", "content-step.js", "content-capture.js", "content-notice.js", "content-title.js", "content.js"],
       "run_at": "document_idle"
     },
     {
