@@ -45,6 +45,9 @@ export interface ShareEntry {
   ambiguous_frames?: number | null
   // 取り込み側は使わない（抜けは受け取った表から数え直す。restoredFrameCounts）。
   unreported_frames?: number | null
+  // 手で打ったタイムシート（timesheets の data と同じ形）。**コマの表を一緒に書き出せたときだけ持つ**——
+  // 打った位置は表の何行目かで覚えているので、表が無いとどのコマに打ったのか分からない。
+  timesheet?: string
 }
 
 // 読む側はどの項目も壊れている前提で受ける。frame_table は古い版がコマ表を行の中に入れていた頃の項目。
@@ -56,7 +59,7 @@ export function buildShareEntry(
   item: Pick<ImageRow,
     'url' | 'current_time' | 'title' | 'memo' | 'captured_at' | 'width' | 'height' |
     'media_type' | 'duration' | 'fps' | 'ambiguous_frames' | 'unreported_frames'> & { manualTags: string[] },
-  files: { file: string; thumb: string | null; frameTable: string | null }
+  files: { file: string; thumb: string | null; frameTable: string | null; timesheet: string | null }
 ): ShareEntry {
   return {
     version: 2,
@@ -77,6 +80,7 @@ export function buildShareEntry(
       ...(files.frameTable ? { frame_table_file: files.frameTable } : {}),
       ambiguous_frames: item.ambiguous_frames ?? null,
       unreported_frames: item.unreported_frames ?? null,
+      ...(files.frameTable && files.timesheet ? { timesheet: files.timesheet } : {}),
     } : {}),
   }
 }
@@ -89,6 +93,8 @@ const MAX_REASONABLE_DIMENSION = 16_384
 // 30秒 × 対応上限120fpsでも数千行。壊れた共有データから巨大なJSON文字列を
 // 二重にparseしてメモリを圧迫しないよう、1クリップ単位でも上限を持つ。
 export const MAX_SHARE_FRAME_TABLE_BYTES = 2 * 1024 * 1024
+// タイムシートは 1 クリップ数百組。壊れた・手編集された巨大な文字列を読まないための上限。
+export const MAX_SHARE_TIMESHEET_BYTES = 512 * 1024
 
 function positiveIntegerUpTo(value: unknown, max: number): number | null {
   return Number.isInteger(value) && (value as number) > 0 && (value as number) <= max
@@ -125,6 +131,8 @@ interface ParsedShareEntry {
   frameTableData: string | null
   frameTableFile: string | null
   ambiguousFrames: number | null
+  // timesheets の data と同じ形の文字列。中身の検証は decodeTimesheet（呼び出し側）が行う。
+  timesheetData: string | null
 }
 
 // 戻り値: 成功時は ParsedShareEntry、検証エラー時は { error }、file フィールドが
@@ -199,5 +207,8 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
       ? entry.frame_table_file
       : null,
     ambiguousFrames: isVideo ? optionalNonNegativeInteger(entry.ambiguous_frames) : null,
+    timesheetData: isVideo && typeof entry.timesheet === 'string' && entry.timesheet.length <= MAX_SHARE_TIMESHEET_BYTES
+      ? entry.timesheet
+      : null,
   }
 }

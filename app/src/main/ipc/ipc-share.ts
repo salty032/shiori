@@ -3,7 +3,8 @@ import { showOpenDialogOver } from '../system/dialogs'
 import { stat, copyFile, mkdir, readFile, writeFile, unlink } from 'fs/promises'
 import { join, basename } from 'path'
 import { handleTrusted, sendToRenderer, safeExternalUrl } from '../system/windows'
-import { listImagesForExport } from '../db/db'
+import { getTimesheet, listImagesForExport, saveTimesheet } from '../db/db'
+import { decodeTimesheet, encodeTimesheet } from '../../shared/timesheet'
 import { decodeFrames, encodeFrames, getVideoFrames, restoreVideoFrames } from '../db/db-video-frames'
 import { loadSettings, saveSettings, smartFolders } from '../system/settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor, captureFileName } from '../system/paths'
@@ -95,7 +96,9 @@ export function registerShareHandlers(): void {
             frameTableFile = null
           }
         }
-        return JSON.stringify(buildShareEntry(item, { file: filename, thumb: thumbFilename, frameTable: frameTableFile }))
+        // 手で打ったタイムシートは作り直せない。打った位置は表の行で覚えているので、表と一緒のときだけ書く。
+        const timesheet = frameTableFile ? getTimesheet(item.id) : null
+        return JSON.stringify(buildShareEntry(item, { file: filename, thumb: thumbFilename, frameTable: frameTableFile, timesheet }))
       }
       const lines: string[] = []
       let count = 0
@@ -282,6 +285,16 @@ export function registerShareHandlers(): void {
               if (frames && frames.length <= MAX_SHARE_FRAME_ROWS) {
                 // 合計は渡さない —— 受け取った表から数え直す（restoredFrameCounts）。
                 restoreVideoFrames(result.id, frames, { ambiguous: parsed.ambiguousFrames })
+                // タイムシートは表を戻せたときだけ戻す（打った位置は表の行なので、表が無いと意味を持たない）。
+                // 表の外を指す行は落とす。失敗しても動画と表の取り込みは成立しているので、ここだけ諦める。
+                if (parsed.timesheetData) {
+                  try {
+                    const marks = decodeTimesheet(parsed.timesheetData).filter((m) => m.frame < frames.length)
+                    if (marks.length > 0) saveTimesheet(result.id, encodeTimesheet(marks))
+                  } catch (err) {
+                    console.warn(`[share:import] failed to restore timesheet: ${parsed.file}`, err)
+                  }
+                }
               } else {
                 console.warn(`[share:import] ignored invalid frame table: ${parsed.file}`)
               }

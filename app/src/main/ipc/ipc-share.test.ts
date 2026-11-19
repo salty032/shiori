@@ -24,8 +24,13 @@ const restoreVideoFramesMock = vi.fn()
 const encodeFramesMock = vi.fn()
 const decodeFramesMock = vi.fn()
 
+const getTimesheetMock = vi.fn((_id: number) => null as string | null)
+const saveTimesheetMock = vi.fn()
+
 vi.mock('../db/db', () => ({
   listImagesForExport: () => listImagesForExportMock(),
+  getTimesheet: (id: number) => getTimesheetMock(id),
+  saveTimesheet: (...args: unknown[]) => saveTimesheetMock(...args),
 }))
 
 vi.mock('../db/db-video-frames', async (importOriginal) => {
@@ -132,6 +137,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     getVideoFramesMock.mockClear()
     getVideoFramesMock.mockReturnValue(null)
     restoreVideoFramesMock.mockClear()
+    saveTimesheetMock.mockClear()
     encodeFramesMock.mockClear()
     decodeFramesMock.mockClear()
     getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
@@ -212,6 +218,36 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     ], { ambiguous: 1 })
   })
 
+  // 打った位置は表の行で覚えているので、表を戻せたときだけ戻す。表の外を指す行は落とす。
+  it('コマ表と一緒に、手で打ったタイムシートも戻す（表の外を指す行は落とす）', async () => {
+    frameTableContent = JSON.stringify([[0, 0, 1, 0], [1 / 24, 1, 1, 0]])
+    metadataContent = JSON.stringify({
+      version: 2, file: 'clip.webm', captured_at: 1700000000000,
+      frame_table_file: 'clip.webm.frames.json',
+      timesheet: '[[0,"1"],[1,"",""],[5,"9"]]',
+    })
+    getVideoMetaMock.mockResolvedValue({ duration: 10, fps: 24 })
+
+    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+
+    expect(result).toMatchObject({ count: 1, errors: [] })
+    expect(saveTimesheetMock).toHaveBeenCalledWith(1, '[[0,"1"],[1]]')
+  })
+
+  it('コマ表を戻せなかった動画には、タイムシートも戻さない', async () => {
+    metadataContent = JSON.stringify({
+      version: 2, file: 'clip.webm', captured_at: 1700000000000,
+      frame_table: 'not json',
+      timesheet: '[[0,"1"]]',
+    })
+    getVideoMetaMock.mockResolvedValue({ duration: 10, fps: 24 })
+
+    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+
+    expect(result).toMatchObject({ count: 1, errors: [] })
+    expect(saveTimesheetMock).not.toHaveBeenCalled()
+  })
+
   it('壊れたv2コマ表は無視し、動画本体は取り込む', async () => {
     metadataContent = JSON.stringify({
       version: 2,
@@ -234,6 +270,8 @@ describe('share:export - v2研究用メタデータ', () => {
     writeFileMock.mockClear()
     listImagesForExportMock.mockReset()
     getVideoFramesMock.mockReset()
+    getTimesheetMock.mockReset()
+    getTimesheetMock.mockReturnValue(null)
     encodeFramesMock.mockClear()
     registerShareHandlers()
   })
@@ -276,12 +314,28 @@ describe('share:export - v2研究用メタデータ', () => {
       unreported_frames: 2,
     })
     expect(entry.frame_table_file).toBe('clip.webm.frames.json')
+    expect(entry.timesheet).toBeUndefined()
     const frameWrite = writeFileMock.mock.calls.find((call) => String(call[0]).endsWith('.frames.json'))
     // 読み戻すと元の表になること（符号化の形そのものは db-video-frames のテストが見る）。
     expect(decodeFrames(String(frameWrite?.[1]))).toEqual([
       { mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' },
       { mediaTime: 1 / 24, frameIndex: 0, captured: false, verified: 'changed' },
     ])
+  })
+  it('手で打ったタイムシートを、コマ表と一緒に書き出す', async () => {
+    listImagesForExportMock.mockReturnValue([{
+      id: 7, filepath: '/mock/captures/clip.webm', thumb_path: null, media_type: 'video',
+      duration: 10, fps: 24, width: null, height: null, ambiguous_frames: null, unreported_frames: null,
+      url: null, current_time: null, title: null, manualTags: [], memo: null, captured_at: 1700000000000,
+    }])
+    getVideoFramesMock.mockReturnValue([{ mediaTime: 0, frameIndex: 0, captured: true, verified: 'unknown' }])
+    getTimesheetMock.mockReturnValue('[[0,"A"]]')
+
+    await handlers.get('share:export')!({})
+
+    expect(getTimesheetMock).toHaveBeenCalledWith(7)
+    const metadataWrite = writeFileMock.mock.calls.find((call) => String(call[0]).endsWith('metadata.jsonl'))
+    expect(JSON.parse(String(metadataWrite![1])).timesheet).toBe('[[0,"A"]]')
   })
 })
 

@@ -2,7 +2,7 @@ import { vi, describe, expect, it } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/userData') } }))
 
-import { buildShareEntry, parseShareEntry, isValidCapturedAt } from './share-entry'
+import { buildShareEntry, parseShareEntry, isValidCapturedAt, MAX_SHARE_TIMESHEET_BYTES } from './share-entry'
 import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
 
 const NOW = 1700000000000
@@ -62,13 +62,14 @@ describe('parseShareEntry', () => {
       captured_at: 1_700_000_000_000, width: 1280, height: 720, media_type: 'video' as const,
       duration: 10, fps: 23.976, ambiguous_frames: 3, unreported_frames: 1, manualTags: ['tag_a']
     }
-    const line = JSON.stringify(buildShareEntry(item, { file: 'clip.webm', thumb: 'clip.png', frameTable: 'clip.webm.frames.json' }))
+    const line = JSON.stringify(buildShareEntry(item, { file: 'clip.webm', thumb: 'clip.png', frameTable: 'clip.webm.frames.json', timesheet: '[[0,"1"],[3]]' }))
     expect(parseShareEntry(line, NOW)).toEqual({
       file: 'clip.webm', ext: '.webm', thumbFile: 'clip.png', thumbExt: '.png',
       capturedAt: NOW, originalCapturedAt: item.captured_at,
       title: 'title', currentTime: 12.5, url: 'https://example.com/watch', tags: ['tag_a'], memo: 'memo',
       mediaType: 'video', fps: 23.976, width: 1280, height: 720,
-      frameTableData: null, frameTableFile: 'clip.webm.frames.json', ambiguousFrames: 3
+      frameTableData: null, frameTableFile: 'clip.webm.frames.json', ambiguousFrames: 3,
+      timesheetData: '[[0,"1"],[3]]'
     })
   })
 
@@ -78,13 +79,13 @@ describe('parseShareEntry', () => {
       width: null, height: null, media_type: 'image' as const, duration: null, fps: null,
       ambiguous_frames: null, unreported_frames: null, manualTags: []
     }
-    const line = JSON.stringify(buildShareEntry(item, { file: 'a.png', thumb: null, frameTable: null }))
+    const line = JSON.stringify(buildShareEntry(item, { file: 'a.png', thumb: null, frameTable: null, timesheet: '[[0]]' }))
     expect(parseShareEntry(line, NOW)).toEqual({
       file: 'a.png', ext: '.png', thumbFile: null, thumbExt: null,
       capturedAt: NOW, originalCapturedAt: item.captured_at,
       title: null, currentTime: null, url: null, tags: [], memo: null,
       mediaType: 'image', fps: null, width: null, height: null,
-      frameTableData: null, frameTableFile: null, ambiguousFrames: null
+      frameTableData: null, frameTableFile: null, ambiguousFrames: null, timesheetData: null
     })
   })
 
@@ -157,6 +158,26 @@ describe('parseShareEntry', () => {
       frameTableFile: null,
       ambiguousFrames: null,
     })
+  })
+
+  // 打った位置は表の行で覚えているので、表と切り離されたタイムシートは書き出さない。
+  it('コマの表を書き出せなかった動画には、タイムシートを付けない', () => {
+    const item = {
+      url: null, current_time: null, title: null, memo: null, captured_at: 1_700_000_000_000,
+      width: null, height: null, media_type: 'video' as const, duration: 10, fps: 24,
+      ambiguous_frames: null, unreported_frames: null, manualTags: []
+    }
+    const entry = buildShareEntry(item, { file: 'clip.webm', thumb: null, frameTable: null, timesheet: '[[0]]' })
+    expect(entry.timesheet).toBeUndefined()
+  })
+
+  it('タイムシートは動画の文字列だけを受け付け、大きすぎるものは捨てる', () => {
+    const parse = (extra: Record<string, unknown>, file = 'clip.webm') =>
+      parseShareEntry(JSON.stringify({ file, ...extra }), NOW) as { timesheetData: string | null }
+    expect(parse({ timesheet: '[[0]]' }).timesheetData).toBe('[[0]]')
+    expect(parse({ timesheet: [[0]] }).timesheetData).toBeNull()
+    expect(parse({ timesheet: '[[0]]' }, 'a.png').timesheetData).toBeNull()
+    expect(parse({ timesheet: 'x'.repeat(MAX_SHARE_TIMESHEET_BYTES + 1) }).timesheetData).toBeNull()
   })
 
   it('正常な最小エントリを正しく正規化する', () => {
