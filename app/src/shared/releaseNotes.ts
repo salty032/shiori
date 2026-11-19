@@ -20,6 +20,18 @@ import { compareVersions } from './version'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.8.0': {
+    ja: [
+      'この更新では、ブラウザの拡張機能ページで拡張をもう一度再読み込みしてください。次の更新からは、拡張は Shiori の更新に合わせて自動で入れ替わるので、再読み込みも配信のページの読み直しも要らなくなります。',
+      '録画やキャプチャに失敗したときの知らせは、視聴中のブラウザに出し、ブラウザに出せなかったときだけ Shiori の画面に閉じるまで残すようにしました。これまでは両方に出ていました。',
+      '同じ知らせが何枚も重なって出ないようにしました。',
+    ],
+    en: [
+      'With this update, please reload the extension once more on your browser’s extensions page. From the next update on, the extension is replaced automatically when Shiori updates, so you will not need to reload it or the streaming page.',
+      'When recording or capturing fails, the notice now appears in the browser you are watching in, and only when it cannot be shown there does it stay in the Shiori window until you close it. Previously it appeared in both places.',
+      'The same notice no longer stacks up several times.',
+    ],
+  },
   '1.7.0': {
     ja: [
       '動画を編集する画面（これまでの「トリミング」）で、保存する動画から音声だけを外せるようになりました。タイムラインの左端のスピーカーのボタンを押してから保存してください。元の動画は残ります。',
