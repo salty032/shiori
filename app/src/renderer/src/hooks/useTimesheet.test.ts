@@ -2,11 +2,25 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { encodeTimesheet } from '../../../shared/timesheet'
+import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
 import { useTimesheet } from './useTimesheet'
 
 // 保存済みのタイムシートを読めていないときに打つと、空の表＋1 件で上書きされる（打鍵は作り直せない）。
 
 const getTimesheet = vi.fn()
+
+// 表を出せる 24fps のクリップ（3 コマ・全部撮れている）。
+const frames: ClipFrames = {
+  pts: [0, 1 / 24, 2 / 24], sourceBased: true,
+  quality: [FRAME_QUALITY.captured, FRAME_QUALITY.captured, FRAME_QUALITY.captured],
+}
+
+// 表を開いて、今のコマで Enter を打つ（打鍵が保存へ向かう実際の経路）。
+function typeEnter(result: { current: ReturnType<typeof useTimesheet> }): void {
+  act(() => { result.current.onFramesReady(frames) })
+  act(() => { result.current.setOpen(true) })
+  act(() => { result.current.handleKey(new KeyboardEvent('keydown', { key: 'Enter' })) })
+}
 const saveTimesheet = vi.fn(async () => {})
 
 beforeEach(() => {
@@ -29,7 +43,7 @@ describe('保存済みのタイムシートを読めなかったとき', () => {
     const { result } = renderHook(() => useTimesheet(1, 24))
     await waitFor(() => expect(result.current.loadFailed).toBe(true))
 
-    act(() => { result.current.setMemo(0, 0, 'memo') })
+    typeEnter(result)
 
     expect(saveTimesheet).not.toHaveBeenCalled()
   })
@@ -38,7 +52,7 @@ describe('保存済みのタイムシートを読めなかったとき', () => {
     getTimesheet.mockReturnValue(new Promise(() => {}))
     const { result } = renderHook(() => useTimesheet(1, 24))
 
-    act(() => { result.current.setMemo(0, 0, 'memo') })
+    typeEnter(result)
 
     expect(result.current.loadFailed).toBe(false)
     expect(saveTimesheet).not.toHaveBeenCalled()
@@ -49,7 +63,7 @@ describe('保存済みのタイムシートを読めなかったとき', () => {
     const { result } = renderHook(() => useTimesheet(1, 24))
     await waitFor(() => expect(result.current.marks).toHaveLength(1))
 
-    act(() => { result.current.setMemo(0, 0, 'memo') })
+    typeEnter(result)
 
     expect(saveTimesheet).toHaveBeenCalledTimes(1)
   })

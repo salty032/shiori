@@ -337,8 +337,13 @@ describe('記号（実物のコピーから採った綴り）', () => {
 
 describe('decodeTimesheet / encodeTimesheet', () => {
   it('往復しても変わらない', () => {
-    const marks: TimesheetMark[] = [{ frame: 0 }, { frame: 12, value: '3A' }, { frame: 30, memo: 'カット12' }]
+    const marks: TimesheetMark[] = [{ frame: 0 }, { frame: 12, value: '3A' }, { frame: 30, track: 2 }]
     expect(decodeTimesheet(encodeTimesheet(marks))).toEqual(marks)
+  })
+
+  it('3 つ目（メモだった欄）は読まず、その後ろの列はずれずに読む', () => {
+    expect(decodeTimesheet('[[7,"","メモ",3]]')).toEqual([{ frame: 7, track: 3 }])
+    expect(encodeTimesheet([{ frame: 7, track: 3 }])).toBe('[[7,"","",3]]')
   })
 
   it('コマ順に並べ、重複は落とす', () => {
@@ -346,7 +351,7 @@ describe('decodeTimesheet / encodeTimesheet', () => {
   })
 
   it('壊れた行があっても、読める打鍵は残す', () => {
-    expect(decodeTimesheet('[[0],"x",[-1],[2.5],[7,"","メモ"]]')).toEqual([{ frame: 0 }, { frame: 7, memo: 'メモ' }])
+    expect(decodeTimesheet('[[0],"x",[-1],[2.5],[7,"3A"]]')).toEqual([{ frame: 0 }, { frame: 7, value: '3A' }])
   })
 
   it('JSON として壊れていたら空にする（例外で画面を落とさない）', () => {
@@ -355,10 +360,6 @@ describe('decodeTimesheet / encodeTimesheet', () => {
     expect(decodeTimesheet('')).toEqual([])
   })
 
-  it('長すぎるメモは切る', () => {
-    const long = 'あ'.repeat(500)
-    expect(decodeTimesheet(JSON.stringify([[0, '', long]]))[0].memo).toHaveLength(200)
-  })
 
   it('打鍵だけの行は余分な空要素を持たない（1 クリップで数百組になるため）', () => {
     expect(encodeTimesheet([{ frame: 5 }])).toBe('[[5]]')
@@ -440,8 +441,8 @@ describe('expandMarks', () => {
       .toEqual([{ frame: 0 }, { frame: 3 }, { frame: 4 }])
   })
 
-  it('打った内容（動画番号・メモ）はそのまま持ち越す', () => {
-    expect(expandMarks([{ frame: 1, value: 'A1', memo: 'め' }], [0, GAP_ROW, 1]))
-      .toEqual([{ frame: 2, value: 'A1', memo: 'め' }])
+  it('打った内容（動画番号・列）はそのまま持ち越す', () => {
+    expect(expandMarks([{ frame: 1, value: 'A1', track: 2 }], [0, GAP_ROW, 1]))
+      .toEqual([{ frame: 2, value: 'A1', track: 2 }])
   })
 })

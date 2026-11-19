@@ -203,8 +203,6 @@ export interface TimesheetMark {
    * ときに毎回入力させないための省略。
    */
   value?: string
-  /** その絵に添える短いメモ。空なら持たない */
-  memo?: string
 }
 
 export function trackOf(mark: TimesheetMark): number {
@@ -275,7 +273,6 @@ export function timesheetLabels(marks: readonly TimesheetMark[]): string[] {
 // 保存の上限。1 コマ打ちで 30 秒撮っても素材コマは 720（60fps でも 1800）なので、
 // これを超えるのは壊れた入力しかない。
 const MAX_MARKS = 5000
-export const MAX_TIMESHEET_MEMO = 200
 
 // DB から読んだ JSON を打鍵の列へ戻す。**壊れていたら空にして黙って捨てる**のではなく、
 // 読めた行だけを拾う——研究用途で打ち込んだ手作業なので、全部無かったことにする方が損。
@@ -293,7 +290,8 @@ export function decodeTimesheet(json: string | null | undefined): TimesheetMark[
   const out: TimesheetMark[] = []
   for (const item of parsed) {
     if (!Array.isArray(item)) continue
-    const [frame, value, memo, rawTrack] = item as [unknown, unknown, unknown, unknown]
+    // 3 つ目はメモの欄だった（画面に一度も出ないまま 2026-11-19 に消した）。中身は読まない。
+    const [frame, value, , rawTrack] = item as [unknown, unknown, unknown, unknown]
     const track = rawTrack === undefined ? 0 : rawTrack
     if (!Number.isInteger(frame) || (frame as number) < 0) continue
     if (!Number.isInteger(track) || (track as number) < 0 || (track as number) >= TIMESHEET_TRACKS) continue
@@ -304,19 +302,19 @@ export function decodeTimesheet(json: string | null | undefined): TimesheetMark[
     if ((track as number) > 0) mark.track = track as number
     const cleanValue = typeof value === 'string' ? normalizeTimesheetValue(value) : ''
     if (cleanValue) mark.value = cleanValue
-    if (typeof memo === 'string' && memo) mark.memo = memo.slice(0, MAX_TIMESHEET_MEMO)
     out.push(mark)
   }
   return out.sort((a, b) => a.frame - b.frame || trackOf(a) - trackOf(b)).slice(0, MAX_MARKS)
 }
 
-// 保存用。[コマ, 動画番号, メモ, 列] の組を配列で持つ（1 クリップで数百組になるので、キー名を
+// 保存用。[コマ, 動画番号, (空), 列] の組を配列で持つ（1 クリップで数百組になるので、キー名を
 // 繰り返す形にはしない。video_frames の encodeFrames と同じ判断）。
+// **3 つ目は空のまま残す。** メモの欄だった位置で、詰めると保存済みの表の列が 1 つ前へずれて読まれる。
 // 末尾の空要素は落とす——打鍵だけの行が [0,"",""] と 3 要素で並ぶと無駄に太る。
 // 列は A なら書かない（列を持つ前の保存と同じ形になる）。
 export function encodeTimesheet(marks: readonly TimesheetMark[]): string {
   return JSON.stringify(marks.map((m) => {
-    const row: (number | string)[] = [m.frame, m.value ?? '', m.memo ?? '']
+    const row: (number | string)[] = [m.frame, m.value ?? '', '']
     if (trackOf(m) > 0) row.push(trackOf(m))
     while (row.length > 1 && row[row.length - 1] === '') row.pop()
     return row

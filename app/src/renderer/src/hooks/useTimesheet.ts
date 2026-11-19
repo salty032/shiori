@@ -130,18 +130,6 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
     setPending('')
   }, [])
 
-  const setMemo = useCallback((frame: number, memoTrack: number, memo: string): void => {
-    if (!editable) return
-    setMarks((prev) => {
-      const next = prev.map((m) => (m.frame === frame && trackOf(m) === memoTrack ? { ...m, memo: memo || undefined } : m))
-      if (imageId != null) {
-        window.api.saveTimesheet(imageId, encodeTimesheet(next)).catch((err) => console.warn('[timesheet] save failed', err))
-      }
-      return next
-    })
-    setCopied(false)
-  }, [imageId, editable])
-
   const copy = useCallback(async (): Promise<void> => {
     try {
       // 打った内容は表の行の添字で持っている。書き出すときだけ、抜けを含めた並びの
@@ -229,7 +217,7 @@ export function useTimesheet(imageId: number | null, fps: number | null) {
   return {
     ready, visible, open, setOpen, total, rows, current, currentGap, track, marks, pending, copied, reused, unseen,
     loadFailed: loadState === 'failed',
-    onFramesReady, onFrameIndex, setMemo, setTrack, copy, handleKey, bindPlayer, seek,
+    onFramesReady, onFrameIndex, setTrack, copy, handleKey, bindPlayer, seek,
   }
 }
 

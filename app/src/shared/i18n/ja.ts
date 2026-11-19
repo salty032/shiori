@@ -375,7 +375,6 @@ export const ja = {
   'timesheet.colSec': '秒',
   'timesheet.colFrame': 'コマ',
   'timesheet.colCell': 'セル',
-  'timesheet.colMemo': 'メモ',
   'shortcuts.viewerTimesheet': 'タイムシート表示中：動画番号を入力 / 確定して次のコマへ',
   'shortcuts.viewerTimesheetSymbols': 'タイムシート表示中：○（中割り）/ ●（逆シート）/ ×（カラ）。テンキーの / - * でも入力できます',
 
