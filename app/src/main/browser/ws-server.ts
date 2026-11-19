@@ -51,6 +51,8 @@ export type ExtensionMessage =
   // **入らなかったコマは撮り逃しですらなく最初から存在しない**ので、枚数や割合には現れない。
   | { type: 'frame-gap' }
   | { type: 'clip-armed-painted'; requestId: string; paintedAt: number }
+  // アプリが id を付けて送った知らせを、ページに出した（browser-notice.ts）。
+  | { type: 'notice-shown'; requestId: string }
 
 // バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
 // セキュリティ上重要な値ではなく、拡張側とのパリティ対象にもしない（UX-9）。
@@ -199,6 +201,10 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   const msg = parsed as Record<string, unknown>
   if (msg.type === 'ping') return { type: 'ping' }
   if (msg.type === 'frame-gap') return { type: 'frame-gap' }
+  if (msg.type === 'notice-shown') {
+    const requestId = typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : ''
+    return requestId ? { type: 'notice-shown', requestId } : null
+  }
   if (msg.type === 'clip-armed-painted') {
     const requestId = typeof msg.requestId === 'string'
       ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH)
@@ -384,6 +390,13 @@ export function broadcastMessage(msg: AppToExtensionMessage): void {
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) client.send(data)
   })
+}
+
+/** 拡張が 1 つでも繋がっているか（知らせをブラウザに出せる見込みがあるか）。 */
+export function hasExtensionClient(): boolean {
+  if (!wss) return false
+  for (const client of wss.clients) if (client.readyState === WebSocket.OPEN) return true
+  return false
 }
 
 export function setAllowedExtensionIds(ids: string[]): void {

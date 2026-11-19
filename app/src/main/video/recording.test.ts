@@ -102,13 +102,13 @@ vi.mock('../browser/timecode', () => ({
   getLastTimecodeAt: vi.fn(() => Date.now()),
   setLastTimecode: vi.fn()
 }))
-vi.mock('../browser/browser-notice', () => ({ sendBrowserNotice: vi.fn() }))
+vi.mock('../browser/browser-notice', () => ({ sendWatchingNotice: vi.fn() }))
 vi.mock('../system/i18n', () => ({ t: (key: string) => key }))
 
 import { desktopCapturer } from 'electron'
 import { createRecorderWindow } from './recorder-window'
 import { setTrayRecording } from '../system/tray'
-import { sendBrowserNotice } from '../browser/browser-notice'
+import { sendWatchingNotice } from '../browser/browser-notice'
 import { waitForSteadyFrames } from './frame-feed'
 import { finishRecordingState, handleClipHotkey, isCurrentlyRecording, notifyRecorderPrepared, releaseCaptureUi, startRecording, wasRecordingDisplayAmbiguous } from './recording'
 
@@ -196,7 +196,7 @@ describe('画面キャプチャの立ち上げと落ち着き待ちの順序', (
     broadcastMessage.mockClear()
     recorderSend.mockClear()
     vi.mocked(waitForSteadyFrames).mockClear()
-    vi.mocked(sendBrowserNotice).mockClear()
+    vi.mocked(sendWatchingNotice).mockClear()
     replyReady = (sessionId) => notifyRecorderPrepared(sessionId)
   })
 
@@ -232,7 +232,7 @@ describe('画面キャプチャの立ち上げと落ち着き待ちの順序', (
     // 掴んだままにしないための停止と、隠した UI の復帰。**録画しないのだから両方要る。**
     expect(recorderSend.mock.calls.map((c) => c[0])).toContain('recorder:stop')
     expect(postCaptureCount()).toBe(1)
-    expect(sendBrowserNotice).toHaveBeenCalledWith('error', 'notice.recorderPrepareFailed')
+    expect(sendWatchingNotice).toHaveBeenCalledWith('error', 'notice.recorderPrepareFailed')
   })
 
   it('立ち上げを待っている間に停止を押したら、その場で畳む（見切りを待たない）', async () => {
@@ -250,7 +250,7 @@ describe('画面キャプチャの立ち上げと落ち着き待ちの順序', (
     expect(recorderSend.mock.calls.map((c) => c[0])).toContain('recorder:stop')
     expect(isCurrentlyRecording()).toBe(false)
     // 押して畳んだだけなので、失敗の通知は出さない。
-    expect(sendBrowserNotice).not.toHaveBeenCalledWith('error', 'notice.recorderPrepareFailed')
+    expect(sendWatchingNotice).not.toHaveBeenCalledWith('error', 'notice.recorderPrepareFailed')
   })
 
   // 押してから画面キャプチャの準備を頼むまで（拡張への問い合わせ・画面の特定）の間。
@@ -342,7 +342,7 @@ describe('録画の見張りが働いた後', () => {
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
     expect(isCurrentlyRecording()).toBe(false)
     expect(recorderDestroy).toHaveBeenCalledTimes(1)
-    expect(sendBrowserNotice).toHaveBeenCalledWith('error', 'notice.recordingTimeout')
+    expect(sendWatchingNotice).toHaveBeenCalledWith('error', 'notice.recordingTimeout')
   })
 
   it('正常に終わった録画では捨てない', async () => {
@@ -453,7 +453,7 @@ describe('プレーヤー UI の復帰（post-capture）', () => {
 // 保証できないことはログではなく画面へ出す。
 describe('録画する画面が特定できないとき', () => {
   const getSources = desktopCapturer.getSources as unknown as ReturnType<typeof vi.fn>
-  const notice = sendBrowserNotice as unknown as ReturnType<typeof vi.fn>
+  const notice = sendWatchingNotice as unknown as ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     finishRecordingState()

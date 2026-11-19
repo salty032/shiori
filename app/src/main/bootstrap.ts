@@ -36,7 +36,7 @@ import { registerTaggerHandlers } from './ipc/ipc-tagger'
 import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
-import { sendBrowserNotice, sendFailureNotice } from './browser/browser-notice'
+import { sendBrowserNotice, sendWatchingNotice, sendAppFailureNotice } from './browser/browser-notice'
 import { recheckMarkedClips } from './video/verify-clip'
 import { backfillFrameCounts } from './db/db-video-frames'
 import { decideVersionNotice } from './system/version-notice'
@@ -130,7 +130,7 @@ export function bootstrap(): void {
     const st = loadSettings()
     if (globalShortcut.isRegistered(st.captureHotkey)) return
     const ok = registerHotkey(st.captureHotkey, (m) => {
-      if (!reclaimNotifiedFailure) sendBrowserNotice('error', m)
+      if (!reclaimNotifiedFailure) sendAppFailureNotice('error', m)
     })
     reclaimNotifiedFailure = !ok
   }
@@ -235,7 +235,7 @@ export function bootstrap(): void {
       const timecodeAge = Date.now() - getLastTimecodeAt()
       const hasCaptureTimecode = latest !== null || timecodeAge <= CAPTURE_FALLBACK_TIMECODE_MAX_AGE_MS
       if (!tc || !hasCaptureTimecode || !canCaptureVideo()) {
-        sendBrowserNotice('warning', t('notice.captureTargetNotFound'))
+        sendWatchingNotice('warning', t('notice.captureTargetNotFound'))
         throw new SilentCaptureAbort('No active browser video target')
       }
       return tc
@@ -257,7 +257,7 @@ export function bootstrap(): void {
       const now = Date.now()
       if (now - lastBlackFrameNoticeAt < BLACK_FRAME_RENOTIFY_MS) return
       lastBlackFrameNoticeAt = now
-      sendBrowserNotice('warning', t('notice.captureBlackScreen'))
+      sendWatchingNotice('warning', t('notice.captureBlackScreen'))
     })
 
     onCaptureDone(async (imagePath, context, size) => {
@@ -292,7 +292,7 @@ export function bootstrap(): void {
         autoTag: { path: thumbOk ? thumbPath : imagePath, reportError: true }
       })
       if (!result.ok) {
-        sendFailureNotice('error', t('notice.captureSaveFailed'))
+        sendWatchingNotice('error', t('notice.captureSaveFailed'))
         // 保存失敗時はファイルを削除済み。capture:done の成功通知を出すと矛盾するため送らない
         return
       }
@@ -387,8 +387,10 @@ export function bootstrap(): void {
       // ここに来るのは候補を全部試して駄目だったときだけ（1 つ塞がっただけなら自動で隣へ移る）。
       sendNoticeWhenRendererReady('error', t('notice.portInUse', { ports: WS_PORTS.join(', ') }))
     })
+    // ホットキーを登録できなかった知らせはアプリに出す（起動時・アプリに戻ったときに起きることで、
+    // 拡張が繋がる前のこともある。ブラウザにだけ送ると黙って消えていた）。
     registerHotkey(loadSettings().captureHotkey, (message) => {
-      sendBrowserNotice('error', message)
+      sendAppFailureNotice('error', message)
     })
 
     initAutoUpdater(getMainWindow)

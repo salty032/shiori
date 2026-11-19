@@ -60,7 +60,7 @@ const TO_EXTENSION: { [K in AppToExtensionMessage['type']]: Required<Extract<App
   'clip-arming': { type: 'clip-arming', label: '録画の準備中' },
   'clip-armed': { type: 'clip-armed', requestId: 'armed-1' },
   'request-timecode': { type: 'request-timecode', requestId: 'tc-1', immediate: true },
-  notice: { type: 'notice', level: 'warning', message: '録画を保存しました', pending: true },
+  notice: { type: 'notice', level: 'warning', message: '録画を保存しました', pending: true, id: 'notice-1' },
   settings: {
     type: 'settings', frameFps: 30, frameFpsAuto: false, captureKey: 'D',
     stepLabels: { blocked: 'これ以上進めません', dropped: '{count}回分を省略しました' }
@@ -84,7 +84,8 @@ const FROM_EXTENSION: { [K in ExtensionMessage['type']]: Required<Extract<Extens
     thumb: `${'A'.repeat(FRAME_THUMB_BASE64_LENGTH - 2)}==`
   },
   'frame-gap': { type: 'frame-gap' },
-  'clip-armed-painted': { type: 'clip-armed-painted', requestId: 'armed-2', paintedAt: 1_700_000_000_100 }
+  'clip-armed-painted': { type: 'clip-armed-painted', requestId: 'armed-2', paintedAt: 1_700_000_000_100 },
+  'notice-shown': { type: 'notice-shown', requestId: 'notice-1' }
 }
 
 describe('アプリ → 拡張：送った項目が 1 つも欠けずにページまで届く', () => {

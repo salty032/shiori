@@ -14,6 +14,8 @@ type ToastItem = {
   message: string
   tone: ToastTone
   action: ToastAction | null
+  // 自分で閉じるまで消えない（STICKY_TOAST_MS で出したもの）。× を出す。
+  sticky: boolean
   // true の間だけ消滅アニメーション(shioriToastOut)を出す。アニメーション終了後に配列から除く。
   closing: boolean
 }
@@ -28,6 +30,10 @@ const MAX_TOASTS = 3
 // （値はこれと同じ）。元に戻せる猶予（DELETE_UNDO_MS）はそれより長く、消えた後も Ctrl+Z で戻せる。
 const DEFAULT_TOAST_MS = 4000
 
+// ms にこれを渡すと、自分で閉じるまで消えない。**見逃すと後から気づけない知らせだけに使う**
+// （ブラウザに出せなかった録画・キャプチャの失敗など。main の browser-notice.ts）。
+export const STICKY_TOAST_MS = Number.POSITIVE_INFINITY
+
 // 上限超過分を押し出す。アクション付き（「元に戻す」等）は実際の操作猶予（例: 削除の
 // Undo タイマー）と表示が食い違うと紛らわしいため、可能な限りアクションなしの最古側から
 // 落とす。Array.prototype.sort は安定ソートなので、同じ「アクション有無」内では元の順序
@@ -35,7 +41,9 @@ const DEFAULT_TOAST_MS = 4000
 function withinLimit(list: ToastItem[]): { kept: ToastItem[]; evictedIds: number[] } {
   if (list.length <= MAX_TOASTS) return { kept: list, evictedIds: [] }
   const overflow = list.length - MAX_TOASTS
-  const byEvictability = [...list].sort((a, b) => Number(Boolean(a.action)) - Number(Boolean(b.action)))
+  // 閉じるまで残す知らせは最後まで落とさない（溢れて消えると、残す意味が無い）。
+  const rank = (t: ToastItem): number => (t.sticky ? 2 : t.action ? 1 : 0)
+  const byEvictability = [...list].sort((a, b) => rank(a) - rank(b))
   const evictedIds = byEvictability.slice(0, overflow).map((t) => t.id)
   const evictedSet = new Set(evictedIds)
   return { kept: list.filter((t) => !evictedSet.has(t.id)), evictedIds }
@@ -74,6 +82,8 @@ export function useToast() {
   const scheduleDismiss = useCallback((id: number, ms: number | undefined): void => {
     clearTimer(id)
     const duration = ms ?? DEFAULT_TOAST_MS
+    // setTimeout に Infinity を渡すとすぐ発火するので、閉じるまで残すものはタイマーを張らない。
+    if (!Number.isFinite(duration)) return
     const timer = window.setTimeout(() => {
       timersRef.current.delete(id)
       beginClose(id)
@@ -84,7 +94,7 @@ export function useToast() {
   const showToast = useCallback<ShowToast>((message, tone = 'info', ms, action) => {
     const id = ++idRef.current
     setToasts((prev) => {
-      const next = [...prev, { id, message, tone, action: action ?? null, closing: false }]
+      const next = [...prev, { id, message, tone, action: action ?? null, sticky: ms === STICKY_TOAST_MS, closing: false }]
       const { kept, evictedIds } = withinLimit(next)
       evictedIds.forEach(clearTimer)
       return kept
@@ -98,9 +108,9 @@ export function useToast() {
   const updateToast = useCallback<UpdateToast>((id, message, tone = 'info', ms, action) => {
     setToasts((prev) => {
       if (prev.some((t) => t.id === id)) {
-        return prev.map((t) => (t.id === id ? { id, message, tone, action: action ?? null, closing: false } : t))
+        return prev.map((t) => (t.id === id ? { id, message, tone, action: action ?? null, sticky: ms === STICKY_TOAST_MS, closing: false } : t))
       }
-      const next = [...prev, { id, message, tone, action: action ?? null, closing: false }]
+      const next = [...prev, { id, message, tone, action: action ?? null, sticky: ms === STICKY_TOAST_MS, closing: false }]
       const { kept, evictedIds } = withinLimit(next)
       evictedIds.forEach(clearTimer)
       return kept

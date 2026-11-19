@@ -1,7 +1,7 @@
 // 録画クリップ・トリミングの起動時の配線。bootstrap.ts が呼ぶ。
 import { app, session, globalShortcut } from 'electron'
 import { loadSettings, saveSettings } from '../system/settings'
-import { sendBrowserNotice } from '../browser/browser-notice'
+import { sendAppFailureNotice } from '../browser/browser-notice'
 import { handleTrusted, onMainWindowFocus } from '../system/windows'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
 import { VIDEO_CH } from '../../shared/api.video'
@@ -60,8 +60,9 @@ export function startVideo(): void {
   registerClipHotkey(
     loadSettings().clipHotkey,
     handleClipHotkey,
+    // 登録できなかった知らせはアプリに出す（bootstrap.ts の静止画のホットキーと同じ理由）。
     (message) => {
-      sendBrowserNotice('error', message)
+      sendAppFailureNotice('error', message)
     }
   )
   // 閉じたらメモリを空ける設定では作り置かない（録画のたびに作って捨てる。recording.ts）。
@@ -77,7 +78,7 @@ export function startVideo(): void {
     const st = loadSettings()
     if (!globalShortcut.isRegistered(st.clipHotkey)) {
       registerClipHotkey(st.clipHotkey, handleClipHotkey, (m) => {
-        sendBrowserNotice('error', m)
+        sendAppFailureNotice('error', m)
       })
     }
   })

@@ -188,5 +188,6 @@ export type ChooseCaptureRootResult =
   // 「移動できませんでした」だけでは、空きも権限も足りているのに直しようがない。
   | { ok: false; reason: 'move-conflict'; conflictPath: string }
 
-export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string }
+// sticky: 閉じるまで消さない（ブラウザに出せなかった失敗など、見逃すと後から気づけない知らせ）。
+export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string; sticky?: boolean }
 export type WhatsNewData = { version: string; notes: string[] }

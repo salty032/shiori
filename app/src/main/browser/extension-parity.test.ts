@@ -241,9 +241,20 @@ describe('コマ通知が途切れる経路（content.js の rVFC ループ）',
   // 1.8 秒で消えて結果の前に一度消える（画面では「通知が遅い・見落とす」としか見えない）。
   it('通知の pending（書き換え待ち）が background.js・content.js の検疫を通り、表示まで届く', () => {
     for (const src of [backgroundJs, contentJs]) {
-      expect(src).toContain("{ type: 'notice', level, message, pending: msg.pending === true }")
+      expect(src).toContain("{ type: 'notice', level, message, pending: msg.pending === true, id }")
     }
     expect(contentJs).toContain('showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)')
+  })
+
+  // 出したことを返さないと、ブラウザに出た知らせがアプリにも出る（browser-notice.ts の sendWatchingNotice）。
+  it('知らせを出したら同じ id で notice-shown を返し、background.js と ws-server.ts が素通しする', () => {
+    const wsServerTs = readFileSync(join(__dirname, './ws-server.ts'), 'utf-8')
+    const shown = contentJs.indexOf('showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)')
+    const reply = contentJs.indexOf("port.postMessage({ type: 'notice-shown', requestId: safeMsg.id })")
+    expect(shown).toBeGreaterThan(-1)
+    expect(reply).toBeGreaterThan(shown)
+    expect(backgroundJs).toContain("msg.type === 'notice-shown'")
+    expect(wsServerTs).toContain("msg.type === 'notice-shown'")
   })
 
   it('コマ通知の診断用の時刻は content.js・background.js・ws-server.ts の全部で通る', () => {

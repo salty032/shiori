@@ -135,6 +135,11 @@ function normalizePortMessage(msg) {
   // <video> の差し替えなどで止まると送られる。落とすと「表が録画の途中で終わっているのに
   // 誰も気づかない」状態に戻るので、そのまま中継する。
   if (msg.type === 'frame-gap') return { type: 'frame-gap' }
+  // 知らせをページに出した（アプリから来た notice の id）。届かないとアプリ側にも同じ知らせが出る。
+  if (msg.type === 'notice-shown') {
+    const requestId = typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : ''
+    return requestId ? { type: 'notice-shown', requestId } : null
+  }
   if (msg.type === 'clip-armed-painted') {
     const requestId = typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : ''
     const paintedAt = boundedNumber(msg.paintedAt, 0, MAX_EPOCH_MS)
@@ -249,7 +254,9 @@ function normalizeServerMessage(data) {
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
     const message = typeof msg.message === 'string' ? msg.message.slice(0, MAX_NOTICE_MESSAGE_LENGTH) : ''
-    return message ? { type: 'notice', level, message, pending: msg.pending === true } : null
+    // id: ページに出したら同じ id で notice-shown を返す（出せなかったときだけアプリ側に出すため）。
+    const id = typeof msg.id === 'string' && msg.id ? msg.id.slice(0, MAX_REQUEST_ID_LENGTH) : undefined
+    return message ? { type: 'notice', level, message, pending: msg.pending === true, id } : null
   }
   if (msg.type === 'request-timecode') {
     return {

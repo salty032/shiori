@@ -6,7 +6,7 @@ import { computeVideoCrop, writeCaptureFile } from '../capture/capture'
 import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { loadSettings } from '../system/settings'
 import { beginTask, endTask } from '../system/busy'
-import { sendBrowserNotice, sendFailureNotice } from '../browser/browser-notice'
+import { sendBrowserNotice, sendWatchingNotice } from '../browser/browser-notice'
 import { getLastExtensionVersion } from '../browser/timecode'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
@@ -117,18 +117,18 @@ export function registerRecorderIpc(): void {
     // V-5: audio+video が失敗し video のみで録画を継続しているだけなので、録画状態は
     // リセットしない（このあと recorder:done / recorder:error が別途届く）。
     if (is('audio_unavailable_fallback')) {
-      sendBrowserNotice('warning', t('notice.recordingNoAudio'))
+      sendWatchingNotice('warning', t('notice.recordingNoAudio'))
       return
     }
     finishRecordingState()
     if (is('crop_unavailable')) {
-      sendFailureNotice('warning', t('notice.videoRegionNotFound'))
+      sendWatchingNotice('warning', t('notice.videoRegionNotFound'))
     } else if (is('no_data')) {
-      sendFailureNotice('warning', t('notice.recordingEmpty'))
+      sendWatchingNotice('warning', t('notice.recordingEmpty'))
     } else if (is('getUserMedia_not_allowed')) {
-      sendFailureNotice('error', t('notice.screenCapturePermission'))
+      sendWatchingNotice('error', t('notice.screenCapturePermission'))
     } else {
-      sendFailureNotice('error', t('notice.recordingError', { message: msg.slice(0, 80) }))
+      sendWatchingNotice('error', t('notice.recordingError', { message: msg.slice(0, 80) }))
     }
   })
 
@@ -142,13 +142,13 @@ export function registerRecorderIpc(): void {
     if (!(webmAB instanceof ArrayBuffer) || webmAB.byteLength === 0 || webmAB.byteLength > MAX_WEBM_BYTES) {
       console.error('[clip] recorder:done rejected: invalid webm payload', { byteLength: (webmAB as ArrayBuffer)?.byteLength })
       finishRecordingState()
-      sendFailureNotice('error', t('notice.recordingDataInvalid'))
+      sendWatchingNotice('error', t('notice.recordingDataInvalid'))
       return
     }
     if (!Number.isFinite(duration) || duration <= 0 || duration > MAX_CLIP_DURATION_SEC) {
       console.error('[clip] recorder:done rejected: invalid duration', { duration })
       finishRecordingState()
-      sendFailureNotice('error', t('notice.recordingDataInvalid'))
+      sendWatchingNotice('error', t('notice.recordingDataInvalid'))
       return
     }
 
@@ -272,7 +272,7 @@ export function registerRecorderIpc(): void {
         autoTag: thumbPath ? { path: thumbPath } : null
       })
       if (!result.ok) {
-        sendFailureNotice('error', t('notice.clipSaveFailed'))
+        sendWatchingNotice('error', t('notice.clipSaveFailed'))
         return
       }
       // 見出し（clip #N）と image id の対応。**この後に出る `[frame-verify]` は数秒後の
@@ -345,7 +345,7 @@ export function registerRecorderIpc(): void {
       console.error('[clip] save failed', err)
       if (webmPath) try { await unlink(webmPath) } catch {}
       if (thumbPath) try { await unlink(thumbPath) } catch {}
-      sendFailureNotice('error', t('notice.clipSaveFailed'))
+      sendWatchingNotice('error', t('notice.clipSaveFailed'))
     } finally {
       endTask('clip-save')
     }

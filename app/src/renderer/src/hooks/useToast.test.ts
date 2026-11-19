@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useToast } from './useToast'
+import { STICKY_TOAST_MS, useToast } from './useToast'
 
 afterEach(() => {
   // vitest.config.ts は globals:false のため、@testing-library/react の自動 afterEach cleanup が
@@ -105,5 +105,28 @@ describe('updateToast', () => {
 
     act(() => { result.current.updateToast(999, '復活', 'warning') })
     expect(result.current.toasts.map((t) => t.message)).toEqual(['復活'])
+  })
+})
+
+describe('閉じるまで残す知らせ（STICKY_TOAST_MS）', () => {
+  it('時間が経っても消えず、dismissToast で閉じる', () => {
+    vi.useFakeTimers()
+    const { result } = renderHook(() => useToast())
+    let id = 0
+    act(() => { id = result.current.showToast('録画の保存に失敗しました', 'error', STICKY_TOAST_MS) })
+    act(() => { vi.advanceTimersByTime(60_000) })
+    expect(result.current.toasts.map((t) => [t.message, t.sticky])).toEqual([['録画の保存に失敗しました', true]])
+    act(() => { result.current.dismissToast(id) })
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(result.current.toasts).toEqual([])
+  })
+
+  it('あとから知らせが溢れても、閉じるまで残す知らせは押し出さない', () => {
+    const { result } = renderHook(() => useToast())
+    act(() => { result.current.showToast('失敗', 'error', STICKY_TOAST_MS) })
+    act(() => { result.current.showToast('a') })
+    act(() => { result.current.showToast('b') })
+    act(() => { result.current.showToast('c') })
+    expect(result.current.toasts.map((t) => t.message)).toEqual(['失敗', 'b', 'c'])
   })
 })

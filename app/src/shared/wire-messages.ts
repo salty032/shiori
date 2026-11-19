@@ -27,7 +27,8 @@ export type AppToExtensionMessage =
   /** 再生位置を聞く。immediate は描画を待たずに即答させる（録画用） */
   | { type: 'request-timecode'; requestId: string; immediate?: boolean }
   /** 視聴中のページに通知を出す。pending は続きの通知で書き換える予定（次が来るまで消さない） */
-  | { type: 'notice'; level: 'info' | 'success' | 'warning' | 'error'; message: string; pending?: boolean }
+  /** id を付けると、ページに出せたときに同じ id で notice-shown が返る（browser-notice.ts の sendWatchingNotice） */
+  | { type: 'notice'; level: 'info' | 'success' | 'warning' | 'error'; message: string; pending?: boolean; id?: string }
   /** コマ送りの fps・キャプチャキー・コマ送りの読み取り表示に出す文言 */
   | {
     type: 'settings'

@@ -1858,7 +1858,9 @@ function normalizePortMessage(msg) {
   if (msg.type === 'notice') {
     const level = ['info', 'success', 'warning', 'error'].includes(msg.level) ? msg.level : 'info'
     const message = typeof msg.message === 'string' ? msg.message.slice(0, MAX_NOTICE_MESSAGE_LENGTH) : ''
-    return message ? { type: 'notice', level, message, pending: msg.pending === true } : null
+    // id: ページに出したら同じ id で notice-shown を返す（出せなかったときだけアプリ側に出すため）。
+    const id = typeof msg.id === 'string' && msg.id ? msg.id.slice(0, MAX_REQUEST_ID_LENGTH) : undefined
+    return message ? { type: 'notice', level, message, pending: msg.pending === true, id } : null
   }
   if (msg.type === 'request-timecode') {
     return {
@@ -1955,6 +1957,10 @@ function connectPort() {
       scheduleRestorePlayerUI(safeMsg.immediate)
     } else if (safeMsg.type === 'notice') {
       showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)
+      // 出したことをアプリへ返す。**返らなかった知らせはアプリの画面に回る**（別のタブを見ていた等）。
+      if (safeMsg.id && port) {
+        try { port.postMessage({ type: 'notice-shown', requestId: safeMsg.id }) } catch {}
+      }
     }
   })
 

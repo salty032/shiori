@@ -11,7 +11,7 @@ import { getRecorderWindow, createRecorderWindow, destroyRecorderWindow, setPend
 import { startFrameFeed, stopFrameFeed, waitForSteadyFrames } from './frame-feed'
 import { setTrayRecording } from '../system/tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/timecode'
-import { sendBrowserNotice } from '../browser/browser-notice'
+import { sendWatchingNotice } from '../browser/browser-notice'
 import type { PrepareData, StartData } from '../../shared/recorder-api'
 import { t } from '../system/i18n'
 import { MAX_CAPTURE_FPS } from '../../shared/recorder-api'
@@ -328,34 +328,34 @@ export async function startRecording(): Promise<void> {
     const CLIP_TIMECODE_MAX_AGE_MS = 1500
     if (!target && Date.now() - getLastTimecodeAt() > CLIP_TIMECODE_MAX_AGE_MS) {
       console.warn('[clip] stale timecode after target timeout, aborting recording')
-      sendBrowserNotice('warning', t('notice.videoNotDetected'))
+      sendWatchingNotice('warning', t('notice.videoNotDetected'))
       return
     }
 
     if (!canCaptureVideo()) {
       console.warn('[clip] canCaptureVideo false', { hasTarget: !!target, videoRect: target?.videoRect ?? null })
-      sendBrowserNotice('warning', t('notice.videoNotDetected'))
+      sendWatchingNotice('warning', t('notice.videoNotDetected'))
       return
     }
     // **録画を始める前に保存先へ届くか見る。** 録画はファイルを書くのが最後なので、
     // ここで見ないと 30 秒撮り終えてから保存に失敗することになる。
     if (!(await captureRootReachable())) {
-      sendBrowserNotice('error', t('error.captureRootUnavailable'))
+      sendWatchingNotice('error', t('error.captureRootUnavailable'))
       return
     }
     if (!(await ensureRecorderReady(RECORDER_LOAD_TIMEOUT_MS))) {
-      sendBrowserNotice('error', t('notice.recorderPrepareFailed'))
+      sendWatchingNotice('error', t('notice.recorderPrepareFailed'))
       return
     }
 
     const sourceId = await getDesktopSourceId()
     if (!sourceId) {
-      sendBrowserNotice('error', t('notice.recordingSourceNotFound'))
+      sendWatchingNotice('error', t('notice.recordingSourceNotFound'))
       return
     }
     if (lastDisplayAmbiguous) {
       console.warn('[clip] recording display could not be identified among multiple screens')
-      sendBrowserNotice('warning', t('notice.recordingDisplayUncertain'))
+      sendWatchingNotice('warning', t('notice.recordingDisplayUncertain'))
     }
 
     const settings = loadSettings()
@@ -432,7 +432,7 @@ export async function startRecording(): Promise<void> {
     if (prepared === 'timeout') {
       console.error('[clip] recorder did not report ready in time')
       cancelBeforeStart()
-      sendBrowserNotice('error', t('notice.recorderPrepareFailed'))
+      sendWatchingNotice('error', t('notice.recorderPrepareFailed'))
       return
     }
 
@@ -510,7 +510,7 @@ export async function startRecording(): Promise<void> {
       // 残すと中の MediaRecorder が止まっていないままで、次の準備の合図を黙って弾き、
       // 以後の録画が毎回「準備に失敗」になって再起動するまで録画できない。
       destroyRecorderWindow()
-      sendBrowserNotice('error', t('notice.recordingTimeout'))
+      sendWatchingNotice('error', t('notice.recordingTimeout'))
     }, (maxSeconds + 30) * 1000)
   } catch (err) {
     console.error('[clip] startRecording failed', err)

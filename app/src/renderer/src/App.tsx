@@ -19,7 +19,7 @@ import ThumbCell from './components/ThumbCell'
 import TimelineView, { CELL_GAP as TIMELINE_CELL_GAP, type TimelineViewHandle } from './components/TimelineView'
 import ContextMenu from './components/ContextMenu'
 import { XIcon } from './components/Icon'
-import { useToast } from './hooks/useToast'
+import { useToast, STICKY_TOAST_MS } from './hooks/useToast'
 import { useSettings } from './hooks/useSettings'
 import { useFilters } from './hooks/useFilters'
 import { useImageList } from './hooks/useImageList'
@@ -50,6 +50,8 @@ const ROW_GAP = space.x4
 export default function App() {
   const { t, tp } = useT()
   const toast = useToast()
+  // 閉じるまで残す知らせの × の説明（下の一覧では t がトーストを指すので、先に引いておく）。
+  const closeToastLabel = t('action.close')
   const showToast = toast.showToast
   const settings = useSettings(toast.showToast)
   const filters = useFilters(settings.settings, settings.setSettings, toast.showToast)
@@ -367,7 +369,7 @@ export default function App() {
 
   // メインプロセスからの通知 → トースト
   useEffect(() => {
-    return window.api.onAppNotice(({ level, message }) => showToast(message, level))
+    return window.api.onAppNotice(({ level, message, sticky }) => showToast(message, level, sticky ? STICKY_TOAST_MS : undefined))
   }, [showToast])
 
   // 更新後の初回起動時、RELEASE_NOTES にそのバージョンの文面があれば「変更点」モーダルを出す
@@ -729,6 +731,12 @@ export default function App() {
                       </button>
                     )}
                   </div>
+                  {/* 閉じるまで残す知らせ（ブラウザに出せなかった失敗など）。自分で閉じる口。 */}
+                  {t.sticky && (
+                    <button style={s.toastCloseBtn} onClick={() => toast.dismissToast(t.id)} title={closeToastLabel}>
+                      <XIcon size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

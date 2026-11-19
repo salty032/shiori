@@ -398,6 +398,7 @@ export const s: Record<string, CSSProperties> = {
   // 「浮いている」ことは色ではなく、枠と濃い影とぼかしで出す（溶け込ませない目的は同じ）。
   notificationCard: { position: 'relative' as const, display: 'flex', alignItems: 'stretch', gap: space.x8, width: 'max-content', maxWidth: 'min(380px, calc(100vw - 36px))', minHeight: 40, padding: '10px 14px 10px 18px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, boxShadow: '0 12px 32px rgba(var(--scrim-rgb), 0.42), 0 2px 8px rgba(var(--scrim-rgb), 0.3)', backdropFilter: 'blur(10px)', pointerEvents: 'auto' as const, overflow: 'hidden', animation: 'shioriToastIn 0.22s ease-out', color: 'var(--text-primary)' },
   toastIndicator: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 4, flexShrink: 0, background: 'var(--text-secondary)' },
+  toastCloseBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   toastBody: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x12 },
   // **通知だけは本文の太さにしない。** 数秒で消えるので、読む時間を選べない。他の文字は
   // いつでも読み直せるから細くできるが、ここは目を戻したときにはもう無い。

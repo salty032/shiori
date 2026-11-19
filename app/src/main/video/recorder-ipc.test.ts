@@ -70,10 +70,11 @@ vi.mock('../system/settings', () => ({
 }))
 
 const sendBrowserNotice = vi.fn()
+const sendWatchingNotice = vi.fn()
 vi.mock('../browser/browser-notice', () => ({
   sendBrowserNotice: (...args: unknown[]) => sendBrowserNotice(...args),
-  // 本物と同じく、Shiori の画面とブラウザの両方へ出す
-  sendFailureNotice: (...args: unknown[]) => { sendNotice(...args); sendBrowserNotice(...args) }
+  // 失敗・警告は「見ているブラウザに出し、出せなかったらアプリ」（振り分けは browser-notice.test.ts）
+  sendWatchingNotice: (...args: unknown[]) => sendWatchingNotice(...args)
 }))
 
 vi.mock('./ffmpeg', () => ({
@@ -329,9 +330,8 @@ describe('recorder:done - duration 上限（多層防御）', () => {
     await handler({}, new ArrayBuffer(10), 40.1, 1)
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(finishRecordingState).toHaveBeenCalled()
-    expect(sendNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
-    // ホットキーで録画している間、見ているのはブラウザ。失敗はそちらにも出す。
-    expect(sendBrowserNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
+    // ホットキーで録画している間、見ているのはブラウザ。そちらに出し、出せなかったときだけアプリに回る。
+    expect(sendWatchingNotice).toHaveBeenCalledWith('error', '録画データが不正なため保存できませんでした。')
   })
 })
 
