@@ -130,3 +130,30 @@ describe('閉じるまで残す知らせ（STICKY_TOAST_MS）', () => {
     expect(result.current.toasts.map((t) => t.message)).toEqual(['失敗', 'b', 'c'])
   })
 })
+
+describe('同じ知らせを重ねない', () => {
+  it('同じ文面・同じ種類の知らせが出ている間は、もう 1 枚積まない', () => {
+    const { result } = renderHook(() => useToast())
+    let first = 0, second = 0
+    act(() => { first = result.current.showToast('キャプチャ対象を検出できませんでした', 'warning', STICKY_TOAST_MS) })
+    act(() => { second = result.current.showToast('キャプチャ対象を検出できませんでした', 'warning', STICKY_TOAST_MS) })
+    expect(second).toBe(first)
+    expect(result.current.toasts).toHaveLength(1)
+  })
+
+  it('文面か種類が違えば、別の知らせとして出す', () => {
+    const { result } = renderHook(() => useToast())
+    act(() => { result.current.showToast('a', 'warning') })
+    act(() => { result.current.showToast('a', 'error') })
+    act(() => { result.current.showToast('b', 'warning') })
+    expect(result.current.toasts).toHaveLength(3)
+  })
+
+  it('ボタン付き（元に戻す等）は操作ごとに別物なので、重ねて出す', () => {
+    const { result } = renderHook(() => useToast())
+    const undo = { label: '元に戻す', onClick: () => {} }
+    act(() => { result.current.showToast('削除しました', 'success', undefined, undo) })
+    act(() => { result.current.showToast('削除しました', 'success', undefined, undo) })
+    expect(result.current.toasts).toHaveLength(2)
+  })
+})

@@ -91,7 +91,23 @@ export function useToast() {
     timersRef.current.set(id, timer)
   }, [clearTimer, beginClose])
 
+  // 同じ知らせ（文面と種類が同じで、ボタンの無いもの）が出ている間は、重ねて出さない。
+  // ホットキーを続けて押すと同じ失敗が何枚も積み重なり、読むものが増えるだけだった。
+  const toastsRef = useRef<ToastItem[]>([])
+  toastsRef.current = toasts
+
   const showToast = useCallback<ShowToast>((message, tone = 'info', ms, action) => {
+    if (!action) {
+      const same = toastsRef.current.find((t) => !t.closing && !t.action && t.message === message && t.tone === tone)
+      if (same) {
+        // 閉じるまで残す知らせとして来たのに、出ている方が時間で消えるものなら、残す方に寄せる。
+        if (ms === STICKY_TOAST_MS && !same.sticky) {
+          clearTimer(same.id)
+          setToasts((prev) => prev.map((t) => (t.id === same.id ? { ...t, sticky: true } : t)))
+        }
+        return same.id
+      }
+    }
     const id = ++idRef.current
     setToasts((prev) => {
       const next = [...prev, { id, message, tone, action: action ?? null, sticky: ms === STICKY_TOAST_MS, closing: false }]
