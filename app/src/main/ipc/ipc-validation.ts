@@ -2,6 +2,7 @@
 // すべてモジュール state に依存しない純粋関数（テスト容易・index.ts から切り出し）。
 import { join, extname } from 'path'
 import { access } from 'fs/promises'
+import { fileExists } from '../system/file-exists'
 import type { ImageQuery, ImageListRequest, SortOrder } from '../../shared/types'
 import { DEFAULT_IMAGE_LIST_LIMIT, MAX_IMAGE_LIST_LIMIT, MAX_TAG_LENGTH, MAX_TAG_LOOKUP_LENGTH } from '../../shared/constants'
 
@@ -125,10 +126,6 @@ export function formatTimecodeForFilename(value: number | null): string {
   const s = total % 60
   const pad = (n: number): string => String(n).padStart(2, '0')
   return h > 0 ? `${h}${pad(m)}${pad(s)}` : `${pad(m)}${pad(s)}`
-}
-
-async function fileExists(path: string): Promise<boolean> {
-  return access(path).then(() => true).catch(() => false)
 }
 
 // 一括共有エクスポート用：basename をそのまま使い、衝突時のみ `_n` を付与する。

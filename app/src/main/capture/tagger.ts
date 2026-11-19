@@ -1,6 +1,7 @@
 import { app, nativeImage, net } from 'electron'
 import { join } from 'path'
-import { mkdir, readFile, access, unlink, rename } from 'fs/promises'
+import { mkdir, readFile, unlink, rename } from 'fs/promises'
+import { fileExists } from '../system/file-exists'
 import { createWriteStream, createReadStream } from 'fs'
 import { createHash } from 'crypto'
 import { taggerProcessOrt, type TaggerProcessSession } from './tagger-process'
@@ -79,10 +80,6 @@ async function unloadModel(): Promise<void> {
 function getOrt(): TaggerOrt {
   if (!ortModule) ortModule = taggerProcessOrt
   return ortModule
-}
-
-function fileExists(p: string): Promise<boolean> {
-  return access(p).then(() => true).catch(() => false)
 }
 
 function sha256File(p: string): Promise<string> {
