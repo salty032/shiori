@@ -6,7 +6,7 @@ import {
   renderExtensionBlocks, readGeneratedBlock,
 } from '../../shared/wire-limits'
 import { NAMED_CAPTURE_KEY_VALUES } from '../../shared/hotkey'
-import { backgroundJs, contentJs, keyGuardJs, manifestJson } from './extension-source'
+import { backgroundJs, contentJs, extractFunction, keyGuardJs, manifestJson } from './extension-source'
 
 // extension/background.js・content.js はバンドラ無しで配布されるため、app 側の定数を
 // import できない。以前は同じ数値を手で書き写し、このテストが拡張のソースを正規表現で
@@ -212,6 +212,31 @@ describe('録画の準備中表示（clip-arming / clip-armed）', () => {
     expect(arming).toBeGreaterThan(-1)
     expect(armed).toBeGreaterThan(arming)
     expect(start).toBeGreaterThan(armed)
+  })
+})
+
+// 拡張を読み込み直したとき、開いているページを読み直さなくても使えるようにする仕組み。
+// どちらが欠けても画面には何も出ず、「ページを読み直すまで効かない」か「コマ送りが 2 回効く」になる。
+describe('拡張を読み込み直したとき（更新）', () => {
+  it('background.js が開いているページへ差し込み直す。main world の netflix-main.js は差し込まない', () => {
+    const fn = extractFunction(backgroundJs, 'reinjectContentScripts')
+    expect(fn).toContain("entry.world !== 'MAIN'")
+    expect(fn).toContain('chrome.scripting.executeScript')
+    expect(backgroundJs).toContain("if (reason === 'update') void reinjectContentScripts()")
+    expect((JSON.parse(manifestJson) as { permissions?: string[] }).permissions).toContain('scripting')
+  })
+
+  it('アプリから頼まれたら、background.js が自分を読み込み直す', () => {
+    expect(backgroundJs).toContain("if (msg.type === 'reload-extension') { chrome.runtime.reload(); return }")
+  })
+
+  it('古い部分は止まって、コマ送りの関数を外す（外さないと古い key-guard.js もキーを受ける）', () => {
+    const retire = extractFunction(contentJs, 'retireOldScripts')
+    expect(retire).toContain('window.__shioriFrameStepKey = undefined')
+    // 撮影のために隠した UI は古い部分しか知らないので、止まる前に戻す。
+    expect(retire).toContain('restorePlayerUI()')
+    expect(contentJs).toContain('if (extensionReloaded()) { retireOldScripts(); return }')
+    expect(extractFunction(contentJs, 'connectPort')).toContain('if (port || retired) return')
   })
 })
 

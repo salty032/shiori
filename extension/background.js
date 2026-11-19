@@ -265,6 +265,8 @@ function normalizeServerMessage(data) {
       immediate: msg.immediate === true
     }
   }
+  // アプリが新しい版をフォルダに置いた。自分を読み込み直す（開いているページには onInstalled で差し込み直す）。
+  if (msg.type === 'reload-extension') return { type: 'reload-extension' }
   if (msg.type === 'settings') {
     const frameFps = boundedNumber(Number(msg.frameFps), 1, 240) ?? 24
     const rawKey = typeof msg.captureKey === 'string' ? msg.captureKey : ''
@@ -343,6 +345,7 @@ function connectWS() {
   ws.addEventListener('message', (event) => {
     const msg = normalizeServerMessage(event.data)
     if (!msg) return
+    if (msg.type === 'reload-extension') { chrome.runtime.reload(); return }
     if (msg.type === 'settings') cachedSettings = msg
     if (['request-timecode', 'pre-capture', 'post-capture', 'notice', 'clip-arming', 'clip-armed'].includes(msg.type)) {
       notifyActiveTab(msg)
@@ -375,6 +378,26 @@ function connectWS() {
 
   ws.addEventListener('error', () => ws?.close())
 }
+
+// 拡張が読み込み直されたら（アプリが新しい版を置いた・拡張機能ページで再読み込みした）、開いているページへ
+// ページで動く部分を差し込み直す。**差し込まないと、ページを読み直すまでコマ送りも撮影も効かない**
+// （読み込み直す前の古い部分は止まる。content.js の retireOldScripts）。
+// ページの main world で動く netflix-main.js は差し込まない：拡張を読み込み直しても止まらずに残っていて、
+// 二重に入れると Netflix の再生制御が 2 回走る。
+async function reinjectContentScripts() {
+  const entries = (chrome.runtime.getManifest().content_scripts || []).filter((entry) => entry.world !== 'MAIN')
+  for (const entry of entries) {
+    let tabs = []
+    try { tabs = await chrome.tabs.query({ url: entry.matches }) } catch { continue }
+    for (const tab of tabs) {
+      if (tab.id == null || tab.discarded) continue
+      try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: entry.js }) } catch {}
+    }
+  }
+}
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === 'update') void reinjectContentScripts()
+})
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'shiori') return

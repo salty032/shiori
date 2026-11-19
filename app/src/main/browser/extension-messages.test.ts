@@ -19,7 +19,7 @@ type Normalizer = (msg: unknown) => unknown
 
 // background.js を丸ごと読み込み、2 つの検査だけを取り出す。接続まわり（chrome・WebSocket・タイマー）は空にする。
 function loadBackground(): { normalizePortMessage: Normalizer; normalizeServerMessage: Normalizer } {
-  const chrome = { runtime: { onConnect: { addListener: () => {} } } }
+  const chrome = { runtime: { onConnect: { addListener: () => {} }, onInstalled: { addListener: () => {} } } }
   class FakeWebSocket {
     static CONNECTING = 0
     static OPEN = 1
@@ -55,6 +55,7 @@ const contentNormalize = loadContentNormalizer()
 // 置き換わったとき、たまたま同じ値で通ってしまわないように）。
 const TO_EXTENSION: { [K in AppToExtensionMessage['type']]: Required<Extract<AppToExtensionMessage, { type: K }>> } = {
   connected: { type: 'connected' },
+  'reload-extension': { type: 'reload-extension' },
   'pre-capture': { type: 'pre-capture', holdMs: 40_000, video: true },
   'post-capture': { type: 'post-capture', immediate: true },
   'clip-arming': { type: 'clip-arming', label: '録画の準備中' },
@@ -94,7 +95,8 @@ describe('アプリ → 拡張：送った項目が 1 つも欠けずにペー�
       expect(background.normalizeServerMessage(JSON.stringify(sample))).toEqual(sample)
     })
     // 「繋がった」の合図は background.js で止まり、ページへは background.js 自身の知らせ（ws-connected）が行く。
-    if (sample.type === 'connected') continue
+    // 読み込み直しの頼みも background.js 自身が受ける（ページへは送らない）。
+    if (sample.type === 'connected' || sample.type === 'reload-extension') continue
     it(`${sample.type}: content.js の検査を通り抜ける`, () => {
       expect(contentNormalize(background.normalizeServerMessage(JSON.stringify(sample)))).toEqual(sample)
     })

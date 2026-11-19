@@ -51,6 +51,10 @@ export class CaptureRootUnavailable extends Error {}
 
 let currentHotkey = 'Alt+S'
 let isCapturing = false
+/** 静止画を撮っている最中か（拡張の読み込み直しを待たせるため。extension-bridge.ts）。 */
+export function isCaptureInProgress(): boolean {
+  return isCapturing
+}
 
 type DisplayList = Awaited<ReturnType<typeof screenshot.listDisplays>>
 let cachedDisplays: DisplayList | null = null

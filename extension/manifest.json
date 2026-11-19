@@ -22,6 +22,7 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
+  "permissions": ["scripting"],
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",

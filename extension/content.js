@@ -274,13 +274,35 @@ function normalizePortMessage(msg) {
 const PING_INTERVAL_MS = 20000
 let pingInterval = null
 
+// 拡張が読み込み直されると、このページに残っている古い部分は拡張と話せなくなる（chrome.runtime.id が消える）。
+// 新しい部分は background.js が差し込み直すので、古い部分は止まって道を譲る。**止まらないと、古い方の
+// key-guard.js も「.」「,」を受けてコマ送りが 2 回効く**（コマ送りの関数を外せば、古い key-guard.js はサイトに任せる）。
+let retired = false
+function extensionReloaded() {
+  try { return !chrome.runtime?.id } catch { return true }
+}
+function retireOldScripts() {
+  retired = true
+  window.__shioriFrameStepKey = undefined
+  clearInterval(timecodeInterval)
+  clearInterval(ytNavPoll)
+  clearInterval(pingInterval)
+  stopFrameReporting()
+  stopFrameTracker()
+  hideArmingOverlay()
+  // 撮影のために隠していた UI は戻す（戻す役目の新しい部分は、古い部分が隠したものを知らない）。
+  restorePlayerUI()
+}
+
 function connectPort() {
-  if (port) return
+  if (port || retired) return
 
   try {
     port = chrome.runtime.connect({ name: 'shiori' })
   } catch {
-    return  // 拡張コンテキスト無効
+    // 拡張コンテキスト無効。読み込み直された後なら止まる（新しい部分が差し込まれている）。
+    if (extensionReloaded()) retireOldScripts()
+    return
   }
 
   clearInterval(pingInterval)
@@ -351,6 +373,7 @@ function connectPort() {
     clearInterval(timecodeInterval)
     hideArmingOverlay()
     clearInterval(pingInterval)
+    if (extensionReloaded()) { retireOldScripts(); return }
     scheduleReconnect()  // SW が死んだ → 同様に再接続
   })
 }
