@@ -362,7 +362,10 @@ function connectPort() {
     } else if (safeMsg.type === 'notice') {
       showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)
       // 出したことをアプリへ返す。**返らなかった知らせはアプリの画面に回る**（別のタブを見ていた等）。
-      if (safeMsg.id && port) {
+      // **このページが見えているときだけ返す。** 今見ているタブに Shiori の部分が無いと、background.js は
+      // 最後に使った動画のタブへ送る（ホットキーで再生位置を受け取るための仕組み）。裏のタブに出しただけで
+      // 「出した」と返すと、アプリにも出ず誰の目にも入らない。
+      if (safeMsg.id && port && document.visibilityState === 'visible') {
         try { port.postMessage({ type: 'notice-shown', requestId: safeMsg.id }) } catch {}
       }
     }

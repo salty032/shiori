@@ -277,6 +277,8 @@ describe('コマ通知が途切れる経路（content.js の rVFC ループ）',
     const wsServerTs = readFileSync(join(__dirname, './ws-server.ts'), 'utf-8')
     const shown = contentJs.indexOf('showShioriNotice(safeMsg.level, safeMsg.message, safeMsg.pending)')
     const reply = contentJs.indexOf("port.postMessage({ type: 'notice-shown', requestId: safeMsg.id })")
+    // 裏のタブ（最後に使った動画のタブ）に出しただけでは返さない。返すとアプリにも出ず見逃す。
+    expect(contentJs).toContain("if (safeMsg.id && port && document.visibilityState === 'visible') {")
     expect(shown).toBeGreaterThan(-1)
     expect(reply).toBeGreaterThan(shown)
     expect(backgroundJs).toContain("msg.type === 'notice-shown'")
