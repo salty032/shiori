@@ -63,3 +63,6 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
     return ok
   },
 }))
+
+// 書き換えたら画面ごと読み直す（理由は imageStore.ts の末尾）。
+if (import.meta.hot) import.meta.hot.accept(() => window.location.reload())

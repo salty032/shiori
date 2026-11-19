@@ -411,3 +411,9 @@ export const useImageStore = create<ImageState>((set, get) => ({
     if (newClearTimer) { clearTimeout(newClearTimer); newClearTimer = null }
   },
 }))
+
+// 開発中にこのファイル（か、ここが読み込む文言など）を書き換えたら、差し替え（HMR）をやめて画面ごと読み直す。
+// 差し替えると入れ物がもう 1 つ作られるのに、起動時に張った購読（useCaptureSync の取り込み・録画の
+// 知らせなど）は古い入れ物を掴んだままになる。2026-11-18、取り込んだ動画が「取り込みました」と出るのに
+// 一覧に出ず、起動し直すまで反映されなかった。製品版には差し替えが無いので関係しない。
+if (import.meta.hot) import.meta.hot.accept(() => window.location.reload())
