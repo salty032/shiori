@@ -86,7 +86,8 @@ const FROM_EXTENSION: { [K in ExtensionMessage['type']]: Required<Extract<Extens
   },
   'frame-gap': { type: 'frame-gap' },
   'clip-armed-painted': { type: 'clip-armed-painted', requestId: 'armed-2', paintedAt: 1_700_000_000_100 },
-  'notice-shown': { type: 'notice-shown', requestId: 'notice-1' }
+  'notice-shown': { type: 'notice-shown', requestId: 'notice-1' },
+  'player-ui-missing': { type: 'player-ui-missing', host: 'tv.dmm.com' }
 }
 
 describe('アプリ → 拡張：送った項目が 1 つも欠けずにページまで届く', () => {

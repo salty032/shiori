@@ -37,6 +37,7 @@ import { registerShareHandlers } from './ipc/ipc-share'
 import { registerImportHandlers } from './ipc/ipc-import'
 import { registerShellHandlers } from './ipc/ipc-shell'
 import { sendBrowserNotice, sendWatchingNotice, sendAppFailureNotice } from './browser/browser-notice'
+import { noteMissingTitle } from './browser/ext-diag'
 import { recheckMarkedClips } from './video/verify-clip'
 import { backfillFrameCounts } from './db/db-video-frames'
 import { decideVersionNotice } from './system/version-notice'
@@ -291,6 +292,7 @@ export function bootstrap(): void {
         thumbPath: thumbOk ? thumbPath : null,
         autoTag: { path: thumbOk ? thumbPath : imagePath, reportError: true }
       })
+      if (result.ok && !timecode?.title) noteMissingTitle(timecode?.url, 'capture')
       if (!result.ok) {
         sendWatchingNotice('error', t('notice.captureSaveFailed'))
         // 保存失敗時はファイルを削除済み。capture:done の成功通知を出すと矛盾するため送らない

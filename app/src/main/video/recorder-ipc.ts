@@ -7,6 +7,7 @@ import { ensureCaptureSubDir, thumbPathFor } from '../system/paths'
 import { loadSettings } from '../system/settings'
 import { beginTask, endTask } from '../system/busy'
 import { sendBrowserNotice, sendWatchingNotice } from '../browser/browser-notice'
+import { noteMissingTitle } from '../browser/ext-diag'
 import { getLastExtensionVersion } from '../browser/timecode'
 import { isTrustedRecorderSender } from './recorder-window'
 import { extractThumb } from './ffmpeg'
@@ -275,6 +276,7 @@ export function registerRecorderIpc(): void {
         sendWatchingNotice('error', t('notice.clipSaveFailed'))
         return
       }
+      if (!meta?.title) noteMissingTitle(meta?.url, 'clip')
       // 見出し（clip #N）と image id の対応。**この後に出る `[frame-verify]` は数秒後の
       // 非同期なので、次の録画のログに混ざる。** id で引けるようにしておく。
       console.log(`[clip] #${sessionId} saved as image ${result.id}`)

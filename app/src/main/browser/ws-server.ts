@@ -53,6 +53,8 @@ export type ExtensionMessage =
   | { type: 'clip-armed-painted'; requestId: string; paintedAt: number }
   // アプリが id を付けて送った知らせを、ページに出した（browser-notice.ts）。
   | { type: 'notice-shown'; requestId: string }
+  // 撮影の前に隠すはずのプレーヤーの UI が見つからなかった（診断用。ext-diag.ts）。
+  | { type: 'player-ui-missing'; host: string }
 
 // バージョン文字列（例 "1.1.0"）の表示・比較用途の上限。UI表示にしか使わないため
 // セキュリティ上重要な値ではなく、拡張側とのパリティ対象にもしない（UX-9）。
@@ -201,6 +203,10 @@ export function parseExtensionMessage(raw: string): ExtensionMessage | null {
   const msg = parsed as Record<string, unknown>
   if (msg.type === 'ping') return { type: 'ping' }
   if (msg.type === 'frame-gap') return { type: 'frame-gap' }
+  if (msg.type === 'player-ui-missing') {
+    const host = typeof msg.host === 'string' ? msg.host.slice(0, MAX_URL_LENGTH) : ''
+    return host ? { type: 'player-ui-missing', host } : null
+  }
   if (msg.type === 'notice-shown') {
     const requestId = typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : ''
     return requestId ? { type: 'notice-shown', requestId } : null

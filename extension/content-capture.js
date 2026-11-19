@@ -210,6 +210,15 @@ function hideCursor() {
   document.head.appendChild(styleEl)
 }
 
+// 隠すはずの UI がページに 1 つも見つからなかったことをアプリへ知らせる（ページの作りが変わったことに
+// 本人が気づくため。アプリは診断の目印のある PC でだけログに残す：ext-diag.ts）。ページを開いている間に 1 回。
+let playerUiMissingReported = false
+function reportPlayerUiMissing(host) {
+  if (playerUiMissingReported || !port) return
+  playerUiMissingReported = true
+  try { port.postMessage({ type: 'player-ui-missing', host }) } catch {}
+}
+
 function hidePlayerUI(holdMs, isVideo) {
   restorePlayerUI()
   hideStepReadout()   // コマ送りの読み取り表示は撮影範囲に入る。合図が来たら即消す
@@ -244,6 +253,7 @@ function hidePlayerUI(holdMs, isVideo) {
           applyTemporaryStyle(el, 'pointer-events', 'none')
         }
       }
+      if (processed.size === 0) reportPlayerUiMissing(host)
     } else {
       // <style> タグで注入（React 再レンダリングで inline style が消されるのを防ぐ）
       // transition/animation も止めて、UIがフェードで消える途中が写り込むのを防ぐ
@@ -256,6 +266,9 @@ function hidePlayerUI(holdMs, isVideo) {
         styleEl.setAttribute('data-shiori-visrule', '1')
         styleEl.textContent = rules.join('')
         document.head.appendChild(styleEl)
+      }
+      if ((entry.hide || []).length > 0 && !(entry.hide || []).some((sel) => document.querySelector(sel))) {
+        reportPlayerUiMissing(host)
       }
     }
   } else {

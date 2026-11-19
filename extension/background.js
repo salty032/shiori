@@ -135,6 +135,11 @@ function normalizePortMessage(msg) {
   // <video> の差し替えなどで止まると送られる。落とすと「表が録画の途中で終わっているのに
   // 誰も気づかない」状態に戻るので、そのまま中継する。
   if (msg.type === 'frame-gap') return { type: 'frame-gap' }
+  // 撮影の前に隠すはずの UI が見つからなかった（content-capture.js）。アプリは診断用のログにだけ残す。
+  if (msg.type === 'player-ui-missing') {
+    const host = typeof msg.host === 'string' ? msg.host.slice(0, MAX_URL_LENGTH) : ''
+    return host ? { type: 'player-ui-missing', host } : null
+  }
   // 知らせをページに出した（アプリから来た notice の id）。届かないとアプリ側にも同じ知らせが出る。
   if (msg.type === 'notice-shown') {
     const requestId = typeof msg.requestId === 'string' ? msg.requestId.slice(0, MAX_REQUEST_ID_LENGTH) : ''

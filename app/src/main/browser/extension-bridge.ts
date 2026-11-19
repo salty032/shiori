@@ -14,6 +14,7 @@ import { captureHotkeyMainKey } from './hotkey'
 import { setLastTimecode, markFocusedTimecodeNow, getLastFocusedTimecodeAt, setLastExtensionVersion } from './timecode'
 import { setBrowserWindowPos, setVideoRect, setBrowserFullscreen, shouldSuppressBrowserTargetUpdate, isCaptureInProgress } from '../capture/capture'
 import { isRecordingInProgress } from '../video/recording'
+import { notePlayerUiMissing } from './ext-diag'
 import { sendToRenderer } from '../system/windows'
 import { compareVersions } from '../../shared/version'
 import { CH } from '../../shared/api'
@@ -88,6 +89,7 @@ export function startExtensionBridge(): void {
   startWsServer({ allowedExtensionIds: wsSettings.allowedExtensionIds })
 
   onExtensionMessage((msg) => {
+    if (msg.type === 'player-ui-missing') { notePlayerUiMissing(msg.host); return }
     if (msg.type === 'timecode') {
       if (msg.version) setLastExtensionVersion(msg.version)
       if (msg.focused) markFocusedTimecodeNow()
