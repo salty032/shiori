@@ -14,14 +14,12 @@ import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { importDurationError } from './ipc-import'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { createProgressThrottle } from '../system/progress-throttle'
-import { beginTask, endTask } from '../system/busy'
+import { exclusiveTask } from '../system/exclusive-task'
 import { t } from '../system/i18n'
 import { MAX_MEDIA_FILE_BYTES } from '../system/media-exts'
 
-let isShareExporting = false
-let isShareExportCanceled = false
-let isShareImporting = false
-let isShareImportCanceled = false
+const shareExport = exclusiveTask()
+const shareImport = exclusiveTask()
 const MAX_SHARE_METADATA_BYTES = 64 * 1024 * 1024
 const MAX_SHARE_SETTINGS_BYTES = 1024 * 1024
 // 30.5秒（取り込み許容誤差込み）×120fpsより余裕を持たせる。壊れた表が
@@ -46,14 +44,11 @@ async function createUniqueExportDir(parent: string, timestamp: number): Promise
 export function registerShareHandlers(): void {
   handleTrusted(CH.shareExport, async () => {
     // images:export と同じ理由（R-5）: renderer 側ガードだけでは並行実行を防げず、
-    // isShareExportCanceled が単一フラグなので混線しうる。
-    if (isShareExporting) return { canceled: true }
-    isShareExporting = true
-    beginTask('export')
-    try {
+    // 「やめて」が単一なので混線しうる。
+    return shareExport.run('export', { canceled: true }, async () => {
       const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.exportFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
-      isShareExportCanceled = false
+      shareExport.clearCancel()
 
       const destDir = await createUniqueExportDir(filePaths[0], Date.now())
       const imagesDir = join(destDir, 'images')
@@ -109,7 +104,7 @@ export function registerShareHandlers(): void {
       const shouldSend = createProgressThrottle(total)
 
       for (let i = 0; i < items.length; i++) {
-        if (isShareExportCanceled) break
+        if (shareExport.canceled) break
         const line = await copyOne(items[i])
         if (line) { lines.push(line); count++ }
         if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
@@ -127,26 +122,20 @@ export function registerShareHandlers(): void {
         'utf-8'
       )
 
-      return { canceled: isShareExportCanceled, count, path: destDir }
-    } finally {
-      isShareExporting = false
-      endTask('export')
-    }
+      return { canceled: shareExport.canceled, count, path: destDir }
+    })
   })
 
-  handleTrusted(CH.shareExportCancel, () => { isShareExportCanceled = true })
+  handleTrusted(CH.shareExportCancel, () => { shareExport.cancel() })
 
   handleTrusted(CH.shareImport, async () => {
     // shareExport/imagesExport と同じ理由（R-5）: renderer 側のボタン disable だけでは
     // 並行呼び出しを防げず、同じフォルダの画像が二重登録されうる（画像には重複チェックが
     // ないため、スマートフォルダと違って静かに重複が積み上がる）（D-1）。
-    if (isShareImporting) return { canceled: true }
-    isShareImporting = true
-    beginTask('library-import')
-    try {
+    return shareImport.run('library-import', { canceled: true }, async () => {
       const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.importFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
-      isShareImportCanceled = false
+      shareImport.clearCancel()
 
       const srcDir = filePaths[0]
       let content: string
@@ -172,7 +161,7 @@ export function registerShareHandlers(): void {
       const shouldSend = createProgressThrottle(total)
 
       for (let i = 0; i < lines.length; i++) {
-        if (isShareImportCanceled) break
+        if (shareImport.canceled) break
         // 下の catch で「どの行が失敗したか」を出すために、行の外側に控える。
         let entryFile: string | null = null
         try {
@@ -327,7 +316,7 @@ export function registerShareHandlers(): void {
       // 名前が完全一致する既存フォルダはスキップし、それ以外は id を採番し直して追記する
       // （エクスポート元とインポート先で id が衝突しうるため）。
       let importedFolders = 0
-      if (!isShareImportCanceled) {
+      if (!shareImport.canceled) {
         try {
           const settingsPath = join(srcDir, 'settings.json')
           const settingsStat = await stat(settingsPath)
@@ -353,12 +342,9 @@ export function registerShareHandlers(): void {
         } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
       }
 
-      return { canceled: isShareImportCanceled, count, errors, importedFolders }
-    } finally {
-      isShareImporting = false
-      endTask('library-import')
-    }
+      return { canceled: shareImport.canceled, count, errors, importedFolders }
+    })
   })
 
-  handleTrusted(CH.shareImportCancel, () => { isShareImportCanceled = true })
+  handleTrusted(CH.shareImportCancel, () => { shareImport.cancel() })
 }

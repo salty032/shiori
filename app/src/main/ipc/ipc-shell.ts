@@ -18,15 +18,19 @@ import { getActivePort } from '../browser/ws-server'
 import { collectStorageUsage } from '../system/storage'
 import { planCaptureMove, moveCaptureFiles } from '../system/move-captures'
 import { beginTask, endTask } from '../system/busy'
+import { exclusiveTask } from '../system/exclusive-task'
 import { sendToRenderer } from '../system/windows'
 import { loadSettings, saveSettings } from '../system/settings'
 import { t } from '../system/i18n'
 import { formatBytes } from '../../shared/format'
 import type { ChooseCaptureRootResult } from '../../shared/types'
 
-// 移動の中止フラグ。**押した瞬間に立てて、次の 1 件の前に見る**——今コピー中の 1 件は
+// 保存先の変更（選ぶ → 確かめる → 移す）を丸ごと 1 つで排他する。移している最中にもう一度
+// 呼ばれると、2 つ目の移動が同じファイルを別の場所へ動かしはじめる。renderer のボタンは
+// 最初の進み具合が届くまで押せるので、それだけでは防げない。
+// 「やめて」は**押した瞬間に立てて、次の 1 件の前に見る**——今コピー中の 1 件は
 // 最後まで書き切る（途中まで書いたファイルを残さないため）。
-let moveCanceled = false
+const captureMove = exclusiveTask()
 
 async function totalBytes(paths: readonly string[]): Promise<number> {
   let total = 0
@@ -89,90 +93,91 @@ export function registerShellHandlers(): void {
   // **これまでのぶんを移すかは、その場で聞く。** 実体のコピーなので分単位かかり、移動先には
   // 2 倍の空きが要る。断られたぶんと移せなかったぶんは元の場所に残るので、元の場所は
   // previousCaptureRoots に控えて、そのまま開けるようにする（paths.ts の captureBases）。
-  handleTrusted(CH.storageChooseRoot, async (): Promise<ChooseCaptureRootResult> => {
-    const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
-    const options = {
-      title: t('settings.chooseCapturesFolder'),
-      defaultPath: captureDir(),
-      properties: ['openDirectory' as const, 'createDirectory' as const],
-    }
-    const picked = await showOpenDialogOver(options, parent)
-    if (picked.canceled || picked.filePaths.length === 0) return { ok: false, reason: 'canceled' }
-
-    const chosen = resolve(picked.filePaths[0])
-    if (captureRootProblem(chosen) !== null) return { ok: false, reason: 'invalid' }
-
-    // 実際に 1 ファイル書いて消す。存在するかどうかだけでは、読み取り専用の場所や
-    // 権限の無いフォルダを見分けられない。
-    try {
-      await mkdir(chosen, { recursive: true })
-      const probe = join(chosen, `.shiori-write-test-${Date.now()}`)
-      await writeFile(probe, '')
-      await unlink(probe)
-    } catch (err) {
-      console.warn('[storage] capture root is not writable', err)
-      return { ok: false, reason: 'unwritable' }
-    }
-
-    const current = loadSettings()
-    if (current.captureRoot != null && resolve(current.captureRoot) === chosen) {
-      return { ok: true, path: chosen, moved: 0, missing: 0 }
-    }
-
-    // 今まで使っていた場所を先頭に控える。**新しい保存先自体は控えから外す**——
-    // 同じ場所が 2 つの役で入っていると、戻したときに重複したまま増え続ける。
-    const previousRoots = [
-      ...(current.captureRoot ? [current.captureRoot] : []),
-      ...current.previousCaptureRoots,
-    ].filter((root) => resolve(root) !== chosen)
-    const applyRoot = (): void => {
-      saveSettings({ ...loadSettings(), captureRoot: chosen, previousCaptureRoots: previousRoots })
-      console.log(`[storage] capture root changed to ${chosen}`)
-    }
-
-    const targets = planCaptureMove(listImagePaths(), [defaultCaptureDir(), ...previousRoots], chosen)
-    if (targets.length === 0) {
-      applyRoot()
-      return { ok: true, path: chosen, moved: 0, missing: 0 }
-    }
-
-    // **移す前に必ず聞く。** 実体のコピーなので分単位かかるうえ、移動中は移動先に
-    // 2 倍の空きが要る。押した人が「場所の設定を変えるだけ」と思っているまま
-    // 何分も固まるのが最悪。
-    const bytes = await totalBytes(targets.map((target) => target.from))
-    const confirmed = await confirmMove(parent, targets.length, bytes, chosen)
-    if (!confirmed) return { ok: false, reason: 'move-canceled' }
-
-    moveCanceled = false
-    beginTask('capture-move')
-    try {
-      const outcome = await moveCaptureFiles({
-        targets,
-        commit: (moved) => setImagePaths(moved.map((target) => ({ id: target.id, filepath: target.to }))),
-        onProgress: (currentCount, total) => {
-          if (shouldSendProgress(currentCount, total)) {
-            sendToRenderer(CH.storageMoveProgress, { current: currentCount, total })
-          }
-        },
-        isCanceled: () => moveCanceled,
-      })
-      if (!outcome.ok) {
-        if (outcome.reason === 'conflict') {
-          return { ok: false, reason: 'move-conflict', conflictPath: outcome.failedPath ?? '' }
-        }
-        return { ok: false, reason: outcome.reason === 'canceled' ? 'move-canceled' : 'move-failed' }
+  handleTrusted(CH.storageChooseRoot, (): Promise<ChooseCaptureRootResult> =>
+    captureMove.run(null, { ok: false, reason: 'canceled' }, async (): Promise<ChooseCaptureRootResult> => {
+      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
+      const options = {
+        title: t('settings.chooseCapturesFolder'),
+        defaultPath: captureDir(),
+        properties: ['openDirectory' as const, 'createDirectory' as const],
       }
-      // **保存先を変えるのは、移し終えてから。** 先に変えると、移動が失敗したときに
-      // 「保存先だけ新しい・ファイルは全部古い場所」という半端な状態が残る。
-      applyRoot()
-      return { ok: true, path: chosen, moved: outcome.moved, missing: outcome.missing }
-    } finally {
-      endTask('capture-move')
-      sendToRenderer(CH.storageMoveProgress, { current: 0, total: 0 })
-    }
-  })
+      const picked = await showOpenDialogOver(options, parent)
+      if (picked.canceled || picked.filePaths.length === 0) return { ok: false, reason: 'canceled' }
 
-  handleTrusted(CH.storageCancelMove, () => { moveCanceled = true })
+      const chosen = resolve(picked.filePaths[0])
+      if (captureRootProblem(chosen) !== null) return { ok: false, reason: 'invalid' }
+
+      // 実際に 1 ファイル書いて消す。存在するかどうかだけでは、読み取り専用の場所や
+      // 権限の無いフォルダを見分けられない。
+      try {
+        await mkdir(chosen, { recursive: true })
+        const probe = join(chosen, `.shiori-write-test-${Date.now()}`)
+        await writeFile(probe, '')
+        await unlink(probe)
+      } catch (err) {
+        console.warn('[storage] capture root is not writable', err)
+        return { ok: false, reason: 'unwritable' }
+      }
+
+      const current = loadSettings()
+      if (current.captureRoot != null && resolve(current.captureRoot) === chosen) {
+        return { ok: true, path: chosen, moved: 0, missing: 0 }
+      }
+
+      // 今まで使っていた場所を先頭に控える。**新しい保存先自体は控えから外す**——
+      // 同じ場所が 2 つの役で入っていると、戻したときに重複したまま増え続ける。
+      const previousRoots = [
+        ...(current.captureRoot ? [current.captureRoot] : []),
+        ...current.previousCaptureRoots,
+      ].filter((root) => resolve(root) !== chosen)
+      const applyRoot = (): void => {
+        saveSettings({ ...loadSettings(), captureRoot: chosen, previousCaptureRoots: previousRoots })
+        console.log(`[storage] capture root changed to ${chosen}`)
+      }
+
+      const targets = planCaptureMove(listImagePaths(), [defaultCaptureDir(), ...previousRoots], chosen)
+      if (targets.length === 0) {
+        applyRoot()
+        return { ok: true, path: chosen, moved: 0, missing: 0 }
+      }
+
+      // **移す前に必ず聞く。** 実体のコピーなので分単位かかるうえ、移動中は移動先に
+      // 2 倍の空きが要る。押した人が「場所の設定を変えるだけ」と思っているまま
+      // 何分も固まるのが最悪。
+      const bytes = await totalBytes(targets.map((target) => target.from))
+      const confirmed = await confirmMove(parent, targets.length, bytes, chosen)
+      if (!confirmed) return { ok: false, reason: 'move-canceled' }
+
+      captureMove.clearCancel()
+      beginTask('capture-move')
+      try {
+        const outcome = await moveCaptureFiles({
+          targets,
+          commit: (moved) => setImagePaths(moved.map((target) => ({ id: target.id, filepath: target.to }))),
+          onProgress: (currentCount, total) => {
+            if (shouldSendProgress(currentCount, total)) {
+              sendToRenderer(CH.storageMoveProgress, { current: currentCount, total })
+            }
+          },
+          isCanceled: () => captureMove.canceled,
+        })
+        if (!outcome.ok) {
+          if (outcome.reason === 'conflict') {
+            return { ok: false, reason: 'move-conflict', conflictPath: outcome.failedPath ?? '' }
+          }
+          return { ok: false, reason: outcome.reason === 'canceled' ? 'move-canceled' : 'move-failed' }
+        }
+        // **保存先を変えるのは、移し終えてから。** 先に変えると、移動が失敗したときに
+        // 「保存先だけ新しい・ファイルは全部古い場所」という半端な状態が残る。
+        applyRoot()
+        return { ok: true, path: chosen, moved: outcome.moved, missing: outcome.missing }
+      } finally {
+        endTask('capture-move')
+        sendToRenderer(CH.storageMoveProgress, { current: 0, total: 0 })
+      }
+    }))
+
+  handleTrusted(CH.storageCancelMove, () => { captureMove.cancel() })
 
   handleTrusted(CH.wsGetPort, () => getActivePort())
 

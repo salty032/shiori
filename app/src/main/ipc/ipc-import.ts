@@ -11,7 +11,7 @@ import { createImageThumb } from '../capture/image-thumb'
 import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { CH, type ShioriApi } from '../../shared/api'
 import { registerCapturedMedia } from '../capture/captured-media'
-import { beginTask, endTask } from '../system/busy'
+import { exclusiveTask } from '../system/exclusive-task'
 import { IMAGE_EXTS, VIDEO_EXTS, MAX_MEDIA_FILE_BYTES } from '../system/media-exts'
 import { MAX_IMPORT_FILES } from '../../shared/constants'
 
@@ -39,7 +39,7 @@ export function importDurationError(duration: number | null, name: string): stri
 
 // nativeImage のデコードと動画プローブは main プロセスで動く。大量取り込み中にもう一度
 // ドロップされても二重に走らせず、DB・ディスク・イベントループへの負荷を重ねない。
-let isImporting = false
+const importing = exclusiveTask()
 
 // 上限到達で列挙を打ち切った場合、呼び出し元がユーザーに「一部のみ取り込んだ」と
 // 伝えられるよう truncated を返す（200件超のドロップ・フォルダ展開の両方で判定）。
@@ -136,13 +136,9 @@ export function registerImportHandlers(): void {
 
   handleTrusted(CH.importFiles, async (_event, filePaths: unknown) => {
     if (!Array.isArray(filePaths)) return { count: 0, errors: ['invalid input'], truncated: false }
-    if (isImporting) return { count: 0, errors: ['import already in progress'], truncated: false }
-
     // 大量ドロップは数分かかることがある。途中でアップデート適用（プロセス終了）が
     // 走ると取り込みが尻切れになるため、実行中であることを busy レジストリへ知らせる。
-    isImporting = true
-    beginTask('import')
-    try {
+    return importing.run('import', { count: 0, errors: ['import already in progress'], truncated: false }, async () => {
       const inputPaths = (filePaths as unknown[])
         .filter((p): p is string => typeof p === 'string' && !!p)
         // Shiori からドラッグした画像を Shiori 自身へ落とし返したケース。取り込むと同じ画像が
@@ -266,9 +262,6 @@ export function registerImportHandlers(): void {
       }
 
       return { count, errors, truncated }
-    } finally {
-      endTask('import')
-      isImporting = false
-    }
+    })
   })
 }

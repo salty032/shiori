@@ -24,7 +24,7 @@ import type { DeleteImageResult } from '../../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from '../system/paths'
 import { createImageThumb } from '../capture/image-thumb'
 import { createProgressThrottle } from '../system/progress-throttle'
-import { beginTask, endTask } from '../system/busy'
+import { exclusiveTask } from '../system/exclusive-task'
 import { t } from '../system/i18n'
 import { loadSettings } from '../system/settings'
 import { extractThumb, getVideoMeta, transcodeToH264 } from '../video/ffmpeg'
@@ -32,9 +32,9 @@ import { extractThumb, getVideoMeta, transcodeToH264 } from '../video/ffmpeg'
 // （旧: renderer 側 useSelection.ts の DELETE_CONCURRENCY と同じ理由。B-7 で main 側に統合）。
 const DELETE_CONCURRENCY = 4
 
-let isThumbGen = false
-let isImagesExporting = false
-let isImagesExportCanceled = false
+// 起動時の補完と手動の修復は同じサムネを書くので、1 つで排他する。
+const thumbGen = exclusiveTask()
+const imagesExport = exclusiveTask()
 
 // 削除確定（DB 行削除）後の後始末として、原本とサムネをディスクから消す。
 //
@@ -93,25 +93,18 @@ async function generateThumb(id: number, filepath: string, mediaType: 'image' | 
 // 登録されたエントリを対象に起動時（bootstrap.ts）から自動で呼ぶ。
 // 記録済みサムネの実ファイル確認はここでは行わない（S4-2）。全件の存在確認は起動を
 // 重くするだけで、通常は 1 件も直すものがないため、repairThumbnails() の手動実行に回す。
-export async function backfillThumbnails(): Promise<void> {
-  if (isThumbGen) return
-  isThumbGen = true
-  try {
+export function backfillThumbnails(): Promise<void> {
+  return thumbGen.run(null, undefined, async () => {
     for (const { id, filepath, media_type } of listImagesMissingThumb()) {
       await generateThumb(id, filepath, media_type)
     }
-  } finally {
-    isThumbGen = false
-  }
+  })
 }
 
 // 手動の「サムネイル修復」。全画像を走査し、サムネ未生成のものと、thumb_path は記録済みだが
 // 実ファイルが消えているものを再生成する。ディスクアクセスが件数に比例するため自動では呼ばない。
-async function repairThumbnails(): Promise<{ repaired: number; failed: number }> {
-  if (isThumbGen) return { repaired: 0, failed: 0 }
-  isThumbGen = true
-  beginTask('thumb-repair')
-  try {
+function repairThumbnails(): Promise<{ repaired: number; failed: number }> {
+  return thumbGen.run('thumb-repair', { repaired: 0, failed: 0 }, async () => {
     const targets = listImagesForThumbCheck()
     let repaired = 0
     let failed = 0
@@ -131,10 +124,7 @@ async function repairThumbnails(): Promise<{ repaired: number; failed: number }>
       else failed++
     }
     return { repaired, failed }
-  } finally {
-    isThumbGen = false
-    endTask('thumb-repair')
-  }
+  })
 }
 
 export function registerImageHandlers(): void {
@@ -149,19 +139,16 @@ export function registerImageHandlers(): void {
 
   handleTrusted(CH.imagesExport, async (_event, imageIds: number[]) => {
     // renderer 側（exportStore の exportKind ガード）だけだと、拡張機能の別ウィンドウや
-    // 復旧不能な状態からの二重呼び出しを防げない。isImagesExportCanceled がモジュール単一の
-    // フラグなので、並行実行されると片方の中止操作がもう片方も止め、進捗表示も混線する（R-5）。
-    if (isImagesExporting) return { canceled: true }
-    isImagesExporting = true
-    beginTask('export')
-    try {
+    // 復旧不能な状態からの二重呼び出しを防げない。「やめて」がモジュール単一なので、
+    // 並行実行されると片方の中止操作がもう片方も止め、進捗表示も混線する（R-5）。
+    return imagesExport.run('export', { canceled: true }, async () => {
       const uniqueIds = uniqueImageIds(imageIds)
       const truncated = uniqueIds.length > MAX_EXPORT_IDS
       const ids = uniqueIds.slice(0, MAX_EXPORT_IDS)
 
       const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.exportFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
-      isImagesExportCanceled = false
+      imagesExport.clearCancel()
       const dest = filePaths[0]
       const used = new Set<string>()
       // 形式は設定（設定 > データ > 動画の書き出し形式）から読む。**フォルダを選ぶ前ではなく
@@ -205,13 +192,13 @@ export function registerImageHandlers(): void {
                 src,
                 outPath,
                 { width: image.width, height: image.height, fps: image.fps },
-                () => isImagesExportCanceled
+                () => imagesExport.canceled
               )
               return true
             } catch (err) {
               try { await unlink(outPath) } catch {}
               // 中止で落ちたときは「失敗」として数えない（この後ループも抜ける）。
-              if (isImagesExportCanceled) return false
+              if (imagesExport.canceled) return false
               console.warn(`[images:export] h264 transcode failed id=${id}`, err)
               notConverted++
             }
@@ -231,18 +218,15 @@ export function registerImageHandlers(): void {
       sendToRenderer(CH.exportProgress, { current: 0, total })
       const shouldSend = createProgressThrottle(total)
       for (let i = 0; i < ids.length; i++) {
-        if (isImagesExportCanceled) break
+        if (imagesExport.canceled) break
         if (await copyOne(ids[i])) count++
         if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
       }
-      return { canceled: isImagesExportCanceled, count, truncated, notConverted }
-    } finally {
-      isImagesExporting = false
-      endTask('export')
-    }
+      return { canceled: imagesExport.canceled, count, truncated, notConverted }
+    })
   })
 
-  handleTrusted(CH.imagesExportCancel, () => { isImagesExportCanceled = true })
+  handleTrusted(CH.imagesExportCancel, () => { imagesExport.cancel() })
 
   handleTrusted(CH.imagesRepairThumbs, () => repairThumbnails())
 

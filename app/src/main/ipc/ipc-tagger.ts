@@ -12,9 +12,9 @@ import { CH } from '../../shared/api'
 import { MAX_BULK_IDS } from '../../shared/constants'
 import { createProgressThrottle } from '../system/progress-throttle'
 import { beginTask, endTask } from '../system/busy'
+import { exclusiveTask } from '../system/exclusive-task'
 
-let isRetagging = false
-let isRetagCanceled = false
+const retag = exclusiveTask()
 
 function validImageIds(imageIds: unknown): number[] {
   return uniqueImageIds(imageIds).slice(0, MAX_BULK_IDS)
@@ -74,42 +74,33 @@ export function registerTaggerHandlers(): void {
     return cleaned ? removeTagFromAllImages(cleaned) : 0
   })
 
-  handleTrusted(CH.taggerRetagAll, async () => {
-    if (isRetagging) return
-    isRetagging = true
-    isRetagCanceled = false
-    beginTask('retag')
-    try {
-      const targets = listImagesForRetag()
-      const total = targets.length
-      sendToRenderer(CH.taggerRetagProgress, { current: 0, total })
-      const shouldSend = createProgressThrottle(total)
-      let tagged = 0
-      let i = 0
-      for (; i < targets.length; i++) {
-        if (isRetagCanceled) break
-        const { id, filepath, thumb_path } = targets[i]
-        try {
-          // キャプチャ/取り込み時の自動タグ付けは 480px サムネで推論している（bootstrap.ts）ため、
-          // retagAll も同じ入力を使わないと経路によって付くタグが変わってしまう。サムネが無い
-          // （旧データ等）場合のみ原本にフォールバックする。
-          const srcPath = thumb_path ?? filepath
-          if (!srcPath) throw new Error('no tagger source')
-          const resolvedPath = await resolveRealCapturePath(srcPath)
-          if (!resolvedPath) throw new Error('path not resolvable')
-          const tags = await runTagger(resolvedPath)
-          addTagsBulk(id, tags.map((t) => ({ name: t.name, source: 'ai' as const })))
-          tagged++
-        } catch (err) {
-          console.error(`[tagger] retagAll skip id=${id}`, err)
-        }
-        if (shouldSend(i + 1)) sendToRenderer(CH.taggerRetagProgress, { current: i + 1, total })
+  handleTrusted(CH.taggerRetagAll, () => retag.run('retag', undefined, async () => {
+    const targets = listImagesForRetag()
+    const total = targets.length
+    sendToRenderer(CH.taggerRetagProgress, { current: 0, total })
+    const shouldSend = createProgressThrottle(total)
+    let tagged = 0
+    let i = 0
+    for (; i < targets.length; i++) {
+      if (retag.canceled) break
+      const { id, filepath, thumb_path } = targets[i]
+      try {
+        // キャプチャ/取り込み時の自動タグ付けは 480px サムネで推論している（bootstrap.ts）ため、
+        // retagAll も同じ入力を使わないと経路によって付くタグが変わってしまう。サムネが無い
+        // （旧データ等）場合のみ原本にフォールバックする。
+        const srcPath = thumb_path ?? filepath
+        if (!srcPath) throw new Error('no tagger source')
+        const resolvedPath = await resolveRealCapturePath(srcPath)
+        if (!resolvedPath) throw new Error('path not resolvable')
+        const tags = await runTagger(resolvedPath)
+        addTagsBulk(id, tags.map((t) => ({ name: t.name, source: 'ai' as const })))
+        tagged++
+      } catch (err) {
+        console.error(`[tagger] retagAll skip id=${id}`, err)
       }
-      sendToRenderer(CH.taggerRetagDone, { tagged, canceled: isRetagCanceled })
-    } finally {
-      isRetagging = false
-      endTask('retag')
+      if (shouldSend(i + 1)) sendToRenderer(CH.taggerRetagProgress, { current: i + 1, total })
     }
-  })
-  handleTrusted(CH.taggerRetagCancel, () => { isRetagCanceled = true })
+    sendToRenderer(CH.taggerRetagDone, { tagged, canceled: retag.canceled })
+  }))
+  handleTrusted(CH.taggerRetagCancel, () => { retag.cancel() })
 }
