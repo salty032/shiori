@@ -371,6 +371,11 @@ export const ja = {
   'timesheet.copy': 'コピー',
   'timesheet.copied': 'コピーしました',
   'timesheet.copyHint': 'タイムシートソフトに貼り付けられる形式でコピーします（{sec} 秒 {frames} コマ）',
+  // 表の見出し。紙のタイムシートの欄名に合わせる。
+  'timesheet.colSec': '秒',
+  'timesheet.colFrame': 'コマ',
+  'timesheet.colCell': 'セル',
+  'timesheet.colMemo': 'メモ',
   'shortcuts.viewerTimesheet': 'タイムシート表示中：動画番号を入力 / 確定して次のコマへ',
   'shortcuts.viewerTimesheetSymbols': 'タイムシート表示中：○（中割り）/ ●（逆シート）/ ×（カラ）。テンキーの / - * でも入力できます',
 

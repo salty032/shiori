@@ -321,6 +321,10 @@ export const en: Record<keyof typeof ja, string> = {
   'timesheet.copy': 'Copy',
   'timesheet.copied': 'Copied',
   'timesheet.copyHint': 'Copies in a form you can paste into timesheet software ({sec}s {frames}f)',
+  'timesheet.colSec': 'Sec',
+  'timesheet.colFrame': 'Frame',
+  'timesheet.colCell': 'Cell',
+  'timesheet.colMemo': 'Note',
   'shortcuts.viewerTimesheet': 'While the timesheet is open: type a drawing number / confirm and step on',
   'shortcuts.viewerTimesheetSymbols': 'Same: ○ inbetween / ● reverse sheet / × empty cell. Numpad / - * also work',
 
