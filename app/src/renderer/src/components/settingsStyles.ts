@@ -23,7 +23,9 @@ export const s: Record<string, React.CSSProperties> = {
   overlay: { ...modal.overlay, background: 'rgba(var(--scrim-rgb), 0.88)', zIndex: 2000, padding: 0 },
   panel: { ...modal.panel, width: 'min(1100px, max(860px, 80vw))', maxWidth: '90vw', height: 'min(760px, max(520px, 85vh))', maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
-  sidebar: { width: 124, padding: '8px 10px', gap: space.x2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
+  // タブの列は箱の幅に比例させる（箱 860px で 140px、1100px で 165px）。固定の 124px のままだと、箱が広がった分だけ
+  // 右の中身との差が開いて細く見えた。
+  sidebar: { width: 'clamp(140px, 15%, 165px)', padding: '8px 10px', gap: space.x2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
   tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: weight.medium, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: radius.md, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
   tabBtnActive: { color: 'var(--accent-text)', background: 'rgba(var(--accent-rgb), 0.16)', fontWeight: weight.medium },
   // overscrollBehavior: タブの中身を端まで送ったあと、続きのホイールが背後の一覧へ

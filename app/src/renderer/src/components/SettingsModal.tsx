@@ -202,8 +202,9 @@ export default function SettingsModal(p: Props) {
                   </div>
                 </div>
                 <div style={s.group}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
-                    <div style={s.section}>{t('settings.extension')}</div>
+                  {/* 見出しの下の余白は行の側に付ける。見出しに付いたままだと、札と縦の真ん中で揃えたとき札が下がって見えた。 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: space.x8, paddingBottom: 6 }}>
+                    <div style={{ ...s.section, paddingBottom: 0 }}>{t('settings.extension')}</div>
                     <span style={{ ...s.statusBadge, ...(wsPortUnavailable ? s.statusWarn : extensionVersionMismatch ? s.statusWarn : extensionConnected ? s.statusOk : s.statusMuted) }}>
                       {t(wsPortUnavailable ? 'settings.extPortBlocked' : extensionVersionMismatch ? 'settings.extReloadNeeded' : extensionConnected ? 'settings.extConnected' : 'settings.extDisconnected')}
                     </span>
