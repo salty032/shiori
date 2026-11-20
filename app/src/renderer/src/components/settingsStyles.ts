@@ -86,7 +86,8 @@ export const s: Record<string, React.CSSProperties> = {
   statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
   input: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
   addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)' },
-  deleteBtn: { ...btnBase, background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, color: color.danger },
+  // めったに使わない操作の、文字だけの控えめなボタン（AI モデルの削除）。
+  quietBtn: { padding: '4px 6px', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: font.sm, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' },
   cancelBtn: { ...btnBase, background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' },
   progressWrap: { display: 'flex', alignItems: 'center', gap: space.x8 },
   progressBar: { flex: 1, height: 6, background: 'var(--border-default)', borderRadius: radius.md, overflow: 'hidden' },

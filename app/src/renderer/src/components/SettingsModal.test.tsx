@@ -36,11 +36,14 @@ describe('SettingsModal data tab lifecycle', () => {
   })
   afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
-  it('使用量はデータかタグを開くまで取得せず、タブを往復しても再取得しない', async () => {
+  it('使用量はデータを開くまで取得せず、タブを往復しても再取得しない', async () => {
     const ui = render(<SettingsModal {...props()} />)
     expect(getStorageInfo).not.toHaveBeenCalled()
     await act(async () => { fireEvent.click(ui.getByText('settings.tab.tag')) })
+    expect(getStorageInfo).not.toHaveBeenCalled()
+    await act(async () => { fireEvent.click(ui.getByText('settings.tab.data')) })
     expect(getStorageInfo).toHaveBeenCalledTimes(1)
+    await act(async () => { fireEvent.click(ui.getByText('settings.tab.tag')) })
     await act(async () => { fireEvent.click(ui.getByText('settings.tab.data')) })
     expect(getStorageInfo).toHaveBeenCalledTimes(1)
   })

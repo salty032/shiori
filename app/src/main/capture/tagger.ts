@@ -23,7 +23,7 @@ const THRESHOLD_GENERAL = 0.35
 const THRESHOLD_CHARACTER = 0.85
 
 const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000  // 10分
-const MAX_MODEL_BYTES = 600 * 1024 * 1024    // 600 MB
+const MAX_MODEL_BYTES = 600 * 1024 * 1024    // ダウンロードの上限（実物は約 360MB。画面に出す容量ではない）
 const MAX_CSV_BYTES = 5 * 1024 * 1024        // 5 MB
 
 interface TagResult {
@@ -48,11 +48,11 @@ let ensureModelPromise: Promise<void> | null = null
 let activeDownloadController: AbortController | null = null
 
 // この時間タグ付けが呼ばれなければ、推論セッションをメモリから解放する
-// （600MB級モデルなので、使っていない間は常駐させない）。
+// （約 360MB のモデルなので、使っていない間は常駐させない）。
 // retagAll 等の連続処理はジョブ完了ごとにタイマーがリセットされるため、
 // 1 枚あたりの処理時間がこの値を超えない限りバッチ中に解放されることはない。
 // 視聴中はキャプチャ間隔が数分空くのが普通で、旧来の3秒だと実質「毎キャプチャ」で
-// 600MBモデルの再ロードが走っていた（PERF-1）。視聴セッション中は載せっぱなしにし、
+// 約 360MB のモデルの再ロードが走っていた（PERF-1）。視聴セッション中は載せっぱなしにし、
 // 本当に使わなくなってから解放する方針に寄せ、90秒へ延長する。
 const IDLE_UNLOAD_MS = 90 * 1000
 let idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -121,7 +121,7 @@ async function downloadFile(url: string, dest: string, onProgress?: ProgressCall
     // WriteStream の 'error' は待ち受けが 1 つも無いと Node が未処理例外に変え、
     // メインプロセスごと落とす。旧実装は write() が false を返した drain 待ちの間しか
     // リスナーを張っていなかったため、**通常経路（write() が true）でディスクフルや
-    // I/O 障害が起きるとアプリが突然終了していた**。600MB のモデルを書いている最中なので
+    // I/O 障害が起きるとアプリが突然終了していた**。約 360MB のモデルを書いている最中なので
     // ENOSPC は現実に起きる。ここで常設のリスナーに受け止め、待ち合わせ中なら
     // その場で reject、そうでなければ次の待ち合わせ地点で throw させる
     // （どちらの経路でも下の catch が .tmp を消し、IPC には「DL 失敗」として返る）。
@@ -204,7 +204,7 @@ export function parseTagsCSV(csv: string): TagEntry[] {
 }
 
 // このプロセスで一度ハッシュ検証済みのパス集合。アイドル解放後の再ロードのたびに
-// 600MB の model.onnx を再検証しないためのキャッシュ（初回ロード・新規ダウンロード時は必ず検証する）。
+// 約 360MB の model.onnx を再検証しないためのキャッシュ（初回ロード・新規ダウンロード時は必ず検証する）。
 const verifiedPaths = new Set<string>()
 
 // キャッシュ済みなら SHA-256 を検証し、一致しなければ削除して再取得する。

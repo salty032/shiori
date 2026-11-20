@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode, StorageInfo, LibraryImportMode } from '../types'
 import { space } from '../styles'
-import { formatBytes } from '../utils'
 import { XIcon } from './Icon'
 import SettingsDataTab from './SettingsDataTab'
 import { s } from './settingsStyles'
@@ -112,13 +111,13 @@ export default function SettingsModal(p: Props) {
 
   // 保存場所と使用量。全ファイルを stat するので数万件では数秒かかる。モーダルを開くたびに
   // 走らせると「基本」タブだけ見て閉じる人にも毎回コストがかかるため、実際に数字を出す
-  // タブ（データ・タグ）へ切り替わった最初の一回だけ取りに行く。
+  // タブ（データ）へ切り替わった最初の一回だけ取りに行く。
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [storageLoading, setStorageLoading] = useState(false)
   const [storageFailed, setStorageFailed] = useState(false)
   const storageRequested = useRef(false)
   useEffect(() => {
-    if (activeTab !== 'data' && activeTab !== 'tag') return
+    if (activeTab !== 'data') return
     if (storageRequested.current) return
     storageRequested.current = true
     setStorageLoading(true)
@@ -262,21 +261,21 @@ export default function SettingsModal(p: Props) {
             {activeTab === 'tag' && (
               <>
                 <div style={{ ...s.group, ...s.groupFirst }}>
-                  <div style={s.section}>{t('settings.autoTagging')}</div>
-                  <div style={s.hint}>{t('settings.autoTaggingHint')}</div>
+                  {/* 機能そのものの状態は、見出しの横に札で出す（拡張機能の「受信中」と同じ）。
+                      説明と容量の間に挟むと、何の準備ができたのかが読み取れなかった。 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: space.x8, paddingBottom: 6 }}>
+                    <div style={{ ...s.section, paddingBottom: 0 }}>{t('settings.autoTagging')}</div>
+                    {p.taggerReady && <span style={{ ...s.statusBadge, ...s.statusOk }}>{t('settings.taggerReady')}</span>}
+                    {/* 削除は文字だけの控えめなボタン。めったにしない操作なのに、赤い大きなボタンでタブの中で一番目立ち、
+                        普段使う「既存画像にタグ付け」より強く見えていた。消える容量はデータタブの使用量と、確認の文に出る。 */}
+                    {p.taggerReady && (
+                      <button style={{ ...s.quietBtn, marginLeft: 'auto' }} onClick={p.onTaggerDelete} title={t('settings.deleteModel')}>{t('action.delete')}</button>
+                    )}
+                  </div>
+                  {/* ダウンロードが要る話は、まだダウンロードしていないときだけ出す。済んだ後は実際の容量が状態の行に出る。 */}
+                  <div style={s.hint}>{t('settings.autoTaggingHint')}{!p.taggerReady && t('settings.autoTaggingDownloadHint')}</div>
                   {p.taggerReady ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: space.x8 }}>
-                      {/* 数百MBの実体に「削除」だけがあり、押していいか判断する材料が無かった。
-                          消える容量を削除ボタンと同じ行に出す。 */}
-                      <div style={s.row}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
-                          <span style={{ ...s.statusBadge, ...s.statusOk }}>{t('settings.taggerReady')}</span>
-                          {storage && storage.modelBytes > 0 && (
-                            <span style={s.usageValue}>{formatBytes(storage.modelBytes)}</span>
-                          )}
-                        </div>
-                        <button style={s.deleteBtn} onClick={p.onTaggerDelete}>{t('settings.deleteModel')}</button>
-                      </div>
                       {p.retagProgress ? (
                         <div style={s.progressWrap}>
                           <div style={s.progressBar}>
@@ -308,9 +307,7 @@ export default function SettingsModal(p: Props) {
                       </button>
                     </div>
                   )}
-                </div>
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.sidebarDisplay')}</div>
+                  {/* AI タグをサイドバーに出すかも、自動タグ付けの話なので同じまとまりに置く（見出し 1 つに 1 行だけの組を作らない）。 */}
                   <div style={s.toggleRow}>
                     <div style={s.cardText}>
                       <span style={s.label}>{t('settings.showAiTags')}</span>
