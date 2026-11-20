@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ExtensionTimecode } from '../types'
 import type { SetupGuideState } from '../setupGuideState'
-import { control, font, modal, radius, space, weight } from '../styles'
-import { useFocusTrap } from '../hooks/useFocusTrap'
-import { useLatestRef } from '../hooks/useLatestRef'
+import { control, font, modal as modalStyles, radius, space, weight } from '../styles'
+import { useModal } from '../hooks/useModal'
+import ModalFrame from './ModalFrame'
 import { useT } from '../i18n'
 import { XIcon } from './Icon'
-import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 import { SETUP_STEP_COUNT } from '../setupGuideState'
 
 const EXTENSION_TIMEOUT_MS = 15_000
@@ -23,11 +22,10 @@ type Props = {
 
 export default function SetupGuideModal({ state, captureHotkey, extensionStatus, canStartTour, onStartTour, onChange, onClose }: Props) {
   const { t } = useT()
-  const [closing, setClosing] = useState(false)
   const [now, setNow] = useState(() => Date.now())
-  const panelRef = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
-  useFocusTrap(panelRef, true)
+  // 閉じたら（どの閉じ方でも）案内を見たことにする。
+  const modal = useModal(onClose, { onClosing: () => onChange({ tutorialSeen: true }) })
 
   const extensionConnected = extensionStatus !== null && now - extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
   const completed = Number(state.browserPrepared) + Number(state.extensionReady) + Number(state.firstCaptureDone)
@@ -37,24 +35,6 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-
-  function close(): void {
-    if (closing) return
-    onChange({ tutorialSeen: true })
-    setClosing(true)
-    window.setTimeout(onClose, MODAL_CLOSE_MS)
-  }
-  // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
-  const closeRef = useLatestRef(close)
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent): void => {
-      e.stopPropagation()
-      if (e.key === 'Escape') { e.preventDefault(); closeRef.current() }
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [closeRef])
 
   const steps = [
     {
@@ -98,14 +78,13 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
   ]
 
   return (
-    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={close}>
-      <div ref={panelRef} style={{ ...s.panel, animation: modalPanelAnimation(closing) }} onMouseDown={(e) => e.stopPropagation()} data-modal>
+    <ModalFrame modal={modal} panelStyle={s.panel}>
         <div style={s.header}>
           <div>
             <div style={s.title}>{t('setup.title')}</div>
             <div style={s.subtitle}>{t('setup.progress', { completed, total: SETUP_STEP_COUNT })}</div>
           </div>
-          <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
+          <button ref={closeBtnRef} style={modalStyles.closeBtn} onClick={() => modal.close()} title={t('action.close')}><XIcon size={16} /></button>
         </div>
         <div style={s.content}>
           <div style={s.intro}>{t('setup.intro')}</div>
@@ -126,20 +105,17 @@ export default function SetupGuideModal({ state, captureHotkey, extensionStatus,
             <button style={{ ...s.tourBtn, ...(!canStartTour ? s.tourBtnDisabled : {}) }} disabled={!canStartTour} onClick={onStartTour}>{t('tour.start')}</button>
             <div style={s.tourHint}>{t(canStartTour ? 'tour.startHint' : 'tour.needsItem')}</div>
           </div>
-          <button style={s.closeAction} onClick={close}>{t(completed === 3 ? 'setup.finish' : 'setup.closeForNow')}</button>
+          <button style={s.closeAction} onClick={() => modal.close()}>{t(completed === 3 ? 'setup.finish' : 'setup.closeForNow')}</button>
         </div>
-      </div>
-    </div>
+    </ModalFrame>
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: modal.overlay,
-  panel: { ...modal.panel, width: 620, maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' },
+  panel: { width: 620, maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' },
   header: { flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, padding: '18px 20px 14px', borderBottom: '1px solid var(--border-default)' },
   title: { color: 'var(--text-bright)', fontSize: font.xl, fontWeight: weight.medium, lineHeight: 1.35 },
   subtitle: { marginTop: 3, color: 'var(--text-muted)', fontSize: font.sm, fontWeight: weight.normal },
-  closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   content: { minHeight: 0, overflowY: 'auto', padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: space.x8 },
   intro: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.65, marginBottom: 2 },
   step: { display: 'flex', alignItems: 'flex-start', gap: space.x12, padding: 14, background: 'var(--bg-content)', border: '1px solid var(--border-default)', borderRadius: radius.md },

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { color, control, font, modal, radius, space, weight } from '../styles'
+import { color, control, font, modal as modalStyles, radius, weight } from '../styles'
 import { XIcon } from './Icon'
-import { useFocusTrap } from '../hooks/useFocusTrap'
+import ModalFrame from './ModalFrame'
+import { useModal } from '../hooks/useModal'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { useT } from '../i18n'
-import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
 type Props = {
   title: string
@@ -27,10 +27,25 @@ export default function ConfirmDialog({
 }: Props) {
   const { t } = useT()
   const [busy, setBusy] = useState(false)
-  const [closing, setClosing] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const busyRef = useLatestRef(busy)
   const cancelBtnRef = useRef<HTMLButtonElement>(null)
-  useFocusTrap(panelRef, true)
+  // 処理中は閉じない（Escape・幕のクリックとも）。キーも受け取らない。
+  const modal = useModal(onClose, {
+    canClose: () => !busyRef.current,
+    onKey: (e) => {
+      if (busyRef.current) return true
+      if (e.key === 'Enter' && !e.isComposing) {
+        // Tab で「キャンセル」へフォーカスしてから Enter しても確定が走ってしまわないよう、
+        // フォーカスがボタン上にあるときはブラウザのネイティブな Enter→click に任せる
+        // （そのボタン自身の onClick が正しく呼ばれる）。
+        if (document.activeElement instanceof HTMLButtonElement) return true
+        e.preventDefault()
+        void confirmRef.current()
+        return true
+      }
+      return false
+    },
+  })
 
   useEffect(() => {
     // Enter連打による誤確定を避けるため、危険操作を伴うダイアログでは既定フォーカスを
@@ -38,80 +53,41 @@ export default function ConfirmDialog({
     cancelBtnRef.current?.focus()
   }, [])
 
-  function close(): void {
-    if (closing) return
-    setClosing(true)
-    window.setTimeout(onClose, MODAL_CLOSE_MS)
-  }
-
-  // キーの受け口からは常に最新の閉じる・確定を呼ぶ（どちらも下で宣言）。
-  const closeRef = useLatestRef(close)
-  const confirmRef = useLatestRef(handleConfirm)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent): void => {
-      e.stopPropagation()
-      if (busy) return
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeRef.current()
-        return
-      }
-      if (e.key === 'Enter' && !e.isComposing) {
-        // Tab で「キャンセル」へフォーカスしてから Enter しても確定が走ってしまわないよう、
-        // フォーカスがボタン上にあるときはブラウザのネイティブな Enter→click に任せる
-        // （そのボタン自身の onClick が正しく呼ばれる）。
-        if (document.activeElement instanceof HTMLButtonElement) return
-        e.preventDefault()
-        void confirmRef.current()
-      }
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [busy, closeRef, confirmRef])
-
   async function handleConfirm(): Promise<void> {
     if (busy) return
     setBusy(true)
     try {
       await onConfirm()
-      close()
+      modal.close()
     } finally {
       setBusy(false)
     }
   }
+  const confirmRef = useLatestRef(handleConfirm)
 
   return (
-    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={() => { if (!busy) close() }}>
-      <div style={{ ...s.panel, animation: modalPanelAnimation(closing) }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
-        <div style={s.header}>
-          <div style={s.title}>{title}</div>
-          <button style={s.closeBtn} onClick={close} disabled={busy} title={t('action.close')}><XIcon size={16} /></button>
-        </div>
-        <div style={s.body}>{message}</div>
-        <div style={s.actions}>
-          <button ref={cancelBtnRef} style={s.cancelBtn} onClick={close} disabled={busy}>{cancelLabel ?? t('action.cancel')}</button>
-          <button
-            style={{ ...s.confirmBtn, ...(danger ? s.confirmDanger : s.confirmPrimary), opacity: busy ? 0.65 : 1 }}
-            onClick={handleConfirm}
-            disabled={busy}
-          >
-            {busy ? t('state.working') : confirmLabel}
-          </button>
-        </div>
+    <ModalFrame modal={modal}>
+      <div style={modalStyles.header}>
+        <div style={modalStyles.title}>{title}</div>
+        <button style={modalStyles.closeBtn} onClick={() => modal.close()} disabled={busy} title={t('action.close')}><XIcon size={16} /></button>
       </div>
-    </div>
+      <div style={s.body}>{message}</div>
+      <div style={modalStyles.actions}>
+        <button ref={cancelBtnRef} style={modalStyles.cancelBtn} onClick={() => modal.close()} disabled={busy}>{cancelLabel ?? t('action.cancel')}</button>
+        <button
+          style={{ ...s.confirmBtn, ...(danger ? s.confirmDanger : s.confirmPrimary), opacity: busy ? 0.65 : 1 }}
+          onClick={handleConfirm}
+          disabled={busy}
+        >
+          {busy ? t('state.working') : confirmLabel}
+        </button>
+      </div>
+    </ModalFrame>
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: modal.overlay,
-  panel: modal.panel,
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, padding: '18px 18px 12px', borderBottom: '1px solid var(--border-default)' },
-  title: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.xl, fontWeight: weight.medium, lineHeight: 1.35 },
-  closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   body: { padding: '16px 18px 18px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.65, whiteSpace: 'pre-wrap' },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: space.x8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
-  cancelBtn: { height: control.lg, padding: '0 14px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
   confirmBtn: { height: control.lg, padding: '0 14px', border: '1px solid', borderRadius: radius.md, cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
   confirmPrimary: { background: 'rgba(var(--accent-rgb), 0.16)', borderColor: 'rgba(var(--accent-rgb), 0.48)', color: 'var(--accent-text)' },
   confirmDanger: { background: 'rgba(var(--danger-rgb), 0.12)', borderColor: color.dangerBorder, color: color.danger },

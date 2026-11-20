@@ -5,13 +5,13 @@ import { formatBytes } from '../utils'
 import { XIcon } from './Icon'
 import SettingsDataTab from './SettingsDataTab'
 import { s } from './settingsStyles'
-import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useModal } from '../hooks/useModal'
+import ModalFrame from './ModalFrame'
 import { useLatestRef } from '../hooks/useLatestRef'
 import HotkeyField from './HotkeyField'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
-import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
 export { s } from './settingsStyles'
 
@@ -103,17 +103,10 @@ export default function SettingsModal(p: Props) {
   // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
   const extensionVersionMismatch = extensionConnected && p.extensionStatus?.data.versionMismatch === true
 
-  // Esc の受け口から常に最新の閉じる処理を呼ぶ（closeSettings は下で宣言）。
-  const closeSettingsRef = useLatestRef(closeSettings)
-  // モーダル表示中はすべてのキーイベントの window 伝搬を遮断する
-  useEffect(() => {
-    const block = (e: KeyboardEvent): void => {
-      e.stopPropagation()
-      if (e.key === 'Escape' && !captureKeyWaiting && !clipKeyWaiting) closeSettingsRef.current()
-    }
-    document.addEventListener('keydown', block)
-    return () => document.removeEventListener('keydown', block)
-  }, [captureKeyWaiting, clipKeyWaiting, closeSettingsRef])
+  // Escape で閉じるのは、ホットキーの欄がキーを待っていないときだけ（待っている間の Escape は入力の取り消し）。
+  const keyWaitingRef = useLatestRef(captureKeyWaiting || clipKeyWaiting)
+  const modal = useModal(p.onClose, { canClose: () => !keyWaitingRef.current })
+  const closeSettings = (): void => modal.close()
 
   const [activeTab, setActiveTab] = useState<TabId>('general')
 
@@ -138,43 +131,8 @@ export default function SettingsModal(p: Props) {
       .finally(() => setStorageLoading(false))
   }, [activeTab])
 
-  const [closing, setClosing] = useState(false)
-
-  function closeSettings(): void {
-    if (closing) return
-    setClosing(true)
-    window.setTimeout(p.onClose, MODAL_CLOSE_MS)
-  }
-
-  const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(panelRef, true)
-
-  // 設定を開いている間、パネルの外で回したホイールは黙って捨てる。
-  //
-  // 幕（overlay）を敷いているのにカーソルを裏へ置いて回すと、背後の一覧が動いていた。
-  // overscroll-behavior はスクロールする箱にしか効かず、幕そのものはスクロールしないので
-  // ここには届かない。**どの箱が動いたかを突き止めて塞ぐのではなく、「パネルの外では
-  // 何も動かない」という結果の側で決める**——背後には一覧・サイドバー・右パネルと
-  // スクロールする箱が3つあり、1つずつ塞ぐと次に足した箱で同じことが起きる。
-  //
-  // capture かつ passive: false で登録する。React が付けるホイールは passive なので、
-  // onWheel prop 側では preventDefault が効かない（Viewer.tsx と同じ理由）。
-  useEffect(() => {
-    const block = (e: WheelEvent): void => {
-      // 通す条件は「設定のパネルの中か」ではなく「どれかのモーダルの中か」。設定の上に
-      // さらにモーダルが乗ることがあり（「変更点」）、自分のパネルだけを通していると、
-      // その中の一覧がホイールで動かなくなる。目印は data-modal——背後の一覧・サイドバー・
-      // 右パネルには付いていないので、幕の裏が動かないことは変わらない。
-      if ((e.target as HTMLElement | null)?.closest?.('[data-modal]')) return
-      e.preventDefault()
-    }
-    document.addEventListener('wheel', block, { passive: false, capture: true })
-    return () => document.removeEventListener('wheel', block, { capture: true })
-  }, [])
-
   return (
-    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={closeSettings}>
-      <div style={{ ...s.panel, animation: modalPanelAnimation(closing) }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
+    <ModalFrame modal={modal} overlayStyle={s.overlay} panelStyle={s.panel}>
         <div style={s.header}>
           <span style={s.title}>{t('menu.settings')}</span>
           <button style={s.close} onClick={closeSettings} title={t('action.close')}><XIcon size={17} /></button>
@@ -417,7 +375,6 @@ export default function SettingsModal(p: Props) {
 
           </div>
         </div>
-      </div>
-    </div>
+    </ModalFrame>
   )
 }

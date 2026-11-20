@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { control, font, modal, radius, space, weight } from '../styles'
+import { control, font, modal as modalStyles, radius, space, weight } from '../styles'
 import { ChevronDownIcon, XIcon } from './Icon'
-import { useFocusTrap } from '../hooks/useFocusTrap'
-import { useLatestRef } from '../hooks/useLatestRef'
+import ModalFrame from './ModalFrame'
+import { useModal } from '../hooks/useModal'
 import { useT } from '../i18n'
 import type { ReleaseNoteEntry } from '../../../shared/releaseNotes'
-import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
 
 type Props = {
   entries: ReleaseNoteEntry[]
@@ -17,52 +16,27 @@ type Props = {
 // 題と本文の間に挟まり、同じ版番号が 2 行続く。
 export default function WhatsNewModal({ entries, onClose }: Props) {
   const { t } = useT()
-  const [closing, setClosing] = useState(false)
   // 先頭（いちばん新しい版）だけ開いておく。全部開くと、いちばん読みたい版のうしろに
   // 過去の版が全部つながって出る（1.2.0 だけで 13 項目ある）。
   const [open, setOpen] = useState<string[]>(entries[0] ? [entries[0].version] : [])
-  const panelRef = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
-  useFocusTrap(panelRef, true)
+  const modal = useModal(onClose)
 
   useEffect(() => {
     closeBtnRef.current?.focus()
   }, [])
 
-  function close(): void {
-    if (closing) return
-    setClosing(true)
-    window.setTimeout(onClose, MODAL_CLOSE_MS)
-  }
-  // キー・クリックの受け口は付けっぱなしにし、閉じる処理は常に最新のものを呼ぶ。
-  const closeRef = useLatestRef(close)
-
   function toggle(version: string): void {
     setOpen((cur) => (cur.includes(version) ? cur.filter((v) => v !== version) : [...cur, version]))
   }
 
-  useEffect(() => {
-    // 背後のグリッド（useSelection の window keydown ハンドラ）に Ctrl+A/Escape/Ctrl+Z 等が
-    // 素通りしないよう、ConfirmDialog と同様に document capture で全キーを止める。
-    const handler = (e: KeyboardEvent): void => {
-      e.stopPropagation()
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeRef.current()
-      }
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [closeRef])
-
   const single = entries.length === 1
 
   return (
-    <div style={{ ...s.overlay, animation: modalOverlayAnimation(closing) }} onMouseDown={close}>
-      <div style={{ ...s.panel, animation: modalPanelAnimation(closing) }} ref={panelRef} onMouseDown={(e) => e.stopPropagation()} data-modal>
-        <div style={s.header}>
-          <div style={s.title}>{single ? t('whatsNew.title', { version: entries[0].version }) : t('whatsNew.historyTitle')}</div>
-          <button ref={closeBtnRef} style={s.closeBtn} onClick={close} title={t('action.close')}><XIcon size={16} /></button>
+    <ModalFrame modal={modal}>
+        <div style={modalStyles.header}>
+          <div style={modalStyles.title}>{single ? t('whatsNew.title', { version: entries[0].version }) : t('whatsNew.historyTitle')}</div>
+          <button ref={closeBtnRef} style={modalStyles.closeBtn} onClick={() => modal.close()} title={t('action.close')}><XIcon size={16} /></button>
         </div>
         <div style={s.body}>
           {entries.map((entry) => (
@@ -85,25 +59,18 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
             </div>
           ))}
         </div>
-        <div style={s.actions}>
-          <button style={s.closeAction} onClick={close}>{t('action.close')}</button>
+        <div style={modalStyles.actions}>
+          <button style={s.closeAction} onClick={() => modal.close()}>{t('action.close')}</button>
         </div>
-      </div>
-    </div>
+    </ModalFrame>
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: modal.overlay,
-  panel: modal.panel,
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, padding: '18px 18px 12px', borderBottom: '1px solid var(--border-default)' },
-  title: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.xl, fontWeight: weight.medium, lineHeight: 1.35 },
-  closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
   body: { maxHeight: '50vh', overflowY: 'auto', padding: '4px 0' },
   versionBtn: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', padding: '9px 18px', background: 'none', border: 'none', color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.base, fontWeight: weight.medium, textAlign: 'left' },
   chevron: { display: 'inline-flex', color: 'var(--text-secondary)', transition: 'transform 0.12s ease-out' },
   list: { margin: 0, padding: '4px 18px 14px 34px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75 },
   item: { marginBottom: 4 },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: space.x8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
   closeAction: { height: control.lg, padding: '0 14px', background: 'rgba(var(--accent-rgb), 0.16)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--accent-text)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium },
 }

@@ -121,14 +121,19 @@ export const color = {
   dangerBg: 'rgba(var(--danger-rgb), 0.08)',
 } as const
 
-// ConfirmDialog/WhatsNewModal/SettingsModal で重複していた overlay/panel の基本形を集約。
+// モーダルの幕と枠の基本形（ModalFrame が使う）と、見出し・下の帯の共通の見た目。
 // スクリム濃度・zIndex・panel のサイズは各モーダルでスプレッド上書きする前提（C-1）。
 export const modal: Record<string, CSSProperties> = {
-  // overscrollBehavior は全モーダル共通で contain。前面に何か出している間、ホイールが
-  // 背後の一覧やサイドバーへ渡って裏が動くのを止める（設定・変更点・確認ダイアログの
-  // どれでも同じことが起きるので、器の側で 1 回だけ決める）。
+  // 幕はスクロールしないので、overscrollBehavior だけでは背後の一覧が動くのを止められない。
+  // 止めているのは useModal（開いている間、モーダルの外のホイールを捨てる）。
   overlay: { position: 'fixed' as const, inset: 0, zIndex: 7000, overscrollBehavior: 'contain' as const, background: 'rgba(var(--scrim-rgb), 0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
   panel: { width: 420, maxWidth: 'calc(100vw - 48px)', background: 'var(--bg-modal)', border: '1px solid var(--border-default)', borderRadius: radius.lg, boxShadow: '0 24px 70px rgba(var(--scrim-rgb), 0.62)', overflow: 'hidden' },
+  // 見出し（題と閉じるボタン）・下の帯・キャンセルボタン。確認・選択・変更点・初回の案内で同じ見た目。
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, padding: '18px 18px 12px', borderBottom: '1px solid var(--border-default)' },
+  title: { minWidth: 0, color: 'var(--text-bright)', fontSize: font.xl, fontWeight: weight.medium, lineHeight: 1.35 },
+  closeBtn: { flexShrink: 0, width: control.lg, height: control.lg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--surface-rgb), 0.5)', border: '1px solid transparent', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 },
+  actions: { display: 'flex', justifyContent: 'flex-end', gap: space.x8, padding: '12px 18px 16px', background: 'var(--bg-content)', borderTop: '1px solid var(--border-default)' },
+  cancelBtn: { height: control.lg, padding: '0 14px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' },
 }
 
 // サムネイル 1 枚の「絵より下と外」の合計。App.tsx が仮想リストの行の高さを出すのに使う。
