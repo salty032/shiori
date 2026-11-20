@@ -44,6 +44,12 @@ export const en: Record<keyof typeof ja, string> = {
     'If you stop it, or it fails, nothing changes — the save location and your records stay as they are.',
   'dialog.moveCaptures.proceed': 'Move',
   'dialog.importFolder': 'Choose a folder to import',
+  'dialog.importLibrary.title': 'Import library',
+  'dialog.importLibrary.message': 'Choose how to import.',
+  'dialog.importLibrary.restore': 'Restore as my library',
+  'dialog.importLibrary.restoreHint': 'Restores everything exactly as it was when exported.\nUse this when moving to a new PC.',
+  'dialog.importLibrary.receive': 'Add as received items',
+  'dialog.importLibrary.receiveHint': 'Adds everything as imported items, dated today.\nUse this for folders someone else gave you.',
   'list.separator': ', ',
 
   // ── Running task labels (shown in update/quit dialogs) ───────
@@ -605,7 +611,7 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
   'settings.videoExportFormatHint': 'webm: written as recorded / mp4: converted to H.264 (slight quality loss)',
-  'settings.exportHint': 'Saves your captures, tags, notes and smart folders to a folder (imported images are not included).',
+  'settings.exportHint': 'Saves your captures and imported items to a folder, together with tags, notes, timesheets and smart folders.',
   'settings.stoppedCount.one': 'Stopped after {count} item',
   'settings.stoppedCount.other': 'Stopped after {count} items',
   'settings.exportFailed': 'Export failed',

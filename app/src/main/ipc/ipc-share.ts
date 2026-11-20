@@ -10,7 +10,7 @@ import { loadSettings, saveSettings, smartFolders } from '../system/settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor, captureFileName } from '../system/paths'
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../../shared/api'
-import { MAX_SHARE_FRAME_TABLE_BYTES, buildShareEntry, parseShareEntry } from './share-entry'
+import { MAX_SHARE_FRAME_TABLE_BYTES, buildShareEntry, parseShareEntry, type ImportMode } from './share-entry'
 import { extractThumb, getVideoMeta } from '../video/ffmpeg'
 import { importDurationError } from './ipc-import'
 import { registerCapturedMedia } from '../capture/captured-media'
@@ -40,6 +40,12 @@ async function createUniqueExportDir(parent: string, timestamp: number): Promise
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
     }
   }
+}
+
+// 読み込み方は画面で聞いてから渡される（SettingsDataTab）。見知らぬ値は取り込まない——
+// 黙ってどちらかに倒すと、自分のものと人のものが混ざるか、日付が全部今日になる。
+function importModeOf(value: unknown): ImportMode | null {
+  return value === 'restore' || value === 'receive' ? value : null
 }
 
 export function registerShareHandlers(): void {
@@ -131,7 +137,9 @@ export function registerShareHandlers(): void {
 
   handleTrusted(CH.shareExportCancel, () => { shareExport.cancel() })
 
-  handleTrusted(CH.shareImport, async () => {
+  handleTrusted(CH.shareImport, async (_event, rawMode: unknown) => {
+    const mode = importModeOf(rawMode)
+    if (!mode) return { canceled: true }
     // shareExport/imagesExport と同じ理由（R-5）: renderer 側のボタン disable だけでは
     // 並行呼び出しを防げず、同じフォルダの画像が二重登録されうる（画像には重複チェックが
     // ないため、スマートフォルダと違って静かに重複が積み上がる）（D-1）。
@@ -169,7 +177,7 @@ export function registerShareHandlers(): void {
         let entryFile: string | null = null
         try {
           const line = lines[i]
-          const parsed = parseShareEntry(line, Date.now())
+          const parsed = parseShareEntry(line, Date.now(), mode)
           if (parsed === null) continue
           if ('error' in parsed) { errors.push(parsed.error); continue }
           entryFile = parsed.file
@@ -253,7 +261,7 @@ export function registerShareHandlers(): void {
               duration,
               fps,
               thumb_path: thumbDest,
-              source: 'import',
+              source: parsed.source,
             },
             filePath: destFile,
             thumbPath: thumbDest,

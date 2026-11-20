@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Settings, ExtensionTimecode, StorageInfo } from '../types'
+import type { Settings, ExtensionTimecode, StorageInfo, LibraryImportMode } from '../types'
 import { color, font, space } from '../styles'
 import { buildAccelerator, formatBytes } from '../utils'
 import { normalizeCaptureHotkey } from '../../../shared/hotkey'
@@ -41,7 +41,7 @@ type Props = {
   onTaggerDelete: () => void
   onTaggerRetagAll: () => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
-  onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
   /** 「情報」タブから変更点モーダルを開く（設定画面自身は中身を持たない） */
   onShowWhatsNew: (entries: ReleaseNoteEntry[]) => void
 }

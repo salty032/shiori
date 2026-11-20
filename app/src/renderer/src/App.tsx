@@ -785,8 +785,8 @@ export default function App() {
             onTaggerRetagAll={() => window.api.taggerRetagAll()}
 
             onShareExport={() => window.api.shareExport()}
-            onShareImport={async () => {
-              const result = await window.api.shareImport()
+            onShareImport={async (mode) => {
+              const result = await window.api.shareImport(mode)
               // shareImport は capture:done を送らないため、成功しても取り込み内容が
               // グリッド/タイムライン/サイドバー集計のどれにも反映されない（B3/U-1）。
               // importFiles と同様、完了後にここで明示的に再取得する。

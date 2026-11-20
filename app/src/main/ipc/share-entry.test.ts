@@ -60,12 +60,13 @@ describe('parseShareEntry', () => {
     const item = {
       url: 'https://example.com/watch', current_time: 12.5, title: 'title', memo: 'memo',
       captured_at: 1_700_000_000_000, width: 1280, height: 720, media_type: 'video' as const,
-      duration: 10, fps: 23.976, ambiguous_frames: 3, unreported_frames: 1, manualTags: ['tag_a']
+      duration: 10, fps: 23.976, ambiguous_frames: 3, unreported_frames: 1, manualTags: ['tag_a'],
+      source: 'capture' as const
     }
     const line = JSON.stringify(buildShareEntry(item, { file: 'clip.webm', thumb: 'clip.png', frameTable: 'clip.webm.frames.json', timesheet: '[[0,"1"],[3]]' }))
     expect(parseShareEntry(line, NOW)).toEqual({
       file: 'clip.webm', ext: '.webm', thumbFile: 'clip.png', thumbExt: '.png',
-      capturedAt: NOW, originalCapturedAt: item.captured_at,
+      capturedAt: NOW, originalCapturedAt: item.captured_at, source: 'import',
       title: 'title', currentTime: 12.5, url: 'https://example.com/watch', tags: ['tag_a'], memo: 'memo',
       mediaType: 'video', fps: 23.976, width: 1280, height: 720,
       frameTableData: null, frameTableFile: 'clip.webm.frames.json', ambiguousFrames: 3,
@@ -77,12 +78,12 @@ describe('parseShareEntry', () => {
     const item = {
       url: null, current_time: null, title: null, memo: null, captured_at: 1_700_000_000_000,
       width: null, height: null, media_type: 'image' as const, duration: null, fps: null,
-      ambiguous_frames: null, unreported_frames: null, manualTags: []
+      ambiguous_frames: null, unreported_frames: null, manualTags: [], source: 'capture' as const
     }
     const line = JSON.stringify(buildShareEntry(item, { file: 'a.png', thumb: null, frameTable: null, timesheet: '[[0]]' }))
     expect(parseShareEntry(line, NOW)).toEqual({
       file: 'a.png', ext: '.png', thumbFile: null, thumbExt: null,
-      capturedAt: NOW, originalCapturedAt: item.captured_at,
+      capturedAt: NOW, originalCapturedAt: item.captured_at, source: 'import',
       title: null, currentTime: null, url: null, tags: [], memo: null,
       mediaType: 'image', fps: null, width: null, height: null,
       frameTableData: null, frameTableFile: null, ambiguousFrames: null, timesheetData: null
@@ -160,12 +161,48 @@ describe('parseShareEntry', () => {
     })
   })
 
+  // PC を移したとき：撮ったものは撮ったもの、取り込んだものは取り込んだもののまま、日時も書き出したときのまま戻す。
+  describe('自分のライブラリとして戻す', () => {
+    const base = {
+      url: null, current_time: null, title: null, memo: null, width: null, height: null,
+      media_type: 'image' as const, duration: null, fps: null, ambiguous_frames: null, unreported_frames: null, manualTags: [],
+    }
+    const roundTrip = (item: Parameters<typeof buildShareEntry>[0], mode: 'restore' | 'receive') =>
+      parseShareEntry(JSON.stringify(buildShareEntry(item, { file: 'a.png', thumb: null, frameTable: null, timesheet: null })), NOW, mode) as
+        { capturedAt: number; originalCapturedAt: number | null; source: string }
+
+    it('撮ったものは撮ったものとして、撮った時刻のまま戻す', () => {
+      const item = { ...base, captured_at: 1_600_000_000_000, source: 'capture' as const }
+      expect(roundTrip(item, 'restore')).toMatchObject({ capturedAt: 1_600_000_000_000, originalCapturedAt: null, source: 'capture' })
+    })
+
+    it('取り込んだものは取り込んだものとして、取り込んだ時刻と元の撮影時刻のまま戻す', () => {
+      const item = { ...base, captured_at: 1_650_000_000_000, original_captured_at: 1_500_000_000_000, source: 'import' as const }
+      expect(roundTrip(item, 'restore')).toMatchObject({ capturedAt: 1_650_000_000_000, originalCapturedAt: 1_500_000_000_000, source: 'import' })
+    })
+
+    it('受け取るときは、取り込んだものでも元の撮影時刻を残し、今日の取り込みとして並べる', () => {
+      const item = { ...base, captured_at: 1_650_000_000_000, original_captured_at: 1_500_000_000_000, source: 'import' as const }
+      expect(roundTrip(item, 'receive')).toMatchObject({ capturedAt: NOW, originalCapturedAt: 1_500_000_000_000, source: 'import' })
+    })
+
+    it('種類の無い古い書き出しは、撮ったものとして戻す（古い版は撮ったものしか書き出さなかった）', () => {
+      const parsed = parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: 1_600_000_000_000 }), NOW, 'restore')
+      expect(parsed).toMatchObject({ capturedAt: 1_600_000_000_000, source: 'capture' })
+    })
+
+    it('時刻が壊れていたら、戻すときも取り込んだ時刻にする', () => {
+      const parsed = parseShareEntry(JSON.stringify({ file: 'a.png', captured_at: -1, origin: 'capture' }), NOW, 'restore')
+      expect(parsed).toMatchObject({ capturedAt: NOW, source: 'capture' })
+    })
+  })
+
   // 打った位置は表の行で覚えているので、表と切り離されたタイムシートは書き出さない。
   it('コマの表を書き出せなかった動画には、タイムシートを付けない', () => {
     const item = {
       url: null, current_time: null, title: null, memo: null, captured_at: 1_700_000_000_000,
       width: null, height: null, media_type: 'video' as const, duration: 10, fps: 24,
-      ambiguous_frames: null, unreported_frames: null, manualTags: []
+      ambiguous_frames: null, unreported_frames: null, manualTags: [], source: 'capture' as const
     }
     const entry = buildShareEntry(item, { file: 'clip.webm', thumb: null, frameTable: null, timesheet: '[[0]]' })
     expect(entry.timesheet).toBeUndefined()

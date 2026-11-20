@@ -7,13 +7,14 @@ import { basename, extname } from 'path'
 import { MAX_TAG_LENGTH, MAX_TEXT_LENGTH, normalizeTagName } from './ipc-validation'
 import { MAX_MEMO_LENGTH } from '../../shared/constants'
 import { IMAGE_EXTS, VIDEO_EXTS } from '../system/media-exts'
-import type { ImageRow } from '../../shared/types'
+import type { ImageRow, LibraryImportMode } from '../../shared/types'
 
 
-// 取り込んだ素材の captured_at は取り込み時刻にそろえ、metadata.jsonl の値は
-// original_captured_at として別に持つ（画面には出していない）。
-// そろえないと、他人からもらった素材が自分のキャプチャと日付順で混ざり、一覧のどこに
-// 何が増えたのか分からなくなる。
+// 読み込み方は取り込む人が選ぶ（ImportMode）。
+// 受け取った素材として取り込むときは、captured_at を取り込み時刻にそろえ、元の撮影時刻は
+// original_captured_at として別に持つ（画面には出していない）。そろえないと、他人からもらった素材が
+// 自分のキャプチャと日付順で混ざり、一覧のどこに何が増えたのか分からなくなる。
+// 自分のライブラリとして戻すときは、書き出したときの日時と「撮った／取り込んだ」をそのまま戻す。
 //
 // 元の値は手編集・破損で異常値（負値・極端な未来値等）が入りうるので、妥当な epoch 範囲
 // （0〜2100年）から外れたものは「元は不明」として捨てる。並び順に使う captured_at は
@@ -35,6 +36,10 @@ export interface ShareEntry {
   tags: string[]
   memo: string | null
   captured_at: number
+  // 書き出した人が自分で撮ったか、取り込んだか。無い行（古い版の書き出し）は撮ったものだけだった。
+  origin?: 'capture' | 'import'
+  // 取り込んだ素材の元の撮影時刻（書き出した人のライブラリの original_captured_at）。
+  original_captured_at?: number
   width?: number
   height?: number
   media_type?: 'video'
@@ -53,11 +58,11 @@ export interface ShareEntry {
 // 読む側はどの項目も壊れている前提で受ける。frame_table は古い版がコマ表を行の中に入れていた頃の項目。
 type RawShareEntry = { [K in keyof ShareEntry]?: unknown } & { frame_table?: unknown }
 
-// 書き出しは自分で撮った素材だけ（listImagesForExport が source='capture' に絞る）なので、
-// captured_at は常に自分が撮った時刻。取り込んだ素材の original_captured_at がここへ回ることは無い。
+// 撮った素材も取り込んだ素材も書き出す。どちらだったか（origin）と元の撮影時刻を一緒に書き、
+// 戻すときにライブラリをエクスポートしたときのままにできるようにする。
 export function buildShareEntry(
   item: Pick<ImageRow,
-    'url' | 'current_time' | 'title' | 'memo' | 'captured_at' | 'width' | 'height' |
+    'url' | 'current_time' | 'title' | 'memo' | 'captured_at' | 'original_captured_at' | 'source' | 'width' | 'height' |
     'media_type' | 'duration' | 'fps' | 'ambiguous_frames' | 'unreported_frames'> & { manualTags: string[] },
   files: { file: string; thumb: string | null; frameTable: string | null; timesheet: string | null }
 ): ShareEntry {
@@ -71,6 +76,8 @@ export function buildShareEntry(
     tags: item.manualTags,
     memo: item.memo,
     captured_at: item.captured_at,
+    origin: item.source,
+    ...(item.original_captured_at != null ? { original_captured_at: item.original_captured_at } : {}),
     ...(item.width != null ? { width: item.width } : {}),
     ...(item.height != null ? { height: item.height } : {}),
     ...(item.media_type === 'video' ? {
@@ -108,16 +115,20 @@ function optionalNonNegativeInteger(value: unknown): number | null {
     : null
 }
 
+export type ImportMode = LibraryImportMode
+
 interface ParsedShareEntry {
   file: string
   ext: string
   thumbFile: string | null
   thumbExt: string | null
-  // 取り込み時刻。captured_at はこれにそろえる（他人の素材が自分のキャプチャと日付順で
-  // 混ざらないように）。
+  // 一覧の並びに使う時刻。受け取るときは取り込み時刻、戻すときは書き出したときの値（壊れていれば取り込み時刻）。
   capturedAt: number
-  // metadata.jsonl に入っていた送り主側の取得時間。壊れた値・そもそも無い行では null。
+  // 元の撮影時刻。受け取るときは送り主側でいちばん元の時刻、戻すときは書き出したときの original_captured_at。
+  // 壊れた値・そもそも無い行では null。
   originalCapturedAt: number | null
+  // 登録するときの種類。受け取るときは常に取り込み、戻すときは書き出したときのまま。
+  source: 'capture' | 'import'
   title: string | null
   currentTime: number | null
   url: string | null
@@ -137,7 +148,7 @@ interface ParsedShareEntry {
 
 // 戻り値: 成功時は ParsedShareEntry、検証エラー時は { error }、file フィールドが
 // そもそも無い行（新形式にない古いバージョン等）は元の実装と同じくエラー報告なしで null。
-export function parseShareEntry(line: string, now: number): ParsedShareEntry | { error: string } | null {
+export function parseShareEntry(line: string, now: number, mode: ImportMode = 'receive'): ParsedShareEntry | { error: string } | null {
   let entry: RawShareEntry
   try {
     const parsed: unknown = JSON.parse(line)
@@ -180,13 +191,18 @@ export function parseShareEntry(line: string, now: number): ParsedShareEntry | {
     ? [...new Set((entry.tags as unknown[]).map((t) => normalizeTagName(t, MAX_TAG_LENGTH)).filter((t): t is string => t != null))]
     : []
 
+  const sentCapturedAt = isValidCapturedAt(entry.captured_at) ? entry.captured_at : null
+  const sentOriginal = isValidCapturedAt(entry.original_captured_at) ? entry.original_captured_at : null
+  const restore = mode === 'restore'
+
   return {
     file: safeFile,
     ext,
     thumbFile,
     thumbExt,
-    capturedAt: now,
-    originalCapturedAt: isValidCapturedAt(entry.captured_at) ? entry.captured_at : null,
+    capturedAt: restore ? sentCapturedAt ?? now : now,
+    originalCapturedAt: restore ? sentOriginal : sentOriginal ?? sentCapturedAt,
+    source: restore ? (entry.origin === 'import' ? 'import' : 'capture') : 'import',
     title: typeof entry.title === 'string' ? entry.title.slice(0, MAX_TEXT_LENGTH) || null : null,
     currentTime: typeof entry.current_time === 'number' && Number.isFinite(entry.current_time) ? entry.current_time : null,
     url: typeof entry.url === 'string' ? entry.url : null,

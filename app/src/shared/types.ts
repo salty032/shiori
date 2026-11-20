@@ -183,10 +183,17 @@ export type ChooseCaptureRootResult =
   // moved は移したファイルの数、missing は元が既に無くて飛ばした数（アプリの外で
   // 消されたもの）。移すものが無ければどちらも 0 で、保存先だけが変わる。
   | { ok: true; path: string; moved: number; missing: number }
+  // 移すものがあるので、画面で確かめてから moveCaptureRoot(path) を呼ぶ。**聞かずに移さない**——
+  // 実体のコピーなので分単位かかり、移動先に 2 倍の空きが要る。
+  | { ok: false; reason: 'needs-confirm'; path: string; count: number; bytes: number }
   | { ok: false; reason: 'canceled' | 'invalid' | 'unwritable' | 'move-canceled' | 'move-failed' }
   // 移動先に同じ名前のファイルがあって止めた場合。**どれとぶつかったかを画面に出す**——
   // 「移動できませんでした」だけでは、空きも権限も足りているのに直しようがない。
   | { ok: false; reason: 'move-conflict'; conflictPath: string }
+
+// ライブラリのインポートの読み込み方。PC を移したときは自分のライブラリとして戻し（restore）、
+// 人からもらったときは受け取った素材として取り込む（receive）。**利用者が選ぶ**（勝手に決めない）。
+export type LibraryImportMode = 'restore' | 'receive'
 
 // sticky: 閉じるまで消さない（ブラウザに出せなかった失敗など、見逃すと後から気づけない知らせ）。
 export type AppNotice = { level: 'info' | 'warning' | 'error'; message: string; sticky?: boolean }

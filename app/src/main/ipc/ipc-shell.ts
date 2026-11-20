@@ -5,7 +5,7 @@
 // 実体だけ（resolveRealCapturePath）。ここを緩めると、renderer から任意の場所を
 // 開かせられる経路になる。
 import { BrowserWindow, shell } from 'electron'
-import { showMessageBoxOver, showOpenDialogOver } from '../system/dialogs'
+import { showOpenDialogOver } from '../system/dialogs'
 import { mkdir, stat, unlink, writeFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { CH } from '../../shared/api'
@@ -22,7 +22,6 @@ import { exclusiveTask } from '../system/exclusive-task'
 import { sendToRenderer } from '../system/windows'
 import { loadSettings, saveSettings } from '../system/settings'
 import { t } from '../system/i18n'
-import { formatBytes } from '../../shared/format'
 import type { ChooseCaptureRootResult } from '../../shared/types'
 
 // 保存先の変更（選ぶ → 確かめる → 移す）を丸ごと 1 つで排他する。移している最中にもう一度
@@ -49,25 +48,40 @@ function shouldSendProgress(current: number, total: number): boolean {
   return current === 1 || current === total || current % Math.max(1, Math.floor(total / 100)) === 0
 }
 
-async function confirmMove(
-  parent: BrowserWindow | null,
-  count: number,
-  bytes: number,
-  dest: string
-): Promise<boolean> {
-  const options = {
-    type: 'question' as const,
-    buttons: [t('dialog.moveCaptures.proceed'), t('action.cancel')],
-    defaultId: 0,
-    cancelId: 1,
-    title: t('dialog.moveCaptures.title'),
-    message: t('dialog.moveCaptures.message', { count: String(count), size: formatBytes(bytes), dest }),
-    detail: t('dialog.moveCaptures.detail'),
+// 選んだ場所を保存先にできるか。**実際に 1 ファイル書いて消す**——存在するかどうかだけでは、
+// 読み取り専用の場所や権限の無いフォルダを見分けられない。
+async function rootProblem(chosen: string): Promise<'invalid' | 'unwritable' | null> {
+  if (captureRootProblem(chosen) !== null) return 'invalid'
+  try {
+    await mkdir(chosen, { recursive: true })
+    const probe = join(chosen, `.shiori-write-test-${Date.now()}`)
+    await writeFile(probe, '')
+    await unlink(probe)
+  } catch (err) {
+    console.warn('[storage] capture root is not writable', err)
+    return 'unwritable'
   }
-  const { response } = await showMessageBoxOver(options, parent)
-  return response === 0
+  return null
 }
 
+// 保存先を chosen に変えるときに、移すものと、変えた後の設定。
+function planRootChange(chosen: string) {
+  const current = loadSettings()
+  // 今まで使っていた場所を先頭に控える。**新しい保存先自体は控えから外す**——
+  // 同じ場所が 2 つの役で入っていると、戻したときに重複したまま増え続ける。
+  const previousRoots = [
+    ...(current.captureRoot ? [current.captureRoot] : []),
+    ...current.previousCaptureRoots,
+  ].filter((root) => resolve(root) !== chosen)
+  return {
+    unchanged: current.captureRoot != null && resolve(current.captureRoot) === chosen,
+    targets: planCaptureMove(listImagePaths(), [defaultCaptureDir(), ...previousRoots], chosen),
+    applyRoot: (): void => {
+      saveSettings({ ...loadSettings(), captureRoot: chosen, previousCaptureRoots: previousRoots })
+      console.log(`[storage] capture root changed to ${chosen}`)
+    },
+  }
+}
 
 export function registerShellHandlers(): void {
   handleTrusted(CH.shellOpenUrl, (_event, url: string) => {
@@ -105,54 +119,43 @@ export function registerShellHandlers(): void {
       if (picked.canceled || picked.filePaths.length === 0) return { ok: false, reason: 'canceled' }
 
       const chosen = resolve(picked.filePaths[0])
-      if (captureRootProblem(chosen) !== null) return { ok: false, reason: 'invalid' }
+      const problem = await rootProblem(chosen)
+      if (problem) return { ok: false, reason: problem }
 
-      // 実際に 1 ファイル書いて消す。存在するかどうかだけでは、読み取り専用の場所や
-      // 権限の無いフォルダを見分けられない。
-      try {
-        await mkdir(chosen, { recursive: true })
-        const probe = join(chosen, `.shiori-write-test-${Date.now()}`)
-        await writeFile(probe, '')
-        await unlink(probe)
-      } catch (err) {
-        console.warn('[storage] capture root is not writable', err)
-        return { ok: false, reason: 'unwritable' }
-      }
-
-      const current = loadSettings()
-      if (current.captureRoot != null && resolve(current.captureRoot) === chosen) {
+      const plan = planRootChange(chosen)
+      if (plan.unchanged) return { ok: true, path: chosen, moved: 0, missing: 0 }
+      if (plan.targets.length === 0) {
+        plan.applyRoot()
         return { ok: true, path: chosen, moved: 0, missing: 0 }
       }
 
-      // 今まで使っていた場所を先頭に控える。**新しい保存先自体は控えから外す**——
-      // 同じ場所が 2 つの役で入っていると、戻したときに重複したまま増え続ける。
-      const previousRoots = [
-        ...(current.captureRoot ? [current.captureRoot] : []),
-        ...current.previousCaptureRoots,
-      ].filter((root) => resolve(root) !== chosen)
-      const applyRoot = (): void => {
-        saveSettings({ ...loadSettings(), captureRoot: chosen, previousCaptureRoots: previousRoots })
-        console.log(`[storage] capture root changed to ${chosen}`)
-      }
-
-      const targets = planCaptureMove(listImagePaths(), [defaultCaptureDir(), ...previousRoots], chosen)
-      if (targets.length === 0) {
-        applyRoot()
-        return { ok: true, path: chosen, moved: 0, missing: 0 }
-      }
-
-      // **移す前に必ず聞く。** 実体のコピーなので分単位かかるうえ、移動中は移動先に
-      // 2 倍の空きが要る。押した人が「場所の設定を変えるだけ」と思っているまま
+      // **移す前に必ず聞く**（画面側の確認。SettingsDataTab）。実体のコピーなので分単位かかるうえ、
+      // 移動中は移動先に 2 倍の空きが要る。押した人が「場所の設定を変えるだけ」と思っているまま
       // 何分も固まるのが最悪。
-      const bytes = await totalBytes(targets.map((target) => target.from))
-      const confirmed = await confirmMove(parent, targets.length, bytes, chosen)
-      if (!confirmed) return { ok: false, reason: 'move-canceled' }
+      const bytes = await totalBytes(plan.targets.map((target) => target.from))
+      return { ok: false, reason: 'needs-confirm', path: chosen, count: plan.targets.length, bytes }
+    }))
+
+  // 画面で「移動する」を押されたあと。選んだときから時間が経っているので、書けるかと移すものを確かめ直す。
+  handleTrusted(CH.storageMoveToRoot, (_event, rawPath: unknown): Promise<ChooseCaptureRootResult> =>
+    captureMove.run(null, { ok: false, reason: 'canceled' }, async (): Promise<ChooseCaptureRootResult> => {
+      if (typeof rawPath !== 'string' || rawPath.length === 0) return { ok: false, reason: 'invalid' }
+      const chosen = resolve(rawPath)
+      const problem = await rootProblem(chosen)
+      if (problem) return { ok: false, reason: problem }
+
+      const plan = planRootChange(chosen)
+      if (plan.unchanged) return { ok: true, path: chosen, moved: 0, missing: 0 }
+      if (plan.targets.length === 0) {
+        plan.applyRoot()
+        return { ok: true, path: chosen, moved: 0, missing: 0 }
+      }
 
       captureMove.clearCancel()
       beginTask('capture-move')
       try {
         const outcome = await moveCaptureFiles({
-          targets,
+          targets: plan.targets,
           commit: (moved) => setImagePaths(moved.map((target) => ({ id: target.id, filepath: target.to }))),
           onProgress: (currentCount, total) => {
             if (shouldSendProgress(currentCount, total)) {
@@ -169,7 +172,7 @@ export function registerShellHandlers(): void {
         }
         // **保存先を変えるのは、移し終えてから。** 先に変えると、移動が失敗したときに
         // 「保存先だけ新しい・ファイルは全部古い場所」という半端な状態が残る。
-        applyRoot()
+        plan.applyRoot()
         return { ok: true, path: chosen, moved: outcome.moved, missing: outcome.missing }
       } finally {
         endTask('capture-move')

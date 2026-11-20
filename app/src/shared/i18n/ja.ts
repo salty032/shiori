@@ -32,6 +32,14 @@ export const ja = {
     '途中で止めても、失敗しても、何も変わりません（保存先も記録もそのままです）。',
   'dialog.moveCaptures.proceed': '移動する',
   'dialog.importFolder': 'インポートするフォルダを選択',
+  // 同じエクスポートを、PC を移したときは自分のものとして、人からもらったときは受け取ったものとして読む。
+  // **勝手に決めずに聞く**（インポートはめったにしないので、毎回聞いても手間にならない）。
+  'dialog.importLibrary.title': 'ライブラリのインポート',
+  'dialog.importLibrary.message': '読み込み方を選んでください。',
+  'dialog.importLibrary.restore': '自分のライブラリとして戻す',
+  'dialog.importLibrary.restoreHint': 'エクスポートしたときの状態のまま復元します。\nPC を移行するときに使います。',
+  'dialog.importLibrary.receive': '受け取った素材として追加する',
+  'dialog.importLibrary.receiveHint': 'すべて取り込んだ素材として、今日の日付で追加します。\nほかの人から受け取ったときに使います。',
   // 実行中タスクを確認ダイアログへ差し込むときの区切り文字。
   'list.separator': '・',
 
@@ -693,7 +701,7 @@ export const ja = {
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
   'settings.videoExportFormatHint': 'webm：録画したまま書き出し / mp4：H.264 に変換（画質がわずかに劣化）',
-  'settings.exportHint': 'キャプチャとタグ・メモ・スマートフォルダをフォルダへ保存します（取り込んだ画像は含みません）。',
+  'settings.exportHint': 'キャプチャと取り込んだ素材を、タグ・メモ・タイムシート・スマートフォルダと一緒にフォルダへ保存します。',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',
   'settings.exportFailed': 'エクスポートに失敗しました',

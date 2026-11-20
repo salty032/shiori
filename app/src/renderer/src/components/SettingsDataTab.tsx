@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import type { Settings, StorageInfo } from '../types'
+import type { Settings, StorageInfo, LibraryImportMode } from '../types'
+import type { ChooseCaptureRootResult } from '../../../shared/types'
+import ConfirmDialog from './ConfirmDialog'
+import ChoiceDialog from './ChoiceDialog'
 import { space } from '../styles'
 import { formatBytes } from '../utils'
 import { useExportStore } from '../stores/exportStore'
@@ -16,7 +19,7 @@ type Props = {
   onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
   onUpdateCaptureResize: (value: Settings['captureResize']) => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
-  onShareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
 }
 
 export default function SettingsDataTab(p: Props) {
@@ -39,6 +42,61 @@ export default function SettingsDataTab(p: Props) {
   // コピーで分単位かかるので、何も出ないと固まったようにしか見えない。
   const [moveProgress, setMoveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 })
   useEffect(() => window.api.onCaptureMoveProgress(setMoveProgress), [])
+  // 移すものがあるときの確認（アプリの確認画面で聞く。Windows 標準の画面だと見た目が浮く）。
+  const [movePrompt, setMovePrompt] = useState<{ path: string; count: number; bytes: number } | null>(null)
+  // インポートの読み込み方を聞いている間。
+  const [importPrompt, setImportPrompt] = useState(false)
+
+  const showCaptureRootResult = async (result: ChooseCaptureRootResult): Promise<void> => {
+    if (result.ok) {
+      // 元が既に無くて飛ばしたぶんは、黙って減らさず件数を出す
+      // （アプリの外で消されたファイルがあった、という手掛かりになる）。
+      setCaptureRootStatus({
+        text: t('settings.captureRootChanged', { count: String(result.moved) })
+          + (result.missing > 0 ? t('settings.captureRootMissingSuffix', { count: String(result.missing) }) : ''),
+      })
+      p.onStorageChanged(await window.api.getStorageInfo())
+      return
+    }
+    if (result.reason === 'needs-confirm') {
+      setMovePrompt({ path: result.path, count: result.count, bytes: result.bytes })
+      return
+    }
+    // 選ばなかった・移動をやめたときは何も出さない。何も起きていないので。
+    if (result.reason === 'canceled' || result.reason === 'move-canceled') return
+    setCaptureRootStatus({
+      text: result.reason === 'move-conflict'
+        ? t('settings.captureMoveConflict', { path: result.conflictPath })
+        : t(result.reason === 'invalid' ? 'settings.captureRootInvalid'
+          : result.reason === 'unwritable' ? 'settings.captureRootUnwritable'
+          : 'settings.captureMoveFailed'),
+      error: true,
+    })
+  }
+
+  const runShareImport = async (mode: LibraryImportMode): Promise<void> => {
+    setShareImporting(true)
+    setShareImportStatus(null)
+    try {
+      const result = await p.onShareImport(mode)
+      if (result.canceled) {
+        if (result.count != null) setShareImportStatus({ text: tp('settings.stoppedCount', result.count) })
+        // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
+      } else {
+        const errMsg = result.errors && result.errors.length > 0 ? t('settings.importErrorSuffix', { count: result.errors.length }) : ''
+        const folderMsg = result.importedFolders ? t('settings.importFolderSuffix', { count: result.importedFolders }) : ''
+        setShareImportStatus({ text: tp('settings.importedCount', result.count ?? 0) + folderMsg + errMsg })
+      }
+    } catch (err) {
+      console.error('[settings] share import failed', err)
+      setShareImportStatus({ text: t('settings.importFailed'), error: true })
+    } finally {
+      setShareImporting(false)
+      // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
+      // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
+      useExportStore.getState().setShareImportProgress(null)
+    }
+  }
 
   return (
     <div style={{ display: p.active ? 'contents' : 'none' }}>
@@ -54,27 +112,7 @@ export default function SettingsDataTab(p: Props) {
                 入らない**ので、変えた直後に容量が減って見えるのが正しい。 */}
             <button style={s.addBtn} disabled={moveProgress.total > 0} onClick={async () => {
                 setCaptureRootStatus(null)
-                const result = await window.api.chooseCaptureRoot()
-                if (result.ok) {
-                  // 元が既に無くて飛ばしたぶんは、黙って減らさず件数を出す
-                  // （アプリの外で消されたファイルがあった、という手掛かりになる）。
-                  setCaptureRootStatus({
-                    text: t('settings.captureRootChanged', { count: String(result.moved) })
-                      + (result.missing > 0 ? t('settings.captureRootMissingSuffix', { count: String(result.missing) }) : ''),
-                  })
-                  p.onStorageChanged(await window.api.getStorageInfo())
-                  return
-                }
-                // 選ばなかった・移動をやめたときは何も出さない。何も起きていないので。
-                if (result.reason === 'canceled' || result.reason === 'move-canceled') return
-                setCaptureRootStatus({
-                  text: result.reason === 'move-conflict'
-                    ? t('settings.captureMoveConflict', { path: result.conflictPath })
-                    : t(result.reason === 'invalid' ? 'settings.captureRootInvalid'
-                      : result.reason === 'unwritable' ? 'settings.captureRootUnwritable'
-                      : 'settings.captureMoveFailed'),
-                  error: true,
-                })
+                await showCaptureRootResult(await window.api.chooseCaptureRoot())
               }}>
               {t('settings.changeCapturesFolder')}
             </button>
@@ -207,29 +245,7 @@ export default function SettingsDataTab(p: Props) {
                 <button style={s.cancelBtn} onClick={() => window.api.shareImportCancel()}>{t('action.stop')}</button>
               </div>
             ) : (
-              <button style={s.addBtn} disabled={shareImporting} onClick={async () => {
-                setShareImporting(true)
-                setShareImportStatus(null)
-                try {
-                  const result = await p.onShareImport()
-                  if (result.canceled) {
-                    if (result.count != null) setShareImportStatus({ text: tp('settings.stoppedCount', result.count) })
-                    // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
-                  } else {
-                    const errMsg = result.errors && result.errors.length > 0 ? t('settings.importErrorSuffix', { count: result.errors.length }) : ''
-                    const folderMsg = result.importedFolders ? t('settings.importFolderSuffix', { count: result.importedFolders }) : ''
-                    setShareImportStatus({ text: tp('settings.importedCount', result.count ?? 0) + folderMsg + errMsg })
-                  }
-                } catch (err) {
-                  console.error('[settings] share import failed', err)
-                  setShareImportStatus({ text: t('settings.importFailed'), error: true })
-                } finally {
-                  setShareImporting(false)
-                  // 通常は onShareImportProgress 側（current>=total）でクリアされるが、途中キャンセル・
-                  // 進捗が1件も届かない失敗ケースの保険としてここでも念のためクリアする。
-                  useExportStore.getState().setShareImportProgress(null)
-                }
-              }}>
+              <button style={s.addBtn} disabled={shareImporting} onClick={() => setImportPrompt(true)}>
                 {shareImporting ? t('settings.importing') : t('settings.importLibrary')}
               </button>
             )}
@@ -262,6 +278,28 @@ export default function SettingsDataTab(p: Props) {
           {repairStatus && <div style={{ ...s.statusLine, ...(repairStatus.error ? s.statusLineError : s.statusLineOk) }}>{repairStatus.text}</div>}
         </div>
       </>
+      {movePrompt && (
+        <ConfirmDialog
+          title={t('dialog.moveCaptures.title')}
+          message={t('dialog.moveCaptures.message', { count: String(movePrompt.count), size: formatBytes(movePrompt.bytes), dest: movePrompt.path })
+            + '\n\n' + t('dialog.moveCaptures.detail')}
+          confirmLabel={t('dialog.moveCaptures.proceed')}
+          // 閉じてから移す（移動は分単位かかるので、確認画面を開いたまま待たせない。進み具合は設定画面に出る）。
+          onConfirm={() => { const path = movePrompt.path; window.setTimeout(() => { void window.api.moveCaptureRoot(path).then(showCaptureRootResult) }, 0) }}
+          onClose={() => setMovePrompt(null)}
+        />
+      )}
+      {importPrompt && (
+        <ChoiceDialog
+          title={t('dialog.importLibrary.title')}
+          message={t('dialog.importLibrary.message')}
+          choices={[
+            { label: t('dialog.importLibrary.restore'), description: t('dialog.importLibrary.restoreHint'), onSelect: () => { void runShareImport('restore') } },
+            { label: t('dialog.importLibrary.receive'), description: t('dialog.importLibrary.receiveHint'), onSelect: () => { void runShareImport('receive') } },
+          ]}
+          onClose={() => setImportPrompt(false)}
+        />
+      )}
     </div>
   )
 }

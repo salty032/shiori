@@ -333,15 +333,15 @@ export function listImagesForRetag(): { id: number; filepath: string; thumb_path
 
 type ExportRow = ImageRow & { manualTags: string[] }
 
+// ライブラリのエクスポートは PC を移す道でもあるので、取り込んだ素材も含める（どちらだったかは行に書く）。
 export function listImagesForExport(): ExportRow[] {
-  const images = (prepare("SELECT * FROM images WHERE source = 'capture' ORDER BY captured_at ASC").all() as RawImageRow[])
+  const images = (prepare('SELECT * FROM images ORDER BY captured_at ASC').all() as RawImageRow[])
     .map(normalizeImageRow) as ImageRow[]
   if (images.length === 0) return []
   const tagRows = prepare(
     `SELECT it.image_id, t.name FROM image_tags it
      JOIN tags t ON t.id = it.tag_id
-     JOIN images i ON i.id = it.image_id
-     WHERE it.source = 'manual' AND i.source = 'capture'`
+     WHERE it.source = 'manual'`
   ).all() as { image_id: number; name: string }[]
   const tagsByImageId = new Map<number, string[]>()
   for (const { image_id, name } of tagRows) {

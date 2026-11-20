@@ -226,6 +226,7 @@ export async function installMockApi(): Promise<void> {
     showInFolder: async () => unsupported(),
     showExtensionFolder: async () => unsupported(),
     chooseCaptureRoot: async () => { unsupported(); return { ok: false, reason: 'canceled' as const } },
+    moveCaptureRoot: async () => { unsupported(); return { ok: false, reason: 'canceled' as const } },
     cancelCaptureMove: async () => {},
     onCaptureMoveProgress: () => () => {},
     // デモにはファイルシステムが無い。0 バイトを返すと「空っぽ」という嘘の数字が出てしまうので、

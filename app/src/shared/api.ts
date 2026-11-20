@@ -4,7 +4,7 @@
 import type {
   ImageRow, ImageTag, TagWithCount, ImageTagSource, Settings,
   CaptureData, ExtensionTimecode, AppNotice, WhatsNewData, StorageInfo,
-  ImageQuery, ImageListRequest, DeleteImageResult, ChooseCaptureRootResult,
+  ImageQuery, ImageListRequest, DeleteImageResult, ChooseCaptureRootResult, LibraryImportMode,
 } from './types'
 
 // 撮り逃し・ずれ・総数を検証後の値へ置き換えさせる通知の中身（onFramesVerified）。
@@ -61,6 +61,8 @@ export interface ShioriApi {
   showExtensionFolder: () => Promise<void>
   // 保存先を選び直す。書き込めるかをその場で確かめ、これまでのぶんを移すかも聞く（ipc-shell.ts）。
   chooseCaptureRoot: () => Promise<ChooseCaptureRootResult>
+  // chooseCaptureRoot が needs-confirm を返したあと、画面で「移動する」を押されたら呼ぶ。
+  moveCaptureRoot: (path: string) => Promise<ChooseCaptureRootResult>
   cancelCaptureMove: () => Promise<void>
   onCaptureMoveProgress: (cb: (data: { current: number; total: number }) => void) => () => void
   // 保存場所と使用量。全ファイルを stat するため数万件では数秒かかる（画面側は「計算中」を出す）。
@@ -106,7 +108,7 @@ export interface ShioriApi {
   shareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   // imagesExportCancel 同様、進行中の shareExport を中断する。
   shareExportCancel: () => Promise<void>
-  shareImport: () => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  shareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
   // shareExportCancel 同様、進行中の shareImport を中断する（D-2）。
   shareImportCancel: () => Promise<void>
   onShareImportProgress: (cb: (data: { current: number; total: number }) => void) => () => void
@@ -143,6 +145,7 @@ export const CH = {
   storageGetInfo: 'storage:getInfo',
   storageChooseRoot: 'storage:chooseRoot',
   storageCancelMove: 'storage:cancelMove',
+  storageMoveToRoot: 'storage:moveToRoot',
   storageMoveProgress: 'storage:moveProgress',
   // ws
   wsGetPort: 'ws:getPort',

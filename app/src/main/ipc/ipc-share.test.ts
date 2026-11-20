@@ -2,9 +2,12 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
+// 画面で選ばれた読み込み方（SettingsDataTab が聞いて渡す）。既定は今までの取り込み方。
+let importMode: unknown = 'receive'
+
 vi.mock('electron', () => ({
   dialog: {
-    showOpenDialog: vi.fn(async () => ({ canceled: false, filePaths: ['/mock/share-src'] }))
+    showOpenDialog: vi.fn(async () => ({ canceled: false, filePaths: ['/mock/share-src'] })),
   }
 }))
 
@@ -138,6 +141,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     getVideoFramesMock.mockReturnValue(null)
     restoreVideoFramesMock.mockClear()
     saveTimesheetMock.mockClear()
+    importMode = 'receive'
     encodeFramesMock.mockClear()
     decodeFramesMock.mockClear()
     getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
@@ -149,7 +153,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   it('尺が上限(30秒+誤差0.5秒)を超える動画は登録を拒否し、コピー済みファイルを削除する', async () => {
     getVideoMetaMock.mockResolvedValue({ duration: 31, fps: null })
     const handler = handlers.get('share:import')!
-    const result = await handler({}) as { count: number; errors: string[] }
+    const result = await handler({}, importMode) as { count: number; errors: string[] }
 
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(result.count).toBe(0)
@@ -161,7 +165,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   it('尺が取得できない（null）動画は登録を拒否する', async () => {
     getVideoMetaMock.mockResolvedValue({ duration: null, fps: null })
     const handler = handlers.get('share:import')!
-    const result = await handler({}) as { count: number; errors: string[] }
+    const result = await handler({}, importMode) as { count: number; errors: string[] }
 
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(result.count).toBe(0)
@@ -171,7 +175,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   it('誤差込みの境界値(30.5秒ちょうど)は登録する', async () => {
     getVideoMetaMock.mockResolvedValue({ duration: 30.5, fps: null })
     const handler = handlers.get('share:import')!
-    const result = await handler({}) as { count: number; errors: string[] }
+    const result = await handler({}, importMode) as { count: number; errors: string[] }
 
     expect(registerCapturedMedia).toHaveBeenCalledTimes(1)
     expect(result.count).toBe(1)
@@ -182,7 +186,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
   it('境界超過(30.51秒)は拒否する', async () => {
     getVideoMetaMock.mockResolvedValue({ duration: 30.51, fps: null })
     const handler = handlers.get('share:import')!
-    const result = await handler({}) as { count: number; errors: string[] }
+    const result = await handler({}, importMode) as { count: number; errors: string[] }
 
     expect(registerCapturedMedia).not.toHaveBeenCalled()
     expect(result.count).toBe(0)
@@ -206,7 +210,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     })
     getVideoMetaMock.mockResolvedValue({ duration: 10, fps: 24 })
 
-    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number; errors: string[] }
 
     expect(result).toMatchObject({ count: 1, errors: [] })
     const inserted = registerCapturedMedia.mock.calls[0][0] as { insert: { width: number | null; height: number | null } }
@@ -228,7 +232,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     })
     getVideoMetaMock.mockResolvedValue({ duration: 10, fps: 24 })
 
-    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number; errors: string[] }
 
     expect(result).toMatchObject({ count: 1, errors: [] })
     expect(saveTimesheetMock).toHaveBeenCalledWith(1, '[[0,"1"],[1]]')
@@ -242,10 +246,46 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     })
     getVideoMetaMock.mockResolvedValue({ duration: 10, fps: 24 })
 
-    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number; errors: string[] }
 
     expect(result).toMatchObject({ count: 1, errors: [] })
     expect(saveTimesheetMock).not.toHaveBeenCalled()
+  })
+
+  it('自分のライブラリとして戻すと、撮ったもの・取り込んだものの区別と日時を書き出したときのまま登録する', async () => {
+    importMode = 'restore'
+    metadataContent = [
+      JSON.stringify({ version: 2, file: 'a.png', captured_at: 1600000000000, origin: 'capture' }),
+      JSON.stringify({ version: 2, file: 'b.png', captured_at: 1650000000000, origin: 'import', original_captured_at: 1500000000000 }),
+    ].join('\n')
+
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number }
+
+    expect(result.count).toBe(2)
+    const inserts = registerCapturedMedia.mock.calls.map((call) => (call[0] as { insert: Record<string, unknown> }).insert)
+    expect(inserts[0]).toMatchObject({ source: 'capture', captured_at: 1600000000000, original_captured_at: null })
+    expect(inserts[1]).toMatchObject({ source: 'import', captured_at: 1650000000000, original_captured_at: 1500000000000 })
+  })
+
+  it('受け取った素材として取り込むと、全部を今日の取り込みとして登録する', async () => {
+    metadataContent = JSON.stringify({ version: 2, file: 'a.png', captured_at: 1600000000000, origin: 'capture' })
+
+    await handlers.get('share:import')!({}, importMode)
+
+    const insert = (registerCapturedMedia.mock.calls[0][0] as { insert: Record<string, unknown> }).insert
+    expect(insert).toMatchObject({ source: 'import', original_captured_at: 1600000000000 })
+    expect(insert.captured_at).not.toBe(1600000000000)
+  })
+
+  it('読み込み方が分からない呼び出しでは、何も取り込まない（どちらかに倒すと混ざるか日付が変わる）', async () => {
+    importMode = 'bogus'
+    metadataContent = JSON.stringify({ version: 2, file: 'a.png', captured_at: 1600000000000 })
+
+    const result = await handlers.get('share:import')!({}, importMode)
+
+    expect(result).toEqual({ canceled: true })
+    expect(registerCapturedMedia).not.toHaveBeenCalled()
+    expect(copyFileMock).not.toHaveBeenCalled()
   })
 
   it('壊れたv2コマ表は無視し、動画本体は取り込む', async () => {
@@ -257,7 +297,7 @@ describe('share:import - 動画の30秒上限（著作権対策）', () => {
     })
     getVideoMetaMock.mockResolvedValue({ duration: 10, fps: 24 })
 
-    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number; errors: string[] }
 
     expect(result).toMatchObject({ count: 1, errors: [] })
     expect(restoreVideoFramesMock).not.toHaveBeenCalled()
@@ -364,7 +404,7 @@ describe('share:import - 1件の失敗で残りを巻き添えにしない', () 
       .mockRejectedValueOnce(new Error('ENOSPC'))
       .mockResolvedValueOnce({ ok: true, id: 3 })
 
-    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number; errors: string[] }
 
     expect(registerCapturedMedia).toHaveBeenCalledTimes(3)
     expect(result.count).toBe(2)
@@ -375,7 +415,7 @@ describe('share:import - 1件の失敗で残りを巻き添えにしない', () 
   it('全件が例外で落ちても、失敗した件数がそのまま返る（途中で打ち切らない）', async () => {
     registerCapturedMedia.mockRejectedValue(new Error('ENOSPC'))
 
-    const result = await handlers.get('share:import')!({}) as { count: number; errors: string[] }
+    const result = await handlers.get('share:import')!({}, importMode) as { count: number; errors: string[] }
 
     expect(result.count).toBe(0)
     expect(result.errors).toHaveLength(3)

@@ -78,6 +78,9 @@ export function buildCoreApi(): ShioriApi {
     chooseCaptureRoot: () =>
       ipcRenderer.invoke(CH.storageChooseRoot),
 
+    moveCaptureRoot: (path) =>
+      ipcRenderer.invoke(CH.storageMoveToRoot, path),
+
     cancelCaptureMove: () =>
       ipcRenderer.invoke(CH.storageCancelMove),
 
@@ -146,8 +149,8 @@ export function buildCoreApi(): ShioriApi {
 
     shareExportCancel: () => ipcRenderer.invoke(CH.shareExportCancel),
 
-    shareImport: () =>
-      ipcRenderer.invoke(CH.shareImport),
+    shareImport: (mode) =>
+      ipcRenderer.invoke(CH.shareImport, mode),
 
     shareImportCancel: () => ipcRenderer.invoke(CH.shareImportCancel),
 
