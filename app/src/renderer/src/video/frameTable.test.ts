@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addPendingStep, findFrameIdx, frameSeekTarget, MAX_PENDING_STEPS } from './frameTable'
+import { addPendingStep, estimatedStepTarget, findFrameIdx, frameSeekTarget, MAX_PENDING_STEPS } from './frameTable'
 
 // 録画クリップの PTS は等間隔とは限らない（可変フレームレート記録）。
 // 24fps 相当（≒0.0417）の区間と、その倍・半分が混ざったテーブルで検証する。
@@ -121,5 +121,33 @@ describe('addPendingStep（コマ表の取得中に押されたコマ送りを�
     expect(addPendingStep(MAX_PENDING_STEPS, 1)).toBe(MAX_PENDING_STEPS)
     expect(addPendingStep(-MAX_PENDING_STEPS, -1)).toBe(-MAX_PENDING_STEPS)
     expect(addPendingStep(MAX_PENDING_STEPS, -1)).toBe(MAX_PENDING_STEPS - 1)
+  })
+})
+
+describe('estimatedStepTarget（コマの時刻が分からないときの fps 換算のコマ送り）', () => {
+  const s24 = 1 / 24
+  const frameOf = (t: number): number => Math.floor(t / s24 + 1e-6)
+
+  it('何回進めても 1 コマずつ進む（1 コマおきに飛ばない）', () => {
+    let t = 0.027 // 0 コマ目の途中
+    const seen: number[] = []
+    for (let i = 0; i < 6; i++) { t = estimatedStepTarget(t, s24, 1, 3); seen.push(frameOf(t)) }
+    expect(seen).toEqual([1, 2, 3, 4, 5, 6])
+  })
+
+  it('戻るときも 1 回目から 1 コマずつ戻る', () => {
+    let t = (9 + 0.5) * s24
+    const seen: number[] = []
+    for (let i = 0; i < 3; i++) { t = estimatedStepTarget(t, s24, -1, 3); seen.push(frameOf(t)) }
+    expect(seen).toEqual([8, 7, 6])
+  })
+
+  it('着くのはコマの真ん中', () => {
+    expect(estimatedStepTarget(0, s24, 1, 3)).toBeCloseTo(1.5 * s24, 9)
+  })
+
+  it('端より先へは行かない', () => {
+    expect(frameOf(estimatedStepTarget(0.01, s24, -1, 3))).toBe(0)
+    expect(frameOf(estimatedStepTarget(3 - 0.01, s24, 1, 3))).toBe(71)
   })
 })

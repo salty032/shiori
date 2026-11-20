@@ -59,6 +59,20 @@ export function frameSeekTarget(pts: number[], idx: number, fallbackDur: number,
   return start + prevGap / 2
 }
 
+// コマの時刻が分からないとき（表もファイルのコマの時刻も無い）の、fps 換算のコマ送りのシーク先。
+//
+// **今いるコマを数えてから、その delta 先のコマの真ん中へ飛ぶ。** 以前は「今の時刻 + 1.5 コマ」
+// （戻るときは −0.5 コマ）で、今の位置がコマの頭にあると決めつけていた。1 回進めると位置はコマの
+// 真ん中に来るので、2 回目から行き過ぎて 1 コマおきに飛び、戻る側は動かない回があった
+// （2026-11-20、24fps の試し動画で 1→3→4→6→7→9 と確かめた）。
+export function estimatedStepTarget(t: number, stepSec: number, delta: number, duration: number): number {
+  const cur = Math.floor((t + FRAME_EPS) / stepSec)
+  const last = isFinite(duration) && duration > 0 ? Math.max(0, Math.ceil(duration / stepSec - FRAME_EPS) - 1) : Number.MAX_SAFE_INTEGER
+  const next = Math.max(0, Math.min(cur + delta, last))
+  const limit = isFinite(duration) && duration > 0 ? duration : Number.MAX_SAFE_INTEGER
+  return Math.min((next + 0.5) * stepSec, limit)
+}
+
 // pts[i] <= t + EPS を満たす最大の i を返す（表示中フレームのインデックス）
 export function findFrameIdx(pts: number[], t: number): number {
   if (pts.length === 0) return 0

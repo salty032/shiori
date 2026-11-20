@@ -115,6 +115,8 @@ type Props = {
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, clipMedia, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  // コマ再生で、先に作った絵を映像の真上に重ねる先（useFramePlay）。
+  const frameOverlayRef = useRef<HTMLCanvasElement>(null)
   const stepSec = 1 / Math.max(1, fps || 24)
   const { t } = useT()
   const [legendOpen, setLegendOpen] = useState(false)
@@ -133,7 +135,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // 付け直さずに、呼ぶ時点の最新を使う。
   const frameActionsRef = useLatestRef({
     moveFrames: position.moveFrames, refreshFrameReadout: position.refreshFrameReadout, goToFrame, currentFrameIdx,
-    updateVcTime, stepSec
+    peekNextRow: position.peekNextRow, updateVcTime, stepSec
   })
   const followPlaybackRef = useLatestRef(position.followPlayback)
 
@@ -351,7 +353,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
 
   // コマ再生（素材のコマを 1 つずつ、一定の時間だけ見せて自動で送る）。中身は useFramePlay。
   useFramePlay({
-    videoRef, id, framePlay, setFramePlay, speed, loopRef: vcLoopRef, readoutRef, framesRef, actionsRef: frameActionsRef
+    videoRef, id, framePlay, setFramePlay, speed, loopRef: vcLoopRef, readoutRef, framesRef, overlayRef: frameOverlayRef, actionsRef: frameActionsRef
   })
 
   // 再生中のシークバーは**コマの届く間隔ではなく再生の時計に追従させる**。
@@ -473,6 +475,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
             lastVolume = vol; lastMuted = muted
             setVcVolume(vol); setVcMuted(muted)
           }}
+        />
+        {/* コマ再生で先に作った絵を重ねる（useFramePlay）。クリックは下の映像へ通す。 */}
+        <canvas
+          ref={frameOverlayRef}
+          style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', objectFit: 'contain' }}
         />
         {/* コマ表示は**止まっている間だけ**出す。
             コマ番号も「撮り逃し / 要注意」も 1 コマを見定めるための情報で、再生中は毎フレーム

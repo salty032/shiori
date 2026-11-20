@@ -5,7 +5,7 @@
 //
 // 決まりは .claude/rules/frames.md「ビューアのコマ送り」。**位置は時刻ではなく表の行で持つ。**
 import { useEffect, useRef, useState } from 'react'
-import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget, isClipUnreliable } from './frameTable'
+import { FRAME_EPS, addPendingStep, estimatedStepTarget, findFrameIdx, frameSeekTarget, isClipUnreliable } from './frameTable'
 import { isReuseSevere } from '../../../shared/frame-severity'
 import { buildGapIndex, frameReadout, walkFrames, type GapIndex, type ReadoutKind } from './frameReadout'
 import { useT, type Translate } from '../i18n'
@@ -208,8 +208,8 @@ export function useFramePosition({
   }
 
   // delta コマ動かす（正で先へ、負で前へ）。
-  // コマ表があるときは隣のコマへ直接移る。表がないとき（解決役が未登録・解析失敗）だけ従来の
-  // fps 換算に落ちる。その場合は境界を必ず跨ぐよう半コマ余分に送る（進む側 +1.5 / 戻る側 -0.5）。
+  // コマ表があるときは隣のコマへ直接移る。表がないとき（解決役が未登録・解析失敗）だけ
+  // fps 換算に落ちる（estimatedStepTarget：今いるコマを数えて、delta 先のコマの真ん中へ）。
   function moveFrames(delta: number): void {
     const v = videoRef.current
     if (!v || delta === 0) return
@@ -230,8 +230,17 @@ export function useFramePosition({
       v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
       return
     }
-    v.currentTime = Math.max(0, Math.min(v.currentTime + stepSec * (delta + 0.5), limit))
+    v.currentTime = estimatedStepTarget(v.currentTime, stepSec, delta, v.duration)
     updateFrameReadout(0)
+  }
+
+  // 1 コマ進めたとき、どの行の絵が出るか（コマ再生の先読み用）。抜けの中へ進むときは絵が変わらないので
+  // 今の行、端なら今の行。**歩き方は moveFrames と同じ walkFrames を使う**——別に数えると、先読みした
+  // 絵と番号がずれる。
+  function peekNextRow(): number {
+    const pts = framesRef.current?.pts ?? []
+    if (pts.length === 0) return 0
+    return walkFramesHere(currentFrameIdx(), gapOffsetRef.current, 1, pts.length).idx
   }
 
   // 1 コマ進む / 戻る。
@@ -318,6 +327,7 @@ export function useFramePosition({
     syncFrameIdx,
     refreshFrameReadout,
     moveFrames,
+    peekNextRow,
     stepFrame,
     goToFrame,
     snapToShownFrame,
