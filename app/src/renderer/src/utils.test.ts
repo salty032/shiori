@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { siteName, formatTime, formatBytes, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
+import { describe, expect, it, vi } from 'vitest'
+import { revealSoftly, siteName, formatTime, formatBytes, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
 import { parseSearchQuery, buildImageQuery } from './stores/imageQuery'
 import type { ImageRow } from './types'
 
@@ -271,5 +271,25 @@ describe('buildTimeline', () => {
         expect(ordered[item.flatIndex]).toBe(item.img)
       }
     }
+  })
+})
+
+// 選んだサムネイルを見せるスクロール（グリッドとタイムラインで共通）。
+describe('revealSoftly', () => {
+  const view = (scrollTop: number) => ({ scrollTop, clientHeight: 300 }) as HTMLElement
+  it('既に画面内なら動かさない', () => {
+    const to = vi.fn()
+    revealSoftly(view(100), 150, 250, to)
+    expect(to).not.toHaveBeenCalled()
+  })
+  it('下にはみ出たら、下端が画面の下端に来るぶんだけ動かす', () => {
+    const to = vi.fn()
+    revealSoftly(view(100), 350, 450, to)
+    expect(to).toHaveBeenCalledWith(expect.anything(), 150)
+  })
+  it('上にはみ出たら、上端まで戻す', () => {
+    const to = vi.fn()
+    revealSoftly(view(100), 40, 140, to)
+    expect(to).toHaveBeenCalledWith(expect.anything(), 40)
   })
 })

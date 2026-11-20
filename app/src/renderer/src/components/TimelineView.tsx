@@ -1,27 +1,10 @@
-import { memo, forwardRef, useImperativeHandle, useMemo, useState, useEffect } from 'react'
+import { memo, forwardRef, useImperativeHandle, useMemo, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
-import { computeGridLayout, createSoftScroller, formatTime, thumbSrc } from '../utils'
+import { computeGridLayout, createSoftScroller, formatTime, revealSoftly } from '../utils'
+import { ThumbImage } from './ThumbImage'
 import { badgeInset, font, radius, s as appStyles, space, weight } from '../styles'
 import { currentLocale, useT } from '../i18n'
-
-// サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
-// ThumbCell / フィルムストリップと同様に onError でプレースホルダへ切り替える。
-const TimelineThumbImg = memo(function TimelineThumbImg({ img, cellHeight }: { img: ImageRow; cellHeight: number }) {
-  const { t } = useT()
-  const [failed, setFailed] = useState(false)
-  const [vertical, setVertical] = useState(false)
-  if (failed) return <div style={{ ...appStyles.thumbFallback, height: cellHeight }}><span style={appStyles.thumbFallbackText}>{t('thumb.loadFailed')}</span></div>
-  return (
-    <div style={{ width: '100%', height: cellHeight, ...(vertical ? appStyles.thumbImgWrapVertical : {}) }}>
-      <img src={thumbSrc(img)} style={{ ...s.thumbImg, height: cellHeight, ...(vertical ? appStyles.thumbImgVertical : {}) }} alt="" draggable={false}
-        decoding="async" loading="lazy"
-        onLoad={(e) => setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight)}
-        onError={() => setFailed(true)} />
-    </div>
-  )
-})
 
 // レイアウト定数。全グループを「見出し行 + 画像行」の1本のフラットな配列に潰し、
 // その行単位で仮想化する（S4-3）。グループ単位で仮想化すると、画面にかかった
@@ -132,16 +115,9 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
       // groupRowStart は見出し行を指すので +1 が画像の先頭行。
       const rowIndex = groupRowStart[groupIndex] + 1 + Math.floor(within / columns)
       const itemTop = virtualizer.getOffsetForIndex(rowIndex, 'start')?.[0] ?? 0
-      const itemBottom = itemTop + cellHeight
       const el = p.scrollRef.current
       if (!el) return
-      const viewSize = el.clientHeight
-      // 「既に画面内なら動かさない・はみ出ている分だけ最小スクロール」。基準は実際の
-      // scrollTop にする（virtualizer.scrollOffset は遅れて届く。utils の createSoftScroller
-      // のコメントを参照）。グリッド側（App.tsx の scrollToActiveIndex）と同じ形。
-      const current = el.scrollTop
-      if (itemTop >= current && itemBottom <= current + viewSize) return
-      softScrollTo(el, itemBottom > current + viewSize ? itemBottom - viewSize : itemTop)
+      revealSoftly(el, itemTop, itemTop + cellHeight, softScrollTo)
     },
   }), [groupRowStart, groupStartFlat, columns, cellHeight, softScrollTo, virtualizer, p.groups, p.scrollRef])
 
@@ -223,7 +199,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                   onDoubleClick={(e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; p.onOpen(flatIndex) }}
                   onContextMenu={(e) => p.onContextMenu(flatIndex, e)}
                 >
-                  <TimelineThumbImg img={img} cellHeight={cellHeight} />
+                  <ThumbImage img={img} wrapStyle={{ width: '100%', height: cellHeight }} imgStyle={{ ...s.thumbImg, height: cellHeight }} />
                   {img.current_time != null && (
                     <div style={{ ...s.timeBadge, left: inset.x, bottom: inset.y }}>{formatTime(img.current_time)}</div>
                   )}

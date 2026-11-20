@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, memo } from 'react'
 import type { ImageRow } from '../types'
-import { thumbSrc, splitHighlight, formatTime } from '../utils'
+import { splitHighlight, formatTime } from '../utils'
+import { ThumbImage } from './ThumbImage'
 import { s, badgeInset } from '../styles'
-import { useT } from '../i18n'
 
 function thumbDurationLabel(img: ImageRow): string | null {
   if (img.media_type !== 'video' || img.duration == null || !Number.isFinite(img.duration)) return null
@@ -24,11 +24,7 @@ type Props = {
 const NEW_EXIT_MS = 920
 
 export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focused, highlight, onContextMenu, onOpen, index }: Props) {
-  const { t } = useT()
   const [hovered, setHovered] = useState(false)
-  const [thumbFailed, setThumbFailed] = useState(false)
-  const [thumbLoaded, setThumbLoaded] = useState(false)
-  const [vertical, setVertical] = useState(false)
   const [newExiting, setNewExiting] = useState(false)
   const wasNewRef = useRef(isNew)
   useEffect(() => {
@@ -61,19 +57,11 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
       // ダブルクリック扱いになりビューアが開いていた。Shift も同じ（範囲を
       // 引き直しただけで開く）。修飾キーを押している間は開かない。
       onDoubleClick={(e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onOpen(index) }}>
-      <div style={{ ...s.thumbImgWrap, height: cellHeight, ...(vertical ? s.thumbImgWrapVertical : {}) }}>
-        {/* サムネ生成失敗（ファイル欠落等）時は割れ画像になるため、
-            フォールバックのプレースホルダに切り替える */}
-        {thumbFailed
-          ? <div style={s.thumbFallback}><span style={s.thumbFallbackText}>{t('thumb.loadFailed')}</span></div>
-          : <img src={thumbSrc(img)} style={{ ...s.thumbImg, ...(vertical ? s.thumbImgVertical : {}), opacity: thumbLoaded ? 1 : 0 }} alt="" draggable={false}
-              decoding="async" loading="lazy"
-              onLoad={(e) => { setVertical(e.currentTarget.naturalWidth < e.currentTarget.naturalHeight); setThumbLoaded(true) }}
-              onError={() => setThumbFailed(true)} />}
+      <ThumbImage img={img} wrapStyle={{ ...s.thumbImgWrap, height: cellHeight }} imgStyle={s.thumbImg}>
         {img.media_type === 'video' && <div style={s.thumbVideoPlay}>▶</div>}
         {durationLabel && <div style={{ ...s.thumbVideoDuration, top: inset.y, right: inset.x }}>{durationLabel}</div>}
         {showNew && <div style={{ ...(isNew ? s.thumbNewBadge : s.thumbNewBadgeExit), top: inset.y, left: inset.x }}>NEW</div>}
-      </div>
+      </ThumbImage>
       <div style={{ ...s.thumbLabel, ...(selected ? s.thumbLabelSelected : {}) }} title={titleLabel || undefined}>
         {highlight
           ? splitHighlight(titleLabel, highlight).map((seg, i) => seg.match

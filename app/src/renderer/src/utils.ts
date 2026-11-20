@@ -314,6 +314,16 @@ export function formatFps(fps: number): string {
 // 送ったのに一瞬戻る動きが出る。**行き先は呼び出し側が実際の scrollTop から決めること。**
 const SOFT_SCROLL_MS = 180
 
+// 選んだサムネイル（top〜bottom）を見せる。**既に画面内なら動かさず、はみ出たぶんだけ**滑らかにスクロールする。
+// 基準は実際の el.scrollTop（virtualizer.scrollOffset は遅れて届くので、アニメーション中に次のキーが来ると
+// 逆方向へ引き返してしまう）。グリッド（App.tsx）とタイムライン（TimelineView.tsx）で共通。
+export function revealSoftly(el: HTMLElement, top: number, bottom: number, scrollTo: (el: HTMLElement, top: number) => void): void {
+  const current = el.scrollTop
+  const viewSize = el.clientHeight
+  if (top >= current && bottom <= current + viewSize) return
+  scrollTo(el, bottom > current + viewSize ? bottom - viewSize : top)
+}
+
 export function createSoftScroller(): (el: HTMLElement, top: number) => void {
   let raf = 0
   return (el, top) => {

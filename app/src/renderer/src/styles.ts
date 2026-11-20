@@ -245,7 +245,7 @@ export const s: Record<string, CSSProperties> = {
   // 濃さは控えめに。アクセントが彩度の低い藍なので、無彩色でも濃いと選択中と見分けが
   // つかない。ただしホバーの枠（--border-strong）まで落とすと今度はホバーと紛れる。
   thumbFocused: { border: '2px solid rgba(var(--text-rgb), 0.45)', background: 'rgba(var(--text-rgb), 0.055)' },
-  thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'opacity 0.15s ease' },
+  thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   thumbImgVertical: { objectFit: 'contain' as const },
   // サムネが読めなかったとき。**無地で済ませない**——ファイルが消えたのか読み込み中なのかが
   // 画面から分からず、黙って欠けた状態になる。一番小さいセル（S＝横150px）では文字が折り返す。
