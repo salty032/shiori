@@ -1,10 +1,36 @@
-import { memo, forwardRef, useImperativeHandle, useMemo, useEffect } from 'react'
+import { memo, forwardRef, useImperativeHandle, useMemo, useEffect, useState } from 'react'
+import type { ImageRow } from '../types'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineGroup } from '../utils'
 import { computeGridLayout, createSoftScroller, formatTime, revealSoftly } from '../utils'
 import { ThumbImage } from './ThumbImage'
 import { badgeInset, font, radius, s as appStyles, space, weight } from '../styles'
 import { currentLocale, useT } from '../i18n'
+
+// タイムラインの 1 セル。枠の太さと、載せたとき・選んだとき・フォーカスの見た目はグリッド（ThumbCell）と同じ。
+const TimelineCell = memo(function TimelineCell({ img, cellHeight, selected, focused, onDoubleClick, onContextMenu, children }: {
+  img: ImageRow
+  cellHeight: number
+  selected: boolean
+  focused: boolean
+  onDoubleClick: (e: React.MouseEvent) => void
+  onContextMenu: (e: React.MouseEvent) => void
+  children?: React.ReactNode
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      data-img-id={img.id}
+      style={{ ...s.thumb, height: cellHeight, ...(hovered ? appStyles.thumbHovered : {}), ...(focused && !selected ? appStyles.thumbFocused : {}), ...(selected ? appStyles.thumbSelected : {}) }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}>
+      <ThumbImage img={img} wrapStyle={{ width: '100%', height: '100%' }} imgStyle={{ ...s.thumbImg, height: '100%' }} />
+      {children}
+    </div>
+  )
+})
 
 // レイアウト定数。全グループを「見出し行 + 画像行」の1本のフラットな配列に潰し、
 // その行単位で仮想化する（S4-3）。グループ単位で仮想化すると、画面にかかった
@@ -189,17 +215,18 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
             {group.items.slice(row.from, row.to).map(({ img, flatIndex }) => {
               const isSelected = p.selectedIds.has(img.id) || p.pendingIds.has(img.id)
               return (
-                <div
+                <TimelineCell
                   key={img.id}
-                  data-img-id={img.id}
-                  style={{ ...s.thumb, height: cellHeight, ...(flatIndex === p.focusedIndex && !isSelected ? appStyles.thumbFocused : {}), ...(isSelected ? appStyles.thumbSelected : {}) }}
+                  img={img}
+                  cellHeight={cellHeight}
+                  selected={isSelected}
+                  focused={flatIndex === p.focusedIndex}
                   // Ctrl+クリックは選択のトグルなので、外して付け直すと 2 回目が
                   // ダブルクリック扱いになりビューアが開いていた。Shift も同じ（範囲を
                   // 引き直しただけで開く）。修飾キーを押している間は開かない。
                   onDoubleClick={(e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; p.onOpen(flatIndex) }}
                   onContextMenu={(e) => p.onContextMenu(flatIndex, e)}
                 >
-                  <ThumbImage img={img} wrapStyle={{ width: '100%', height: cellHeight }} imgStyle={{ ...s.thumbImg, height: cellHeight }} />
                   {img.current_time != null && (
                     <div style={{ ...s.timeBadge, left: inset.x, bottom: inset.y }}>{formatTime(img.current_time)}</div>
                   )}
@@ -207,7 +234,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
                       バッジが既にあり、同じ「0:02」形式の時間が 1 セルに 2 つ並ぶと、
                       どちらが何なのか読み取れなくなるため。尺はグリッド側にだけ出す。 */}
                   {img.media_type === 'video' && <div style={appStyles.thumbVideoPlay}>▶</div>}
-                </div>
+                </TimelineCell>
               )
             })}
           </div>
@@ -243,7 +270,9 @@ const s: Record<string, React.CSSProperties> = {
   headingCount: { fontSize: font.sm, color: 'var(--text-secondary)', flexShrink: 0 },
   loadedCount: { marginLeft: 'auto', fontSize: font.sm, fontWeight: weight.normal, color: 'var(--text-secondary)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
   grid: { display: 'grid', gap: CELL_GAP, width: '100%' },
-  thumb: { position: 'relative', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxSizing: 'border-box', borderRadius: radius.md, overflow: 'hidden', cursor: 'pointer', width: '100%', contain: 'layout paint', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
+  // 枠・載せたとき・選んだとき・フォーカスの見た目はグリッドのセル（styles.ts の thumb 系）と同じ 2px。
+  // 以前はふだんだけ 1px で、選ぶたびに枠が太って中身が 1px ずれ、載せても何も変わらなかった。
+  thumb: { position: 'relative', background: 'var(--bg-surface)', border: '2px solid var(--border-default)', boxSizing: 'border-box', borderRadius: radius.md, overflow: 'hidden', cursor: 'pointer', width: '100%', contain: 'layout paint', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
   thumbImg: { width: '100%', objectFit: 'cover', display: 'block' },
   // サムネ上への時刻バッジは、写真のような雑多な背景に載っても読めるよう常に黒地・白文字に固定する
   // （テーマ非依存。フィルムストリップの視認性を優先し、あえて周辺UIと色を揃えない）。
