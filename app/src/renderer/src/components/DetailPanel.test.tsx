@@ -142,6 +142,12 @@ describe('DetailPanel の「要注意」', () => {
     expect(ui.queryByText('detail.uncapturedFrames')).not.toBeNull()
   })
 
+  it('30fps を超える素材では札を出さない（精度を保証しない）', () => {
+    const ui = render(<DetailPanel {...clip({ fps: 59.94, misaligned_frames: 1, uncaptured_frames: 20 })} />)
+    expect(ui.queryByText('detail.unreliable')).toBeNull()
+    expect(ui.queryByText('detail.uncapturedFrames')).toBeNull()
+  })
+
   it('ずれが 1 コマでもあれば出す', () => {
     const ui = render(<DetailPanel {...clip({ misaligned_frames: 1, anime_missing_frames: 0 })} />)
     expect(ui.queryByText('detail.unreliable')).not.toBeNull()

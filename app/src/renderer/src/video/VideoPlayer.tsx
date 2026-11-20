@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, memo, Fragment } from 'react'
 import { mediaUrl } from '../utils'
 import { clipStatus } from './frameReadout'
+import { isPrecisionGuaranteed } from '../../../shared/frame-severity'
 import { useT } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
 import { useFramePosition } from './useFramePosition'
@@ -90,6 +91,8 @@ type Props = {
   onVideoClick?: (e: React.MouseEvent<HTMLVideoElement>) => boolean
   /** 実フレーム表が使えないときのコマ送りの刻み幅（settings.frameFps）。省略時は 24。 */
   fps?: number
+  /** 録画そのものの素材 fps（images.fps）。30fps を超えるとコマの判定を出さず「精度保証外」と出す */
+  clipFps?: number | null
   /** コマ情報（実フレーム時刻とコマごとの確からしさ）を先読みし、コマ送りを素材の実コマへ
    *  吸着させる。あわせてコマ番号の表示も出す。
    *  解析は main 側でキャッシュされるとはいえ初回は ffmpeg が走るため、実際にコマを
@@ -113,7 +116,7 @@ type Props = {
   onFrameIndex?: (idx: number, gap: number) => void
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, clipMedia, autoPlay, pauseWhen, onVideoClick, fps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ id, wrapperStyle, videoStyle, clipMedia, autoPlay, pauseWhen, onVideoClick, fps, clipFps, showRateLoop, preloadFrameTable, clipSource, onFramesReady, onFrameIndex }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   // コマ再生で、先に作った絵を映像の真上に重ねる先（useFramePlay）。
   const frameOverlayRef = useRef<HTMLCanvasElement>(null)
@@ -123,7 +126,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
   // いま素材の何コマ目に居るか（コマ表の取得・±1 コマ・コマ番号の表示）は useFramePosition が持つ。
   // ここは再生・シークバー・音量・コマ再生と、画面の組み立て。
   const position = useFramePosition({
-    videoRef, id, preloadFrameTable, stepSec, clipSource, onFramesReady, onFrameIndex,
+    videoRef, id, preloadFrameTable, stepSec, clipSource, clipFps, onFramesReady, onFrameIndex,
     onManualStep: () => setFramePlay(false),
   })
   const {
@@ -502,7 +505,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
           <div
             style={frameLegendStyle}
             onClick={(e) => { e.stopPropagation(); setLegendOpen(false) }}>
-            {clipStatus(framesRef.current, gapIndexRef.current, t).map((line, i) => (
+            {clipStatus(framesRef.current, gapIndexRef.current, t, isPrecisionGuaranteed(clipFps)).map((line, i) => (
               line.label === null
                 ? <span key={i} style={{ gridColumn: '1 / -1' }}>{line.text}</span>
                 : (

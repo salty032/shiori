@@ -113,8 +113,10 @@ export interface ClipStatusLine {
   text: string
 }
 
-export function clipStatus(frames: ClipFrames | null, index: GapIndex, tr: Translate['t']): ClipStatusLine[] {
+export function clipStatus(frames: ClipFrames | null, index: GapIndex, tr: Translate['t'], guaranteed = true): ClipStatusLine[] {
   if (!frames || frames.pts.length === 0) return []
+  // 精度を保証しない素材（shared/frame-severity.ts の isPrecisionGuaranteed）では、問題を数え上げない。
+  if (!guaranteed) return [{ label: tr('viewer.frameUnguaranteed'), color: FRAME_COLOR.muted, text: tr('viewer.statusUnguaranteed') }]
   const out: ClipStatusLine[] = []
   const no = (i: number): string => String(sourceFrameNo(i, index.gapBefore))
   const alert = (text: string): void => { out.push({ label: tr('viewer.frameUnreliable'), color: FRAME_COLOR.alert, text }) }
@@ -212,6 +214,8 @@ export interface FrameReadoutInput {
   index: GapIndex
   /** クリップ全体が当てにならないか（frameTable の isClipUnreliable） */
   unreliable: boolean
+  /** コマの精度を保証する素材か（shared/frame-severity.ts の isPrecisionGuaranteed）。false なら判定を出さない */
+  guaranteed: boolean
   /** 取り込み動画か録画クリップか。file のときの読み方が変わる */
   clipSource?: string
   /** estimated のときに出す刻みの fps */
@@ -241,7 +245,7 @@ export interface FrameReadoutResult {
 // null を返したら**表示を書き換えない**（コマ表が無い＝前の表示のまま）。元の実装が
 // 何もせず return していた分岐をそのまま保つ。
 export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): FrameReadoutResult | null {
-  const { kind, gap, frames, index, unreliable, clipSource, estimatedFps } = input
+  const { kind, gap, frames, index, unreliable, guaranteed, clipSource, estimatedFps } = input
 
   if (kind === 'loading') {
     return {
@@ -276,6 +280,12 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
       text: tr(isImport ? 'viewer.frameIndex' : 'viewer.frameIndexFile', params),
       color: isImport ? FRAME_COLOR.ok : FRAME_COLOR.warn,
     }
+  }
+
+  // 精度を保証しない素材（30fps 超）では、要注意・撮り逃し・抜けのどれも出さず「精度保証外」とだけ出す。
+  // 抜けの中に居るときも同じ（番号は抜けを数えたまま）。
+  if (!guaranteed) {
+    return { cur, text: `${tr('viewer.frameIndex', params)} · ${tr('viewer.frameUnguaranteed')}`, color: FRAME_COLOR.muted }
   }
 
   // このコマの次に抜けている枚数（小さい抜けのときだけ使う）。

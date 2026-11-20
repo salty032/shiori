@@ -295,6 +295,8 @@ export const en: Record<keyof typeof ja, string> = {
   'viewer.frameIndexFile': 'File frame {cur} / {total}',
   'viewer.frameNeedsReview': 'missed',
   'viewer.frameUnreliable': 'unreliable',
+  'viewer.frameUnguaranteed': 'accuracy not guaranteed',
+  'viewer.statusUnguaranteed': 'Frame accuracy is not guaranteed for sources above 30fps, because not every frame can be captured.',
   'viewer.statusLabelGap': 'gap',
   'viewer.statusMisaligned': 'Out of step with the original video from frame {from} on ({count} in all).',
   'viewer.statusMissingSevere': 'Missing from the recording: {count} of the {total} frames of the original video ({pct}%).',

@@ -1,7 +1,7 @@
 // 式を変えると、同じ録画が画面ごとに赤かったり白かったりする。線の位置を固定する。
 import { describe, expect, it } from 'vitest'
 import { SEVERE_FRAME_RATIO } from './api.video'
-import { isMissingSevere, isReuseSevere, missingFrameCount } from './frame-severity'
+import { isMissingSevere, isPrecisionGuaranteed, isReuseSevere, missingFrameCount } from './frame-severity'
 
 describe('missingFrameCount（表から抜けているコマ数）', () => {
   it('アニメとしての抜け（animeMissing）だけを足す', () => {
@@ -42,5 +42,16 @@ describe('isReuseSevere（撮り逃しが多すぎるか）', () => {
   // 詳細パネルは行数が DB に無い行（fps も尺も無い）で 0 を渡す。そのとき赤にしない。
   it('行数が分からないときは多すぎるとしない', () => {
     expect(isReuseSevere(10, 0)).toBe(false)
+  })
+})
+
+// 精度を保証するのは 30fps 以下（29.97 を含む）。fps が分からない録画は今までどおり判定する。
+describe('isPrecisionGuaranteed（精度を保証する素材か）', () => {
+  it('23.976・29.97・30 は保証し、59.94・38 は保証しない', () => {
+    expect([23.976, 29.97, 30].map(isPrecisionGuaranteed)).toEqual([true, true, true])
+    expect([59.94, 38.28].map(isPrecisionGuaranteed)).toEqual([false, false])
+  })
+  it('fps が分からなければ判定する側に倒す', () => {
+    expect([null, undefined, 0, Number.NaN].map(isPrecisionGuaranteed)).toEqual([true, true, true, true])
   })
 })

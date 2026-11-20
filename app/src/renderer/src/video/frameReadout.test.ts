@@ -101,6 +101,7 @@ describe('frameReadout - 何を出すか', () => {
     frames: frames(),
     index: buildGapIndex(frames()),
     unreliable: false,
+    guaranteed: true,
     estimatedFps: 24,
   }
 
@@ -182,6 +183,14 @@ describe('frameReadout - 何を出すか', () => {
   })
 
   // 注記は重ねない。**重いものが 1 つだけ出る**（並べると判断が変わらないのに読む量だけ増える）。
+  // 30fps を超える素材は精度を保証しない。要注意・撮り逃し・抜けのどれより先に「精度保証外」だけを出す。
+  it('精度を保証しない素材では、要注意や撮り逃しの代わりに「精度保証外」とだけ出す', () => {
+    const f = frames({ quality: [FRAME_QUALITY.captured, FRAME_QUALITY.reused, FRAME_QUALITY.captured, FRAME_QUALITY.captured] })
+    const out = frameReadout({ ...base, kind: 'source', frames: f, index: buildGapIndex(f), idx: 1, unreliable: true, guaranteed: false }, tr)
+    expect(out?.text).toBe('viewer.frameIndex(cur=2,total=4) · viewer.frameUnguaranteed')
+    expect(out?.color).toBe(FRAME_COLOR.muted)
+  })
+
   describe('注記が重なったら重い方だけを出す', () => {
     const f = frames({
       quality: [FRAME_QUALITY.captured, FRAME_QUALITY.reused, FRAME_QUALITY.captured, FRAME_QUALITY.captured],
@@ -256,5 +265,13 @@ describe('clipStatus - この録画の状態', () => {
     expect(texts(frames({ quality: [C, C, R, R] }))).toEqual([
       'viewer.frameNeedsReview:viewer.statusReused(count=2,from=3)',
     ])
+  })
+})
+
+describe('clipStatus - 精度を保証しない素材', () => {
+  it('問題を数え上げず、精度を保証しないことだけを 1 行で出す', () => {
+    const f = frames({ quality: [FRAME_QUALITY.misaligned, FRAME_QUALITY.reused, FRAME_QUALITY.captured, FRAME_QUALITY.captured] })
+    const lines = clipStatus(f, buildGapIndex(f), tr, false)
+    expect(lines.map((l) => l.label)).toEqual(['viewer.frameUnguaranteed'])
   })
 })

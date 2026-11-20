@@ -10,6 +10,7 @@ import { buildGapIndex, frameReadout, walkFrames, type GapIndex, type ReadoutKin
 import { useT, type Translate } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
 import type { ClipFrames } from '../../../shared/api.video'
+import { isPrecisionGuaranteed } from '../../../shared/frame-severity'
 import type { ImageSource } from '../../../shared/types'
 
 interface Options {
@@ -20,6 +21,8 @@ interface Options {
   /** コマ表が使えないときの刻み幅（秒） */
   stepSec: number
   clipSource: ImageSource | undefined
+  /** 録画そのものの素材 fps（設定の fps で埋めない）。精度を保証するかを決める */
+  clipFps: number | null | undefined
   onFramesReady: ((frames: ClipFrames | null) => void) | undefined
   onFrameIndex: ((idx: number, gap: number) => void) | undefined
   /** 手でコマを送ったとき（コマ再生を止めるため。自動送りと手送りが混ざると、どちらの結果か分からなくなる） */
@@ -27,7 +30,7 @@ interface Options {
 }
 
 export function useFramePosition({
-  videoRef, id, preloadFrameTable, stepSec, clipSource, onFramesReady, onFrameIndex, onManualStep
+  videoRef, id, preloadFrameTable, stepSec, clipSource, clipFps, onFramesReady, onFrameIndex, onManualStep
 }: Options) {
   // このクリップのコマ情報。取得できるまでは null のまま。
   const framesRef = useRef<ClipFrames | null>(null)
@@ -42,6 +45,9 @@ export function useFramePosition({
   // （docs/ANIME-FRAMES.md「コマ送りの精度は命」）。欠落コマの割合で並べると 5.4% と 4.1% の間で分布が
   // 切れていたので、そこを境にする。大きい方 24 本は全体を赤、小さい方 9 本は場所を指す。
   const unreliableRef = useRef(false)
+  // 表示を作り直す関数は描画ごとに作り直さないので、fps は ref 越しに最新を読む。
+  const clipFpsRef = useRef(clipFps)
+  clipFpsRef.current = clipFps
   // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
   //
   // 時刻で持って毎回シーク結果を実測し直すと、連打したときに前のシークの実測（非同期で
@@ -174,6 +180,7 @@ export function useFramePosition({
       frames: framesRef.current,
       index: gapIndexRef.current,
       unreliable: unreliableRef.current,
+      guaranteed: isPrecisionGuaranteed(clipFpsRef.current),
       clipSource,
       estimatedFps: Math.round(1 / stepSec),
     }, tRef.current)

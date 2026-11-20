@@ -11,7 +11,7 @@ import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
 import VideoPlayer from '../video/VideoPlayer'
-import { isMissingSevere, isReuseSevere } from '../../../shared/frame-severity'
+import { isMissingSevere, isPrecisionGuaranteed, isReuseSevere } from '../../../shared/frame-severity'
 import { useOverlayOpen } from '../overlaySignal'
 import TrimButton from '../video/TrimButton'
 import { useT } from '../i18n'
@@ -138,7 +138,8 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   // **並べない。重い方だけを出す。** コマ送りの表示（VideoPlayer）と同じ扱いにする。
   // 要注意が出ている時点でそのクリップは数えられず、撮り逃しを足しても判断は変わらない。
   // 順は 要注意（数えられない）→ 撮り逃し（絵が無い）。
-  const frameNote = unreliableNote ?? uncapturedNote
+  // 精度を保証しない素材（30fps 超）では札を出さない（ビューアのコマ番号の横に「精度保証外」と出る）。
+  const frameNote = isPrecisionGuaranteed(single?.fps) ? (unreliableNote ?? uncapturedNote) : null
 
   const [bulkTagMap, setBulkTagMap] = useState<Map<string, BulkTagEntry>>(new Map())
   const [bulkTagInput, setBulkTagInput] = useState('')
