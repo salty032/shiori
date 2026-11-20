@@ -238,19 +238,20 @@ export function initDb(): void {
   // 入らない。実測（60fps 素材）では captured 89.3% の裏で素材の 2 割が表に無かった。
   // 画面とログで同じ数字を出すために、見積もりではなく測った値をここへ持つ。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN unreported_frames INTEGER')
-  // **unreported_measured という名前の列を新しく足さない。** 以前の版が足して書いていた
-  // （どこからも読まれず廃止）ので、古い DB には古い値の入った同名の列が残っている。
-  // 同じ名前で足すと addColumnIfMissing が素通りし、古い値をそのまま読むことになる。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN misaligned_frames INTEGER')
   // 表から抜けているアニメのコマ数の合計（findClipGaps の animeMissing。数え方は frame-severity の
   // missingFrameCount）。**詳細パネルの「要注意」をビューアと同じ割合で出すために持つ。** 持たないと、
   // 抜けだけが多い録画でビューアは赤・詳細パネルは無印になる。通知が来なかった数（unreported_frames）とは別物。
   // 起動時の backfillFrameCounts が保存済みの表から数え直すので、動画を読み直さずに埋まる。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN anime_missing_frames INTEGER')
-  // 色の列（colors）を消す。画像の主な色を入れるつもりで作ったが、どこからも書かれず常に空のままだった
-  // （2026-11-20 に片付けた）。SCHEMA_VERSION を 8 に上げてあるので、消す前の退避が先に取られる。
-  if (prepare("SELECT 1 FROM pragma_table_info('images') WHERE name = 'colors'").get() !== undefined) {
-    db.exec('ALTER TABLE images DROP COLUMN colors')
+  // 使わなくなった列を消す（2026-11-20 に片付けた）。消す前の退避は SCHEMA_VERSION を上げてあるので先に取られる。
+  //   colors … 画像の主な色を入れるつもりで作ったが、どこからも書かれず常に空のままだった。
+  //   unreported_measured … 以前の版が書いていた「抜けの枚数に裏が取れたか」。どこからも読まれず廃止し、
+  //     古い DB にだけ古い値のまま残っていた（裏が取れたかは今は表の行から出す：frame-gaps.ts の measured）。
+  for (const column of ['colors', 'unreported_measured']) {
+    if (prepare("SELECT 1 FROM pragma_table_info('images') WHERE name = ?").get(column) !== undefined) {
+      db.exec(`ALTER TABLE images DROP COLUMN ${column}`)
+    }
   }
   // コマ表を最後に見直したときの判定の版（db-video-frames の RECHECK_VERSION）。
   // 見直しは 1 本ごとに動画をまるごとデコードするので、同じ版で二度やらないための記録。

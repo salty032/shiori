@@ -112,19 +112,21 @@ describe('古い DB を開いたとき', () => {
     expect((prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(SCHEMA_VERSION)
   })
 
-  // 使わなくなった色の列（colors）は消す。行はそのまま残る。
-  it('使っていない colors の列を消し、既存の行は残す', () => {
+  // 使わなくなった列（colors・unreported_measured）は消す。行はそのまま残る。
+  it('使っていない colors・unreported_measured の列を消し、既存の行は残す', () => {
     seed((p) => {
       p('INSERT INTO images (filepath, captured_at, title) VALUES (?, ?, ?)').run('/a.png', 1700000000000, 'あ')
     })
     const raw = new DatabaseSync(databasePath())
     raw.exec('ALTER TABLE images ADD COLUMN colors TEXT')
+    raw.exec('ALTER TABLE images ADD COLUMN unreported_measured INTEGER')
     raw.exec('PRAGMA user_version = 7')
     raw.close()
 
     initDb()
 
     expect(columnNames('images')).not.toContain('colors')
+    expect(columnNames('images')).not.toContain('unreported_measured')
     expect((prepare('SELECT title FROM images').get() as { title: string }).title).toBe('あ')
   })
 

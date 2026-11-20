@@ -34,7 +34,8 @@ export interface SqlRunner {
 // 7: images に anime_missing_frames を追加（2026-11-20）。詳細パネルの「要注意」を、ビューアと同じく
 //    抜けの割合でも出すための数。
 // 8: images から colors を消す（2026-11-20）。どこからも書かれず常に空だった列。
-export const SCHEMA_VERSION = 8
+// 9: images から unreported_measured を消す（2026-11-20）。古い DB にだけ残り、どこからも読まれない列。
+export const SCHEMA_VERSION = 9
 
 /**
  * 残す退避の世代数。日次で 1 世代取るので、実質「何日前まで戻れるか」になる。
