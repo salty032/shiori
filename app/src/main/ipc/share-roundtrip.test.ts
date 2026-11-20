@@ -59,12 +59,12 @@ const timesheet = '[[0,"A1"],[2,"","",3]]'
 async function seedLibrary(): Promise<void> {
   const dir = await ensureCaptureSubDir(1_700_000_000_000)
   const file = (name: string): string => { const p = join(dir, name); writeFileSync(p, `bytes of ${name}`); return p }
-  const shot = insertImage({ filepath: file('shot.png'), captured_at: 1_700_000_000_000, title: 'a 撮った画像', current_time: 12.5, url: 'https://example.com/w', width: 1280, height: 720, colors: null, memo: '線の歪み', media_type: 'image', duration: null, fps: null, thumb_path: null, source: 'capture' })
+  const shot = insertImage({ filepath: file('shot.png'), captured_at: 1_700_000_000_000, title: 'a 撮った画像', current_time: 12.5, url: 'https://example.com/w', width: 1280, height: 720, memo: '線の歪み', media_type: 'image', duration: null, fps: null, thumb_path: null, source: 'capture' })
   addTagsBulk(shot, [{ name: 'tag_a', source: 'manual' }, { name: 'ai_tag', source: 'ai' }])
-  const clip = insertImage({ filepath: file('clip.webm'), captured_at: 1_700_000_100_000, title: 'b 撮った動画', current_time: 30, url: null, width: 1920, height: 1080, colors: null, memo: null, media_type: 'video', duration: 5, fps: 24, thumb_path: null, source: 'capture' })
+  const clip = insertImage({ filepath: file('clip.webm'), captured_at: 1_700_000_100_000, title: 'b 撮った動画', current_time: 30, url: null, width: 1920, height: 1080, memo: null, media_type: 'video', duration: 5, fps: 24, thumb_path: null, source: 'capture' })
   saveVideoFrames(clip, frames)
   saveTimesheet(clip, timesheet)
-  const imported = insertImage({ filepath: file('imported.png'), captured_at: 1_700_000_200_000, original_captured_at: 1_500_000_000_000, title: 'c 取り込んだ画像', current_time: null, url: null, width: null, height: null, colors: null, memo: 'もらった', media_type: 'image', duration: null, fps: null, thumb_path: null, source: 'import' })
+  const imported = insertImage({ filepath: file('imported.png'), captured_at: 1_700_000_200_000, original_captured_at: 1_500_000_000_000, title: 'c 取り込んだ画像', current_time: null, url: null, width: null, height: null, memo: 'もらった', media_type: 'image', duration: null, fps: null, thumb_path: null, source: 'import' })
   addTagsBulk(imported, [{ name: 'tag_b', source: 'manual' }])
 }
 

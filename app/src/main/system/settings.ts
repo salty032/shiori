@@ -192,7 +192,6 @@ export function normalizeSettings(value: unknown): Settings {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const allowedIds = extensionIdList(data.allowedExtensionIds)
   return {
-    titleStrip: stringList(data.titleStrip),
     thumbnailSize: boundedNumber(migrateThumbnailSize(data.thumbnailSize), DEFAULTS.thumbnailSize, 80, 360),
     frameFps: boundedNumber(data.frameFps, DEFAULTS.frameFps, FRAME_FPS_MIN, FRAME_FPS_MAX),
     frameFpsAuto: data.frameFpsAuto !== false,
@@ -206,7 +205,6 @@ export function normalizeSettings(value: unknown): Settings {
     captureNotify: data.captureNotify !== false,
     lowMemoryMode: data.lowMemoryMode === true,
     allowedExtensionIds: allowedIds.length > 0 ? allowedIds : [EXTENSION_ID],
-    serviceOrder: stringList(data.serviceOrder),
     showAiTags: data.showAiTags === true,
     theme: themeValue(data.theme),
     language: languageValue(data.language),

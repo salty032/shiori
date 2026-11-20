@@ -1,34 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { cleanTitle, siteName, formatTime, formatBytes, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
+import { siteName, formatTime, formatBytes, buildTimeline, computeGridLayout, thumbSrc, splitHighlight } from './utils'
 import { parseSearchQuery, buildImageQuery } from './stores/imageQuery'
 import type { ImageRow } from './types'
 
 // utils.ts はレンダラー純粋関数なので Electron 依存なし
-describe('cleanTitle', () => {
-  it('マッチするパターンを除去', () => {
-    expect(cleanTitle('映画 - Netflix', [' - Netflix'])).toBe('映画')
-  })
-  it('lastIndexOf: 最後の出現を除去', () => {
-    expect(cleanTitle('A - Netflix - Netflix', [' - Netflix'])).toBe('A - Netflix')
-  })
-  it('パターンなし: そのまま返す', () => {
-    expect(cleanTitle('映画', [' - Netflix'])).toBe('映画')
-  })
-  it('null タイトル → —', () => {
-    expect(cleanTitle(null, [' - Netflix'])).toBe('—')
-  })
-  it('空パターン配列: そのまま返す', () => {
-    expect(cleanTitle('映画', [])).toBe('映画')
-  })
-  it('空パターン文字列はスキップ', () => {
-    expect(cleanTitle('映画', ['', ' - Netflix'])).toBe('映画')
-  })
-  it('先頭マッチは除去しない (idx > 0 条件)', () => {
-    // " - Netflix" が idx=0 なら除去されない
-    expect(cleanTitle(' - Netflix映画', [' - Netflix'])).toBe(' - Netflix映画')
-  })
-})
-
 describe('splitHighlight', () => {
   it('クエリが空ならそのまま非マッチの1要素', () => {
     expect(splitHighlight('こんにちは', '')).toEqual([{ text: 'こんにちは', match: false }])
@@ -212,7 +187,7 @@ describe('buildImageQuery', () => {
 function makeRow(overrides: Partial<ImageRow>): ImageRow {
   return {
     id: 1, filepath: '/a.png', captured_at: 1000, title: null, current_time: null,
-    url: null, colors: null, memo: null, media_type: null, duration: null, fps: null,
+    url: null, memo: null, media_type: null, duration: null, fps: null,
     width: null, height: null, thumb_path: null, source: 'capture',
     ...overrides,
   }
@@ -229,7 +204,7 @@ describe('thumbSrc', () => {
 
 describe('buildTimeline', () => {
   it('空配列 → グループなし', () => {
-    const { groups, ordered } = buildTimeline([], [])
+    const { groups, ordered } = buildTimeline([])
     expect(groups).toHaveLength(0)
     expect(ordered).toHaveLength(0)
   })
@@ -239,7 +214,7 @@ describe('buildTimeline', () => {
       makeRow({ id: 1, title: '作品A', captured_at: 1000 }),
       makeRow({ id: 2, title: '作品A', captured_at: 2000 }),
     ]
-    const { groups } = buildTimeline(rows, [])
+    const { groups } = buildTimeline(rows)
     expect(groups).toHaveLength(1)
     expect(groups[0].items).toHaveLength(2)
   })
@@ -249,7 +224,7 @@ describe('buildTimeline', () => {
       makeRow({ id: 1, title: '作品A', captured_at: 1000 }),
       makeRow({ id: 2, title: '作品B', captured_at: 2000 }),
     ]
-    const { groups } = buildTimeline(rows, [])
+    const { groups } = buildTimeline(rows)
     expect(groups).toHaveLength(2)
   })
 
@@ -259,7 +234,7 @@ describe('buildTimeline', () => {
       makeRow({ id: 2, title: '作品B', captured_at: 3000 }),
       makeRow({ id: 3, title: '作品A', captured_at: 2000 }),
     ]
-    const { groups } = buildTimeline(rows, [])
+    const { groups } = buildTimeline(rows)
     expect(groups[0].key).toBe('作品B') // 最新が先頭
     expect(groups[1].key).toBe('作品A')
   })
@@ -270,7 +245,7 @@ describe('buildTimeline', () => {
       makeRow({ id: 2, title: '作品A', current_time: 10, captured_at: 2000 }),
       makeRow({ id: 3, title: '作品A', current_time: 20, captured_at: 1500 }),
     ]
-    const { groups } = buildTimeline(rows, [])
+    const { groups } = buildTimeline(rows)
     const times = groups[0].items.map((i) => i.img.current_time)
     expect(times).toEqual([10, 20, 30])
   })
@@ -280,19 +255,9 @@ describe('buildTimeline', () => {
       makeRow({ id: 1, title: '作品A', current_time: null, captured_at: 1000 }),
       makeRow({ id: 2, title: '作品A', current_time: 10, captured_at: 2000 }),
     ]
-    const { groups } = buildTimeline(rows, [])
+    const { groups } = buildTimeline(rows)
     expect(groups[0].items[0].img.current_time).toBe(10)
     expect(groups[0].items[1].img.current_time).toBeNull()
-  })
-
-  it('titleStrip を適用してグループキーを生成', () => {
-    const rows = [
-      makeRow({ id: 1, title: '作品A - Netflix', captured_at: 1000 }),
-      makeRow({ id: 2, title: '作品A - Netflix', captured_at: 2000 }),
-    ]
-    const { groups } = buildTimeline(rows, [' - Netflix'])
-    expect(groups).toHaveLength(1)
-    expect(groups[0].key).toBe('作品A')
   })
 
   it('flatIndex は ordered 配列内の正しいインデックスを指す', () => {
@@ -300,7 +265,7 @@ describe('buildTimeline', () => {
       makeRow({ id: 1, title: '作品A', captured_at: 1000 }),
       makeRow({ id: 2, title: '作品B', captured_at: 2000 }),
     ]
-    const { groups, ordered } = buildTimeline(rows, [])
+    const { groups, ordered } = buildTimeline(rows)
     for (const group of groups) {
       for (const item of group.items) {
         expect(ordered[item.flatIndex]).toBe(item.img)

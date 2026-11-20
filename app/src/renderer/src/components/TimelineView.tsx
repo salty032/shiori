@@ -2,7 +2,7 @@ import { memo, forwardRef, useImperativeHandle, useMemo, useState, useEffect } f
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageRow } from '../types'
 import type { TimelineGroup } from '../utils'
-import { cleanTitle, computeGridLayout, createSoftScroller, formatTime, thumbSrc } from '../utils'
+import { computeGridLayout, createSoftScroller, formatTime, thumbSrc } from '../utils'
 import { badgeInset, font, radius, s as appStyles, space, weight } from '../styles'
 import { currentLocale, useT } from '../i18n'
 
@@ -45,7 +45,6 @@ const GROUP_GAP = 26
 type Props = {
   groups: TimelineGroup[]
   thumbnailSize: number
-  titleStrip: string[]
   selectedIds: Set<number>
   pendingIds: Set<number>
   focusedIndex: number | null
@@ -178,7 +177,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
         {activeGroup && (
           <div style={s.heading}>
             <span style={s.headingTitle}>
-              {activeGroup.title ? cleanTitle(activeGroup.title, p.titleStrip) : t('grid.untitled')}
+              {activeGroup.title || t('grid.untitled')}
             </span>
             <span style={s.headingCount}>{activeGroup.items.length}</span>
             <span style={s.loadedCount}>
@@ -202,7 +201,7 @@ const TimelineView = forwardRef<TimelineViewHandle, Props>(function TimelineView
           return (
             <div key={`${group.key}:h`} style={{ ...position, ...s.headingStatic }}>
               <span style={s.headingTitle}>
-                {group.title ? cleanTitle(group.title, p.titleStrip) : t('grid.untitled')}
+                {group.title || t('grid.untitled')}
               </span>
               <span style={s.headingCount}>{group.items.length}</span>
             </div>

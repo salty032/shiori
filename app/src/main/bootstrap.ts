@@ -281,7 +281,6 @@ export function bootstrap(): void {
           // 「何ピクセルで撮ったか」は後から画面で読めないと画質の判断ができない。
           width: size?.width ?? null,
           height: size?.height ?? null,
-          colors: null,
           memo: null,
           media_type: 'image',
           fps: null,

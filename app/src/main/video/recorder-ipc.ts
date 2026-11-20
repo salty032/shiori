@@ -261,7 +261,6 @@ export function registerRecorderIpc(): void {
           // recordedSize 参照）。
           width: recordedPixels?.width ?? null,
           height: recordedPixels?.height ?? null,
-          colors: null,
           memo: null,
           media_type: 'video',
           duration,

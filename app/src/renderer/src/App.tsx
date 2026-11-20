@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { buildTimeline, cleanTitle, computeGridLayout, createSoftScroller } from './utils'
+import { buildTimeline, computeGridLayout, createSoftScroller } from './utils'
 import { s, color, space, THUMB_CHROME } from './styles'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
@@ -149,8 +149,8 @@ export default function App() {
   // タイムライン表示中はグリッドの代わりに、作品別グルーピングした並びを「アクティブな一覧」として扱う。
   // ordered（フラット化した並び）が選択・ビューア移動のインデックス基準になる。
   const timelineBuilt = useMemo(
-    () => buildTimeline(timeline.images, settings.settings.titleStrip, filters.sortOrder, filters.shuffleSeed),
-    [timeline.images, settings.settings.titleStrip, filters.sortOrder, filters.shuffleSeed],
+    () => buildTimeline(timeline.images, filters.sortOrder, filters.shuffleSeed),
+    [timeline.images, filters.sortOrder, filters.shuffleSeed],
   )
   const activeImages = viewMode === 'timeline' ? timelineBuilt.ordered : imageList.images
   const timelineOrderedRef = useLatestRef(timelineBuilt.ordered)
@@ -465,8 +465,8 @@ export default function App() {
   const quickTagTargetLabel = useMemo(() => {
     if (!quickTagTargetIds || quickTagTargetIds.length !== 1) return tp('detail.imageCount', quickTagTargetIds?.length ?? 0)
     const img = activeImages.find((x) => x.id === quickTagTargetIds[0])
-    return img?.title ? cleanTitle(img.title, settings.settings.titleStrip) : tp('detail.imageCount', 1)
-  }, [activeImages, quickTagTargetIds, settings.settings.titleStrip, tp])
+    return img?.title ? img.title : tp('detail.imageCount', 1)
+  }, [activeImages, quickTagTargetIds, tp])
 
   // サムネイル右クリック: 未選択の画像なら単一選択に切り替えてからメニューを開く。
   // 既に選択済みの画像上なら現在の複数選択を維持し、メニューはその選択全体に作用する。
@@ -584,7 +584,6 @@ export default function App() {
                 ref={timelineViewRef}
                 groups={timelineBuilt.groups}
                 thumbnailSize={settings.settings.thumbnailSize}
-                titleStrip={settings.settings.titleStrip}
                 selectedIds={selection.selectedIds}
                 pendingIds={selection.pendingIds}
                 focusedIndex={selection.focusedIndex}
@@ -682,7 +681,6 @@ export default function App() {
                           selected={selection.selectedIds.has(img.id) || selection.pendingIds.has(img.id)}
                           isNew={newIds.has(img.id)}
                           focused={selection.focusedIndex === start + localIdx}
-                          titleStrip={settings.settings.titleStrip}
                           highlight={highlightQuery}
                           onContextMenu={handleThumbContextMenu}
                           onOpen={selection.openIndex}
@@ -750,7 +748,6 @@ export default function App() {
             index={viewerIdx}
             setIndex={setViewerIdx}
             total={viewMode === 'timeline' ? activeImages.length : (imageList.totalCount ?? activeImages.length)}
-            titleStrip={settings.settings.titleStrip}
             frameFps={settings.settings.frameFps}
             onToggleDetailPanel={() => setDetailPanelHiddenInViewer((v) => !v)}
             timesheet={timesheet}
@@ -817,7 +814,6 @@ export default function App() {
         <DetailPanel
           selectedIds={selection.selectedIds}
           single={single}
-          settings={settings.settings}
           taggerDoneKey={tagRefreshKey}
           allTags={filters.allTags}
           viewerOpen={viewerIdx !== null}

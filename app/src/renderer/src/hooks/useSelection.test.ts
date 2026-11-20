@@ -15,7 +15,6 @@ function makeImages(n: number, startId = 1): ImageRow[] {
     title: null,
     current_time: null,
     url: null,
-    colors: null,
     memo: null,
     media_type: null,
     duration: null,

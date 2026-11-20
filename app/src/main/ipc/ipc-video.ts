@@ -247,7 +247,6 @@ export function registerVideoHandlers(): void {
           // 変わらないのに、ここを落とすとトリムした瞬間に解像度表示だけが消える。
           width: image.width,
           height: image.height,
-          colors: null,
           memo: null,
           media_type: 'video',
           duration: outSec - inSec,

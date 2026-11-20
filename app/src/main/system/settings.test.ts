@@ -7,7 +7,6 @@ import { normalizeSettings, stripDedicatedSettingKeys } from './settings'
 const DEFAULT_EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 
 const DEFAULTS = {
-  titleStrip: [],
   thumbnailSize: 230,
   frameFps: 24,
   frameFpsAuto: true,
@@ -19,7 +18,6 @@ const DEFAULTS = {
   captureNotify: true,
   lowMemoryMode: false,
   allowedExtensionIds: [DEFAULT_EXTENSION_ID],
-  serviceOrder: [],
   showAiTags: false,
   theme: 'dark',
   // 無効・未指定の language は 'ja' へ倒す（normalizeSettings は OS ロケールを見ない。
@@ -79,30 +77,6 @@ describe('normalizeSettings', () => {
     it('小文字を正規化', () => expect(normalizeSettings({ captureHotkey: 'alt+s' }).captureHotkey).toBe('Alt+S'))
     it('無効な値 → デフォルト Alt+S', () => expect(normalizeSettings({ captureHotkey: 'invalid' }).captureHotkey).toBe('Alt+S'))
     it('数値 → デフォルト Alt+S', () => expect(normalizeSettings({ captureHotkey: 42 }).captureHotkey).toBe('Alt+S'))
-  })
-
-  describe('titleStrip', () => {
-    it('有効な文字列配列 (trim される)', () => {
-      // stringList は .trim() するため先頭スペースは除去される
-      expect(normalizeSettings({ titleStrip: [' - Netflix', ' - YouTube'] }).titleStrip)
-        .toEqual(['- Netflix', '- YouTube'])
-    })
-    it('空文字は除外 (trim 後に空になる文字列も除外)', () => {
-      expect(normalizeSettings({ titleStrip: ['', ' - Netflix', ''] }).titleStrip)
-        .toEqual(['- Netflix'])
-    })
-    it('200 文字超は切り詰め', () => {
-      const long = 'a'.repeat(250)
-      const result = normalizeSettings({ titleStrip: [long] }).titleStrip[0]
-      expect(result).toHaveLength(200)
-    })
-    it('配列でない → 空配列', () => {
-      expect(normalizeSettings({ titleStrip: 'not-array' }).titleStrip).toEqual([])
-    })
-    it('100件超は切り捨て', () => {
-      const many = Array.from({ length: 150 }, (_, i) => `item${i}`)
-      expect(normalizeSettings({ titleStrip: many }).titleStrip).toHaveLength(100)
-    })
   })
 
   describe('lastRunVersion', () => {

@@ -136,15 +136,13 @@ export function useFilters(settings: Settings, setSettings: (updated: Settings) 
   }
 
   const sortedSites = useMemo(() => {
-    const userOrder = settings.serviceOrder ?? []
-    const orderList = userOrder.length ? userOrder : DEFAULT_SERVICE_ORDER
-    const indexMap = new Map(orderList.map((name, i) => [name, i]))
-    const getIdx = (host: string) => indexMap.get(SITE_NAME_MAP[host] ?? '') ?? orderList.length
+    const indexMap = new Map(DEFAULT_SERVICE_ORDER.map((name, i) => [name, i]))
+    const getIdx = (host: string) => indexMap.get(SITE_NAME_MAP[host] ?? '') ?? DEFAULT_SERVICE_ORDER.length
     return [...sites].sort((a, b) => {
       const diff = getIdx(a) - getIdx(b)
       return diff !== 0 ? diff : a.localeCompare(b)
     })
-  }, [sites, settings.serviceOrder])
+  }, [sites])
 
   return {
     // search は検索ボックスの即時値（従来どおり）。committedSearch は実際にクエリへ

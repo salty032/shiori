@@ -23,7 +23,6 @@ export type ImageRow = {
   title: string | null
   current_time: number | null
   url: string | null
-  colors: string | null
   memo: string | null
   media_type: 'image' | 'video' | null
   duration: number | null
@@ -93,7 +92,6 @@ export type VideoExportFormat = 'original' | 'h264'
 export type CaptureResize = 'source' | 'fhd' | 'hd' | 'screen'
 
 export type Settings = {
-  titleStrip: string[]
   thumbnailSize: number
   frameFps: number
   frameFpsAuto: boolean
@@ -107,7 +105,6 @@ export type Settings = {
   // 代わりに開くたび読み込み直し（一覧の位置は先頭へ戻る）、録画の開始が少し遅れる。
   lowMemoryMode: boolean
   allowedExtensionIds: string[]
-  serviceOrder: string[]
   showAiTags: boolean
   theme: Theme
   // 表示言語。新規インストール時のみ OS ロケールから決まり（main/settings.ts の

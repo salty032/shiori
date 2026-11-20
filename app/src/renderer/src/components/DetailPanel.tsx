@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import type { ImageRow, ImageTagSource, Settings } from '../types'
-import { cleanTitle, siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
+import type { ImageRow, ImageTagSource } from '../types'
+import { siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
 import { color, control, font, radius, s as commonStyles, space, weight } from '../styles'
 import TagEditor from './TagEditor'
 import type { ShowToast } from '../hooks/useToast'
@@ -19,7 +19,6 @@ import { useT } from '../i18n'
 type Props = {
   selectedIds: Set<number>
   single: ImageRow | null
-  settings: Settings
   taggerDoneKey: number
   allTags: string[]
   // ビューア表示中は DetailPanel の VideoPlayer を一時停止する（同じクリップがビューア側でも
@@ -68,7 +67,7 @@ function resizeTitleInput(el: HTMLTextAreaElement): void {
   el.style.height = (el.scrollHeight + borderHeight) + 'px'
 }
 
-export default function DetailPanel({ selectedIds, single, settings, taggerDoneKey, allTags, viewerOpen, onTagsChanged, showToast, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
+export default function DetailPanel({ selectedIds, single, taggerDoneKey, allTags, viewerOpen, onTagsChanged, showToast, onTitleChanged, onMemoChanged, onFilterByTag, onExport, onDelete, onClearSelection }: Props) {
   const { t, tp, locale } = useT()
   // トリミング等のオーバーレイに覆われている間も再生を止める（overlaySignal の注記を参照）。
   // ここはビューアと違い、ビューアを開かずに詳細パネルから直接トリミングへ入る経路のため。
@@ -404,7 +403,7 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
                     onKeyDown={(e) => { if (e.key === 'F2' || (e.key === 'Enter' && !e.nativeEvent.isComposing)) startEditingTitle() }}
                     title={t('detail.titleHint')}
                   >
-                    {cleanTitle(single.title, settings.titleStrip)}
+                    {single.title || '—'}
                   </span>
                   <button style={s.titleEditBtn} onClick={startEditingTitle} title={t('detail.editTitle')}><PencilIcon size={13} /></button>
                 </div>

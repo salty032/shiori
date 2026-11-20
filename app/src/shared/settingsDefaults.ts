@@ -14,7 +14,6 @@ export const FRAME_FPS_MIN = 1
 export const FRAME_FPS_MAX = 60
 
 export const SETTINGS_DEFAULTS: Settings = {
-  titleStrip: [],
   // 既定は「中」。段のどれかを指さないと、既定で開いたときに S/M/L のどれも選ばれていない見た目になる。
   thumbnailSize: THUMB_SIZE_STEPS.M,
   frameFps: 24,
@@ -28,7 +27,6 @@ export const SETTINGS_DEFAULTS: Settings = {
   // 既定は従来どおり常駐させる。開くたびに読み込み直す代償は、選んだ人にだけ払わせる。
   lowMemoryMode: false,
   allowedExtensionIds: [],
-  serviceOrder: [],
   showAiTags: false,
   // UX-7: OSのライト/ダーク設定に自動追従する 'system' を新規インストール時の初期値にする。
   // 無効値・破損設定からの復旧時のフォールバック（settings.ts の themeValue）は

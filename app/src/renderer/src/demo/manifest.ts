@@ -35,7 +35,6 @@ function toImageRow(item: DemoItem, id: number): ImageRow {
     title: item.title,
     current_time: item.currentTime,
     url: item.url,
-    colors: null,
     memo: item.memo,
     media_type: item.mediaType,
     duration: item.duration,

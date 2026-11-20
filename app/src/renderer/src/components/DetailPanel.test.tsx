@@ -2,7 +2,6 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
-import { SETTINGS_DEFAULTS } from '../../../shared/settingsDefaults'
 import DetailPanel from './DetailPanel'
 
 vi.mock('./TagEditor', () => ({ default: () => null }))
@@ -12,9 +11,9 @@ function panelProps(id = 1): ComponentProps<typeof DetailPanel> {
   return {
     selectedIds: new Set([id]),
     single: { id, title: 'title', memo: '', filepath: '/capture.png', captured_at: 1000,
-      source: 'capture', current_time: null, url: null, colors: null, media_type: null,
+      source: 'capture', current_time: null, url: null, media_type: null,
       duration: null, fps: null, width: null, height: null, thumb_path: null },
-    settings: SETTINGS_DEFAULTS, taggerDoneKey: 0, allTags: [], viewerOpen: false,
+    taggerDoneKey: 0, allTags: [], viewerOpen: false,
     onTagsChanged: vi.fn(), showToast: vi.fn(), onTitleChanged: vi.fn(), onMemoChanged: vi.fn(),
     onFilterByTag: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onClearSelection: vi.fn(),
   }

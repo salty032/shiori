@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ImageRow } from '../types'
-import { cleanTitle, isEditingTarget, mediaUrl, thumbSrc } from '../utils'
+import { isEditingTarget, mediaUrl, thumbSrc } from '../utils'
 import { s, weight } from '../styles'
 import { XIcon } from './Icon'
 import VideoPlayer, { type VideoPlayerHandle } from '../video/VideoPlayer'
@@ -30,7 +30,6 @@ type Props = {
   setIndex: (index: number | null) => void
   // 全体の総数（無限スクロールで未読み込みの分も含む）。カウンタ表示に使う。
   total: number
-  titleStrip: string[]
   // 動画のコマ送り（, / .）の刻み幅に使う素材の fps。
   frameFps: number
   // Tab で DetailPanel の表示/非表示を切り替える（呼び出し元が状態を持つ。デフォルトは表示）。
@@ -43,7 +42,7 @@ type Props = {
 // 画像の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
 // すべてビューア内部の状態。開閉位置（index）だけは選択・キャプチャ追従のため親が持つ。
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
-export default function Viewer({ images, index, setIndex, total, titleStrip, frameFps, onToggleDetailPanel, timesheet }: Props) {
+export default function Viewer({ images, index, setIndex, total, frameFps, onToggleDetailPanel, timesheet }: Props) {
   const { t } = useT()
   // トリミング等のオーバーレイに覆われている間は再生を止める（overlaySignal の注記を参照）。
   const overlayOpen = useOverlayOpen()
@@ -388,7 +387,7 @@ export default function Viewer({ images, index, setIndex, total, titleStrip, fra
 
   const img = images[index]
   const filmSlots = Array.from({ length: 9 }, (_, i) => index - 4 + i)
-  const title = img.title ? cleanTitle(img.title, titleStrip) : ''
+  const title = img.title ?? ''
 
   return (
     <div ref={viewerRef} style={{ ...s.viewer, animation: modalPanelAnimation(closing) }} onClick={close}>

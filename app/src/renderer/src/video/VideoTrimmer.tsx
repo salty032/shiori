@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ImageRow, Settings } from '../types'
 import { trimmerStyles as s } from './trimmerStyles'
-import { cleanTitle, isEditingTarget, mediaUrl } from '../utils'
+import { isEditingTarget, mediaUrl } from '../utils'
 import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
@@ -623,7 +623,7 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   }
 
   const pct = (sec: number): string => dur > 0 ? `${(sec / dur) * 100}%` : '0%'
-  const videoTitle = image.title ? cleanTitle(image.title, settings.titleStrip) : fileName(image.filepath)
+  const videoTitle = image.title ? image.title : fileName(image.filepath)
 
   // 外側クリックも Escape / ✕ と同じ道を通す。以前はここだけ「変更があれば何もしない」
   // だったため、IN/OUT を動かしたあとに枠外を押すと閉じも確認も出ず、黙って無反応になっていた。

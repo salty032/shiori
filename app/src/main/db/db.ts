@@ -83,7 +83,6 @@ const PUBLIC_IMAGE_COLUMN_NAMES = [
   'title',
   'current_time',
   'url',
-  'colors',
   'memo',
   'media_type',
   'duration',
@@ -109,8 +108,8 @@ export function insertImage(params: Omit<ImageRow, 'id' | 'host' | 'source'> & {
   const source = params.source ?? 'capture'
   const searchText = buildSearchText(params.title, params.memo)
   const stmt = prepare(
-    `INSERT INTO images (filepath, captured_at, original_captured_at, title, current_time, url, width, height, colors, memo, media_type, duration, fps, thumb_path, host, source, search_text)
-     VALUES (@filepath, @captured_at, @original_captured_at, @title, @current_time, @url, @width, @height, @colors, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
+    `INSERT INTO images (filepath, captured_at, original_captured_at, title, current_time, url, width, height, memo, media_type, duration, fps, thumb_path, host, source, search_text)
+     VALUES (@filepath, @captured_at, @original_captured_at, @title, @current_time, @url, @width, @height, @memo, @media_type, @duration, @fps, @thumb_path, @host, @source, @search_text)`
   )
   const result = stmt.run({
     ...params,

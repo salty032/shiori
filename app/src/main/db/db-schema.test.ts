@@ -112,6 +112,22 @@ describe('古い DB を開いたとき', () => {
     expect((prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(SCHEMA_VERSION)
   })
 
+  // 使わなくなった色の列（colors）は消す。行はそのまま残る。
+  it('使っていない colors の列を消し、既存の行は残す', () => {
+    seed((p) => {
+      p('INSERT INTO images (filepath, captured_at, title) VALUES (?, ?, ?)').run('/a.png', 1700000000000, 'あ')
+    })
+    const raw = new DatabaseSync(databasePath())
+    raw.exec('ALTER TABLE images ADD COLUMN colors TEXT')
+    raw.exec('PRAGMA user_version = 7')
+    raw.close()
+
+    initDb()
+
+    expect(columnNames('images')).not.toContain('colors')
+    expect((prepare('SELECT title FROM images').get() as { title: string }).title).toBe('あ')
+  })
+
   // **作りを変える前の退避は必須。** ここを飛ばすと、まさに戻したい移行失敗時に戻り先が無い。
   it('スキーマの版が上がるときは、移行の前に退避を取る', () => {
     seed(() => {})

@@ -12,7 +12,6 @@ function img(id: number, over: Partial<ImageRow> = {}): ImageRow {
     title: `t${id}`,
     current_time: null,
     url: null,
-    colors: null,
     memo: null,
     media_type: null,
     duration: null,

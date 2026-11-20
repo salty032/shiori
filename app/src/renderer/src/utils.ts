@@ -100,16 +100,6 @@ export function buildAccelerator(e: React.KeyboardEvent | KeyboardEvent): string
   return [...mods, key].join('+')
 }
 
-export function cleanTitle(title: string | null, patterns: string[]): string {
-  if (!title) return '—'
-  for (const pat of patterns) {
-    if (!pat) continue
-    const idx = title.lastIndexOf(pat)
-    if (idx > 0) return title.slice(0, idx).trim()
-  }
-  return title
-}
-
 type TextSegment = { text: string; match: boolean }
 
 // text をコードポイント境界だけで区切った、元文字列側のオフセット一覧（サロゲートペアを
@@ -260,14 +250,14 @@ function lcgShuffle<T>(arr: T[], seed: number): T[] {
 }
 
 // 作品別タイムライン用のグルーピング。
-// - グループキーは cleanTitle 後のタイトルで厳密一致（表記揺れの吸収は今回はしない）
+// - グループキーはタイトルの厳密一致（表記揺れの吸収は今回はしない）
 // - グループ内は再生時刻(current_time)昇順、時刻なしは末尾（撮影時刻昇順）
 // - グループ自体は最新の撮影時刻が新しい作品を先頭に並べる
 // ordered は groups をフラット化した配列で、ビューア／キーボード移動のインデックス基準になる。
-export function buildTimeline(images: ImageRow[], titleStrip: string[], sortOrder: string = 'date_desc', shuffleSeed?: number): { groups: TimelineGroup[]; ordered: ImageRow[] } {
+export function buildTimeline(images: ImageRow[], sortOrder: string = 'date_desc', shuffleSeed?: number): { groups: TimelineGroup[]; ordered: ImageRow[] } {
   const map = new Map<string, { title: string | null; items: ImageRow[]; latest: number }>()
   for (const img of images) {
-    const key = cleanTitle(img.title, titleStrip)
+    const key = img.title || '—'
     const bucket = map.get(key)
     if (bucket) {
       bucket.items.push(img)

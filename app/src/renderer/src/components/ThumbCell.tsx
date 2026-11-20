@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo } from 'react'
 import type { ImageRow } from '../types'
-import { cleanTitle, thumbSrc, splitHighlight, formatTime } from '../utils'
+import { thumbSrc, splitHighlight, formatTime } from '../utils'
 import { s, badgeInset } from '../styles'
 import { useT } from '../i18n'
 
@@ -15,7 +15,6 @@ type Props = {
   selected: boolean
   isNew?: boolean
   focused?: boolean
-  titleStrip: string[]
   highlight?: string
   onContextMenu: (e: React.MouseEvent, id: number) => void
   onOpen: (index: number) => void
@@ -24,7 +23,7 @@ type Props = {
 
 const NEW_EXIT_MS = 920
 
-export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focused, titleStrip, highlight, onContextMenu, onOpen, index }: Props) {
+export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focused, highlight, onContextMenu, onOpen, index }: Props) {
   const { t } = useT()
   const [hovered, setHovered] = useState(false)
   const [thumbFailed, setThumbFailed] = useState(false)
@@ -45,7 +44,7 @@ export default memo(function ThumbCell({ img, cellHeight, selected, isNew, focus
   // 受け取っている高さから幅を復元して余白を決める。
   const inset = badgeInset(cellHeight * 16 / 9)
   const durationLabel = thumbDurationLabel(img)
-  const titleLabel = img.title ? cleanTitle(img.title, titleStrip) : ''
+  const titleLabel = img.title ?? ''
   const showNew = isNew || newExiting
   return (
     // 選択・矢印移動・ビューア起動の実体はすべて useSelection の window レベルの

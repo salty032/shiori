@@ -255,7 +255,6 @@ export function registerShareHandlers(): void {
               url: parsed.url ? safeExternalUrl(parsed.url) : null,
               width: parsed.width,
               height: parsed.height,
-              colors: null,
               memo: parsed.memo,
               media_type: parsed.mediaType,
               duration,

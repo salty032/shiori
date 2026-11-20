@@ -155,7 +155,6 @@ export function initDb(): void {
       url          TEXT,
       width        INTEGER,
       height       INTEGER,
-      colors       TEXT,
       memo         TEXT,
       thumb_path   TEXT,
       media_type   TEXT,
@@ -208,7 +207,6 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_image_tags_source  ON image_tags(source);
   `)
   addColumnIfMissing('ALTER TABLE images ADD COLUMN url TEXT')
-  addColumnIfMissing('ALTER TABLE images ADD COLUMN colors TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN memo TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN thumb_path TEXT')
   addColumnIfMissing('ALTER TABLE images ADD COLUMN media_type TEXT')
@@ -249,6 +247,11 @@ export function initDb(): void {
   // 抜けだけが多い録画でビューアは赤・詳細パネルは無印になる。通知が来なかった数（unreported_frames）とは別物。
   // 起動時の backfillFrameCounts が保存済みの表から数え直すので、動画を読み直さずに埋まる。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN anime_missing_frames INTEGER')
+  // 色の列（colors）を消す。画像の主な色を入れるつもりで作ったが、どこからも書かれず常に空のままだった
+  // （2026-11-20 に片付けた）。SCHEMA_VERSION を 8 に上げてあるので、消す前の退避が先に取られる。
+  if (prepare("SELECT 1 FROM pragma_table_info('images') WHERE name = 'colors'").get() !== undefined) {
+    db.exec('ALTER TABLE images DROP COLUMN colors')
+  }
   // コマ表を最後に見直したときの判定の版（db-video-frames の RECHECK_VERSION）。
   // 見直しは 1 本ごとに動画をまるごとデコードするので、同じ版で二度やらないための記録。
   // NULL は「まだ一度も見直していない」。**video_frames 側に持てない**——あちらは通常の表が
