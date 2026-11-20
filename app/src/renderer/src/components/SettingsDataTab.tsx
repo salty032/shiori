@@ -104,9 +104,13 @@ export default function SettingsDataTab(p: Props) {
             開けるのに自分の何百枚には辿り着けない状態だったので、パスをそのまま出して開ける
             ようにする。 */}
         <div style={{ ...s.group, ...s.groupFirst }}>
-          <div style={s.section}>{t('settings.storage')}</div>
+          <div style={s.section}>{t('settings.saving')}</div>
           <div style={s.actionRow}>
-            <div style={s.pathBox}>{storage?.captureDir ?? '—'}</div>
+            <div style={{ ...s.cardText, flex: 1 }}>
+              <span style={s.label}>{t('settings.storage')}</span>
+              <div style={{ ...s.pathBox, margin: '4px 0' }}>{storage?.captureDir ?? '—'}</div>
+              <span style={s.hint}>{t('settings.storageHint')}</span>
+            </div>
             {/* 変更したら使用量も出し直す。**古い場所のぶんは新しい場所の数字に
                 入らない**ので、変えた直後に容量が減って見えるのが正しい。 */}
             <button style={s.addBtn} disabled={moveProgress.total > 0} onClick={async () => {
@@ -116,9 +120,8 @@ export default function SettingsDataTab(p: Props) {
               {t('settings.changeCapturesFolder')}
             </button>
           </div>
-          <div style={s.hint}>{t('settings.storageHint')}</div>
           {moveProgress.total > 0 && (
-            <div style={s.actionRow}>
+            <div style={s.plainRow}>
               <div style={s.hint}>
                 {t('settings.captureMoving', { current: String(moveProgress.current), total: String(moveProgress.total) })}
               </div>
@@ -126,6 +129,26 @@ export default function SettingsDataTab(p: Props) {
             </div>
           )}
           {captureRootStatus && <div style={{ ...s.statusLine, ...(captureRootStatus.error ? s.statusLineError : s.statusLineOk) }}>{captureRootStatus.text}</div>}
+          {/* 撮った静止画をどの解像度まで保存するか。容量の話なので保存場所と同じまとまりに置く
+              （4K 環境で C ドライブが埋まる、という声から入れた設定）。名前に「画像」を添えているのは、
+              録画には効かないことを説明を読まずに読み取らせるため。 */}
+          <div style={s.row}>
+            <div style={s.cardText}>
+              <span style={s.label}>{t('settings.captureResize')}（{t('settings.captureResizeTarget')}）</span>
+              <span style={s.hint}>{t('settings.captureResizeHint')}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
+              {([['source', t('settings.captureResize.source')], ['fhd', t('settings.captureResize.fhd')], ['hd', t('settings.captureResize.hd')], ['screen', t('settings.captureResize.screen')]] as const).map(([value, label]) => {
+                const active = p.settings.captureResize === value
+                return (
+                  <button key={value} onClick={() => p.onUpdateCaptureResize(value)} data-current={active ? 'true' : undefined}
+                    style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
         {/* 書き出し・読み込み・修復はどれも分単位の作業なのに、「今どれだけあるか」が
             無いまま押すことになっていた。作業ボタンより先に現状を出す。 */}
@@ -149,7 +172,7 @@ export default function SettingsDataTab(p: Props) {
                 ['settings.usageDatabase', formatBytes(storage.dbBytes)],
                 ['settings.usageModel', storage.modelBytes > 0 ? formatBytes(storage.modelBytes) : t('settings.usageModelAbsent')],
               ] as const).map(([labelKey, value]) => (
-                <div key={labelKey} style={s.row}>
+                <div key={labelKey} style={s.usageRow}>
                   <span style={s.hint}>{t(labelKey)}</span>
                   <span style={s.usageValue}>{value}</span>
                 </div>
@@ -157,35 +180,16 @@ export default function SettingsDataTab(p: Props) {
             </>
           )}
         </div>
-        {/* 撮った静止画をどの解像度まで保存するか。**容量の話なので使用量のすぐ下に置く**
-            （4K 環境で C ドライブが埋まる、という声から入れた設定なので、今どれだけ使って
-            いるかを見た直後に目に入る位置でないと結び付かない）。行の名前を「画像」に
-            しているのは、録画には効かないことを説明を読まずに読み取らせるため。 */}
-        <div style={s.group}>
-          <div style={s.section}>{t('settings.captureResize')}</div>
-          <div style={s.row}>
-            <span style={s.label}>{t('settings.captureResizeTarget')}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
-              {([['source', t('settings.captureResize.source')], ['fhd', t('settings.captureResize.fhd')], ['hd', t('settings.captureResize.hd')], ['screen', t('settings.captureResize.screen')]] as const).map(([value, label]) => {
-                const active = p.settings.captureResize === value
-                return (
-                  <button key={value} onClick={() => p.onUpdateCaptureResize(value)} data-current={active ? 'true' : undefined}
-                    style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <div style={s.hint}>{t('settings.captureResizeHint')}</div>
-        </div>
         {/* 選んだものを書き出すときの動画の形式。**すぐ下の「エクスポート」はライブラリの共有
             書き出しで、この設定を見ない。** 見出しに「書き出し」を使うと同じ語が隣り合って
             見分けられなくなるため、こちらは「変換」と呼ぶ。 */}
         <div style={s.group}>
           <div style={s.section}>{t('settings.videoExport')}</div>
           <div style={s.row}>
-            <span style={s.label}>{t('settings.videoExportFormat')}</span>
+            <div style={s.cardText}>
+              <span style={s.label}>{t('settings.videoExportFormat')}</span>
+              <span style={s.hint}>{t('settings.videoExportFormatHint')}</span>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
               {([['original', t('settings.videoExportFormat.original')], ['h264', t('settings.videoExportFormat.h264')]] as const).map(([value, label]) => {
                 const active = p.settings.videoExportFormat === value
@@ -198,12 +202,15 @@ export default function SettingsDataTab(p: Props) {
               })}
             </div>
           </div>
-          <div style={s.hint}>{t('settings.videoExportFormatHint')}</div>
         </div>
+        {/* エクスポート・インポート・サムネイルの修復は、どれもライブラリ全体への作業なので 1 つのまとまりにする。 */}
         <div style={s.group}>
-          <div style={s.section}>{t('action.export')}</div>
+          <div style={s.section}>{t('settings.library')}</div>
           <div style={s.actionRow}>
-            <div style={s.hint}>{t('settings.exportHint')}</div>
+            <div style={s.cardText}>
+              <span style={s.label}>{t('action.export')}</span>
+              <span style={s.hint}>{t('settings.exportHint')}</span>
+            </div>
             <button style={s.addBtn} disabled={shareExporting || otherExportActive} onClick={async () => {
               setShareExporting(true)
               setShareExportStatus(null)
@@ -230,11 +237,11 @@ export default function SettingsDataTab(p: Props) {
             </button>
           </div>
           {shareExportStatus && <div style={{ ...s.statusLine, ...(shareExportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareExportStatus.text}</div>}
-        </div>
-        <div style={s.group}>
-          <div style={s.section}>{t('settings.import')}</div>
           <div style={s.actionRow}>
-            <div style={s.hint}>{t('settings.importHint')}</div>
+            <div style={s.cardText}>
+              <span style={s.label}>{t('settings.import')}</span>
+              <span style={s.hint}>{t('settings.importHint')}</span>
+            </div>
             {shareImportProgress ? (
               <div style={{ ...s.progressWrap, flex: '0 0 220px' }}>
                 <div style={s.progressBar}>
@@ -250,11 +257,11 @@ export default function SettingsDataTab(p: Props) {
             )}
           </div>
           {shareImportStatus && <div style={{ ...s.statusLine, ...(shareImportStatus.error ? s.statusLineError : s.statusLineOk) }}>{shareImportStatus.text}</div>}
-        </div>
-        <div style={s.group}>
-          <div style={s.section}>{t('settings.thumbRepair')}</div>
           <div style={s.actionRow}>
-            <div style={s.hint}>{t('settings.thumbRepairHint')}</div>
+            <div style={s.cardText}>
+              <span style={s.label}>{t('settings.thumbRepair')}</span>
+              <span style={s.hint}>{t('settings.thumbRepairHint')}</span>
+            </div>
             <button style={s.addBtn} disabled={repairing} onClick={async () => {
               setRepairing(true)
               setRepairStatus(null)

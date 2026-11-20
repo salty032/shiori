@@ -21,7 +21,7 @@ const btnBase: React.CSSProperties = {
 
 export const s: Record<string, React.CSSProperties> = {
   overlay: { ...modal.overlay, background: 'rgba(var(--scrim-rgb), 0.88)', zIndex: 2000, padding: 0 },
-  panel: { ...modal.panel, width: 860, maxWidth: '90vw', height: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
+  panel: { ...modal.panel, width: 'min(1100px, max(860px, 80vw))', maxWidth: '90vw', height: 'min(760px, max(520px, 85vh))', maxHeight: '88vh', display: 'flex', flexDirection: 'column' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', flexShrink: 0, borderBottom: '1px solid var(--border-default)' },
   sidebar: { width: 124, padding: '8px 10px', gap: space.x2, flexShrink: 0, background: 'var(--bg-well)', borderRight: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' },
   tabBtn: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center', fontSize: font.base, fontWeight: weight.medium, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: radius.md, background: 'transparent', border: 'none', cursor: 'pointer', width: '100%' },
@@ -37,7 +37,8 @@ export const s: Record<string, React.CSSProperties> = {
   // 一度データタブだけカテゴリの段を足したが、他のタブは中身が 2〜4 つしかなく、同じ形に
   // すると子が 1 つだけのカテゴリができる。優先度の問題（バージョン・クレジットが
   // ライブラリへの操作と同列に並んでいた）は、それらを情報タブへ分けたことで解いている。
-  group: { borderTop: '1px solid var(--border-default)', padding: '22px 0', display: 'flex', flexDirection: 'column', gap: space.x12, width: '100%', maxWidth: 620 },
+  // まとまり（見出し＋行）。中身の列は箱の横幅いっぱいに使う。
+  group: { padding: '18px 0 6px', display: 'flex', flexDirection: 'column', gap: space.x4, width: '100%' },
   groupFirst: { borderTop: 'none' },
   // **章・項目・説明を、濃さで 3 段の階段にする。** 以前は章が 12px の灰色、説明が 13px の
   // 灰色で、1px しか違わなかった。濃い行は項目だけなので、どの灰色が見出しでどれが補足か
@@ -47,10 +48,21 @@ export const s: Record<string, React.CSSProperties> = {
   //   説明 = 一番薄い・小さい
   // 大きさで分けるのは説明だけにする。章と項目まで大きさを変えると、章が見出しではなく
   // 「大きい項目」に見えて、同じ列に並んでいるように読めてしまう。
-  section: { fontSize: font.base, color: 'var(--text-bright)', fontWeight: weight.medium },
-  toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
+  section: { fontSize: font.base, color: 'var(--text-bright)', fontWeight: weight.medium, paddingBottom: 6 },
+  // 設定の 1 行。左に名前（その下に説明）、右端にスイッチやボタン。**行と行の間は細い横線 1 本で区切り、
+  // 枠やカードで囲まない**（Obsidian の設定画面と同じ形）。横線が左の名前と右のスイッチを目でつなぐので、
+  // 箱が広くても空いて見えない。2026-11-20 に枠・カード・ボタンを左へ寄せる形を試して、どれも合わなかった。
+  toggleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, minHeight: 52, boxSizing: 'border-box' as const, padding: '10px 0', borderTop: '1px solid var(--border-default)' },
   // row と toggleRow は同一。外部の設定スロットが両方の名前を使っているため別名で残す。
-  row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
+  row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, minHeight: 52, boxSizing: 'border-box' as const, padding: '10px 0', borderTop: '1px solid var(--border-default)' },
+  // 右端にボタンを置く行（エクスポートなど）。見た目は row と同じ。
+  actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16, minHeight: 52, boxSizing: 'border-box' as const, padding: '10px 0', borderTop: '1px solid var(--border-default)' },
+  // カードの左側（名前の下に説明）。説明はカードの外に出さない——外にあると、どのカードの説明か読めなかった。
+  cardText: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
+  // カードにしない行（状態の表示・進み具合など、設定ではないもの）。
+  plainRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
+  // 使用量の 1 行（名前と数字）。カードにはしない。
+  usageRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
   label: { fontSize: font.base, color: 'var(--text-primary)', fontWeight: weight.normal },
   sizeBtn: { ...btnBase, padding: '0 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', fontWeight: weight.medium, transition: 'all 0.1s' },
   hint: { fontSize: font.xs, color: 'var(--text-muted)', lineHeight: 1.7 },
@@ -71,7 +83,6 @@ export const s: Record<string, React.CSSProperties> = {
   statusMuted: { color: 'var(--text-secondary)', background: 'rgba(var(--text-rgb), 0.05)', borderColor: 'var(--border-soft)' },
   statusWarn: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.12)', borderColor: 'rgba(var(--warning-rgb), 0.4)' },
   input: { flex: 1, height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 10px', fontSize: font.base, outline: 'none' },
-  actionRow: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x16 },
   addBtn: { ...btnBase, background: 'rgba(var(--accent-rgb), 0.18)', border: '1px solid rgba(var(--accent-rgb), var(--edge-base))', color: 'var(--accent-text)' },
   deleteBtn: { ...btnBase, background: color.dangerBg, border: `1px solid ${color.dangerBorder}`, color: color.danger },
   cancelBtn: { ...btnBase, background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' },

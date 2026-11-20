@@ -188,19 +188,18 @@ export default function SettingsModal(p: Props) {
                   </div>
                 </div>
                 <div style={s.group}>
-                  <div style={s.section}>{t('settings.startup')}</div>
+                  <div style={s.section}>{t('settings.behavior')}</div>
                   <div style={s.toggleRow}>
                     <span style={s.label}>{t('settings.startOnLogin')}</span>
                     <ToggleSwitch checked={p.startup} onChange={() => p.onToggleStartup()} />
                   </div>
-                </div>
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.memory')}</div>
                   <div style={s.toggleRow}>
-                    <span style={s.label}>{t('settings.lowMemoryMode')}</span>
+                    <div style={s.cardText}>
+                      <span style={s.label}>{t('settings.lowMemoryMode')}</span>
+                      <span style={s.hint}>{t('settings.lowMemoryModeHint')}</span>
+                    </div>
                     <ToggleSwitch checked={p.settings.lowMemoryMode ?? false} onChange={p.onUpdateLowMemoryMode} />
                   </div>
-                  <div style={s.hint}>{t('settings.lowMemoryModeHint')}</div>
                 </div>
                 <div style={s.group}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
@@ -209,7 +208,7 @@ export default function SettingsModal(p: Props) {
                       {t(wsPortUnavailable ? 'settings.extPortBlocked' : extensionVersionMismatch ? 'settings.extReloadNeeded' : extensionConnected ? 'settings.extConnected' : 'settings.extDisconnected')}
                     </span>
                   </div>
-                  <div style={s.actionRow}>
+                  <div style={s.plainRow}>
                     <div style={s.hint}>
                       {/* ポートを1つも確保できていないなら、拡張を入れ直してもページを再読み込みしても
                           直らない（原因がアプリの外にある）。ここで従来の案内を出すと、直らない手順を
@@ -268,7 +267,7 @@ export default function SettingsModal(p: Props) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: space.x8 }}>
                       {/* 数百MBの実体に「削除」だけがあり、押していいか判断する材料が無かった。
                           消える容量を削除ボタンと同じ行に出す。 */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={s.row}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
                           <span style={{ ...s.statusBadge, ...s.statusOk }}>{t('settings.taggerReady')}</span>
                           {storage && storage.modelBytes > 0 && (
@@ -312,10 +311,12 @@ export default function SettingsModal(p: Props) {
                 <div style={s.group}>
                   <div style={s.section}>{t('settings.sidebarDisplay')}</div>
                   <div style={s.toggleRow}>
-                    <span style={s.label}>{t('settings.showAiTags')}</span>
+                    <div style={s.cardText}>
+                      <span style={s.label}>{t('settings.showAiTags')}</span>
+                      <span style={s.hint}>{t('settings.showAiTagsHint')}</span>
+                    </div>
                     <ToggleSwitch checked={p.settings.showAiTags ?? false} onChange={p.onUpdateShowAiTags} />
                   </div>
-                  <div style={s.hint}>{t('settings.showAiTagsHint')}</div>
                 </div>
               </>
             )}
@@ -341,7 +342,7 @@ export default function SettingsModal(p: Props) {
                     カードに入っていて、右半分が空いたまま操作できそうな見た目になっていた。 */}
                 <div style={{ ...s.group, ...s.groupFirst }}>
                   <div style={s.section}>{t('settings.version')}</div>
-                  <div style={s.actionRow}>
+                  <div style={s.plainRow}>
                     <div style={s.hint}>Shiori {appVersion ? `v${appVersion}` : '—'}</div>
                     {/* 変更点はここに置く。版と同じ「このアプリ自体の話」で、性格が揃う。
                         以前はサイドバー下部に常時リンクを出していたが、使い方・報告と 3 つ
