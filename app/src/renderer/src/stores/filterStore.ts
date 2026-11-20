@@ -8,14 +8,12 @@ function resolve<T>(value: Setter<T>, prev: T): T {
 
 export type CommittedFilters = {
   search: string
-  tagFilters: string[]
   tagMode: TagMode
 }
 
 type FilterState = {
   searchInput: string
   committedSearch: string
-  tagFilters: string[]
   tagMode: TagMode
   sortOrder: SortOrder
   shuffleSeed: number
@@ -28,26 +26,20 @@ type FilterState = {
   // タグ名 -> そのタグが付いている画像の枚数。サイドバーは順位ではなくこの枚数で
   // 表示を打ち切る（順位で切ると、画像を足すたびに順位が動いて境界のタグが消える）。
   tagCounts: Record<string, number>
-  // フォルダを開いた直後〜条件を手で触るまでの近似的な「アクティブ」表示用。
-  // 厳密な条件一致判定ではない（例えば同じ内容を手動で再現しても付かない）。
-  activeSmartFolderId: string | null
 
   setSearchInput: (v: Setter<string>) => void
   commitSearch: (v: string) => void
-  setTagFilters: (v: Setter<string[]>) => void
   setTagMode: (v: Setter<TagMode>) => void
   setSortOrder: (v: SortOrder) => void
   setShuffleSeed: (v: number) => void
   setSites: (v: string[]) => void
   setAllTags: (v: TagWithCount[]) => void
-  applySmartFolder: (id: string, f: CommittedFilters) => void
   clearAll: () => void
 }
 
 export const useFilterStore = create<FilterState>((set) => ({
   searchInput: '',
   committedSearch: '',
-  tagFilters: [],
   tagMode: 'and',
   sortOrder: 'date_desc',
   shuffleSeed: Date.now(),
@@ -55,12 +47,10 @@ export const useFilterStore = create<FilterState>((set) => ({
   allTags: [],
   tagCounts: {},
   aiOnlyTags: new Set(),
-  activeSmartFolderId: null,
 
-  setSearchInput: (v) => set((s) => ({ searchInput: resolve(v, s.searchInput), activeSmartFolderId: null })),
+  setSearchInput: (v) => set((s) => ({ searchInput: resolve(v, s.searchInput) })),
   commitSearch: (v) => set({ committedSearch: v }),
-  setTagFilters: (v) => set((s) => ({ tagFilters: resolve(v, s.tagFilters), activeSmartFolderId: null })),
-  setTagMode: (v) => set((s) => ({ tagMode: resolve(v, s.tagMode), activeSmartFolderId: null })),
+  setTagMode: (v) => set((s) => ({ tagMode: resolve(v, s.tagMode) })),
   setSortOrder: (v) => set({ sortOrder: v }),
   setShuffleSeed: (v) => set({ shuffleSeed: v }),
   setSites: (v) => set({ sites: v }),
@@ -70,33 +60,22 @@ export const useFilterStore = create<FilterState>((set) => ({
     tagCounts: Object.fromEntries(v.map((t) => [t.name, t.count])),
   }),
 
-  applySmartFolder: (id, f) => set({
-    searchInput: f.search,
-    committedSearch: f.search,
-    tagFilters: f.tagFilters,
-    tagMode: f.tagMode,
-    activeSmartFolderId: id,
-  }),
-
   clearAll: () => set({
     searchInput: '',
     committedSearch: '',
-    tagFilters: [],
-    // AND / OR のボタンはタグが 2 つ以上のときしか出ない。ここで戻さないと、OR のフォルダを
-    // 開いて解除した後、次に 2 つで絞ったとき黙って OR になる。
+    // AND / OR のボタンはタグが 2 つ以上のときしか出ない。ここで戻さないと、OR にして解除した後、
+    // 次に 2 つで絞ったとき黙って OR になる。
     tagMode: 'and',
-    activeSmartFolderId: null,
   }),
 }))
 
 export function hasCommittedFilter(s: FilterState): boolean {
-  return s.tagFilters.length > 0 || s.committedSearch !== ''
+  return s.committedSearch !== ''
 }
 
 export function getCommitted(s: FilterState): CommittedFilters {
   return {
     search: s.committedSearch,
-    tagFilters: s.tagFilters,
     tagMode: s.tagMode,
   }
 }
@@ -104,7 +83,7 @@ export function getCommitted(s: FilterState): CommittedFilters {
 export function selectQueryKey(s: FilterState): string {
   return JSON.stringify([
     s.committedSearch,
-    s.tagFilters, s.tagMode, s.sortOrder,
+    s.tagMode, s.sortOrder,
   ])
 }
 

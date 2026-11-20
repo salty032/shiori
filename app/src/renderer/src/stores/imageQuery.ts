@@ -75,9 +75,9 @@ export function moveFreeTextToEnd(raw: string): string {
   return [...tokens, rest].filter(Boolean).join(' ')
 }
 
-function mergeTags(selectedTags: string[], queryTags: string[]): string[] | undefined {
-  const merged = [...new Set([...selectedTags, ...queryTags])]
-  return merged.length > 0 ? merged : undefined
+function uniqueTags(queryTags: string[]): string[] | undefined {
+  const unique = [...new Set(queryTags)]
+  return unique.length > 0 ? unique : undefined
 }
 
 export function buildImageQuery(f: CommittedFilters): ImageQuery {
@@ -87,7 +87,7 @@ export function buildImageQuery(f: CommittedFilters): ImageQuery {
     after: fromDate ?? undefined,
     site: site ?? undefined,
     mediaType: mediaType ?? undefined,
-    tags: mergeTags(f.tagFilters, tags),
+    tags: uniqueTags(tags),
     tagMode: f.tagMode,
     toDate: toDate ?? undefined,
   }

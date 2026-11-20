@@ -109,7 +109,7 @@ export interface ShioriApi {
   shareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   // imagesExportCancel 同様、進行中の shareExport を中断する。
   shareExportCancel: () => Promise<void>
-  shareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  shareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[] }>
   // shareExportCancel 同様、進行中の shareImport を中断する（D-2）。
   shareImportCancel: () => Promise<void>
   onShareImportProgress: (cb: (data: { current: number; total: number }) => void) => () => void

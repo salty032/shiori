@@ -85,9 +85,9 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     const match = suggestionSearch.match(TAG_PREFIX_RE)
     if (!match) return []
     const partial = match[1].toLowerCase()
-    const activeSet = new Set([...filters.tagFilters, ...searchTags].map((t) => t.toLowerCase()))
+    const activeSet = new Set(searchTags.map((t) => t.toLowerCase()))
     return filters.allTags.filter((t) => !activeSet.has(t.toLowerCase()) && t.toLowerCase().includes(partial))
-  }, [searchInteractionActive, suggestionSearch, filters.allTags, filters.tagFilters, searchTags])
+  }, [searchInteractionActive, suggestionSearch, filters.allTags, searchTags])
 
   const activePrefix = useMemo<ActivePrefix>(() => {
     if (forcedSuggestion) return forcedSuggestion.prefix
@@ -202,7 +202,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   }, [highlightedIndex])
 
   // tag:/site: は確定した値をテキストから消さずそのまま残す。
-  // 以前は tagFilters/siteFilter という別状態に移し替えてテキストからは消していたが、
+  // 以前はタグ・サイトを別の状態に移し替えてテキストからは消していたが、
   // それだと検索欄を見ても何が絞り込まれているか分からなくなる（情報が別状態に散逸する）。
   function confirmTag(tag: string): void {
     replaceSearchSuffix(TAG_PREFIX_RE, `tag:${tag}`, true)
@@ -267,7 +267,6 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     return () => document.removeEventListener('mousedown', handler, true)
   }, [searchFocused, searchInputRef])
 
-  const setTagFilters = filters.setTagFilters
   const removeSearchTagRef = useLatestRef(onRemoveSearchTag)
   const activeFilterChips = useMemo<ActiveFilter[]>(() => {
     const chips: ActiveFilter[] = []
@@ -279,17 +278,11 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
     if (searchSite) {
       chips.push({ onRemove: () => actionsRef.current.updateSearchImmediate((prev) => prev.replace(/(?:^|\s)site:\S+/i, '').replace(/\s+/g, ' ').trim()) })
     }
-    const activeTags = [...new Set([...filters.tagFilters, ...searchTags])]
-    for (const tag of activeTags) {
-      chips.push({
-        onRemove: () => {
-          setTagFilters((prev) => prev.filter((t) => t !== tag))
-          removeSearchTagRef.current(tag)
-        },
-      })
+    for (const tag of new Set(searchTags)) {
+      chips.push({ onRemove: () => removeSearchTagRef.current(tag) })
     }
     return chips
-  }, [filters.search, filters.sites, filters.tagFilters, searchTags, actionsRef, setTagFilters, removeSearchTagRef])
+  }, [filters.search, filters.sites, searchTags, actionsRef, removeSearchTagRef])
 
   return (
     // data-sticky-header: 矩形選択の当たり判定から外すための目印（useSelection の

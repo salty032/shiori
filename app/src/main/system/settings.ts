@@ -3,12 +3,12 @@ import { isAbsolute, join } from 'path'
 import { readFileSync, existsSync, renameSync } from 'fs'
 import { writeFile, rename, unlink } from 'fs/promises'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
-import type { SmartFolder, Settings, Lang } from '../../shared/types'
+import type { Settings, Lang } from '../../shared/types'
 import { langFromLocale } from '../../shared/i18n'
 import { SETTINGS_DEFAULTS, THUMB_SIZE_STEPS } from '../../shared/settingsDefaults'
 import { isChromeExtensionId } from '../../shared/wire-limits'
 
-export type { SmartFolder, Settings }
+export type { Settings }
 
 // **保存するだけでは済まない項目。** どれも「値を書き換える」以外に main 側でやることがあり、
 // 専用 IPC を通らないとその片方だけが起きる。**食い違っても画面には何も出ない。**
@@ -56,7 +56,6 @@ const EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 const DEFAULTS: Settings = { ...SETTINGS_DEFAULTS, allowedExtensionIds: [EXTENSION_ID] }
 const MAX_STRINGS = 100
 const MAX_SETTING_TEXT_LENGTH = 200
-const MAX_SMART_FOLDERS = 50
 // 保存先の文字数。Windows の実用上の上限（260）に少し余裕を持たせる。
 const MAX_PATH_LENGTH = 400
 // 覚えておく過去の保存先の数。これを超えて遡ると、その保存先に残っている素材は
@@ -65,15 +64,6 @@ const MAX_PREVIOUS_ROOTS = 10
 
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
-}
-
-function stringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .filter((item): item is string => typeof item === 'string')
-    .map((item) => item.trim().slice(0, MAX_SETTING_TEXT_LENGTH))
-    .filter(Boolean)
-    .slice(0, MAX_STRINGS)
 }
 
 function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -88,20 +78,6 @@ function nullableText(value: unknown): string | null {
   return trimmed ? trimmed.slice(0, MAX_SETTING_TEXT_LENGTH) : null
 }
 
-export function smartFolders(value: unknown): SmartFolder[] {
-  if (!Array.isArray(value)) return []
-  return value.slice(0, MAX_SMART_FOLDERS).map((folder, index) => {
-    const data = folder && typeof folder === 'object' ? folder as Record<string, unknown> : {}
-    return {
-      id: nullableText(data.id) ?? `folder-${index}`,
-      name: nullableText(data.name) ?? 'Untitled',
-      tags: stringList(data.tags),
-      tagMode: data.tagMode === 'or' ? 'or' : 'and',
-      site: nullableText(data.site),
-      search: nullableText(data.search) ?? ''
-    }
-  })
-}
 
 function hotkeyText(value: unknown, fallback: string): string {
   return normalizeCaptureHotkey(value) ?? fallback
@@ -193,7 +169,6 @@ export function normalizeSettings(value: unknown): Settings {
   const allowedIds = extensionIdList(data.allowedExtensionIds)
   return {
     thumbnailSize: boundedNumber(migrateThumbnailSize(data.thumbnailSize), DEFAULTS.thumbnailSize, 80, 360),
-    smartFolders: smartFolders(data.smartFolders),
     captureHotkey: hotkeyText(data.captureHotkey, DEFAULTS.captureHotkey),
     clipHotkey: hotkeyText(data.clipHotkey, DEFAULTS.clipHotkey),
     // 著作権対策として録画時間を厳格に上限30秒とする（設定でもこれ以上には出来ない）。

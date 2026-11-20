@@ -17,7 +17,7 @@ type SettingsStoreState = {
   // main 側は部分パッチ＋マージ方式（bootstrap.ts）で他キーの巻き戻りを防いでいるので、
   // 失敗時はこのキーだけ旧値へロールバックすればよい。
   update: <K extends keyof Settings>(key: K, value: Settings[K], showToast?: ShowToast) => Promise<void>
-  // useFilters 等が smartFolders 保存後にローカル反映だけ行うための素の setter（IPC は呼ばない）。
+  // ローカル反映だけ行うための素の setter（IPC は呼ばない）。
   setSettings: (updated: Settings) => void
   // キャプチャホットキーは main 側の登録可否（グローバルショートカット競合）が真実なので、
   // 他の設定と違い確定を待ってから反映する（悲観方式のまま維持）。

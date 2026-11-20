@@ -15,7 +15,7 @@ describe('初回案内の表示条件', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ items: [] }) })))
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
     window.matchMedia = (() => ({ matches: false, addEventListener() {}, removeEventListener() {} })) as never
-    useFilterStore.setState({ searchInput: '', committedSearch: '', tagFilters: [], sortOrder: 'date_desc' })
+    useFilterStore.setState({ searchInput: '', committedSearch: '', sortOrder: 'date_desc' })
     useImageStore.setState({ gridImages: [], gridTotalCount: null, gridLoading: false,
       gridReloading: false, gridLoadFailed: false, timelineImages: [], newIds: new Set() })
     await installMockApi()

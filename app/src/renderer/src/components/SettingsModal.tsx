@@ -38,7 +38,7 @@ type Props = {
   onTaggerDelete: () => void
   onTaggerRetagAll: () => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
-  onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[] }>
   /** 「情報」タブから変更点モーダルを開く（設定画面自身は中身を持たない） */
   onShowWhatsNew: (entries: ReleaseNoteEntry[]) => void
 }

@@ -19,7 +19,7 @@ type Props = {
   onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
   onUpdateCaptureResize: (value: Settings['captureResize']) => void
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
-  onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[]; importedFolders?: number }>
+  onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[] }>
 }
 
 export default function SettingsDataTab(p: Props) {
@@ -84,8 +84,7 @@ export default function SettingsDataTab(p: Props) {
         // count なし = フォルダ選択自体のキャンセル（無言、従来通り）
       } else {
         const errMsg = result.errors && result.errors.length > 0 ? t('settings.importErrorSuffix', { count: result.errors.length }) : ''
-        const folderMsg = result.importedFolders ? t('settings.importFolderSuffix', { count: result.importedFolders }) : ''
-        setShareImportStatus({ text: tp('settings.importedCount', result.count ?? 0) + folderMsg + errMsg })
+        setShareImportStatus({ text: tp('settings.importedCount', result.count ?? 0) + errMsg })
       }
     } catch (err) {
       console.error('[settings] share import failed', err)

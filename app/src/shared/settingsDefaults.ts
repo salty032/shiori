@@ -13,7 +13,6 @@ export const THUMB_SIZE_STEPS = { S: 150, M: 230, L: 320 } as const
 export const SETTINGS_DEFAULTS: Settings = {
   // 既定は「中」。段のどれかを指さないと、既定で開いたときに S/M/L のどれも選ばれていない見た目になる。
   thumbnailSize: THUMB_SIZE_STEPS.M,
-  smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+D',
   clipMaxSeconds: 30,

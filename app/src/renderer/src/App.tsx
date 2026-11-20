@@ -54,7 +54,7 @@ export default function App() {
   const closeToastLabel = t('action.close')
   const showToast = toast.showToast
   const settings = useSettings(toast.showToast)
-  const filters = useFilters(settings.settings, settings.setSettings, toast.showToast)
+  const filters = useFilters(settings.settings)
 
   // ビューアが開いている画像は「一覧の何番目か」ではなく id で持つ。grid⇔timeline の切替、
   // フィルタ中のキャプチャ取り込み、prepend、削除の Undo など、activeImages が丸ごと
@@ -121,13 +121,12 @@ export default function App() {
       && imageList.images.length === 0
       && filters.search.trim() === ''
       && filters.committedSearch.trim() === ''
-      && filters.tagFilters.length === 0
       && !setupGuide.tutorialSeen
     ) {
       setShowSetupGuide(true)
     }
   }, [imageList.loading, imageList.reloading, imageList.loadFailed, imageList.totalCount,
-    imageList.images.length, filters.search, filters.committedSearch, filters.tagFilters.length,
+    imageList.images.length, filters.search, filters.committedSearch,
     setupGuide.tutorialSeen])
 
   // 対応ページから一度でも受信できれば、拡張のサイドロードは成功している。ページを閉じた後も
@@ -327,7 +326,7 @@ export default function App() {
   }
 
   // Sidebar のタグクリックで絞り込むときも、検索欄のテキストに tag:xxx として残す。
-  // 別の状態(tagFilters)に隠れて検索欄には何も見えない、という散逸を避けるため。
+  // 別の状態に隠れて検索欄には何も見えない、という散逸を避けるため。
   // フィルタ(tag:/site:等)をまとめて前・フリーワードを末尾に揃えるのはプログラムによる
   // 追加/削除の直後だけ（手入力中のテキストは動かさない）。
   function addSearchTag(tag: string): void {
@@ -483,13 +482,11 @@ export default function App() {
     if (img) handleThumbContextMenu(e, img.id)
   }, [timelineOrderedRef, handleThumbContextMenu])
 
-  // M-3: 確認ダイアログの組み立て（スマートフォルダ削除・タグ全体削除・タガーモデル削除）は
+  // M-3: 確認ダイアログの組み立て（タグ全体削除・タガーモデル削除）は
   // 配線ではなくドメインロジックのため useConfirmActions に切り出している。
-  const { confirmSmartFolderDelete, confirmDeleteTagGlobally, confirmTaggerDelete } = useConfirmActions({
+  const { confirmDeleteTagGlobally, confirmTaggerDelete } = useConfirmActions({
     setConfirmDialog,
     showToast: toast.showToast,
-    deleteSmartFolder: filters.deleteSmartFolder,
-    setTagFilters: filters.setTagFilters,
     refreshTags: filters.refreshTags,
     removeSearchTag,
     taggerDelete: tagger.handleTaggerDelete,
@@ -548,7 +545,6 @@ export default function App() {
         <Sidebar
           count={viewMode === 'timeline' ? (timeline.totalCount ?? timeline.images.length) : (imageList.totalCount ?? imageList.images.length)}
           filters={filters}
-          smartFolders={settings.settings.smartFolders}
           searchTags={searchQuery.tags}
           onRemoveSearchTag={removeSearchTag}
           onAddSearchTag={addSearchTag}
@@ -560,8 +556,6 @@ export default function App() {
           onThumbnailSize={settings.updateThumbnailSize}
           viewMode={viewMode}
           onViewMode={setViewMode}
-          onDeleteSmartFolder={confirmSmartFolderDelete}
-          onReorderSmartFolders={filters.reorderSmartFolders}
           onDeleteTag={confirmDeleteTagGlobally}
         />
 
@@ -791,13 +785,6 @@ export default function App() {
                 onLibraryChanged()
                 filters.refreshTags()
               }
-              // スマートフォルダが取り込まれた場合、main 側で settings.json 経由で保存済みなので
-              // ここでは最新の設定を取り直して反映するだけでよい（IPC は呼ばない setSettings）。
-              if (!result.canceled && (result.importedFolders ?? 0) > 0) {
-                window.api.getSettings().then(settings.setSettings).catch((err) => {
-                  console.error('[settings] refresh after share import failed', err)
-                })
-              }
               return result
             }}
           />
@@ -820,14 +807,12 @@ export default function App() {
           onMemoChanged={(id, memo) => patchImage(id, { memo })}
           onFilterByTag={(tag) => {
             // Sidebar のタグクリックと同じ方式: 検索欄のテキストに tag:xxx として残し、
-            // 別状態(tagFilters)だけに絞り込みが隠れて検索欄に何も見えなくなるのを避ける。
+            // 別の状態だけに絞り込みが隠れて検索欄に何も見えなくなるのを避ける。
             // フィルタ確定値が変わると選択は自動でクリアされる(useSelection)が、詳細タイルから
             // 絞り込んだ直後に選択が消えると操作対象を見失うため、この1回だけ維持する。
             selection.preserveSelectionOnce()
-            const active = filters.tagFilters.includes(tag) || searchQuery.tags.includes(tag)
-            if (active) {
-              filters.setTagFilters((prev) => prev.filter((t) => t !== tag))
-              if (searchQuery.tags.includes(tag)) removeSearchTag(tag)
+            if (searchQuery.tags.includes(tag)) {
+              removeSearchTag(tag)
             } else {
               addSearchTag(tag)
             }

@@ -27,7 +27,7 @@ Detailed steps are in [Installation](manual/getting-started/installation.md).
 - **Capture and record with one key**: `Alt+S` keeps an image, `Alt+D` records a clip of up to 30 seconds. The player's controls are hidden at the moment of capture, so only the picture is kept.
 - **Step through the original video one frame at a time**: `,` / `.` step through a recorded clip one frame of the original video at a time. Frame accuracy is guaranteed for 24fps / 30fps video, and missed frames are marked on screen.
 - **Timesheet**: enter drawing numbers while stepping through frames, and copy the result in a form you can paste into Toei Digital Timesheet.
-- **Find and organize**: filter by title, notes, tags, date and site, and save filters as smart folders. AI auto tagging (WD Tagger) is available too.
+- **Find and organize**: filter by title, notes, tags, date and site. AI auto tagging (WD Tagger) is available too.
 - **Everything stays on your PC**: what you capture and its records are stored only on your PC and never sent anywhere.
 
 ## Manual

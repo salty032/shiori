@@ -76,23 +76,6 @@ export function PencilIcon({ size = 14, strokeWidth = 1.6 }: IconProps): React.J
   )
 }
 
-export function PlusIcon({ size = 14, strokeWidth = 1.8 }: IconProps): React.JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" {...common} strokeWidth={strokeWidth}>
-      <line x1="8" y1="3" x2="8" y2="13" />
-      <line x1="3" y1="8" x2="13" y2="8" />
-    </svg>
-  )
-}
-
-export function FolderIcon({ size = 13, strokeWidth = 1.6 }: IconProps): React.JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" {...common} strokeWidth={strokeWidth}>
-      <path d="M2 4.2c0-.7.6-1.3 1.3-1.3h2.8l1.3 1.6h5.3c.7 0 1.3.6 1.3 1.3v5.4c0 .7-.6 1.3-1.3 1.3H3.3c-.7 0-1.3-.6-1.3-1.3V4.2z" />
-    </svg>
-  )
-}
-
 export function ExternalLinkIcon({ size = 13, strokeWidth = 1.6 }: IconProps): React.JSX.Element {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" {...common} strokeWidth={strokeWidth}>

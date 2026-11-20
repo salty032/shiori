@@ -63,15 +63,6 @@ export type ImageTag = { name: string; source: ImageTagSource }
 // 画像を足すたびに順位が動いて境界のタグが出たり消えたりする）。
 export type TagWithCount = ImageTag & { count: number }
 
-export type SmartFolder = {
-  id: string
-  name: string
-  tags: string[]
-  tagMode: TagMode
-  site: string | null
-  search: string
-}
-
 export type Theme = 'system' | 'dark' | 'light'
 
 // 選んだものを書き出すときの動画の形式。'original' は録画したファイルをそのままコピー
@@ -93,7 +84,6 @@ export type CaptureResize = 'source' | 'fhd' | 'hd' | 'screen'
 
 export type Settings = {
   thumbnailSize: number
-  smartFolders: SmartFolder[]
   captureHotkey: string
   clipHotkey: string
   clipMaxSeconds: number

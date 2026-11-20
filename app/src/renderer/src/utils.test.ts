@@ -162,11 +162,11 @@ describe('parseSearchQuery', () => {
 })
 
 describe('buildImageQuery', () => {
-  const base = { search: '', tagFilters: [] as string[], tagMode: 'and' as const }
+  const base = { search: '', tagMode: 'and' as const }
 
-  it('選択タグと検索内タグをマージ（重複排除）', () => {
-    const q = buildImageQuery({ ...base, search: 'tag:sky', tagFilters: ['sea', 'sky'] })
-    expect(new Set(q.tags)).toEqual(new Set(['sea', 'sky']))
+  it('検索内のタグを重複なしで渡す', () => {
+    const q = buildImageQuery({ ...base, search: 'tag:sea tag:sky tag:sky' })
+    expect(q.tags).toEqual(['sea', 'sky'])
   })
   it('タグが無ければ tags は undefined', () => {
     expect(buildImageQuery(base).tags).toBeUndefined()

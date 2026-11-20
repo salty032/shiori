@@ -54,9 +54,8 @@ vi.mock('../db/db-video-frames', async (importOriginal) => {
 
 vi.mock('../system/settings', () => ({
   // i18n の t()（ダイアログ文言など）が loadSettings().language を読むため言語を明示する。
-  loadSettings: vi.fn(() => ({ smartFolders: [], language: 'ja' })),
+  loadSettings: vi.fn(() => ({ language: 'ja' })),
   saveSettings: vi.fn(),
-  smartFolders: vi.fn(() => [])
 }))
 
 vi.mock('../system/paths', () => ({

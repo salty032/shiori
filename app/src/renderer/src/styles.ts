@@ -155,7 +155,7 @@ export const s: Record<string, CSSProperties> = {
   sidebarResizeHandle: { position: 'absolute' as const, right: -4, top: 0, bottom: 0, width: 8, cursor: 'col-resize', zIndex: 10, userSelect: 'none' as const },
   sidebarScroll: { flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '16px 12px 12px' },
   // 「Shiori ◯枚」の下は大きく空ける。**アプリの名前と中身の一覧をくっつけない。**
-  // ここが詰まると、スマートフォルダやタグの見出しがアプリ名にぶら下がった小見出しに
+  // ここが詰まると、タグの見出しがアプリ名にぶら下がった小見出しに
   // 見えて、どこからが中身か読めなくなる。
   // なお**この値と、下に続く siteGroup の marginTop は足し算にならない**（隣り合う
   // 上下マージンは大きいほうだけが残る）。12 と 16 で 28px 空けているつもりが 16px だった。
@@ -194,16 +194,6 @@ export const s: Record<string, CSSProperties> = {
   searchPrefixItem: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', minHeight: control.md, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: font.sm, cursor: 'pointer', textAlign: 'left' as const },
   searchDateHint: { padding: '6px 12px', color: 'var(--text-secondary)', fontSize: font.sm },
   searchWrapClear: { position: 'absolute' as const, right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--hairline-rgb), 0.22)', border: '1px solid rgba(var(--hairline-rgb), var(--edge-soft))', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 6px', lineHeight: 1, borderRadius: radius.md, display: 'flex', alignItems: 'center' },
-  smartFolderEmpty: { fontSize: font.sm, color: 'var(--text-secondary)', padding: '3px 0 2px', lineHeight: 1.5 },
-  smartFolderCreateInput: { flex: 1, minWidth: 0, height: control.lg, background: 'var(--bg-content)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 9px', fontSize: font.sm, fontWeight: weight.normal, outline: 'none', boxSizing: 'border-box' as const },
-  smartFolderAddIconBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: weight.medium, lineHeight: 1, boxSizing: 'border-box' as const },
-  // 見出しの「＋」は、フォルダの行より一段小さくする。同じ大きさにすると、見出しの帯が
-  // 行と同じ厚みになって「もう 1 行あるように」見える。見出しの中で一番大きいものが
-  // これなので、ここの大きさが見出しの帯の高さをそのまま決める。
-  // （作成中に入力欄の隣へ出る smartFolderAddIconBtn は別物。あちらは入力欄と同じ control.lg）
-  smartFolderHeaderAddBtn: { width: control.md, height: control.md, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--success-rgb), 0.12)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', padding: 0, boxSizing: 'border-box' as const },
-  smartFolderHeaderAddBtnDisabled: { background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-muted)', cursor: 'default' },
-  smartFolderCreateInputRow: { display: 'flex', gap: space.x4, width: '100%' },
   grid: { width: '100%', userSelect: 'none', position: 'relative' as const },
   selectionBox: { position: 'absolute' as const, border: '1px solid var(--accent)', background: 'rgba(var(--accent-rgb), 0.12)', pointerEvents: 'none' as const, zIndex: 20, boxSizing: 'border-box' as const },
   thumb: { position: 'relative' as const, display: 'flex', flexDirection: 'column' as const, background: 'var(--bg-surface)', border: '2px solid var(--border-default)', borderRadius: radius.md, width: '100%', cursor: 'pointer', boxShadow: '0 1px 0 rgba(var(--text-rgb), 0.035)' },
@@ -283,29 +273,10 @@ export const s: Record<string, CSSProperties> = {
   // 数行の文章を入れるとグリッド幅いっぱいに伸びて 1 行が長くなりすぎる。
   emptyLead: { color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75, maxWidth: 520, textAlign: 'center' as const },
   loadingMore: { textAlign: 'center', padding: 16, color: 'var(--text-secondary)', fontSize: font.base },
-  // スマートフォルダの 1 行。**これ以上小さくしない。** 縦に詰めたくて一番小さい段
-  // （control.sm）まで落としたことがあるが、行が痩せて別物になっただけだった。
-  // 実際に縦を食っていたのは行の大きさではなく、行の前に常に置いてある挿入線
-  // （smartFolderInsertLine）が無条件に 6px 取っていたことと、游ゴシックの行送り。
-  // 箱と ✕ の間は詰めすぎない。2px まで詰めたら ✕ が箱に貼り付いて、箱の一部なのか
-  // 別のボタンなのか読めなかった。
-  smartFolderRow: { width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: space.x4, cursor: 'grab' },
-  smartFolderRowDragging: { position: 'relative' as const, zIndex: 5, opacity: 0.85, background: 'var(--bg-surface-hover)', border: '1px solid var(--border-strong)', borderRadius: radius.md, boxShadow: '0 10px 24px rgba(var(--scrim-rgb), 0.5)', cursor: 'grabbing' },
-  // 並べ替え中に「ここに入る」を示す線。**場所を取らせない。**
-  // 各行の前に 1 本ずつ常に置いてあり、ふだんは opacity: 0 で見えないだけ。以前は
-  // height 2 + margin 2px 上下 = 1 行につき 6px を無条件に消費していて、行間の指定が
-  // 2px でも実際には 10px 空いていた（「高さを下げても詰まらない」の残りの原因）。
-  // 上下の margin を半分ずつ負にして、占める高さを差し引きゼロにする。線が出るときは
-  // 隣の行へ 1px ずつ食い込むが、行の間に引く線なので見え方は変わらない。
-  smartFolderInsertLine: { height: 2, margin: '-1px 0', borderRadius: radius.sm, background: 'var(--accent)', boxShadow: '0 0 0 1px rgba(var(--accent-rgb), 0.18)', transition: 'opacity .08s ease' },
-  smartFolderBtn: { flex: 1, minWidth: 0, minHeight: control.lg, display: 'flex', alignItems: 'center', gap: space.x8, padding: '6px 10px', background: 'rgba(var(--surface-rgb), 0.48)', border: '1px solid var(--border-default)', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, textAlign: 'left' as const, overflow: 'hidden', boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease' },
-  smartFolderDeleteBtn: { width: control.lg, height: control.lg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: radius.md, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, lineHeight: 1 },
-  smartFolderActive: { background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), var(--edge-strong))', color: 'var(--accent-text)' },
     // セクションどうしの間。8px まで詰めたら上の見出し（Shiori ◯枚）と地続きに見えた。
-  // サイドバーのセクション（スマートフォルダ・タグ）の中身の並び。
-  // **枠のある箱を縦に並べるところなので、素の一覧の行間より広く取る。** 2px だった頃は
-  // スマートフォルダが 1 つの大きな箱に横線が入っているように見え、どこからどこまでが
-  // 1 つのフォルダか読めなかった（箱と箱の間より、箱の中の上下の余白のほうが広かった）。
+  // サイドバーのセクション（タグ）の中身の並び。
+  // 素の一覧の行間より広く取る（以前ここに並んでいたスマートフォルダの箱のために広げた値。
+  // 2px だった頃は箱どうしの境目が読めなかった。2026-11-20 にスマートフォルダは消した）。
   // 見出しと中身の間もこの値が効くが、見出しは自前の marginBottom を持っているので
   // 足して 10px 前後になり、小見出しとその中身の間隔（x12）の手前に収まる。
   siteGroup: { display: 'flex', flexDirection: 'column' as const, gap: space.x6, marginTop: space.x16 },
@@ -358,7 +329,7 @@ export const s: Record<string, CSSProperties> = {
   sidebarMoreBtn: { alignSelf: 'flex-start', marginTop: 2, padding: '3px 4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: font.xs, fontWeight: weight.medium },
   sidebarUtilitySection: { flexShrink: 0, padding: '10px 14px 12px', borderTop: '1px solid var(--border-inset)', background: 'var(--bg-inset)', display: 'flex', flexDirection: 'column' as const, gap: space.x8 },
   // サイドバー下部（セットアップ・サイズ・表示切替・設定）は毎日押すものではないのに、
-  // 面と枠を持っていて上のスマートフォルダやタグ一覧より目立っていた。地と枠を外す。
+  // 面と枠を持っていて上のタグ一覧より目立っていた。地と枠を外す。
   // セットアップだけは未完了のときに面を持たせる（済んだら普通のリンクまで落ちる）。
   // 下部の 3 つは**枠だけ描く。地は塗らない。** 枠も地も透明だと押せるものが宙に浮くが、
   // 地まで塗ると、帯の上に明るい箱が 3 つ乗って面の数が増える（ライトでは白地に白い箱で、

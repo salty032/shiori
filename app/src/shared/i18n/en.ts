@@ -159,7 +159,6 @@ export const en: Record<keyof typeof ja, string> = {
   // ── Library export / import ──────────────────────────────────
   'error.metadataTooLarge': 'metadata.jsonl is too large ({mb} MB limit)',
   'error.metadataMissing': 'metadata.jsonl not found',
-  'error.settingsTooLarge': 'settings.json is too large ({mb} MB limit)',
 
   // ── Shortcut list (sidebar flyout) ──────────────
   'shortcuts.heading': 'Shortcuts',
@@ -202,8 +201,6 @@ export const en: Record<keyof typeof ja, string> = {
   'action.undo': 'Undo',
 
   // ── Confirmation dialogs ─────────────────
-  'confirm.deleteSmartFolder.title': 'Delete smart folder',
-  'confirm.deleteSmartFolder.message': 'Delete “{name}”?\nOnly the saved filter is removed — your images are kept.',
   'confirm.deleteTag.title': 'Delete tag',
   'confirm.deleteTag.message.one': 'Remove the tag “{tag}” from {count} image? This cannot be undone.',
   'confirm.deleteTag.message.other': 'Remove the tag “{tag}” from all {count} images? This cannot be undone.',
@@ -218,9 +215,6 @@ export const en: Record<keyof typeof ja, string> = {
   'toast.tagRemovedFromAll.one': 'Removed the tag “{tag}” from {count} image',
   'toast.tagRemovedFromAll.other': 'Removed the tag “{tag}” from {count} images',
   'toast.tagRemoveFailed': 'Could not delete the tag',
-  'toast.smartFolderSaveFailed': 'Could not save the smart folder',
-  'toast.smartFolderDeleteFailed': 'Could not delete the smart folder',
-  'toast.reorderSaveFailed': 'Could not save the new order',
   'toast.pastedFromClipboard': 'Imported from the clipboard',
   'toast.clipboardEmpty': 'No image on the clipboard',
   'toast.pasteFailed': 'Could not import from the clipboard',
@@ -373,17 +367,8 @@ export const en: Record<keyof typeof ja, string> = {
   'search.type.video': 'Video',
 
   // ── Sidebar ──
-  'sidebar.saveSmartFolderHint': 'Save the current filter as a smart folder',
-  'sidebar.saveDisabledInFolder': 'You cannot save a new folder while viewing a smart folder',
-  'sidebar.saveNeedsFilter': 'Filter by tag, service or search to save one',
   'sidebar.imageCount.one': '{count} image',
   'sidebar.imageCount.other': '{count} images',
-  'sidebar.smartFolders': 'Smart folders',
-  'sidebar.folderNamePlaceholder': 'Folder name',
-  'sidebar.saveSmartFolder': 'Save smart folder',
-  'sidebar.folderReorderHint': '{name} (press and hold to reorder)',
-  'sidebar.deleteFolder': 'Delete {name}',
-  'sidebar.noSmartFolders': 'No folders yet',
   'sidebar.clearTagFilters': 'Clear all tag filters',
   'sidebar.aiTagSuffix': ' (AI tag)',
   'sidebar.tagDeleteHint': ' (right-click or Shift+F10 to delete the tag itself)',
@@ -610,7 +595,7 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
   'settings.videoExportFormatHint': 'webm is exported as recorded. mp4 is converted to H.264, so quality drops slightly.',
-  'settings.exportHint': 'Saves your captures and imported items to a folder, together with tags, notes, timesheets and smart folders.',
+  'settings.exportHint': 'Saves your captures and imported items to a folder, together with tags, notes and timesheets.',
   'settings.stoppedCount.one': 'Stopped after {count} item',
   'settings.stoppedCount.other': 'Stopped after {count} items',
   'settings.exportFailed': 'Export failed',
@@ -619,7 +604,6 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.import': 'Import',
   'settings.importHint': 'Adds an exported folder to your library. Importing the same folder twice creates duplicates.',
   'settings.importErrorSuffix': ' ({count} errors)',
-  'settings.importFolderSuffix': ', {count} smart folders',
   'settings.importedCount.one': 'Imported {count} item',
   'settings.importedCount.other': 'Imported {count} items',
   'settings.importFailed': 'Import failed',

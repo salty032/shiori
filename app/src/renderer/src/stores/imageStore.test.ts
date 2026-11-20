@@ -28,7 +28,7 @@ function img(id: number, over: Partial<ImageRow> = {}): ImageRow {
 // 一元化されている。ここではその「両リスト同時反映」と件数整合をテストする。
 describe('imageStore mutations', () => {
   beforeEach(() => {
-    useFilterStore.setState({ sortOrder: 'date_asc', committedSearch: '', tagFilters: [] })
+    useFilterStore.setState({ sortOrder: 'date_asc', committedSearch: '' })
     useImageStore.setState({
       gridImages: [img(1), img(2), img(3)],
       gridHasMore: true,
@@ -90,7 +90,7 @@ describe('imageStore mutations', () => {
   })
 
   it('再取得で先に表示された画像のキャプチャ通知では、行も件数も増やさない', async () => {
-    useFilterStore.setState({ sortOrder: 'date_desc', committedSearch: '', tagFilters: [] })
+    useFilterStore.setState({ sortOrder: 'date_desc', committedSearch: '' })
     ;(window as unknown as { api: unknown }).api = {
       listImages: vi.fn(async () => [img(99), img(1)]),
       countImages: vi.fn(async () => 2),
@@ -134,7 +134,7 @@ describe('imageStore mutations', () => {
 
 describe('一覧更新と削除Undoの競合', () => {
   beforeEach(() => {
-    useFilterStore.setState({ sortOrder: 'date_desc', committedSearch: '', tagFilters: [] })
+    useFilterStore.setState({ sortOrder: 'date_desc', committedSearch: '' })
     useImageStore.setState({ gridImages: [img(3), img(2), img(1)], gridTotalCount: 3,
       timelineImages: [img(3), img(2), img(1)], timelineTotalCount: 3 })
   })

@@ -10,7 +10,7 @@ const old = { id: 1, captured_at: 1000 } as ImageRow
 const captured = { id: 2, captured_at: 2000 } as ImageRow
 beforeEach(() => {
   vi.useFakeTimers()
-  useFilterStore.setState({ committedSearch: '', tagFilters: [], sortOrder: 'date_desc' })
+  useFilterStore.setState({ committedSearch: '', sortOrder: 'date_desc' })
   useImageStore.setState({ gridImages: [old], gridTotalCount: 1, gridReloading: false, newIds: new Set() })
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })

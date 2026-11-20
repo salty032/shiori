@@ -6,7 +6,6 @@ import { handleTrusted, sendToRenderer, safeExternalUrl } from '../system/window
 import { getTimesheet, listImagesForExport, saveTimesheet } from '../db/db'
 import { decodeTimesheet, encodeTimesheet } from '../../shared/timesheet'
 import { decodeFrames, encodeFrames, getVideoFrames, restoreVideoFrames } from '../db/db-video-frames'
-import { loadSettings, saveSettings, smartFolders } from '../system/settings'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbnailDir, thumbPathFor, captureFileName } from '../system/paths'
 import { formatDateForFilename, uniqueExportFilename } from './ipc-validation'
 import { CH } from '../../shared/api'
@@ -22,7 +21,6 @@ import { MAX_MEDIA_FILE_BYTES } from '../system/media-exts'
 const shareExport = exclusiveTask()
 const shareImport = exclusiveTask()
 const MAX_SHARE_METADATA_BYTES = 64 * 1024 * 1024
-const MAX_SHARE_SETTINGS_BYTES = 1024 * 1024
 // 30.5秒（取り込み許容誤差込み）×120fpsより余裕を持たせる。壊れた表が
 // ビューアやDBを不必要に膨らませないための多層防御。
 const MAX_SHARE_FRAME_ROWS = 4_000
@@ -119,17 +117,9 @@ export function registerShareHandlers(): void {
         if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
       }
 
-      // 中断時も、それまでコピー済みの分だけで metadata.jsonl / settings.json を書き出す
+      // 中断時も、それまでコピー済みの分だけで metadata.jsonl を書き出す
       // （途中までの書き出し結果をそのまま share:import で読み込める状態にしておく）。
       await writeFile(join(destDir, 'metadata.jsonl'), lines.join('\n'), 'utf-8')
-
-      // スマートフォルダのみを共有用に書き出す（ホットキー・ToS同意・個人UI設定は含めない）
-      const current = loadSettings()
-      await writeFile(
-        join(destDir, 'settings.json'),
-        JSON.stringify({ version: 1, smartFolders: current.smartFolders }, null, 2),
-        'utf-8'
-      )
 
       return { canceled: shareExport.canceled, count, path: destDir }
     })
@@ -332,37 +322,8 @@ export function registerShareHandlers(): void {
         }
       }
 
-      // settings.json（スマートフォルダのみ）は任意。無くても画像取り込みには影響しない。
-      // 名前が完全一致する既存フォルダはスキップし、それ以外は id を採番し直して追記する
-      // （エクスポート元とインポート先で id が衝突しうるため）。
-      let importedFolders = 0
-      if (!shareImport.canceled) {
-        try {
-          const settingsPath = join(srcDir, 'settings.json')
-          const settingsStat = await stat(settingsPath)
-          if (!settingsStat.isFile() || settingsStat.size > MAX_SHARE_SETTINGS_BYTES) {
-            errors.push(t('error.settingsTooLarge', { mb: MAX_SHARE_SETTINGS_BYTES / (1024 * 1024) }))
-          } else {
-            const settingsRaw = await readFile(settingsPath, 'utf-8')
-            const parsed = JSON.parse(settingsRaw) as { smartFolders?: unknown }
-            const incoming = smartFolders(parsed?.smartFolders)
-            if (incoming.length > 0) {
-              const current = loadSettings()
-              const existingNames = new Set(current.smartFolders.map((f) => f.name))
-              const ts = Date.now()
-              const toAdd = incoming
-                .filter((f) => !existingNames.has(f.name))
-                .map((f, i) => ({ ...f, id: `import-${ts}-${i}` }))
-              if (toAdd.length > 0) {
-                saveSettings({ ...current, smartFolders: [...current.smartFolders, ...toAdd] })
-                importedFolders = toAdd.length
-              }
-            }
-          }
-        } catch { /* settings.json が無い/壊れている場合は静かに無視 */ }
-      }
-
-      return { canceled: shareImport.canceled, count, errors, importedFolders }
+      // 以前の版が書き出した settings.json（スマートフォルダ）は読まない（スマートフォルダは 2026-11-20 に消した）。
+      return { canceled: shareImport.canceled, count, errors }
     })
   })
 

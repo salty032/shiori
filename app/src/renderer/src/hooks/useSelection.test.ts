@@ -102,8 +102,8 @@ function setup(overrides: Partial<UseSelectionOptions> = {}) {
 beforeEach(() => {
   (window as unknown as { api: ReturnType<typeof makeApi> }).api = makeApi()
   useFilterStore.setState({
-    searchInput: '', committedSearch: '', tagFilters: [], tagMode: 'and',
-    sortOrder: 'date_desc', activeSmartFolderId: null,
+    searchInput: '', committedSearch: '', tagMode: 'and',
+    sortOrder: 'date_desc',
   })
 })
 

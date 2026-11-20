@@ -170,7 +170,6 @@ export const ja = {
   // ── データ書き出し / 読み込み ─────────────────────────────────
   'error.metadataTooLarge': 'metadata.jsonl が大きすぎます（上限{mb}MB）',
   'error.metadataMissing': 'metadata.jsonl が見つかりません',
-  'error.settingsTooLarge': 'settings.json が大きすぎます（上限{mb}MB）',
 
   // ── ショートカット一覧（サイドバーのフライアウト） ────
   'shortcuts.heading': 'ショートカット',
@@ -216,8 +215,6 @@ export const ja = {
   'action.undo': '元に戻す',
 
   // ── 確認ダイアログ ───────────────
-  'confirm.deleteSmartFolder.title': 'スマートフォルダを削除',
-  'confirm.deleteSmartFolder.message': '「{name}」を削除しますか？\n保存した絞り込み条件だけが削除され、画像は削除されません。',
   'confirm.deleteTag.title': 'タグを削除',
   'confirm.deleteTag.message.one': 'タグ「{tag}」を{count}枚の画像すべてから削除しますか？この操作は元に戻せません。',
   'confirm.deleteTag.message.other': 'タグ「{tag}」を{count}枚の画像すべてから削除しますか？この操作は元に戻せません。',
@@ -232,9 +229,6 @@ export const ja = {
   'toast.tagRemovedFromAll.one': 'タグ「{tag}」を{count}枚から削除しました',
   'toast.tagRemovedFromAll.other': 'タグ「{tag}」を{count}枚から削除しました',
   'toast.tagRemoveFailed': 'タグの削除に失敗しました',
-  'toast.smartFolderSaveFailed': 'スマートフォルダの保存に失敗しました',
-  'toast.smartFolderDeleteFailed': 'スマートフォルダの削除に失敗しました',
-  'toast.reorderSaveFailed': '並べ替えの保存に失敗しました',
   'toast.pastedFromClipboard': 'クリップボードから取り込みました',
   'toast.clipboardEmpty': 'クリップボードに画像がありません',
   'toast.pasteFailed': 'クリップボードからの取り込みに失敗しました',
@@ -427,19 +421,10 @@ export const ja = {
   'search.type.video': '動画',
 
   // ── サイドバー ──
-  'sidebar.saveSmartFolderHint': '現在の絞り込みをスマートフォルダとして保存',
-  'sidebar.saveDisabledInFolder': 'スマートフォルダ表示中は新規保存できません',
-  'sidebar.saveNeedsFilter': 'タグ・サイト・検索などで絞り込むと保存できます',
   'sidebar.imageCount.one': '{count}枚',
   'sidebar.imageCount.other': '{count}枚',
-  'sidebar.smartFolders': 'スマートフォルダ',
-  'sidebar.folderNamePlaceholder': 'フォルダ名',
-  'sidebar.saveSmartFolder': 'スマートフォルダを保存',
-  'sidebar.folderReorderHint': '{name}（長押しで並べ替え）',
-  'sidebar.deleteFolder': '{name}を削除',
   // 「保存済みの」まで入れるとサイドバー幅で 2 行に折り返し、空の状態の方が場所を取っていた。
   // ただし**何が無いのかは残す**（見出しが上にあっても、単に「まだありません」では読めない）。
-  'sidebar.noSmartFolders': 'フォルダはまだありません',
   // 絞り込みを外すのは「解除」で通す（「検索をクリア」は入力欄を空にする操作なので別）。
   'sidebar.clearTagFilters': 'タグフィルタをすべて解除',
   'sidebar.aiTagSuffix': '（AIタグ）',
@@ -700,7 +685,7 @@ export const ja = {
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
   'settings.videoExportFormatHint': 'webm は録画したまま書き出します。mp4 は H.264 に変換するため、画質がわずかに落ちます。',
-  'settings.exportHint': 'キャプチャと取り込んだ素材を、タグ・メモ・タイムシート・スマートフォルダと一緒にフォルダへ保存します。',
+  'settings.exportHint': 'キャプチャと取り込んだ素材を、タグ・メモ・タイムシートと一緒にフォルダへ保存します。',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',
   'settings.exportFailed': 'エクスポートに失敗しました',
@@ -709,7 +694,6 @@ export const ja = {
   'settings.import': 'インポート',
   'settings.importHint': 'エクスポートしたフォルダを読み込んで、ライブラリに追加します。同じフォルダを2回読み込むと重複します。',
   'settings.importErrorSuffix': '（エラー{count}件）',
-  'settings.importFolderSuffix': '、スマートフォルダ{count}件',
   'settings.importedCount.one': '{count}枚をインポートしました',
   'settings.importedCount.other': '{count}枚をインポートしました',
   'settings.importFailed': 'インポートに失敗しました',

@@ -8,7 +8,6 @@ const DEFAULT_EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 
 const DEFAULTS = {
   thumbnailSize: 230,
-  smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+D',
   clipMaxSeconds: 30,
@@ -117,23 +116,6 @@ describe('normalizeSettings', () => {
     })
   })
 
-
-  describe('smartFolders', () => {
-    it('有効なスマートフォルダ', () => {
-      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'and', site: null, search: '' }
-      const result = normalizeSettings({ smartFolders: [folder] }).smartFolders
-      expect(result).toHaveLength(1)
-      expect(result[0].name).toBe('テスト')
-    })
-    it('tagMode が "or" 以外 → "and"', () => {
-      const folder = { id: 'f1', name: 'テスト', tags: [], tagMode: 'invalid', site: null, search: '' }
-      const result = normalizeSettings({ smartFolders: [folder] }).smartFolders
-      expect(result[0].tagMode).toBe('and')
-    })
-    it('配列でない → 空配列', () => {
-      expect(normalizeSettings({ smartFolders: 'not-array' }).smartFolders).toEqual([])
-    })
-  })
 
   describe('theme', () => {
     it('有効な値: light', () => expect(normalizeSettings({ theme: 'light' }).theme).toBe('light'))
