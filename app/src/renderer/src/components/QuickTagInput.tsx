@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { control, font, radius, space, weight } from '../styles'
+import { control, font, radius, s as appStyles, space, weight } from '../styles'
 import { normalizeTag, tagSuggestions, tagNormalizePreview, fetchBulkTagFrequency, addTagToImages, MAX_TAG_LENGTH } from '../utils'
 import { useTagSuggest } from '../hooks/useTagSuggest'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -117,7 +117,7 @@ export default function QuickTagInput({ imageIds, allTags, targetLabel, onClose,
               <button
                 key={tag}
                 className="shiori-menu-item"
-                style={{ ...s.suggestion, ...(i === suggestionIdx ? s.suggestionActive : {}) }}
+                style={{ ...s.suggestion, ...(i === suggestionIdx ? appStyles.tagSuggestionActive : {}) }}
                 onMouseDown={(e) => { e.preventDefault(); addTag(tag) }}
               >
                 {tag}
@@ -142,7 +142,6 @@ const s: Record<string, React.CSSProperties> = {
   input: { width: '100%', height: control.lg, boxSizing: 'border-box' as const, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: radius.md, color: 'var(--text-primary)', padding: '0 11px', fontSize: font.base, outline: 'none' },
   suggestions: { marginTop: 6, maxHeight: 220, overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const, gap: space.x2 },
   suggestion: { width: '100%', minHeight: control.md, padding: '5px 9px', border: 'none', borderRadius: radius.md, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' as const, fontSize: font.sm },
-  suggestionActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   normalizePreview: { marginTop: 6, padding: '2px 2px 0', fontSize: font.xs, color: 'var(--text-muted)' },
   hint: { marginTop: 8, padding: '6px 2px 0', borderTop: '1px solid var(--border-default)', fontSize: font.xs, color: 'var(--text-muted)' },
 }

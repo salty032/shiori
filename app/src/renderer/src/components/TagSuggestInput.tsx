@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import { font, radius, space, control } from '../styles'
+import { font, radius, space, control, s as appStyles } from '../styles'
 import { useTagSuggest } from '../hooks/useTagSuggest'
 import { MAX_TAG_LENGTH, tagNormalizePreview } from '../utils'
 import { useT } from '../i18n'
@@ -60,7 +60,8 @@ export default function TagSuggestInput({ value, onChange, suggestions, placehol
       {suggestions.length > 0 && (
         <div style={s.suggestions}>
           {suggestions.map((t, i) => (
-            <div key={t} className="shiori-menu-item" style={{ ...s.suggestion, background: i === highlightedIndex ? 'var(--bg-surface-hover)' : 'transparent' }}
+            // 選んでいる候補には共通ホバー（shiori-menu-item）を付けない。!important で選択の色まで消えるため（global.css）。
+            <div key={t} className={i === highlightedIndex ? undefined : 'shiori-menu-item'} style={{ ...s.suggestion, ...(i === highlightedIndex ? appStyles.tagSuggestionActive : {}) }}
               onMouseDown={(e) => { e.preventDefault(); onConfirm(t) }}>
               {t}
             </div>

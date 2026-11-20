@@ -244,6 +244,8 @@ export const s: Record<string, CSSProperties> = {
   // 保証されていて、selected の枠色と衝突しないため（spread の順序も selected が後）。
   // 濃さは控えめに。アクセントが彩度の低い藍なので、無彩色でも濃いと選択中と見分けが
   // つかない。ただしホバーの枠（--border-strong）まで落とすと今度はホバーと紛れる。
+  // タグの候補一覧で ↑↓ で選んでいる候補（T キーの入力画面と詳細パネルのタグ欄で共通）。Enter で付くのがどれか分かるようアクセント色。
+  tagSuggestionActive: { background: 'rgba(var(--accent-rgb), 0.18)', color: 'var(--accent-text)' },
   thumbFocused: { border: '2px solid rgba(var(--text-rgb), 0.45)', background: 'rgba(var(--text-rgb), 0.055)' },
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   thumbImgVertical: { objectFit: 'contain' as const },
