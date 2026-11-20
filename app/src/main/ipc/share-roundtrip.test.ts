@@ -42,7 +42,9 @@ const dirs: string[] = []
 const tempDir = (name: string): string => { const d = mkdtempSync(join(tmpdir(), `shiori-${name}-`)); dirs.push(d); return d }
 
 type Row = { id: number; filepath: string; captured_at: number; original_captured_at: number | null; source: string; title: string | null; memo: string | null; url: string | null; current_time: number | null; media_type: string }
-const rows = (): Row[] => prepare('SELECT id, filepath, captured_at, original_captured_at, source, title, memo, url, current_time, media_type FROM images ORDER BY title').all() as Row[]
+// current_time は SQLite の予約語（今の時刻）なので、列として読むには引用符が要る。囲まないと時計を比べてしまい、
+// 再生位置を確かめないまま、秒がまたいだときだけ落ちていた。
+const rows = (): Row[] => prepare('SELECT id, filepath, captured_at, original_captured_at, source, title, memo, url, "current_time", media_type FROM images ORDER BY title').all() as Row[]
 const manualTags = (id: number): string[] => getImageTags(id).filter((t) => t.source === 'manual').map((t) => t.name).sort()
 
 const frames: StoredFrame[] = [
