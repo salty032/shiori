@@ -13,7 +13,6 @@ import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
 import { MODAL_CLOSE_MS, modalOverlayAnimation, modalPanelAnimation } from '../motion'
-import { FRAME_FPS_MAX, FRAME_FPS_MIN } from '../../../shared/settingsDefaults'
 
 export { s } from './settingsStyles'
 
@@ -26,8 +25,6 @@ type Props = {
   extensionStatus: { lastSeenAt: number; data: ExtensionTimecode } | null
   onClose: () => void
   onToggleStartup: () => void
-  onUpdateFrameFps: (fps: number) => void
-  onUpdateFrameFpsAuto: (enabled: boolean) => void
   onUpdateCaptureHotkey: (hotkey: string) => Promise<boolean>
   onUpdateCaptureNotify: (enabled: boolean) => void
   onUpdateLowMemoryMode: (enabled: boolean) => void
@@ -166,34 +163,10 @@ export default function SettingsModal(p: Props) {
       .finally(() => setStorageLoading(false))
   }, [activeTab])
 
-  // fps カスタム数値入力は1打鍵ごとに保存すると IPC + 拡張への再送が無駄に多い（R-3）。
-  // ローカル state に持ち、300ms 入力が止まってから確定する。プリセットボタン側は
-  // 即時反映のままでよいので、外部から settings.frameFps が変わったときだけ同期する。
-  const FPS_INPUT_DEBOUNCE_MS = 300
-  const [fpsInputDraft, setFpsInputDraft] = useState(String(p.settings.frameFps))
-  const fpsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fpsInputDraftRef = useRef(fpsInputDraft)
-  useEffect(() => {
-    const value = String(p.settings.frameFps)
-    setFpsInputDraft(value)
-    fpsInputDraftRef.current = value
-  }, [p.settings.frameFps])
-  useEffect(() => () => { if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current) }, [])
-
-  function flushPendingFps(): void {
-    if (!fpsDebounceRef.current) return
-    clearTimeout(fpsDebounceRef.current)
-    fpsDebounceRef.current = null
-    const raw = fpsInputDraftRef.current
-    const value = Number(raw)
-    if (raw && value >= FRAME_FPS_MIN && value <= FRAME_FPS_MAX) p.onUpdateFrameFps(value)
-  }
-
   const [closing, setClosing] = useState(false)
 
   function closeSettings(): void {
     if (closing) return
-    flushPendingFps()
     setClosing(true)
     window.setTimeout(p.onClose, MODAL_CLOSE_MS)
   }
@@ -357,56 +330,6 @@ export default function SettingsModal(p: Props) {
                   </div>
                   {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
                   <ClipHotkeySettings onCapturingChange={setClipCapturing} placement="hotkey" />
-                </div>
-                {/* UX-8: コマ送り(, / .)もキャプチャ体験の設定のため「基本」タブから移動 */}
-                <div style={s.group}>
-                  <div style={s.section}>{t('settings.frameStep')}</div>
-                  <div style={s.row}>
-                    <span style={s.label}>FPS</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: space.x8, color: 'var(--text-secondary)', fontSize: font.base }}>
-                        <ToggleSwitch checked={p.settings.frameFpsAuto} onChange={p.onUpdateFrameFpsAuto} />
-                        {t('settings.autoDetect')}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: space.x4, opacity: p.settings.frameFpsAuto ? 0.35 : 1, pointerEvents: p.settings.frameFpsAuto ? 'none' : 'auto' }}>
-                        {[24, 30, 60].map((fps) => {
-                          const active = p.settings.frameFps === fps
-                          return (
-                            <button key={fps} onClick={() => p.onUpdateFrameFps(fps)} data-current={active ? 'true' : undefined}
-                              style={{ ...s.sizeBtn, background: active ? 'rgba(var(--accent-rgb), 0.16)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border-default)' }}>
-                              {fps}
-                            </button>
-                          )
-                        })}
-                        <input type="number" min={FRAME_FPS_MIN} max={FRAME_FPS_MAX} value={fpsInputDraft}
-                          onChange={(e) => {
-                             const raw = e.target.value
-                             setFpsInputDraft(raw)
-                             fpsInputDraftRef.current = raw
-                             if (fpsDebounceRef.current) clearTimeout(fpsDebounceRef.current)
-                             fpsDebounceRef.current = null
-                             const v = Number(raw)
-                             if (!raw || !(v >= FRAME_FPS_MIN && v <= FRAME_FPS_MAX)) return
-                             fpsDebounceRef.current = setTimeout(() => {
-                               fpsDebounceRef.current = null
-                               p.onUpdateFrameFps(v)
-                             }, FPS_INPUT_DEBOUNCE_MS)
-                          }}
-                          onBlur={() => {
-                            if (!fpsDebounceRef.current) return
-                            clearTimeout(fpsDebounceRef.current)
-                            fpsDebounceRef.current = null
-                            const raw = fpsInputDraftRef.current
-                            const v = Number(raw)
-                            if (raw && v >= FRAME_FPS_MIN && v <= FRAME_FPS_MAX) p.onUpdateFrameFps(v)
-                            else setFpsInputDraft(String(p.settings.frameFps))
-                          }}
-                          style={{ ...s.input, width: 52, textAlign: 'center' as const, padding: '6px 4px' }} />
-                        <span style={{ color: 'var(--text-secondary)', fontSize: font.base }}>fps</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={s.hint}>{t('settings.fpsHint')}</div>
                 </div>
                 <div style={s.group}>
                   <div style={s.section}>{t('settings.notifications')}</div>

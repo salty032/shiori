@@ -89,7 +89,7 @@ type Props = {
   autoPlay?: boolean
   pauseWhen?: boolean
   onVideoClick?: (e: React.MouseEvent<HTMLVideoElement>) => boolean
-  /** 実フレーム表が使えないときのコマ送りの刻み幅（settings.frameFps）。省略時は 24。 */
+  /** 実フレーム表が使えないときのコマ送りの刻み幅（録画・動画の fps）。分からなければ 24。 */
   fps?: number
   /** 録画そのものの素材 fps（images.fps）。30fps を超えるとコマの判定を出さず「精度保証外」と出す */
   clipFps?: number | null

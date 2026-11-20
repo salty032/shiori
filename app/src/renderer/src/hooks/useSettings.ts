@@ -73,8 +73,6 @@ export function useSettings(showToast?: ShowToast) {
     toggleStartup,
     quitAndInstallUpdate: () => window.api.updaterQuitAndInstall(),
     updateThumbnailSize: (v: number) => update('thumbnailSize', v, showToast),
-    updateFrameFps: (v: number) => update('frameFps', v, showToast),
-    updateFrameFpsAuto: (v: boolean) => update('frameFpsAuto', v, showToast),
     updateCaptureHotkey: applyCaptureHotkey,
     updateCaptureNotify: (v: boolean) => update('captureNotify', v, showToast),
     updateLowMemoryMode: (v: boolean) => update('lowMemoryMode', v, showToast),

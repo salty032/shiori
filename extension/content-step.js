@@ -34,14 +34,15 @@ function seekVideo(video, timeSec) {
 
 // コマ送りの刻み（秒）。実測があればそれを使うが、これは**狙いを置く初手の位置決め**にしか
 // 使わない。1コマ動いたかどうかは着地の実 mediaTime で決める（下記 planFrameStep）。
+// まだ測れていないときの見当は 24fps（アニメの素材の多く）。外れても下から詰める回数が増えるだけ。
 function getFrameSec() {
-  if (settingsFpsAuto && measuredFrameDur) return measuredFrameDur
-  return 1 / settingsFps
+  if (measuredFrameDur) return measuredFrameDur
+  return 1 / STEP_FALLBACK_FPS
 }
 
 // 前進の初手を「まだ同じコマの中」へ置く近道に使う値（秒）。無ければ null＝近道を使わない。
 //
-// **推定（1/settingsFps, 既定24）をここに使ってはいけない。** 見積もりが実際のコマ長より
+// **推定（1/STEP_FALLBACK_FPS）をここに使ってはいけない。** 見積もりが実際のコマ長より
 // 長いと初手が次のコマへ入る。行き過ぎは着地の実 mediaTime で検出して捨てるので1手＝1コマ
 // は保たれるが、**捨てる前の絵は画面に出てしまう**（進む→戻る→また進む、が見える。
 // YouTube は 30/60fps が普通なので 24fps 既定のままだと毎手これになる）。実測が無いうちは
@@ -58,6 +59,7 @@ function getSeedFrameSec() {
 // コマ送りの探索に使う定数。対応 fps の範囲（10〜120fps）は startFrameTracker が
 // 実測値を採用する条件と揃えてある。
 const STEP_PROBE_SEC = 1 / 120       // 上限120fpsのコマ長。これ以下しか進めないシークは必ず同じコマに留まる
+const STEP_FALLBACK_FPS = 24         // コマ長をまだ測れていないときの見当（getFrameSec）
 const STEP_MAX_FRAME_SEC = 1 / 10    // 下限10fpsのコマ長。ここまで伸ばして動かなければ諦める
 const STEP_SAME_FRAME_SEC = 0.001    // mediaTime の変化がこれ未満なら同じコマ
 const STEP_SEED_RATIO = 0.9          // 初手を見積もりコマ長の何割手前に置くか（実測の揺らぎ分の余裕）
@@ -275,11 +277,10 @@ function runStepAttempt(video, seq, step) {
     const verdict = planFrameStep(step, landed)
     if (verdict.frameDur !== null
       && verdict.frameDur >= STEP_PROBE_SEC && verdict.frameDur <= STEP_MAX_FRAME_SEC) {
-      // 探索で確定した隣接コマ間隔は実測値。近道の置き場所には設定に関係なく使う
-      // （手で fps を指定していても、実測を捨てて毎手最小刻みから詰め直す理由は無い）。
+      // 探索で確定した隣接コマ間隔は実測値。近道の置き場所に使う。
       stepMeasuredDur = stepMeasuredDur === null ? verdict.frameDur : Math.min(stepMeasuredDur, verdict.frameDur)
-      // 刻みの見積もりそのものに採るのは自動判定のときだけ（再生中の中央値が入るまでの暫定）。
-      if (settingsFpsAuto && measuredFrameDur === null) measuredFrameDur = verdict.frameDur
+      // 刻みの見積もりにも、再生中の中央値が入るまでの暫定として採る。
+      if (measuredFrameDur === null) measuredFrameDur = verdict.frameDur
     }
     if (verdict.done) {
       stepLog('確定 ' + (landed === null ? '(動かなかった)' : landed))

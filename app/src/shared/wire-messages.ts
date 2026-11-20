@@ -31,11 +31,9 @@ export type AppToExtensionMessage =
   | { type: 'reload-extension' }
   /** id を付けると、ページに出せたときに同じ id で notice-shown が返る（browser-notice.ts の sendWatchingNotice） */
   | { type: 'notice'; level: 'info' | 'success' | 'warning' | 'error'; message: string; pending?: boolean; id?: string }
-  /** コマ送りの fps・キャプチャキー・コマ送りの読み取り表示に出す文言 */
+  /** キャプチャキー・コマ送りの読み取り表示に出す文言 */
   | {
     type: 'settings'
-    frameFps: number
-    frameFpsAuto: boolean
     captureKey: string
     stepLabels: { blocked: string; dropped: string }
   }

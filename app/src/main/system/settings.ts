@@ -5,7 +5,7 @@ import { writeFile, rename, unlink } from 'fs/promises'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
 import type { SmartFolder, Settings, Lang } from '../../shared/types'
 import { langFromLocale } from '../../shared/i18n'
-import { FRAME_FPS_MAX, FRAME_FPS_MIN, SETTINGS_DEFAULTS, THUMB_SIZE_STEPS } from '../../shared/settingsDefaults'
+import { SETTINGS_DEFAULTS, THUMB_SIZE_STEPS } from '../../shared/settingsDefaults'
 import { isChromeExtensionId } from '../../shared/wire-limits'
 
 export type { SmartFolder, Settings }
@@ -193,8 +193,6 @@ export function normalizeSettings(value: unknown): Settings {
   const allowedIds = extensionIdList(data.allowedExtensionIds)
   return {
     thumbnailSize: boundedNumber(migrateThumbnailSize(data.thumbnailSize), DEFAULTS.thumbnailSize, 80, 360),
-    frameFps: boundedNumber(data.frameFps, DEFAULTS.frameFps, FRAME_FPS_MIN, FRAME_FPS_MAX),
-    frameFpsAuto: data.frameFpsAuto !== false,
     smartFolders: smartFolders(data.smartFolders),
     captureHotkey: hotkeyText(data.captureHotkey, DEFAULTS.captureHotkey),
     clipHotkey: hotkeyText(data.clipHotkey, DEFAULTS.clipHotkey),

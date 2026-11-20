@@ -35,8 +35,6 @@ export function browserStepLabels(): { blocked: string; dropped: string } {
 export function extensionSettingsMessage(s: Settings): AppToExtensionMessage {
   return {
     type: 'settings',
-    frameFps: s.frameFps,
-    frameFpsAuto: s.frameFpsAuto !== false,
     captureKey: captureHotkeyMainKey(s.captureHotkey),
     stepLabels: browserStepLabels()
   }

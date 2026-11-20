@@ -31,7 +31,6 @@ type Props = {
   // 全体の総数（無限スクロールで未読み込みの分も含む）。カウンタ表示に使う。
   total: number
   // 動画のコマ送り（, / .）の刻み幅に使う素材の fps。
-  frameFps: number
   // Tab で DetailPanel の表示/非表示を切り替える（呼び出し元が状態を持つ。デフォルトは表示）。
   onToggleDetailPanel: () => void
   // 手打ちのタイムシート。**表そのものは App が詳細パネルの場所に出す**ので、ここは
@@ -42,7 +41,7 @@ type Props = {
 // 画像の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
 // すべてビューア内部の状態。開閉位置（index）だけは選択・キャプチャ追従のため親が持つ。
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
-export default function Viewer({ images, index, setIndex, total, frameFps, onToggleDetailPanel, timesheet }: Props) {
+export default function Viewer({ images, index, setIndex, total, onToggleDetailPanel, timesheet }: Props) {
   const { t } = useT()
   // トリミング等のオーバーレイに覆われている間は再生を止める（overlaySignal の注記を参照）。
   const overlayOpen = useOverlayOpen()
@@ -425,7 +424,7 @@ export default function Viewer({ images, index, setIndex, total, frameFps, onTog
               transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
             }}
             clipMedia={zoom > 1}
-            autoPlay pauseWhen={overlayOpen} fps={img.fps ?? frameFps} clipFps={img.fps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
+            autoPlay pauseWhen={overlayOpen} fps={img.fps ?? undefined} clipFps={img.fps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
             onFramesReady={timesheet.onFramesReady} onFrameIndex={timesheet.onFrameIndex} />
         ) : (
           <img

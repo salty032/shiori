@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ImageRow, Settings } from '../types'
+import type { ImageRow } from '../types'
 import { trimmerStyles as s } from './trimmerStyles'
 import { isEditingTarget, mediaUrl } from '../utils'
 import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget } from './frameTable'
@@ -14,7 +14,6 @@ import { MIN_TRIM_SECONDS } from '../../../shared/constants'
 
 type Props = {
   image: ImageRow
-  settings: Settings
   onClose: () => void
   onTrimmed: () => void
 }
@@ -51,7 +50,7 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path
 }
 
-export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Props) {
+export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
   const { t } = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
@@ -117,10 +116,8 @@ export default function VideoTrimmer({ image, settings, onClose, onTrimmed }: Pr
   // ffmpeg に渡す終端時刻: OUT フレームの次フレーム開始時刻（OUT含む）
   const exportOutSec = exportOutOf(outSec)
 
-  // フレームテーブルが取れないときの刻み幅。クリップの実測 fps（image.fps）が
-  // あればそれを優先する（settings.frameFps はクリップの実態と無関係なグローバル既定値
-  // でしかない）。
-  const fps = Math.max(1, image.fps ?? settings.frameFps ?? 30)
+  // フレームテーブルが無いときの刻み幅。クリップの実際の fps（image.fps）、分からなければ 24。
+  const fps = Math.max(1, image.fps ?? 24)
   const step = 1 / fps  // rVFC フォールバック用
 
   const canTrim = !ptsLoading && exportOutSec - inSec >= MIN_TRIM_SECONDS && dur > 0

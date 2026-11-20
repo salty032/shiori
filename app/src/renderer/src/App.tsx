@@ -748,7 +748,6 @@ export default function App() {
             index={viewerIdx}
             setIndex={setViewerIdx}
             total={viewMode === 'timeline' ? activeImages.length : (imageList.totalCount ?? activeImages.length)}
-            frameFps={settings.settings.frameFps}
             onToggleDetailPanel={() => setDetailPanelHiddenInViewer((v) => !v)}
             timesheet={timesheet}
           />
@@ -766,8 +765,6 @@ export default function App() {
             extensionStatus={settings.extensionStatus}
             onClose={() => settings.setShowSettings(false)}
             onToggleStartup={settings.toggleStartup}
-            onUpdateFrameFps={settings.updateFrameFps}
-            onUpdateFrameFpsAuto={settings.updateFrameFpsAuto}
             onUpdateCaptureHotkey={settings.updateCaptureHotkey}
             onUpdateCaptureNotify={settings.updateCaptureNotify}
             onUpdateLowMemoryMode={settings.updateLowMemoryMode}

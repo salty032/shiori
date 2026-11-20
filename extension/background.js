@@ -273,7 +273,6 @@ function normalizeServerMessage(data) {
   // アプリが新しい版をフォルダに置いた。自分を読み込み直す（開いているページには onInstalled で差し込み直す）。
   if (msg.type === 'reload-extension') return { type: 'reload-extension' }
   if (msg.type === 'settings') {
-    const frameFps = boundedNumber(Number(msg.frameFps), 1, 240) ?? 24
     const rawKey = typeof msg.captureKey === 'string' ? msg.captureKey : ''
     const captureKey = isValidCaptureKey(rawKey) ? rawKey : 'S'
     // **ここは項目を1つずつ書き写して作り直す。** 書き足し忘れると content.js まで届かない
@@ -282,7 +281,7 @@ function normalizeServerMessage(data) {
       blocked: stepLabel(msg.stepLabels?.blocked),
       dropped: stepLabel(msg.stepLabels?.dropped)
     }
-    return { type: 'settings', frameFps, frameFpsAuto: msg.frameFpsAuto !== false, captureKey, stepLabels }
+    return { type: 'settings', captureKey, stepLabels }
   }
   return null
 }

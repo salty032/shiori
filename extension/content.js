@@ -2,8 +2,6 @@
 // ほかの役目は content-*.js に分けてある（manifest.json の content_scripts の順に読み込まれ、関数と変数を共有する）。
 // **読み込み時に実行される行はこのファイルの末尾に置く**——先に読み込まれるファイルの関数を呼ぶため。
 
-let settingsFps = 24
-let settingsFpsAuto = true
 // ホットキーのメインキー（例 "Alt+S" なら "S"）。Prime Video 等でのキー抑止（suppressCaptureKey）を
 // 実際のキャプチャホットキーに追随させるため、main から settings メッセージで受け取る。
 let settingsCaptureKey = 'S'
@@ -255,8 +253,6 @@ function normalizePortMessage(msg) {
     const rawKey = typeof msg.captureKey === 'string' ? msg.captureKey : ''
     return {
       type: 'settings',
-      frameFps: clampNumber(Number(msg.frameFps), 24, 1, 240),
-      frameFpsAuto: msg.frameFpsAuto !== false,
       captureKey: isValidCaptureKey(rawKey) ? rawKey : 'S',
       // コマ送りの読み取り表示に出す文言。拡張は文言を持たない（原本は app の ja.ts）。
       stepLabels: {
@@ -333,8 +329,6 @@ function connectPort() {
     } else if (safeMsg.type === 'request-timecode') {
       sendTimecodeNow(safeMsg.requestId, safeMsg.immediate)
     } else if (safeMsg.type === 'settings') {
-      settingsFps = safeMsg.frameFps
-      settingsFpsAuto = safeMsg.frameFpsAuto
       settingsCaptureKey = safeMsg.captureKey
       stepLabels = safeMsg.stepLabels
     } else if (safeMsg.type === 'pre-capture') {

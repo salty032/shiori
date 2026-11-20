@@ -122,7 +122,6 @@ let confirmedFrameTime = null
 let stepStartedFrom = null
 let measuredFrameDur = null
 let stepMeasuredDur = null
-const settingsFpsAuto = false
 let stepSeq = 0
 let abortStepAttempt = null
 let stepping = false

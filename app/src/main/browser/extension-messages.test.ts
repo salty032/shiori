@@ -63,7 +63,7 @@ const TO_EXTENSION: { [K in AppToExtensionMessage['type']]: Required<Extract<App
   'request-timecode': { type: 'request-timecode', requestId: 'tc-1', immediate: true },
   notice: { type: 'notice', level: 'warning', message: '録画を保存しました', pending: true, id: 'notice-1' },
   settings: {
-    type: 'settings', frameFps: 30, frameFpsAuto: false, captureKey: 'D',
+    type: 'settings', captureKey: 'D',
     stepLabels: { blocked: 'これ以上進めません', dropped: '{count}回分を省略しました' }
   }
 }

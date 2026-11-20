@@ -8,8 +8,6 @@ const DEFAULT_EXTENSION_ID = 'cgoodmpndbpjjlhpeimjjjjccioebdpn'
 
 const DEFAULTS = {
   thumbnailSize: 230,
-  frameFps: 24,
-  frameFpsAuto: true,
   smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+D',
@@ -119,14 +117,6 @@ describe('normalizeSettings', () => {
     })
   })
 
-  describe('boolean フラグ', () => {
-    it('frameFpsAuto: false を保持', () => {
-      expect(normalizeSettings({ frameFpsAuto: false }).frameFpsAuto).toBe(false)
-    })
-    it('frameFpsAuto: デフォルト true (値なし)', () => {
-      expect(normalizeSettings({}).frameFpsAuto).toBe(true)
-    })
-  })
 
   describe('smartFolders', () => {
     it('有効なスマートフォルダ', () => {

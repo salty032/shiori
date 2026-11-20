@@ -10,14 +10,9 @@ import type { Settings } from './types'
 export const THUMB_SIZE_STEPS = { S: 150, M: 230, L: 320 } as const
 
 // コマ送りの fps として受け付ける範囲。設定の読み込み（main の settings.ts）と設定画面の入力欄が同じ値で切る。
-export const FRAME_FPS_MIN = 1
-export const FRAME_FPS_MAX = 60
-
 export const SETTINGS_DEFAULTS: Settings = {
   // 既定は「中」。段のどれかを指さないと、既定で開いたときに S/M/L のどれも選ばれていない見た目になる。
   thumbnailSize: THUMB_SIZE_STEPS.M,
-  frameFps: 24,
-  frameFpsAuto: true,
   smartFolders: [],
   captureHotkey: 'Alt+S',
   clipHotkey: 'Alt+D',

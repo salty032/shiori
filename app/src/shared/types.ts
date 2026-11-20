@@ -93,8 +93,6 @@ export type CaptureResize = 'source' | 'fhd' | 'hd' | 'screen'
 
 export type Settings = {
   thumbnailSize: number
-  frameFps: number
-  frameFpsAuto: boolean
   smartFolders: SmartFolder[]
   captureHotkey: string
   clipHotkey: string
