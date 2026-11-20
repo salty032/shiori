@@ -7,7 +7,7 @@
 //
 // トリマーとビューアのプレーヤー（VideoPlayer）の双方から使う。
 import { FRAME_QUALITY } from '../../../shared/api.video'
-import { isMissingSevere, missingFrameCount } from '../../../shared/frame-severity'
+import { isMissingSevere, isReuseSevere, missingFrameCount } from '../../../shared/frame-severity'
 
 export const FRAME_EPS = 0.0005  // 0.5ms: mediaTime と framePts の浮動小数点誤差を吸収
 
@@ -25,12 +25,16 @@ export function addPendingStep(pending: number, dir: number): number {
 // このクリップのコマ送りが、どこを見ても当てにならないか。
 //
 // **抜けが 1 つでもあれば赤、にはしない**（docs/ANIME-FRAMES.md「コマ送りの精度は命」）。ずれ（misaligned）は
-// 崩れた位置から末尾まで続くので 1 コマでもあれば全体の話、抜けは割合で見る。
+// 崩れた位置から末尾まで続くので 1 コマでもあれば全体の話、抜けと撮り逃しは割合で見る。
+// 撮り逃しは番号こそ合っているが、多すぎればタイムシートも開けない（shared/timesheet.ts）。扱いが
+// 同じなのに札だけ「撮り逃し」と別にすると、同じ「数えられない」が 2 通りの言い方で出る。
 export function isClipUnreliable(
   frames: { pts: number[]; quality?: number[]; gaps?: { animeMissing?: number }[] } | null
 ): boolean {
   if (!frames) return false
-  if ((frames.quality ?? []).some((q) => q === FRAME_QUALITY.misaligned)) return true
+  const quality = frames.quality ?? []
+  if (quality.some((q) => q === FRAME_QUALITY.misaligned)) return true
+  if (isReuseSevere(quality.filter((q) => q === FRAME_QUALITY.reused).length, frames.pts.length)) return true
   return isMissingSevere(frames.pts.length, missingFrameCount(frames.gaps))
 }
 

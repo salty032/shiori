@@ -212,8 +212,6 @@ export interface FrameReadoutInput {
   index: GapIndex
   /** クリップ全体が当てにならないか（frameTable の isClipUnreliable） */
   unreliable: boolean
-  /** 未取得の割合がクリップ単位で多いか */
-  uncapturedSevere: boolean
   /** 取り込み動画か録画クリップか。file のときの読み方が変わる */
   clipSource?: string
   /** estimated のときに出す刻みの fps */
@@ -243,7 +241,7 @@ export interface FrameReadoutResult {
 // null を返したら**表示を書き換えない**（コマ表が無い＝前の表示のまま）。元の実装が
 // 何もせず return していた分岐をそのまま保つ。
 export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): FrameReadoutResult | null {
-  const { kind, gap, frames, index, unreliable, uncapturedSevere, clipSource, estimatedFps } = input
+  const { kind, gap, frames, index, unreliable, clipSource, estimatedFps } = input
 
   if (kind === 'loading') {
     return {
@@ -298,11 +296,11 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
   const unknownNext = gapNext != null && !gapNext.known
   // 注記は 3 段（詳細パネルの注記と同じ切り方）。
   //
-  //   赤「要注意」   … ずれがある、または穴だらけ。どこを見ても数えられないので全体に出す。
+  //   赤「要注意」   … ずれがある、または抜け・撮り逃しが多すぎる。どこを見ても数えられないので全体に出す。
   //                    **押さないと出ない場所ではなく番号の横**に置く（いちばん重いので）。
   //   黄「この先 N コマ抜け」… 抜けが少ないクリップ。壊れているのは**その穴をまたぐ境目
   //                    だけ**で、残りの境目は無傷。だから全体を赤くせず、その場所で出す。
-  //   黄「撮り逃し」 … 絵が無いコマ。コマ数は数えられる。従来どおりコマ単位。
+  //   黄「撮り逃し」 … 絵が無いコマ。コマ数は数えられる。従来どおりコマ単位（多すぎれば要注意）。
   //
   // 重なったら重い方を採る。**並べない**——要注意が出ている時点で他を足しても判断は変わらず、
   // 抜けの手前では「またげない」ことが未取得より先に知りたい。
@@ -313,12 +311,11 @@ export function frameReadout(input: FrameReadoutInput, tr: Translate['t']): Fram
       : missingNext > 0
         ? tr('viewer.frameGapAfterEstimated', { count: String(missingNext) })
       : note ? tr(note.label) : null
-  // 撮り逃しは、そのクリップで多いときだけ赤へ上げる（線は shared/frame-severity.ts の isReuseSevere）。
   const color = unreliable
     ? FRAME_COLOR.alert
     : unknownNext || missingNext > 0
       ? FRAME_COLOR.warn
-      : note ? (uncapturedSevere ? FRAME_COLOR.alert : note.color) : FRAME_COLOR.ok
+      : note ? note.color : FRAME_COLOR.ok
 
   return {
     cur,

@@ -130,6 +130,18 @@ describe('DetailPanel の「要注意」', () => {
     expect(ui.queryByText('detail.unreliable')).toBeNull()
   })
 
+  it('撮り逃しが多すぎれば「撮り逃し」ではなく「要注意」を出す（タイムシートも開けないので同じ扱い）', () => {
+    const ui = render(<DetailPanel {...clip({ misaligned_frames: 0, anime_missing_frames: 0, uncaptured_frames: 6 })} />)
+    expect(ui.queryByText('detail.unreliable')).not.toBeNull()
+    expect(ui.queryByText('detail.uncapturedFrames')).toBeNull()
+  })
+
+  it('撮り逃しが少なければ「撮り逃し」のまま', () => {
+    const ui = render(<DetailPanel {...clip({ misaligned_frames: 0, anime_missing_frames: 0, uncaptured_frames: 5 })} />)
+    expect(ui.queryByText('detail.unreliable')).toBeNull()
+    expect(ui.queryByText('detail.uncapturedFrames')).not.toBeNull()
+  })
+
   it('ずれが 1 コマでもあれば出す', () => {
     const ui = render(<DetailPanel {...clip({ misaligned_frames: 1, anime_missing_frames: 0 })} />)
     expect(ui.queryByText('detail.unreliable')).not.toBeNull()

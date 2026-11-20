@@ -6,11 +6,10 @@
 // 決まりは .claude/rules/frames.md「ビューアのコマ送り」。**位置は時刻ではなく表の行で持つ。**
 import { useEffect, useRef, useState } from 'react'
 import { FRAME_EPS, addPendingStep, estimatedStepTarget, findFrameIdx, frameSeekTarget, isClipUnreliable } from './frameTable'
-import { isReuseSevere } from '../../../shared/frame-severity'
 import { buildGapIndex, frameReadout, walkFrames, type GapIndex, type ReadoutKind } from './frameReadout'
 import { useT, type Translate } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
-import { FRAME_QUALITY, type ClipFrames } from '../../../shared/api.video'
+import type { ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 
 interface Options {
@@ -43,9 +42,6 @@ export function useFramePosition({
   // （docs/ANIME-FRAMES.md「コマ送りの精度は命」）。欠落コマの割合で並べると 5.4% と 4.1% の間で分布が
   // 切れていたので、そこを境にする。大きい方 24 本は全体を赤、小さい方 9 本は場所を指す。
   const unreliableRef = useRef(false)
-  // 未取得が多いクリップか。**コマ単位ではなくクリップ単位で決める**——1 コマずつ見ても
-  // 「多いのか少ないのか」は分からず、詳細パネルは割合で赤くしている。同じ割合をここでも使う。
-  const uncapturedSevereRef = useRef(false)
   // コマ送りの現在位置は「時刻」ではなく PTS 表の添字で持つ。
   //
   // 時刻で持って毎回シーク結果を実測し直すと、連打したときに前のシークの実測（非同期で
@@ -111,10 +107,7 @@ export function useFramePosition({
       // 抜けの索引（次の抜け・前までの積み上げ・母数）は frameReadout がまとめて作る。
       gapIndexRef.current = buildGapIndex(frames)
       // 判定は frameTable の isClipUnreliable が持つ（トリマーも同じものを読む）。
-      const rows = frames?.pts.length ?? 0
       unreliableRef.current = isClipUnreliable(frames)
-      const uncaptured = (frames?.quality ?? []).filter((q) => q === FRAME_QUALITY.reused).length
-      uncapturedSevereRef.current = isReuseSevere(uncaptured, rows)
       setFrameEnd(frames && frames.pts.length > 0 ? frames.pts[frames.pts.length - 1] : null)
       setReadoutKind(!frames || frames.pts.length === 0 ? 'estimated' : frames.sourceBased ? 'source' : 'file')
       onFramesReadyRef.current?.(frames && frames.pts.length > 0 ? frames : null)
@@ -181,7 +174,6 @@ export function useFramePosition({
       frames: framesRef.current,
       index: gapIndexRef.current,
       unreliable: unreliableRef.current,
-      uncapturedSevere: uncapturedSevereRef.current,
       clipSource,
       estimatedFps: Math.round(1 / stepSec),
     }, tRef.current)

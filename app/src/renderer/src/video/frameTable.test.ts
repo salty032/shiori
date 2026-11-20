@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { addPendingStep, estimatedStepTarget, findFrameIdx, frameSeekTarget, MAX_PENDING_STEPS } from './frameTable'
+import { addPendingStep, estimatedStepTarget, findFrameIdx, frameSeekTarget, isClipUnreliable, MAX_PENDING_STEPS } from './frameTable'
+import { FRAME_QUALITY } from '../../../shared/api.video'
 
 // 録画クリップの PTS は等間隔とは限らない（可変フレームレート記録）。
 // 24fps 相当（≒0.0417）の区間と、その倍・半分が混ざったテーブルで検証する。
@@ -149,5 +150,24 @@ describe('estimatedStepTarget（コマの時刻が分からないときの fps �
   it('端より先へは行かない', () => {
     expect(frameOf(estimatedStepTarget(0.01, s24, -1, 3))).toBe(0)
     expect(frameOf(estimatedStepTarget(3 - 0.01, s24, 1, 3))).toBe(71)
+  })
+})
+
+// 「要注意」（このクリップは数えられない）の条件。詳細パネル・タイムシートの可否と同じ線。
+describe('isClipUnreliable（要注意）', () => {
+  const C = FRAME_QUALITY.captured, R = FRAME_QUALITY.reused, M = FRAME_QUALITY.misaligned
+  const clip = (quality: number[], gaps: { animeMissing?: number }[] = []) => ({ pts: quality.map((_, i) => i / 24), quality, gaps })
+  const rows = (n: number, fill: number, at: number[] = []) => Array.from({ length: n }, (_, i) => (at.includes(i) ? fill : C))
+
+  it('ずれは 1 コマでも要注意', () => {
+    expect(isClipUnreliable(clip(rows(100, M, [50])))).toBe(true)
+  })
+  it('撮り逃しが 5% を超えたら要注意、5% 以下なら出さない', () => {
+    expect(isClipUnreliable(clip(rows(100, R, [1, 2, 3, 4, 5, 6])))).toBe(true)
+    expect(isClipUnreliable(clip(rows(100, R, [1, 2, 3, 4, 5])))).toBe(false)
+  })
+  it('抜けが元のコマ数の 5% を超えたら要注意、5% 以下なら出さない', () => {
+    expect(isClipUnreliable(clip(rows(100, C), [{ animeMissing: 6 }]))).toBe(true)
+    expect(isClipUnreliable(clip(rows(100, C), [{ animeMissing: 5 }]))).toBe(false)
   })
 })

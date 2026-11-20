@@ -101,7 +101,6 @@ describe('frameReadout - 何を出すか', () => {
     frames: frames(),
     index: buildGapIndex(frames()),
     unreliable: false,
-    uncapturedSevere: false,
     estimatedFps: 24,
   }
 
@@ -161,10 +160,11 @@ describe('frameReadout - 何を出すか', () => {
     expect(out?.color).toBe(FRAME_COLOR.warn)
   })
 
-  // 未取得は「そのクリップで多いとき」だけ赤へ上げる（詳細パネルと同じ 5%）。
-  it('未取得が多いクリップでは、未取得のコマを赤にする', () => {
+  // 未取得が多いクリップは isClipUnreliable で要注意になり、コマごとの「撮り逃し」より要注意を出す。
+  it('要注意のクリップでは、未取得のコマでも要注意を出す', () => {
     const f = frames({ quality: [FRAME_QUALITY.captured, FRAME_QUALITY.reused, FRAME_QUALITY.captured, FRAME_QUALITY.captured] })
-    const out = frameReadout({ ...base, kind: 'source', frames: f, index: buildGapIndex(f), idx: 1, uncapturedSevere: true }, tr)
+    const out = frameReadout({ ...base, kind: 'source', frames: f, index: buildGapIndex(f), idx: 1, unreliable: true }, tr)
+    expect(out?.text).toContain('viewer.frameUnreliable')
     expect(out?.color).toBe(FRAME_COLOR.alert)
   })
 

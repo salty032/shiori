@@ -98,12 +98,14 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   const activeImageIdRef = useRef<number | null>(single?.id ?? null)
   const prevTaggerDoneKeyRef = useRef(taggerDoneKey)
 
-  // 撮り逃したコマの注記。供給の間隔が素材のコマ長を超えると、自分の表示区間内に絵が無い
-  // コマが生じる（docs/ANIME-FRAMES.md「供給レートと素材 fps の関係」）。同じ絵が続く区間なら
-  // 実害は無いが、絵の変わり目に当たるとコマ打ちの数を誤るため、1 コマでもあれば数を出す。
-  // 保存後の検証（frame-verify.ts）の結果で数を減らさない（理由は uncapturedNote の中）。
+  // 母数（素材のコマ総数）は実測（フレーム表の行数）を優先する。fps × duration は、duration が録画停止
+  // までのラグを含むぶん過大になるうえ、fps の無い行では 0 になって判定が黙って効かなくなる。
+  const sourceFrames = single?.source_frames != null
+    ? single.source_frames
+    : (single?.fps && single.duration ? single.fps * single.duration : 0)
+
   // 「要注意」はビューア・タイムシートと同じ条件（frameTable.ts の isClipUnreliable）で出す：
-  // 対応ずれが 1 コマでもある（その位置から先の表が信用できない）か、抜けの割合が多すぎるか。
+  // 対応ずれが 1 コマでもある（その位置から先の表が信用できない）か、抜け・撮り逃しの割合が多すぎるか。
   // 抜けを見ないと、抜けだけが多い録画でビューアは赤・詳細パネルは無印になる。
   // 抜けの数はアニメのコマ数（anime_missing_frames）。通知欠落数（unreported_frames）は使わない。
   const unreliableNote = useMemo(() => {
@@ -111,27 +113,26 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
     const misaligned = single.misaligned_frames ?? 0
     const missingSevere = single.source_frames != null &&
       isMissingSevere(single.source_frames, single.anime_missing_frames ?? 0)
-    if (misaligned > 0 || missingSevere) return { text: t('detail.unreliable'), severe: true }
+    const reuseSevere = isReuseSevere(single.uncaptured_frames ?? 0, sourceFrames)
+    if (misaligned > 0 || missingSevere || reuseSevere) return { text: t('detail.unreliable'), severe: true }
     return null
-  }, [single, t])
+  }, [single, sourceFrames, t])
 
+  // 撮り逃したコマの注記。供給の間隔が素材のコマ長を超えると、自分の表示区間内に絵が無い
+  // コマが生じる（docs/ANIME-FRAMES.md「供給レートと素材 fps の関係」）。同じ絵が続く区間なら
+  // 実害は無いが、絵の変わり目に当たるとコマ打ちの数を誤るため、1 コマでもあれば数を出す。
+  // 多すぎるときは上の「要注意」が代わりに出る（重い方だけを出す）。
+  // 保存後の検証（frame-verify.ts）の結果で数を減らさない。
+  // 通知欠落数（unreported_frames）はアニメの抜けコマ数ではないので、ここでは使わない。
   const uncapturedNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
     // 表に行はあるが専用の絵を撮れなかったコマだけを数える。通知欠落数を足すと、今回の
     // 「通知3フレーム・アニメ2コマ」のような区間を3コマと誤表示するため混ぜない。
-    const missing = single.uncaptured_frames ?? 0
-    if (missing <= 0) return null
-    // 母数は実測（フレーム表の行数）を優先する。fps × duration は、duration が録画停止
-    // までのラグを含むぶん過大になるうえ、fps の無い行では 0 になって判定が黙って効かなくなる。
-    const total = single.source_frames != null
-      ? single.source_frames
-      : (single.fps && single.duration ? single.fps * single.duration : 0)
     // **前後の絵が同じかどうかで分けない。** 同じでもそこに 1 コマだけ別の絵が入っていた
     // 可能性は消せず、確定できないことを確定したように見せることになる（コマ送り側と同じ）。
-    return {
-      text: t('detail.uncapturedFrames', { count: String(missing) }),
-      severe: isReuseSevere(missing, total)
-    }
+    const missing = single.uncaptured_frames ?? 0
+    if (missing <= 0) return null
+    return { text: t('detail.uncapturedFrames', { count: String(missing) }), severe: false }
   }, [single, t])
 
   // **並べない。重い方だけを出す。** コマ送りの表示（VideoPlayer）と同じ扱いにする。
@@ -693,7 +694,7 @@ const s: Record<string, React.CSSProperties> = {
   frameNote: { display: 'inline-flex', alignItems: 'center', padding: '0 6px', borderRadius: radius.sm, border: '1px solid transparent', fontSize: 11, fontWeight: weight.medium, lineHeight: 1.25, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' },
   // 要注意は薄く色を敷いて枠を締める。未取得は枠線だけの控えめな見た目にして、
   // 重さの差（クリップ全体が当てにならない／そのコマの絵が無い）を色の濃さで出す。
-  // 未取得でも割合が大きい（severe）ときは要注意と同じ濃さへ上げる。
+  // 未取得が多すぎるときは札ごと「要注意」になる（isClipUnreliable と同じ条件）。
   frameNoteAlert: { color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.14)', borderColor: 'rgba(var(--warning-rgb), 0.38)', pointerEvents: 'auto' as const },
   frameNoteQuiet: { color: 'var(--text-muted)', borderColor: 'var(--border-default)' },
   row: { display: 'flex', flexDirection: 'column', gap: space.x4 },

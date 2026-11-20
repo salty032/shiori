@@ -129,7 +129,6 @@ export function expandMarks(marks: readonly TimesheetMark[], rows: readonly numb
 // 信用できない。**線は撮り逃しと同じ割合・同じ定数で引く**——ビューアが「要注意」を
 // 出す条件（frameTable.ts の isClipUnreliable。式は frame-severity.ts）と揃えることで、
 // 「赤いのに出せる／出せないのに白い」が起きないようにする。
-// （詳細パネルの「要注意」はずれだけを見ていて、抜けの割合は見ていない。）
 //
 // **対応崩れ（misaligned）も 1 つでも不可。** 出ている絵が何なのか分からない以上、
 // 打った位置がどのコマなのかも決められない。
