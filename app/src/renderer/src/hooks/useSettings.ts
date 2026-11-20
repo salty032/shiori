@@ -12,6 +12,7 @@ export function useSettings(showToast?: ShowToast) {
   const setSettings = useSettingsStore((s) => s.setSettings)
   const update = useSettingsStore((s) => s.update)
   const applyCaptureHotkey = useSettingsStore((s) => s.applyCaptureHotkey)
+  const applyClipHotkey = useSettingsStore((s) => s.applyClipHotkey)
   const init = useSettingsStore((s) => s.init)
 
   const [startup, setStartup] = useState(false)
@@ -75,6 +76,9 @@ export function useSettings(showToast?: ShowToast) {
     updateThumbnailSize: (v: number) => update('thumbnailSize', v, showToast),
     updateCaptureHotkey: applyCaptureHotkey,
     updateCaptureNotify: (v: boolean) => update('captureNotify', v, showToast),
+    updateClipHotkey: applyClipHotkey,
+    // 録画完了の通知もキャプチャと同じ保存の仕方（書き込めなければスイッチを戻して知らせる）。
+    updateClipNotify: (v: boolean) => update('clipNotify', v, showToast),
     updateLowMemoryMode: (v: boolean) => update('lowMemoryMode', v, showToast),
     updateShowAiTags: (v: boolean) => update('showAiTags', v, showToast),
     updateTheme: (v: Settings['theme']) => update('theme', v, showToast),

@@ -753,6 +753,8 @@ export default function App() {
             onToggleStartup={settings.toggleStartup}
             onUpdateCaptureHotkey={settings.updateCaptureHotkey}
             onUpdateCaptureNotify={settings.updateCaptureNotify}
+            onUpdateClipHotkey={settings.updateClipHotkey}
+            onUpdateClipNotify={settings.updateClipNotify}
             onUpdateLowMemoryMode={settings.updateLowMemoryMode}
             onUpdateShowAiTags={settings.updateShowAiTags}
             onUpdateTheme={settings.updateTheme}

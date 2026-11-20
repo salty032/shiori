@@ -14,7 +14,7 @@ function props(): ComponentProps<typeof SettingsModal> {
     settings: SETTINGS_DEFAULTS, startup: false, taggerReady: false,
     taggerProgress: null, retagProgress: null, extensionStatus: null,
     onClose: vi.fn(), onToggleStartup: vi.fn(), onUpdateCaptureHotkey: vi.fn(async () => true),
-    onUpdateCaptureNotify: vi.fn(),
+    onUpdateCaptureNotify: vi.fn(), onUpdateClipHotkey: vi.fn(async () => true), onUpdateClipNotify: vi.fn(),
     onUpdateLowMemoryMode: vi.fn(), onUpdateShowAiTags: vi.fn(), onUpdateTheme: vi.fn(),
     onUpdateVideoExportFormat: vi.fn(), onUpdateCaptureResize: vi.fn(), onUpdateLanguage: vi.fn(),
     onTaggerDownload: vi.fn(), onTaggerCancelDownload: vi.fn(), onTaggerDelete: vi.fn(),

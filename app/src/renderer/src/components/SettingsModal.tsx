@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode, StorageInfo, LibraryImportMode } from '../types'
-import { color, font, space } from '../styles'
-import { buildAccelerator, formatBytes } from '../utils'
-import { normalizeCaptureHotkey } from '../../../shared/hotkey'
+import { space } from '../styles'
+import { formatBytes } from '../utils'
 import { XIcon } from './Icon'
 import SettingsDataTab from './SettingsDataTab'
 import { s } from './settingsStyles'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLatestRef } from '../hooks/useLatestRef'
-import ClipHotkeySettings from '../video/ClipHotkeySettings'
+import HotkeyField from './HotkeyField'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
@@ -27,6 +26,8 @@ type Props = {
   onToggleStartup: () => void
   onUpdateCaptureHotkey: (hotkey: string) => Promise<boolean>
   onUpdateCaptureNotify: (enabled: boolean) => void
+  onUpdateClipHotkey: (hotkey: string) => Promise<boolean>
+  onUpdateClipNotify: (enabled: boolean) => void
   onUpdateLowMemoryMode: (enabled: boolean) => void
   onUpdateShowAiTags: (enabled: boolean) => void
   onUpdateTheme: (theme: Settings['theme']) => void
@@ -67,13 +68,9 @@ export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange
 
 export default function SettingsModal(p: Props) {
   const { t } = useT()
-  const [capturing, setCapturing] = useState(false)
-  const [capturedAccel, setCapturedAccel] = useState<string | null>(null)
-  const [hotkeyError, setHotkeyError] = useState<string | null>(null)
-  const captureRef = useRef<HTMLDivElement>(null)
-  // 登録スロット（録画ホットキー変更など）が独自にキー入力キャプチャ中かどうか。
-  // SettingsModal 自身の capturing とは独立に管理し、Escape 自動クローズの抑止に使う。
-  const [clipCapturing, setClipCapturing] = useState(false)
+  // ホットキーの欄（キャプチャ・録画）がキーを待っているか。待っている間は Escape で設定画面を閉じない。
+  const [captureKeyWaiting, setCaptureKeyWaiting] = useState(false)
+  const [clipKeyWaiting, setClipKeyWaiting] = useState(false)
   // extensionStatus は最後に受信したイベントのスナップショットなので、拡張を無効化したり
   // ブラウザを閉じたりしても「受信中」のまま変わらない。モーダル表示中は定期的に
   // lastSeenAt からの経過時間を見て、タイムコード送信間隔（5秒）の3回分途絶えたら
@@ -112,33 +109,11 @@ export default function SettingsModal(p: Props) {
   useEffect(() => {
     const block = (e: KeyboardEvent): void => {
       e.stopPropagation()
-      if (e.key === 'Escape' && !capturing && !clipCapturing) closeSettingsRef.current()
+      if (e.key === 'Escape' && !captureKeyWaiting && !clipKeyWaiting) closeSettingsRef.current()
     }
     document.addEventListener('keydown', block)
     return () => document.removeEventListener('keydown', block)
-  }, [capturing, clipCapturing, closeSettingsRef])
-
-  useEffect(() => {
-    if (!capturing) return
-    const handler = (e: KeyboardEvent) => {
-      e.preventDefault()
-      if (e.key === 'Escape') { setCapturing(false); setCapturedAccel(null); setHotkeyError(null); return }
-      const accel = buildAccelerator(e)
-      if (!accel) return
-      // main（hotkey.ts）と同じ正規化規則で事前検証する（Q4）。ここを通さないと
-      // UI 側だけが「キャプチャできた」ように見えて、確定時に main 側の
-      // normalizeCaptureHotkey が拒否し「競合しています」という不正確なエラーになる。
-      if (normalizeCaptureHotkey(accel)) {
-        setCapturedAccel(accel)
-        setHotkeyError(null)
-      } else {
-        setCapturedAccel(null)
-        setHotkeyError(t('hotkey.unsupportedCombo'))
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [capturing, t])
+  }, [captureKeyWaiting, clipKeyWaiting, closeSettingsRef])
 
   const [activeTab, setActiveTab] = useState<TabId>('general')
 
@@ -306,30 +281,11 @@ export default function SettingsModal(p: Props) {
               <>
                 <div style={{ ...s.group, ...s.groupFirst }}>
                   <div style={s.section}>{t('settings.hotkey')}</div>
-                  <div style={s.row}>
-                    <span style={s.label}>{t('settings.captureHotkey')}</span>
-                    {capturing ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: space.x4 }}>
-                        <div ref={captureRef} style={s.hotkeyCapture}>
-                          {capturedAccel || t('hotkey.pressKeys')}
-                        </div>
-                        <button style={s.sizeBtn} disabled={!capturedAccel} onClick={async () => {
-                          if (!capturedAccel) return
-                          const ok = await p.onUpdateCaptureHotkey(capturedAccel)
-                          if (ok) { setCapturing(false); setHotkeyError(null) }
-                          else setHotkeyError(t('hotkey.conflict'))
-                        }}>{t('action.confirm')}</button>
-                        <button style={s.sizeBtn} onClick={() => { setCapturing(false); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.cancel')}</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: space.x8 }}>
-                        <span style={s.hotkeyBadge}>{p.settings.captureHotkey}</span>
-                        <button style={s.sizeBtn} onClick={() => { setCapturing(true); setCapturedAccel(null); setHotkeyError(null) }}>{t('action.change')}</button>
-                      </div>
-                    )}
-                  </div>
-                  {hotkeyError && <div style={{ fontSize: font.sm, color: color.danger }}>{hotkeyError}</div>}
-                  <ClipHotkeySettings onCapturingChange={setClipCapturing} placement="hotkey" />
+                  <HotkeyField label={t('settings.captureHotkey')} value={p.settings.captureHotkey}
+                    onCommit={p.onUpdateCaptureHotkey} onCapturingChange={setCaptureKeyWaiting} />
+                  <HotkeyField label={t('clip.hotkeyLabel')} value={p.settings.clipHotkey}
+                    onCommit={p.onUpdateClipHotkey} onCapturingChange={setClipKeyWaiting} />
+                  <div style={s.hint}>{t('clip.hotkeyTroubleshoot')}</div>
                 </div>
                 <div style={s.group}>
                   <div style={s.section}>{t('settings.notifications')}</div>
@@ -337,7 +293,10 @@ export default function SettingsModal(p: Props) {
                     <span style={s.label}>{t('settings.notifyOnCapture')}</span>
                     <ToggleSwitch checked={p.settings.captureNotify ?? true} onChange={p.onUpdateCaptureNotify} />
                   </div>
-                  <ClipHotkeySettings onCapturingChange={setClipCapturing} placement="notification" />
+                  <div style={s.toggleRow}>
+                    <span style={s.label}>{t('clip.notifyOnFinish')}</span>
+                    <ToggleSwitch checked={p.settings.clipNotify ?? true} onChange={p.onUpdateClipNotify} />
+                  </div>
                 </div>
               </>
             )}

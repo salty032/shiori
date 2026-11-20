@@ -22,6 +22,8 @@ type SettingsStoreState = {
   // キャプチャホットキーは main 側の登録可否（グローバルショートカット競合）が真実なので、
   // 他の設定と違い確定を待ってから反映する（悲観方式のまま維持）。
   applyCaptureHotkey: (hotkey: string) => Promise<boolean>
+  // 録画ホットキーも同じ（登録できたときだけ画面へ反映する）。
+  applyClipHotkey: (hotkey: string) => Promise<boolean>
 }
 
 export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
@@ -60,6 +62,12 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
   applyCaptureHotkey: async (hotkey) => {
     const ok = await window.api.setCaptureHotkey(hotkey)
     if (ok) set((s) => ({ settings: { ...s.settings, captureHotkey: hotkey } }))
+    return ok
+  },
+
+  applyClipHotkey: async (hotkey) => {
+    const ok = await window.api.setClipHotkey(hotkey)
+    if (ok) set((s) => ({ settings: { ...s.settings, clipHotkey: hotkey } }))
     return ok
   },
 }))
