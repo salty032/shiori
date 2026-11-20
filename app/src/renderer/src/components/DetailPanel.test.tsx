@@ -108,3 +108,30 @@ describe('DetailPanel saves', () => {
     expect(ui.queryByRole('alert')).toBeNull()
   })
 })
+
+// 「要注意」はビューア・タイムシートと同じ条件（frameTable.ts の isClipUnreliable）で出す。
+// ずれしか見ていなかった頃は、抜けだけが多い録画でビューアは赤・詳細パネルは無印だった。
+describe('DetailPanel の「要注意」', () => {
+  beforeEach(() => { vi.stubGlobal('api', { updateImageMemo: vi.fn(), updateImageTitle: vi.fn() }) })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+  function clip(over: Record<string, number | null>): ComponentProps<typeof DetailPanel> {
+    const p = panelProps()
+    return { ...p, single: { ...p.single!, filepath: '/clip.webm', media_type: 'video', duration: 5, fps: 24, source_frames: 100, ...over } }
+  }
+
+  it('抜けの割合が多すぎれば、ずれが無くても出す', () => {
+    const ui = render(<DetailPanel {...clip({ misaligned_frames: 0, anime_missing_frames: 10 })} />)
+    expect(ui.queryByText('detail.unreliable')).not.toBeNull()
+  })
+
+  it('抜けが少なければ出さない（1 つでもあれば赤、にはしない）', () => {
+    const ui = render(<DetailPanel {...clip({ misaligned_frames: 0, anime_missing_frames: 3 })} />)
+    expect(ui.queryByText('detail.unreliable')).toBeNull()
+  })
+
+  it('ずれが 1 コマでもあれば出す', () => {
+    const ui = render(<DetailPanel {...clip({ misaligned_frames: 1, anime_missing_frames: 0 })} />)
+    expect(ui.queryByText('detail.unreliable')).not.toBeNull()
+  })
+})

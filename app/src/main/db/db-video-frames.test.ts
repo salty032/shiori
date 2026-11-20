@@ -171,21 +171,31 @@ describe('保存済みのコマ表から枚数を数え直す', () => {
 
   const row = (over: Record<string, unknown>): unknown => ({
     imageId: 7, data: encodeFrames(table),
-    uncaptured: null, total: null, unreported: null, misaligned: null, ...over
+    uncaptured: null, total: null, unreported: null, misaligned: null, animeMissing: null, ...over
   })
 
   it('空のままの録画を、表から数えて埋める', () => {
     executedSql.length = 0
     storedRows.mockReturnValue([row({})])
     expect(backfillFrameCounts()).toBe(1)
-    // 撮り逃し 1 / 行数 6 / 抜け 2 / ずれ 1
+    // 撮り逃し 1 / 行数 6 / 通知の抜け 2 / ずれ 1 / アニメの抜け 0（枚数をまだ推定していないので数えない）
     const update = executedSql.find((entry) => entry.sql.includes('UPDATE images'))
-    expect(update?.args).toEqual([1, 6, 2, 1, 7])
+    expect(update?.args).toEqual([1, 6, 2, 1, 0, 7])
+  })
+
+  // 詳細パネルの「要注意」は、ビューアと同じくアニメの抜けの割合でも出る。その数も表から埋める。
+  it('アニメの抜けの枚数を、ビューアと同じ数え方（findClipGaps）で埋める', () => {
+    executedSql.length = 0
+    const estimated = table.map((f, i) => (i === 2 ? { ...f, animeGapMissing: 2 } : f))
+    storedRows.mockReturnValue([row({ data: encodeFrames(estimated), uncaptured: 1, total: 6, unreported: 2, misaligned: 1, animeMissing: 0 })])
+    expect(backfillFrameCounts()).toBe(1)
+    const update = executedSql.find((entry) => entry.sql.includes('UPDATE images'))
+    expect(update?.args).toEqual([1, 6, 2, 1, 2, 7])
   })
 
   it('既に合っている録画は書き換えない（起動のたびに全件書き直さない）', () => {
     executedSql.length = 0
-    storedRows.mockReturnValue([row({ uncaptured: 1, total: 6, unreported: 2, misaligned: 1 })])
+    storedRows.mockReturnValue([row({ uncaptured: 1, total: 6, unreported: 2, misaligned: 1, animeMissing: 0 })])
     expect(backfillFrameCounts()).toBe(0)
     expect(executedSql.some((entry) => entry.sql.includes('UPDATE images'))).toBe(false)
   })

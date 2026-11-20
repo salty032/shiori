@@ -42,11 +42,12 @@ export function framesVerifiedPayload(
   return counts
     ? {
         id: imageId, uncaptured_frames: counts.uncaptured, ambiguous_frames: ambiguous,
-        source_frames: counts.sourceFrames, unreported_frames: counts.unreported, misaligned_frames: counts.misaligned
+        source_frames: counts.sourceFrames, unreported_frames: counts.unreported, misaligned_frames: counts.misaligned,
+        anime_missing_frames: counts.animeMissing
       }
     : {
         id: imageId, uncaptured_frames: null, ambiguous_frames: null,
-        source_frames: null, unreported_frames: null, misaligned_frames: null
+        source_frames: null, unreported_frames: null, misaligned_frames: null, anime_missing_frames: null
       }
 }
 

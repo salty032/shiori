@@ -5,17 +5,17 @@ import { handleTrusted, sendToRenderer } from '../system/windows'
 import { beginTask, endTask } from '../system/busy'
 import { getImage } from '../db/db'
 import { getImageTags } from '../db/db-tags'
-import { getVideoFrames, restoreVideoFrames, saveFrameTable, saveVideoFrames } from '../db/db-video-frames'
+import { getVideoFrames, restoreVideoFrames, saveFrameTable } from '../db/db-video-frames'
 import type { StoredFrame } from '../db/db-video-frames'
 import { optionalPositiveInteger } from './ipc-validation'
 import { resolveRealCapturePath, ensureCaptureSubDir, thumbPathFor, captureFileName } from '../system/paths'
 import { trimWebm, extractThumb, getFrameSignatures, getVideoFramePts, getTimelineStrip, getVideoDuration } from '../video/ffmpeg'
 import { VIDEO_CH, FRAME_QUALITY } from '../../shared/api.video'
 import { CH } from '../../shared/api'
-import type { ClipFrames, ClipGap, FrameQuality, TrimErrorCode, TrimProgress } from '../../shared/api.video'
+import type { ClipFrames, FrameQuality, TrimErrorCode, TrimProgress } from '../../shared/api.video'
 import { registerCapturedMedia } from '../capture/captured-media'
 import { sliceFrameTable } from '../video/frame-slice'
-import { frameGaps } from '../video/frame-gaps'
+import { findClipGaps } from '../video/frame-gaps'
 import { framesVerifiedPayload, verifyClipFrames } from '../video/verify-clip'
 import { getCachedClipFrames, setCachedClipFrames } from '../video/clip-frames-cache'
 import { applyAnimeGapEstimates } from '../video/frame-verify'
@@ -35,27 +35,6 @@ export function frameQualityOf(f: StoredFrame): FrameQuality {
   if (f.misaligned) return FRAME_QUALITY.misaligned
   if (f.captured) return FRAME_QUALITY.captured
   return FRAME_QUALITY.reused
-}
-
-// 表から抜けている区間を拾う（ClipGap のコメント参照）。
-//
-// **数え方は frame-gaps.ts の frameGaps だけが持つ。** ここで別に数えると、詳細パネルに
-// 出る合計とコマ送りに出る場所が別の計算から出ることになる（実測 82 本中 5 本で食い違った）。
-//
-// **枚数が確定している抜けは、その枚数で数える。録画の絵からの推定より優先する。**
-// 確定＝時刻の間隔から出した数と、ブラウザが絵を出した回数 presentedFrames の差が一致したとき。
-// 正解の焼き込まれたテスト動画（2026-11-01・ページを 40〜60ms 詰まらせて抜けを起こしたもの）で、
-// 確定した枚数は 6 本・全部の抜けで本当の枚数と合った。絵からの推定は 59.94fps で少なく出て
-// （3 コマを 2、2 コマを 1）、抜けより後ろの番号が注記なしで全部ずれていた。
-// YouTube はページの処理がときどき詰まり、出た 1 コマの知らせをブラウザが飛ばすので、確定した
-// 抜けを数えないとタイムシートが丸ごと使えない。
-// 確定していない抜け（描かれなかったコマが混ざりうる）は、絵からの推定、それも無ければ未確認のまま。
-export function findClipGaps(frames: StoredFrame[]): ClipGap[] {
-  return frameGaps(frames).map((gap) => {
-    if (gap.measured) return { ...gap, animeMissing: gap.missing }
-    const animeMissing = frames[gap.afterIndex]?.animeGapMissing
-    return animeMissing != null ? { ...gap, animeMissing } : gap
-  })
 }
 
 // 1 コマの長さ（ファイル側の実測）。**次の「行」ではなく次の「ファイルのコマ」まで。**
@@ -140,7 +119,12 @@ export function registerVideoHandlers(): void {
         pts = decoded.pts
         const estimated = applyAnimeGapEstimates(table!, decoded.signatures, decoded.pts)
         table = estimated.frames
-        if (estimated.changed) saveVideoFrames(validId, table)
+        // 抜けの枚数が決まったので、詳細パネルが読む数（anime_missing_frames）も同じ表から書き直して知らせる。
+        // 表だけ保存すると、このクリップは次の起動まで詳細パネルだけが「要注意」を出さない。
+        if (estimated.changed) {
+          const counts = saveFrameTable(validId, table)
+          sendToRenderer(CH.framesVerified, framesVerifiedPayload(validId, counts, image.ambiguous_frames ?? null))
+        }
       } else {
         pts = await getVideoFramePts(realPath)
       }

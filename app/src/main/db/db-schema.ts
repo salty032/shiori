@@ -244,6 +244,11 @@ export function initDb(): void {
   // （どこからも読まれず廃止）ので、古い DB には古い値の入った同名の列が残っている。
   // 同じ名前で足すと addColumnIfMissing が素通りし、古い値をそのまま読むことになる。
   addColumnIfMissing('ALTER TABLE images ADD COLUMN misaligned_frames INTEGER')
+  // 表から抜けているアニメのコマ数の合計（findClipGaps の animeMissing。数え方は frame-severity の
+  // missingFrameCount）。**詳細パネルの「要注意」をビューアと同じ割合で出すために持つ。** 持たないと、
+  // 抜けだけが多い録画でビューアは赤・詳細パネルは無印になる。通知が来なかった数（unreported_frames）とは別物。
+  // 起動時の backfillFrameCounts が保存済みの表から数え直すので、動画を読み直さずに埋まる。
+  addColumnIfMissing('ALTER TABLE images ADD COLUMN anime_missing_frames INTEGER')
   // コマ表を最後に見直したときの判定の版（db-video-frames の RECHECK_VERSION）。
   // 見直しは 1 本ごとに動画をまるごとデコードするので、同じ版で二度やらないための記録。
   // NULL は「まだ一度も見直していない」。**video_frames 側に持てない**——あちらは通常の表が

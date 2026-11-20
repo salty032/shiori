@@ -16,7 +16,8 @@
 //   'changed' … 前後で絵が変わっている。どのコマで変わったかは特定できない＝要確認
 // captured=true のコマでは意味を持たない（常に 'unknown'）。
 import { getDb, prepare } from './db-core'
-import { countReportDrops } from '../video/frame-gaps'
+import { countReportDrops, findClipGaps } from '../video/frame-gaps'
+import { missingFrameCount } from '../../shared/frame-severity'
 
 export type FrameVerify = 'unknown' | 'same' | 'changed'
 
@@ -225,6 +226,8 @@ export interface FrameCounts {
   sourceFrames: number
   unreported: number
   misaligned: number
+  /** 表から抜けているアニメのコマ数（ビューアのコマ送りと同じ findClipGaps から数える） */
+  animeMissing: number
 }
 
 export function countFrameTable(frames: StoredFrame[]): FrameCounts {
@@ -233,6 +236,7 @@ export function countFrameTable(frames: StoredFrame[]): FrameCounts {
     sourceFrames: frames.length,
     unreported: countReportDrops(frames),
     misaligned: frames.filter((frame) => frame.misaligned).length,
+    animeMissing: missingFrameCount(findClipGaps(frames)),
   }
 }
 
@@ -241,8 +245,8 @@ export function countFrameTable(frames: StoredFrame[]): FrameCounts {
 function writeFrameCounts(imageId: number, counts: FrameCounts): void {
   prepare(
     'UPDATE images SET uncaptured_frames = ?, source_frames = ?, unreported_frames = ?,' +
-    ' misaligned_frames = ? WHERE id = ?'
-  ).run(counts.uncaptured, counts.sourceFrames, counts.unreported, counts.misaligned, imageId)
+    ' misaligned_frames = ?, anime_missing_frames = ? WHERE id = ?'
+  ).run(counts.uncaptured, counts.sourceFrames, counts.unreported, counts.misaligned, counts.animeMissing, imageId)
 }
 
 // 表を保存し、そこから数えた枚数を**同じトランザクションで**書く。戻り値は書いた枚数
@@ -321,7 +325,7 @@ export function markVideoFramesUnusable(id: number, reason: string): void {
   }
   prepare(`UPDATE images
     SET uncaptured_frames = NULL, ambiguous_frames = NULL, source_frames = NULL,
-        unreported_frames = NULL, misaligned_frames = NULL
+        unreported_frames = NULL, misaligned_frames = NULL, anime_missing_frames = NULL
     WHERE id = ?`).run(id)
 }
 
@@ -339,11 +343,13 @@ export function backfillFrameCounts(): number {
   const rows = prepare(
     'SELECT v.image_id AS imageId, v.data AS data,' +
     ' i.uncaptured_frames AS uncaptured, i.source_frames AS total,' +
-    ' i.unreported_frames AS unreported, i.misaligned_frames AS misaligned' +
+    ' i.unreported_frames AS unreported, i.misaligned_frames AS misaligned,' +
+    ' i.anime_missing_frames AS animeMissing' +
     ' FROM video_frames v JOIN images i ON i.id = v.image_id'
   ).all() as {
     imageId: number; data: string
     uncaptured: number | null; total: number | null; unreported: number | null; misaligned: number | null
+    animeMissing: number | null
   }[]
   let fixed = 0
   for (const row of rows) {
@@ -351,7 +357,8 @@ export function backfillFrameCounts(): number {
     if (!frames || frames.length === 0) continue
     const counts = countFrameTable(frames)
     if (row.uncaptured === counts.uncaptured && row.total === counts.sourceFrames &&
-        row.unreported === counts.unreported && row.misaligned === counts.misaligned) continue
+        row.unreported === counts.unreported && row.misaligned === counts.misaligned &&
+        row.animeMissing === counts.animeMissing) continue
     writeFrameCounts(row.imageId, counts)
     fixed++
   }

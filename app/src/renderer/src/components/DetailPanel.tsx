@@ -11,7 +11,7 @@ import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
 import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
 import VideoPlayer from '../video/VideoPlayer'
-import { isReuseSevere } from '../../../shared/frame-severity'
+import { isMissingSevere, isReuseSevere } from '../../../shared/frame-severity'
 import { useOverlayOpen } from '../overlaySignal'
 import TrimButton from '../video/TrimButton'
 import { useT } from '../i18n'
@@ -102,13 +102,16 @@ export default function DetailPanel({ selectedIds, single, settings, taggerDoneK
   // コマが生じる（docs/ANIME-FRAMES.md「供給レートと素材 fps の関係」）。同じ絵が続く区間なら
   // 実害は無いが、絵の変わり目に当たるとコマ打ちの数を誤るため、1 コマでもあれば数を出す。
   // 保存後の検証（frame-verify.ts）の結果で数を減らさない（理由は uncapturedNote の中）。
-  // 対応ずれは 1 コマでもあれば、その位置から先の表が信用できないため全体へ警告する。
-  // 通知欠落数（unreported_frames）はアニメの抜けコマ数ではないので、ここでは使わない。
-  // アニメの枚数は録画画像から推定し、ビューアの該当境界とタイムシートへ反映する。
+  // 「要注意」はビューア・タイムシートと同じ条件（frameTable.ts の isClipUnreliable）で出す：
+  // 対応ずれが 1 コマでもある（その位置から先の表が信用できない）か、抜けの割合が多すぎるか。
+  // 抜けを見ないと、抜けだけが多い録画でビューアは赤・詳細パネルは無印になる。
+  // 抜けの数はアニメのコマ数（anime_missing_frames）。通知欠落数（unreported_frames）は使わない。
   const unreliableNote = useMemo(() => {
     if (single?.media_type !== 'video') return null
     const misaligned = single.misaligned_frames ?? 0
-    if (misaligned > 0) return { text: t('detail.unreliable'), severe: true }
+    const missingSevere = single.source_frames != null &&
+      isMissingSevere(single.source_frames, single.anime_missing_frames ?? 0)
+    if (misaligned > 0 || missingSevere) return { text: t('detail.unreliable'), severe: true }
     return null
   }, [single, t])
 

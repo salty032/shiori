@@ -86,8 +86,9 @@ vi.mock('fs/promises', () => ({
 }))
 
 import {
-  registerVideoHandlers, buildClipFrames, findClipGaps, frameQualityOf
+  registerVideoHandlers, buildClipFrames, frameQualityOf
 } from './ipc-video'
+import { findClipGaps } from '../video/frame-gaps'
 import { invalidateClipFrames } from '../video/clip-frames-cache'
 import { FRAME_QUALITY } from '../../shared/api.video'
 import { VIDEO_CH } from '../../shared/api.video'
@@ -203,7 +204,7 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
     getVideoFramePts.mockResolvedValue(pts)
     getVideoFrames.mockReturnValue(table)
     restoreVideoFrames.mockReset().mockReturnValue({
-      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0
+      uncaptured: 1, ambiguous: 1, sourceFrames: 3, unreported: 0, misaligned: 0, animeMissing: 0
     })
     registerVideoHandlers()
 
@@ -211,7 +212,8 @@ describe('コマ送りが使う範囲と、詳細タイルの母数が一致す�
 
     expect(restoreVideoFrames).toHaveBeenCalledWith(1, table.slice(0, 3), { ambiguous: 2 })
     expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, {
-      id: 1, uncaptured_frames: 1, ambiguous_frames: 1, source_frames: 3, unreported_frames: 0, misaligned_frames: 0
+      id: 1, uncaptured_frames: 1, ambiguous_frames: 1, source_frames: 3, unreported_frames: 0, misaligned_frames: 0,
+      anime_missing_frames: 0
     })
   })
 })
@@ -223,7 +225,8 @@ describe('保存済みクリップのアニメ抜け推定', () => {
     getVideoFramePts.mockReset().mockResolvedValue([])
     getFrameSignatures.mockReset().mockResolvedValue({ signatures: [], pts: [] })
     getVideoFrames.mockReset()
-    saveVideoFrames.mockReset()
+    saveFrameTable.mockReset()
+    sendToRenderer.mockClear()
     registerVideoHandlers()
   })
 
@@ -248,7 +251,26 @@ describe('保存済みクリップのアニメ抜け推定', () => {
     expect(getFrameSignatures).toHaveBeenCalledTimes(1)
     expect(getVideoFramePts).not.toHaveBeenCalled()
     expect(result.gaps).toEqual([{ afterIndex: 1, missing: 3, measured: false, animeMissing: 2 }])
-    expect((saveVideoFrames.mock.calls.at(-1)?.[1] as StoredFrame[])[1].animeGapMissing).toBe(2)
+    expect((saveFrameTable.mock.calls.at(-1)?.[1] as StoredFrame[])[1].animeGapMissing).toBe(2)
+  })
+
+  // 表だけ書くと、詳細パネルの「要注意」が読む抜けの数（anime_missing_frames）が次の起動まで古いまま。
+  it('推定した抜けの数を、表と一緒に書いて画面へ知らせる（詳細パネルが同じ数で判定する）', async () => {
+    const pts = Array.from({ length: 13 }, (_, i) => 13.369 + i * 0.02)
+    const sig = (v: number): Uint8Array => new Uint8Array(32 * 32).fill(v)
+    const signatures = [20, 20, 20, 20, 100, 100, 100, 100, 180, 180, 180, 180, 180].map(sig)
+    getVideoFrames.mockReturnValue([
+      { mediaTime: 35.201, frameIndex: 0, captured: true },
+      { mediaTime: 35.243, frameIndex: 2, captured: true },
+      { mediaTime: 35.410, frameIndex: 10, captured: true },
+      { mediaTime: 35.452, frameIndex: 12, captured: true }
+    ])
+    getFrameSignatures.mockResolvedValue({ signatures, pts })
+
+    await handlers.get(VIDEO_CH.videoGetClipFrames)!({}, 1)
+
+    expect(saveFrameTable.mock.calls.at(-1)?.[2]).toMatchObject({ animeMissing: 2, sourceFrames: 4 })
+    expect(sendToRenderer).toHaveBeenCalledWith(CH.framesVerified, expect.objectContaining({ id: 1, anime_missing_frames: 2, source_frames: 4 }))
   })
 })
 
@@ -388,7 +410,7 @@ describe('video:trim - サムネ生成失敗時の挙動', () => {
     expect(saveFrameTable).toHaveBeenCalledWith(99, [
       { mediaTime: 2, frameIndex: 0, captured: true },
       { mediaTime: 4, frameIndex: 2, captured: true },
-    ], { uncaptured: 0, sourceFrames: 2, unreported: 0, misaligned: 0 })
+    ], { uncaptured: 0, sourceFrames: 2, unreported: 0, misaligned: 0, animeMissing: 0 })
   })
 
   // 印は行ごと引き継がれるので、件数も表から数える（0 で書くと詳細の件数と赤い表示が食い違う）。

@@ -51,6 +51,8 @@ export type ImageRow = {
   unreported_frames?: number | null
   /** 対応がずれていると判定したコマ数（video_frames の misaligned）。詳細パネルの「要注意」の材料 */
   misaligned_frames?: number | null
+  /** 表から抜けているアニメのコマ数の合計。source_frames と合わせて、抜けが多すぎるか（isMissingSevere）を決める */
+  anime_missing_frames?: number | null
   thumb_path: string | null
   source: ImageSource
 }

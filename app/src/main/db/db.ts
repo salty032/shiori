@@ -95,6 +95,7 @@ const PUBLIC_IMAGE_COLUMN_NAMES = [
   'source_frames',
   'unreported_frames',
   'misaligned_frames',
+  'anime_missing_frames',
   'thumb_path',
   'source'
 ] as const satisfies readonly (keyof ImageRowBase)[]

@@ -556,7 +556,7 @@ function ranges(indices) {
 
 async function scoreClip(row, rematch, noThumbs) {
   const { decodeFrames, readUnusableFrames } = require('../src/main/db/db-video-frames.ts')
-  const { findClipGaps } = require('../src/main/ipc/ipc-video.ts')
+  const { findClipGaps } = require('../src/main/video/frame-gaps.ts')
   const { buildGapIndex, sourceFrameNo } = require('../src/renderer/src/video/frameReadout.ts')
   let table = decodeFrames(row.data)
   if (!table) {

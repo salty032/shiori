@@ -169,6 +169,7 @@ describe('restoredFrameCounts', () => {
       sourceFrames: 3,
       unreported: 0,
       misaligned: 0,
+      animeMissing: 0,
     })
   })
 

@@ -13,6 +13,7 @@ import type {
 // 表が使えなくなったときは枚数が全部 null（「数えられない」）。
 export type FramesVerifiedColumn =
   'uncaptured_frames' | 'ambiguous_frames' | 'source_frames' | 'unreported_frames' | 'misaligned_frames'
+  | 'anime_missing_frames'
 export type FramesVerified = { id: number } & { [K in FramesVerifiedColumn]-?: NonNullable<ImageRow[K]> | null }
 
 export interface ShioriApi {
