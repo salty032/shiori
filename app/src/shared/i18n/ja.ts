@@ -28,8 +28,8 @@ export const ja = {
   'dialog.moveCaptures.title': '保存先の変更',
   'dialog.moveCaptures.message': '{count} 件（{size}）を {dest} へ移します',
   'dialog.moveCaptures.detail':
-    '実体のコピーなので、件数によっては数分かかります。移動中は移動先に一時的に 2 倍の空きが必要です。\n\n' +
-    '途中で止めても、失敗しても、何も変わりません（保存先も記録もそのままです）。',
+    'ファイルをコピーするため、件数によっては数分かかります。移動中は移動先に一時的に 2 倍の空きが必要です。\n\n' +
+    '途中で止めたり失敗したりしても、保存先も記録も元のままです。',
   'dialog.moveCaptures.proceed': '移動する',
   'dialog.importFolder': 'インポートするフォルダを選択',
   // 同じエクスポートを、PC を移したときは自分のものとして、人からもらったときは受け取ったものとして読む。
@@ -374,7 +374,7 @@ export const ja = {
   'timesheet.toggle': 'タイムシートの表示を切り替える',
   'timesheet.count': '{marks} 枚 / {total} コマ',
   'timesheet.reused': '撮り逃し {frames} コマ',
-  'timesheet.reusedHint': 'このコマ数だけ、専用の絵が撮れず直前のコマの絵が出ています。コマ番号はずれていませんが、そこで新しい絵が始まっていても画面からは分かりません。',
+  'timesheet.reusedHint': 'これらのコマは絵を撮れず、直前のコマの絵を出しています。コマ番号は正しいものの、そこで絵が切り替わっていても画面では分かりません。',
   'timesheet.loadFailed': 'タイムシートを読み込めませんでした。上書きしないよう、入力を止めています。',
   'timesheet.copy': 'コピー',
   'timesheet.copied': 'コピーしました',
@@ -488,8 +488,8 @@ export const ja = {
   'trim.error': 'エラー：{message}',
   'trim.working': '保存中...',
   'trim.save': '新しいクリップとして保存',
-  'trim.audioOnTitle': '保存する動画に音声を入れます（押すと外す）',
-  'trim.audioOffTitle': '保存する動画から音声を外します（押すと戻す）',
+  'trim.audioOnTitle': '音声を入れて保存します。押すと外します。',
+  'trim.audioOffTitle': '音声を外して保存します。押すと戻します。',
   'trim.discardTitle': '編集を中止',
   'trim.discardMessage': '変更は保存されません。閉じますか？',
 
@@ -659,13 +659,13 @@ export const ja = {
   'settings.changeCapturesFolder': '変更...',
   'settings.chooseCapturesFolder': '保存先のフォルダを選択',
   'settings.captureRootChanged': '保存先を変更しました（{count} 件を移動）。',
-  'settings.captureRootMissingSuffix': '{count} 件は元のファイルが見つからず、そのままにしました。',
+  'settings.captureRootMissingSuffix': '{count} 件は元のファイルが見つからなかったため、移していません。',
   'settings.captureMoving': '移動中... {current} / {total}',
   'settings.captureMoveFailed': '移動できなかったため、何も変更していません。移動先の空き容量とドライブの接続を確認してください。',
-  'settings.captureMoveConflict': '移動先に同じ名前のファイルがあるため、何も移していません（{path}）。そのファイルを別の場所へどけるか、空のフォルダを選んでください。',
+  'settings.captureMoveConflict': '移動先に同じ名前のファイルがあるため、何も移していません（{path}）。そのファイルを別の場所へ移すか、空のフォルダを選んでください。',
   // 選べない場所（ドライブ直下・Shiori の設定が入っているフォルダの上位）。理由まで出す
   // ——「変更できません」だけだと、壊れているのか選び方が悪いのか分からない。
-  'settings.captureRootInvalid': 'この場所は保存先にできません。ドライブ直下や、Shiori のデータが入っているフォルダの上位は選べません。',
+  'settings.captureRootInvalid': 'この場所は保存先にできません。ドライブの直下や、Shiori のデータが入っているフォルダを含む場所は選べません。',
   'settings.captureRootUnwritable': 'この場所に書き込めませんでした。別のフォルダを選ぶか、ドライブがつながっているか確認してください。',
   'settings.storageHint': 'キャプチャと録画の保存先です。変更すると、これまでの分も移します（移す前に件数と容量を確認します）。',
   'settings.usage': '使用量',
@@ -696,11 +696,11 @@ export const ja = {
   'settings.captureResize.screen': '上限なし',
   // **説明が要る選択肢だけ書く。**「上限なし」は言葉のとおりで、ここに足すと
   // 「以前と同じ」のような、前を知らない人には何も伝わらない補足になる。
-  'settings.captureResizeHint': '自動：配信の解像度に合わせる（引き伸ばされたぶんは保存しない） / 1080p・720p：配信がそれより高いと画質が下がる',
+  'settings.captureResizeHint': '自動は配信の解像度に合わせ、引き伸ばされた分は保存しません。1080p・720p は、配信がそれより高いと画質が下がります。',
   'settings.videoExportFormat': '書き出し形式',
   'settings.videoExportFormat.original': 'webm',
   'settings.videoExportFormat.h264': 'mp4',
-  'settings.videoExportFormatHint': 'webm：録画したまま書き出し / mp4：H.264 に変換（画質がわずかに劣化）',
+  'settings.videoExportFormatHint': 'webm は録画したまま書き出します。mp4 は H.264 に変換するため、画質がわずかに落ちます。',
   'settings.exportHint': 'キャプチャと取り込んだ素材を、タグ・メモ・タイムシート・スマートフォルダと一緒にフォルダへ保存します。',
   'settings.stoppedCount.one': '{count}枚で中止しました',
   'settings.stoppedCount.other': '{count}枚で中止しました',
