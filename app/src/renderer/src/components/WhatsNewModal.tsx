@@ -33,7 +33,7 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
   const single = entries.length === 1
 
   return (
-    <ModalFrame modal={modal}>
+    <ModalFrame modal={modal} panelStyle={s.panel}>
         <div style={modalStyles.header}>
           <div style={modalStyles.title}>{single ? t('whatsNew.title', { version: entries[0].version }) : t('whatsNew.historyTitle')}</div>
           <button ref={closeBtnRef} style={modalStyles.closeBtn} onClick={() => modal.close()} title={t('action.close')}><XIcon size={16} /></button>
@@ -67,7 +67,10 @@ export default function WhatsNewModal({ entries, onClose }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  body: { maxHeight: '50vh', overflowY: 'auto', padding: '4px 0' },
+  // 文の一覧なので、大きさは 1 行が読みやすい長さで決める（600px＝1 行 40 文字ほど）。ウィンドウに合わせて
+  // 広げない（1 行が長すぎると目で追いにくい）。420px だった頃は 1 項目が 3 行前後に折り返していた。
+  panel: { width: 600 },
+  body: { maxHeight: '60vh', overflowY: 'auto', padding: '4px 0' },
   versionBtn: { display: 'flex', alignItems: 'center', gap: space.x8, width: '100%', padding: '9px 18px', background: 'none', border: 'none', color: 'var(--text-bright)', cursor: 'pointer', fontSize: font.base, fontWeight: weight.medium, textAlign: 'left' },
   chevron: { display: 'inline-flex', color: 'var(--text-secondary)', transition: 'transform 0.12s ease-out' },
   list: { margin: 0, padding: '4px 18px 14px 34px', color: 'var(--text-secondary)', fontSize: font.base, lineHeight: 1.75 },
