@@ -504,8 +504,7 @@ function readSignatures(file) {
 
 // 今のコードで表を作り直す。作り直せないときは理由を返す（採点は保存済みの表で続ける）。
 async function rematchTable(row, stored, noThumbs) {
-  const { matchFrames } = require('../src/main/video/frame-match.ts')
-  const { signaturesDiffer } = require('../src/main/video/frame-verify.ts')
+  const { rematchFromPictures } = require('../src/main/video/frame-rematch.ts')
   const name = fs.existsSync(diagDir)
     ? fs.readdirSync(diagDir).filter((f) => f.startsWith(`frame-${row.id}-`)).sort().pop()
     : null
@@ -516,20 +515,11 @@ async function rematchTable(row, stored, noThumbs) {
   if (signatures.length !== diag.drawnAt.length) {
     return { reason: `ファイル ${signatures.length} 枚・撮影時刻 ${diag.drawnAt.length} 個で合わない` }
   }
-  const changed = signatures.map((sig, k) => k > 0 && signaturesDiffer(signatures[k - 1], sig))
-  const result = matchFrames(diag.source.map((f) => ({ ...f, receivedAt: NaN })), diag.drawnAt, changed)
+  // 録画直後の処理（verify-clip.ts）と同じ手順を呼ぶ（frame-rematch.ts）。
+  const result = rematchFromPictures(
+    diag.source.map((f) => ({ ...f, receivedAt: NaN })), diag.drawnAt, signatures, { useThumbs: !noThumbs }
+  )
   if (!result) return { reason: '照合が表を返さなかった' }
-  // 録画直後の処理（verify-clip.ts）と同じく、控えの絵があれば照合で、無ければ録画全体で決め直す。
-  if (!noThumbs && diag.source.some((f) => f.thumb)) {
-    const { refineByThumbnails } = require('../src/main/video/frame-thumbs.ts')
-    result.matches = refineByThumbnails(result.matches, new Map(diag.source.map((f) => [f.mediaTime, f.thumb])), signatures).matches
-  } else {
-    const { alignWholeRecording } = require('../src/main/video/frame-align.ts')
-    const aligned = alignWholeRecording(
-      result.matches, diag.source, diag.drawnAt, changed, result.searchRangeMs, result.sourcePeriodMs
-    )
-    if (aligned) result.matches = aligned.matches
-  }
   // 診断ファイルは presentedFrames を持たない。保存済みの表の値（重複を畳んだ後の値）を同じコマへ写す。
   // 番号の採点（抜けの数え方）にだけ効く。
   const presented = new Map(stored.map((f) => [f.mediaTime, f.presentedFrames]))

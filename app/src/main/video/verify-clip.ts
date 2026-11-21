@@ -9,7 +9,7 @@
 import { getFrameSignatures } from './ffmpeg'
 import { invalidateClipFrames } from './clip-frames-cache'
 import {
-  applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult, signaturesDiffer,
+  applyAnimeGapEstimates, checkTableAgainstFile, findFrameDivergence, logVerifyResult,
   verifyFrameTable
 } from './frame-verify'
 import { setAmbiguousFrames } from '../db/db'
@@ -17,10 +17,8 @@ import {
   countFrameTable, listClipsForRecheck, markRechecked, markVideoFramesUnusable, saveFrameTable, saveVideoFrames,
   type FrameCounts, type StoredFrame
 } from '../db/db-video-frames'
-import { matchFrames } from './frame-match'
 import { type SourceFrame } from './frame-feed'
-import { refineByThumbnails } from './frame-thumbs'
-import { alignWholeRecording } from './frame-align'
+import { rematchFromPictures } from './frame-rematch'
 import { isRecordingInProgress } from './recording'
 import { sendToRenderer } from '../system/windows'
 import { CH, type FramesVerified } from '../../shared/api'
@@ -99,29 +97,16 @@ export async function verifyClipFrames(
 
     let frames = table
 
-    // 時刻だけで選んだ 1 枚を、絵を見て選び直す。枚数がファイルと合うときだけ——合わないと
-    // drawnAt の添字がファイルのフレームを指さず、絵を見ても別のフレームを見ることになる。
-    if (drawnAt !== null && source.length > 0 && signatures.length === drawnAt.length) {
-      const changed = signatures.map((s, k) => k > 0 && signaturesDiffer(signatures[k - 1], s))
-      const rematched = matchFrames(source, drawnAt, changed)
+    // 時刻だけで選んだ 1 枚を、絵を見て選び直す（手順は frame-rematch.ts。テスト動画の採点と同じもの）。
+    if (drawnAt !== null) {
+      const rematched = rematchFromPictures(source, drawnAt, signatures)
       if (rematched) {
-        let picked = rematched.matches
-        // 拡張が控えた各コマの絵があれば、録画の画像と照合して決め直す（frame-thumbs.ts）。
-        // 無ければ（DRM の配信は絵が読めない）、録画全体で辻褄が合うように決め直す（frame-align.ts）。
-        if (source.some((f) => f.thumb)) {
-          const refined = refineByThumbnails(picked, new Map(source.map((f) => [f.mediaTime, f.thumb])), signatures)
-          console.log(
-            `[frame-thumbs] image ${imageId}: ${refined.decided} row(s) decided by thumbnails, ${refined.moved} moved`
-          )
-          picked = refined.matches
-        } else {
-          const aligned = alignWholeRecording(
-            picked, source, drawnAt, changed, rematched.searchRangeMs, rematched.sourcePeriodMs
-          )
-          if (aligned) {
-            console.log(`[frame-align] image ${imageId}: delay ${aligned.delayMs}ms, ${aligned.moved} row(s) moved`)
-            picked = aligned.matches
-          }
+        const picked = rematched.matches
+        const r = rematched.refined
+        if (r?.by === 'thumbnails') {
+          console.log(`[frame-thumbs] image ${imageId}: ${r.decided} row(s) decided by thumbnails, ${r.moved} moved`)
+        } else if (r?.by === 'whole-recording') {
+          console.log(`[frame-align] image ${imageId}: delay ${r.delayMs}ms, ${r.moved} row(s) moved`)
         }
         const before = new Map(table.map((f) => [f.mediaTime, f.frameIndex]))
         const moved = picked.filter((m) => before.get(m.mediaTime) !== m.frameIndex).length
