@@ -455,6 +455,10 @@ button[data-current='true']:hover { filter: none; }
    ことを伝える。background-position を動かす光沢スイープにすると、仮想リストで
    数十枚が同時に走って GPU 負荷が跳ねるため、意図的に最小限の表現にしている。 */
 @keyframes shioriSkeletonPulse { 0%, 100% { opacity: 0.55 } 50% { opacity: 0.9 } }
+/* 動画の音量ポップアップ（videoControls.tsx の VolumeControl）。中央寄せを translateX(-50%) で
+   しているので、動かす transform にも同じ translateX を入れる（抜くと出入りの間だけ横にずれる）。 */
+@keyframes vcVolSlideUp { from { opacity: 0; transform: translateX(-50%) translateY(6px) } to { opacity: 1; transform: translateX(-50%) translateY(0) } }
+@keyframes vcVolSlideDown { from { opacity: 1; transform: translateX(-50%) translateY(0) } to { opacity: 0; transform: translateX(-50%) translateY(6px) } }
 
 /* OS で「視差効果を減らす」設定時はアニメーションを実質無効化（酔い対策）。
    duration を 0 にせず極小にすることで animationend/transitionend 依存コードは壊さない。 */

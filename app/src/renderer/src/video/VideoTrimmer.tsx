@@ -5,7 +5,7 @@ import { isEditingTarget, mediaUrl } from '../utils'
 import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget } from './frameTable'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
-import { useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle, MuteIcon } from './videoControls'
+import { vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle, MuteIcon } from './videoControls'
 import type { TrimErrorCode, TrimProgress } from '../../../shared/api.video'
 import { useT, type MessageKey } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
@@ -189,8 +189,6 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
     })
     return stop ?? undefined
   }, [playing, inSec, exportOutSec, dur, updatePosRef])
-
-  useVcStyles()
 
   function updatePos(t: number): void {
     posRef.current = t

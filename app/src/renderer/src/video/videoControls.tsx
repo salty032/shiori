@@ -1,22 +1,12 @@
 // VideoPlayer（ビューア/詳細パネル）と VideoTrimmer（トリム画面）で共通の
 // 再生コントロール部品。旧レビュー V-20 / U-7 で指摘された重複（音量ポップアップ・
-// shiori-vc-styles 注入・再生/ミュートアイコン）を 1 箇所に集約し、片方だけ直して
+// 音量ポップアップの keyframes・再生/ミュートアイコン）を 1 箇所に集約し、片方だけ直して
 // 挙動が食い違う温床を無くす。挙動は両コンポーネントの従来実装と同一。
 import { useEffect, useRef, useState } from 'react'
 import { control, font, radius, space, weight } from '../styles'
 import { useT } from '../i18n'
 
-// 音量ポップアップのスライドイン/アウト用 keyframes を一度だけ注入する。
-// 両コンポーネントが同じ id で個別に注入していたのを共通化（内容は同一）。
-export function useVcStyles(): void {
-  useEffect(() => {
-    if (document.getElementById('shiori-vc-styles')) return
-    const style = document.createElement('style')
-    style.id = 'shiori-vc-styles'
-    style.textContent = '@keyframes vcVolSlideUp { from { opacity:0; transform:translateX(-50%) translateY(6px); } to { opacity:1; transform:translateX(-50%) translateY(0); } } @keyframes vcVolSlideDown { from { opacity:1; transform:translateX(-50%) translateY(0); } to { opacity:0; transform:translateX(-50%) translateY(6px); } }'
-    document.head.appendChild(style)
-  }, [])
-}
+// 音量ポップアップの出入りの keyframes（vcVolSlideUp / vcVolSlideDown）は global.css にある。
 
 // コントロールバーのアイコンボタン共通スタイル（再生/ミュート）。
 // 映像に直接重なる層なので、暗色スラブ前提のくすんだ青灰ではなく、

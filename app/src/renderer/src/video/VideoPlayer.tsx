@@ -11,7 +11,7 @@ import { font, radius, weight } from '../styles'
 import type { ClipFrames } from '../../../shared/api.video'
 import type { ImageSource } from '../../../shared/types'
 import {
-  useVcStyles, vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, SpeedControl, LoopButton, type PlaybackSpeed,
+  vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, SpeedControl, LoopButton, type PlaybackSpeed,
   vcBarStyle, vcBarOverlayStyle, VC_OVERLAY_HEIGHT, vcSeekTrackStyle, vcSeekBarStyle, vcSeekFillStyle, vcSeekThumbStyle, VC_SEEK_THUMB
 } from './videoControls'
 
@@ -390,8 +390,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ 
     const stop = watchVideoFrames(v, (meta) => followPlaybackRef.current(meta.mediaTime))
     return stop ?? undefined
   }, [playing, followPlaybackRef])
-
-  useVcStyles()
 
   function handleSeekPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
     e.preventDefault()
