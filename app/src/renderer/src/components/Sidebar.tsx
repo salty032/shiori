@@ -4,6 +4,7 @@ import type { ViewMode } from './Toolbar'
 import { control, font, s, weight } from '../styles'
 import { GridIcon, HelpCircleIcon, ListIcon, SettingsIcon, XIcon } from './Icon'
 import ContextMenu from './ContextMenu'
+import { removeSearchTokens } from '../stores/imageQuery'
 import ShortcutsFlyout from './ShortcutsFlyout'
 import { usePanelResize } from '../hooks/usePanelResize'
 import { useWindowWidth } from '../hooks/useWindowWidth'
@@ -158,7 +159,7 @@ export default function Sidebar({
                     // searchTags 由来のタグは検索欄の tag:xxx トークンなので、まとめて1回で
                     // 剥がす（onRemoveSearchTag を複数回呼ぶと毎回同じ古い filters.search を
                     // 元に計算するため、後の呼び出しが前の呼び出しの結果を上書きしてしまう）。
-                    const next = filters.search.replace(/(?:^|\s)tag:\S+/gi, '').replace(/\s+/g, ' ').trim()
+                    const next = removeSearchTokens(filters.search, 'tag')
                     filters.setSearch(next)
                     filters.commitSearch(next)
                   }} style={{ ...s.sidebarXBtn, ...s.tagClearBtn }} title={t('sidebar.clearTagFilters')}><XIcon size={11} strokeWidth={2} /></button>

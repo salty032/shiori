@@ -23,7 +23,7 @@ import { useToast, STICKY_TOAST_MS } from './hooks/useToast'
 import { useSettings } from './hooks/useSettings'
 import { useFilters } from './hooks/useFilters'
 import { useImageList } from './hooks/useImageList'
-import { parseSearchQuery, moveFreeTextToEnd } from './stores/imageQuery'
+import { parseSearchQuery, moveFreeTextToEnd, removeSearchTokens, addSearchToken } from './stores/imageQuery'
 import { useImageStore } from './stores/imageStore'
 import { useExportStore } from './stores/exportStore'
 import { useTimeline } from './hooks/useTimeline'
@@ -307,12 +307,7 @@ export default function App() {
   ), [])
 
   function removeSearchTag(tag: string): void {
-    const stripped = filters.search
-        .replace(/(^|\s)tag:(\S+)/gi, (match, prefix: string, value: string) =>
-          value.toLowerCase() === tag.toLowerCase() ? prefix : match)
-        .replace(/\s+/g, ' ')
-        .trim()
-    const next = moveFreeTextToEnd(stripped)
+    const next = moveFreeTextToEnd(removeSearchTokens(filters.search, 'tag', (value) => value.toLowerCase() === tag.toLowerCase()))
     filters.setSearch(next)
     filters.commitSearch(next)
   }
@@ -322,7 +317,7 @@ export default function App() {
   // フィルタ(tag:/site:等)をまとめて前・フリーワードを末尾に揃えるのはプログラムによる
   // 追加/削除の直後だけ（手入力中のテキストは動かさない）。
   function addSearchTag(tag: string): void {
-    const next = moveFreeTextToEnd(`${filters.search} tag:${tag}`)
+    const next = addSearchToken(filters.search, 'tag', tag)
     filters.setSearch(next)
     filters.commitSearch(next)
   }

@@ -5,7 +5,7 @@ import { s, space } from '../styles'
 import { serviceLabel } from '../services'
 import { XIcon, ChevronDownIcon } from './Icon'
 import { useSearchHistoryStore } from '../stores/searchHistoryStore'
-import { parseSearchQuery } from '../stores/imageQuery'
+import { parseSearchQuery, removeSearchTokens, SEARCH_PREFIXES as PREFIX_NAMES, TYPING_PREFIX_RE, PREFIX_HINT_RE, type SearchPrefix } from '../stores/imageQuery'
 import { useT } from '../i18n'
 import type { MessageKey } from '../../../shared/i18n'
 
@@ -14,13 +14,15 @@ export type ViewMode = 'grid' | 'timeline'
 // ラベルは表示直前に t() で解決する。ここで文字列にしてしまうとモジュール読み込み時の
 // 言語で固定され、設定から切り替えても古いままになる。
 const SORT_LABEL_KEYS: Record<string, MessageKey> = { date_desc: 'sort.newest', date_asc: 'sort.oldest', random: 'sort.random' }
-const SEARCH_PREFIXES = [
-  { prefix: 'tag:', labelKey: 'search.prefix.tag' },
-  { prefix: 'from:', labelKey: 'search.prefix.from' },
-  { prefix: 'to:', labelKey: 'search.prefix.to' },
-  { prefix: 'site:', labelKey: 'search.prefix.site' },
-  { prefix: 'type:', labelKey: 'search.prefix.type' },
-] as const satisfies readonly { prefix: string; labelKey: MessageKey }[]
+// 接頭辞の一覧そのものは imageQuery.ts。ここは候補に出す説明だけを持つ（足すと型がここの書き忘れを知らせる）。
+const PREFIX_LABEL_KEYS: Record<SearchPrefix, MessageKey> = {
+  tag: 'search.prefix.tag',
+  from: 'search.prefix.from',
+  to: 'search.prefix.to',
+  site: 'search.prefix.site',
+  type: 'search.prefix.type',
+}
+const SEARCH_PREFIXES = PREFIX_NAMES.map((name) => ({ prefix: `${name}:`, labelKey: PREFIX_LABEL_KEYS[name] }))
 
 type ActiveFilter = {
   onRemove: () => void
@@ -37,12 +39,11 @@ const SEARCH_COMMIT_DEBOUNCE_MS = 200
 // サジェスト枠は tag/site/type/プレフィックスの4種が排他で1つだけ描画されるため、
 // id は使い回してよい（同時に2つ存在しない）。
 
-const TAG_PREFIX_RE = /(?:^|\s)tag:(\S*)$/i
-const SITE_PREFIX_RE = /(?:^|\s)site:(\S*)$/i
-const TYPE_PREFIX_RE = /(?:^|\s)type:(\S*)$/i
-const FROM_PREFIX_RE = /(?:^|\s)from:(\S*)$/i
-const TO_PREFIX_RE = /(?:^|\s)to:(\S*)$/i
-const PREFIX_HINT_RE = /(?:^|\s)(tag|ta|t|from|fro|fr|f|to|site|sit|si|s|type|typ|ty):?$/i
+const TAG_PREFIX_RE = TYPING_PREFIX_RE.tag
+const SITE_PREFIX_RE = TYPING_PREFIX_RE.site
+const TYPE_PREFIX_RE = TYPING_PREFIX_RE.type
+const FROM_PREFIX_RE = TYPING_PREFIX_RE.from
+const TO_PREFIX_RE = TYPING_PREFIX_RE.to
 
 type Props = {
   filters: Filters
@@ -122,7 +123,7 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   }, [suggestionSearch, searchInteractionActive, t])
 
   const prefixSuggestions = useMemo(() => {
-    if (!searchFocused || filters.search.match(TAG_PREFIX_RE) || filters.search.match(SITE_PREFIX_RE) || filters.search.match(TYPE_PREFIX_RE) || filters.search.match(FROM_PREFIX_RE) || filters.search.match(TO_PREFIX_RE)) return []
+    if (!searchFocused || PREFIX_NAMES.some((name) => TYPING_PREFIX_RE[name].test(filters.search))) return []
     if (!filters.search.trim()) return SEARCH_PREFIXES
     const match = filters.search.match(PREFIX_HINT_RE)
     if (!match) return []
@@ -270,13 +271,12 @@ export default forwardRef<HTMLDivElement, Props>(function Toolbar({
   const removeSearchTagRef = useLatestRef(onRemoveSearchTag)
   const activeFilterChips = useMemo<ActiveFilter[]>(() => {
     const chips: ActiveFilter[] = []
-    const siteMatch = filters.search.match(/(?:^|\s)site:(\S+)/i)
-    const typed = siteMatch?.[1]?.trim().toLowerCase()
+    const typed = parseSearchQuery(filters.search).site
     // 実在するサイトと完全一致した場合のみ「絞り込み済み」扱いにする（入力途中の断片や
     // 存在しない値では出さない。tag: と違い site: は候補から選ぶ想定のため）。
     const searchSite = typed ? filters.sites.find((host) => host.toLowerCase() === typed) : undefined
     if (searchSite) {
-      chips.push({ onRemove: () => actionsRef.current.updateSearchImmediate((prev) => prev.replace(/(?:^|\s)site:\S+/i, '').replace(/\s+/g, ' ').trim()) })
+      chips.push({ onRemove: () => actionsRef.current.updateSearchImmediate((prev) => removeSearchTokens(prev, 'site')) })
     }
     for (const tag of new Set(searchTags)) {
       chips.push({ onRemove: () => removeSearchTagRef.current(tag) })

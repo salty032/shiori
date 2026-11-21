@@ -5,6 +5,47 @@ import type { CommittedFilters } from './filterStore'
 // グリッド一覧・タイムライン・件数集計が共有する「フィルタとは何か」の単一定義。
 // ストア（imageStore）とフック双方から参照するため、循環参照回避でここに独立させている。
 
+// 検索欄で使える接頭辞。**足す・変えるときはここだけを触る。** 解析・入力中の候補・チップ・
+// サイドバーのタグ・履歴がこの一覧と下の関数を読む。以前は 7 か所に正規表現を手書きしていて、
+// 1 か所漏れると「絞り込めるのに履歴に残る」のように黙って食い違う作りだった。
+export const SEARCH_PREFIXES = ['tag', 'from', 'to', 'site', 'type'] as const
+export type SearchPrefix = (typeof SEARCH_PREFIXES)[number]
+const ANY_PREFIX = SEARCH_PREFIXES.join('|')
+
+// 値の付いたトークン（tag:abc）。1 つ目を拾う。
+function tokenRe(prefix: SearchPrefix, flags = 'i'): RegExp {
+  return new RegExp(`(?:^|\\s)${prefix}:(\\S+)`, flags)
+}
+
+// 末尾で入力中のトークン（値は空でもよい）。候補を出す・選んだ値で置き換えるのに使う。
+export const TYPING_PREFIX_RE: Readonly<Record<SearchPrefix, RegExp>> = Object.fromEntries(
+  SEARCH_PREFIXES.map((p) => [p, new RegExp(`(?:^|\\s)${p}:(\\S*)$`, 'i')])
+) as Record<SearchPrefix, RegExp>
+
+// 接頭辞を打ちかけている（"ta"・"from:" など）。打ちかけの部分を候補で補う。
+const PREFIX_PARTIALS = [...new Set(SEARCH_PREFIXES.flatMap((p) => [...p].map((_, i) => p.slice(0, p.length - i))))]
+export const PREFIX_HINT_RE = new RegExp(`(?:^|\\s)(${PREFIX_PARTIALS.join('|')}):?$`, 'i')
+
+// 接頭辞だけで値が無い（"from:"）。検索として意味が無いので履歴に残さない。
+const BARE_PREFIX_RE = new RegExp(`^(?:${ANY_PREFIX}):$`, 'i')
+export function isBarePrefix(value: string): boolean {
+  return BARE_PREFIX_RE.test(value.trim())
+}
+
+// その接頭辞のトークンを外す。matches を渡すと、値がそれに当てはまるものだけを外す。
+export function removeSearchTokens(raw: string, prefix: SearchPrefix, matches?: (value: string) => boolean): string {
+  return raw
+    .replace(new RegExp(`(^|\\s)${prefix}:(\\S+)`, 'gi'), (match, lead: string, value: string) =>
+      !matches || matches(value) ? lead : match)
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// トークンを足す。プログラムからの追加なので、絞り込みを前・フリーワードを後ろに揃える。
+export function addSearchToken(raw: string, prefix: SearchPrefix, value: string): string {
+  return moveFreeTextToEnd(`${raw} ${prefix}:${value}`)
+}
+
 function parseDateParts(s: string): number[] | null {
   const rawParts = s.replace(/\//g, '-').split('-')
   if (rawParts.some((p) => p === '')) return null
@@ -42,12 +83,15 @@ function parseSearchDateEnd(s: string): number | null {
   return null
 }
 
+// どの接頭辞かを問わない、値の付いたトークン。
+const FILTER_TOKEN_RE = new RegExp(`(?:^|\\s)(?:${ANY_PREFIX}):\\S+`, 'gi')
+
 export function parseSearchQuery(raw: string): { q: string | undefined; fromDate: number | null; toDate: number | null; tags: string[]; site: string | null; mediaType: 'image' | 'video' | null } {
-  const fromMatch = raw.match(/(?:^|\s)from:(\S+)/i)
-  const toMatch = raw.match(/(?:^|\s)to:(\S+)/i)
-  const siteMatch = raw.match(/(?:^|\s)site:(\S+)/i)
-  const typeMatch = raw.match(/(?:^|\s)type:(\S+)/i)
-  const tagMatches = [...raw.matchAll(/(?:^|\s)tag:(\S+)/gi)]
+  const fromMatch = raw.match(tokenRe('from'))
+  const toMatch = raw.match(tokenRe('to'))
+  const siteMatch = raw.match(tokenRe('site'))
+  const typeMatch = raw.match(tokenRe('type'))
+  const tagMatches = [...raw.matchAll(tokenRe('tag', 'gi'))]
   const fromDate = fromMatch ? parseSearchDate(fromMatch[1]) : null
   const toDate = toMatch ? parseSearchDateEnd(toMatch[1]) : null
   const tags = [...new Set(tagMatches.map((m) => m[1].trim().toLowerCase()).filter(Boolean))]
@@ -58,11 +102,10 @@ export function parseSearchQuery(raw: string): { q: string | undefined; fromDate
     : type === 'image' || type === '画像'
       ? 'image'
       : null
-  const q = raw.replace(/(?:^|\s)(?:from|to|tag|site|type):\S+/gi, '').trim() || undefined
+  const q = raw.replace(FILTER_TOKEN_RE, '').trim() || undefined
   return { q, fromDate, toDate, tags, site, mediaType }
 }
 
-const FILTER_TOKEN_RE = /(?:^|\s)(?:from|to|tag|site|type):\S+/gi
 
 // tag:/site:/type:/from:/to: の構造化フィルタをまとめて前に、フリーワード部分を末尾に
 // 揃える。フィルタリング結果自体は parseSearchQuery がトークンの位置に関係なく q を
