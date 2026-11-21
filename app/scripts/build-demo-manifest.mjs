@@ -50,7 +50,9 @@ function titleFromFileName(file) {
   return basename(file, extname(file)).replace(/[_-]+/g, ' ').trim() || null
 }
 
-function buildItem(file, index, meta) {
+// 書いた 1 件が読み込む側（src/renderer/src/demo/manifest.ts の parseDemoManifest）の形を通ることは
+// build-demo-manifest.test.mjs が見る。
+export function buildItem(file, index, meta) {
   const ext = extname(file).toLowerCase()
   const mediaType = VIDEO_EXT.has(ext) ? 'video' : 'image'
   const day = Math.floor(index / SESSION_SIZE)
@@ -110,4 +112,5 @@ function main() {
   }
 }
 
-main()
+// テストから buildItem だけを読むときは走らせない。
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()

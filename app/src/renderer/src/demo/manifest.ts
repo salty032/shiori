@@ -24,6 +24,44 @@ type DemoItem = {
 
 export type DemoManifest = { items: DemoItem[] }
 
+// 目録の形を確かめる。**目録は 2 つのスクリプトが型検査なしで書く**（build-demo-manifest.mjs と、
+// 画面の確認の verify-renderer.cjs）。DemoItem に項目を足しても書く側は落ちず、デモは undefined を
+// 黙って表示していた。ここで項目ごとに確かめ、違えば読み込みを止める（verify:renderer もそこで落ちる）。
+// Record<keyof DemoItem, …> なので、DemoItem に項目を足すとここの書き忘れは型で落ちる。
+const isText = (v: unknown): boolean => typeof v === 'string'
+const isNumber = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v)
+const orNull = (check: (v: unknown) => boolean) => (v: unknown): boolean => v === null || check(v)
+const ITEM_FIELDS: Record<keyof DemoItem, (v: unknown) => boolean> = {
+  file: isText,
+  mediaType: (v) => v === 'image' || v === 'video',
+  title: orNull(isText),
+  host: isText,
+  url: orNull(isText),
+  currentTime: orNull(isNumber),
+  capturedAt: isNumber,
+  duration: orNull(isNumber),
+  fps: orNull(isNumber),
+  memo: orNull(isText),
+  tags: (v) => Array.isArray(v) && v.every((tag: unknown) =>
+    typeof tag === 'object' && tag !== null &&
+    isText((tag as ImageTag).name) && ((tag as ImageTag).source === 'manual' || (tag as ImageTag).source === 'ai')),
+}
+
+export function parseDemoManifest(raw: unknown): DemoManifest {
+  const items = (raw as { items?: unknown } | null)?.items
+  if (!Array.isArray(items)) throw new Error('demo manifest: items がありません')
+  items.forEach((item: unknown, i) => {
+    if (typeof item !== 'object' || item === null) throw new Error(`demo manifest: items[${i}] が項目の形をしていません`)
+    const record = item as Record<string, unknown>
+    for (const [key, check] of Object.entries(ITEM_FIELDS)) {
+      if (!check(record[key])) throw new Error(`demo manifest: items[${i}].${key} の形が違います（${JSON.stringify(record[key])}）`)
+    }
+    const unknownKeys = Object.keys(record).filter((key) => !(key in ITEM_FIELDS))
+    if (unknownKeys.length > 0) throw new Error(`demo manifest: items[${i}] に知らない項目があります（${unknownKeys.join(', ')}）`)
+  })
+  return raw as DemoManifest
+}
+
 // 目録に載った 1 件を、UI が扱う ImageRow へ変換する。id は目録の並び順で採番する
 // （デスクトップ版の DB 採番と同じく「新しいものほど大きい id」にはしない。デモは
 // 並び替えを captured_at で行うため id の大小に意味を持たせる必要がない）。
@@ -78,7 +116,7 @@ export async function loadDemoLibrary(): Promise<DemoLibrary> {
   const base = import.meta.env.BASE_URL
   const res = await fetch(`${base}manifest.json`, { cache: 'no-cache' })
   if (!res.ok) throw new Error(`demo manifest not found (${res.status})`)
-  const manifest = (await res.json()) as DemoManifest
+  const manifest = parseDemoManifest(await res.json())
 
   const rows: ImageRow[] = []
   const urlById = new Map<number, string>()
