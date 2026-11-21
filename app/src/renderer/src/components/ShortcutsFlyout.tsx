@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { shortcutGroups } from '../shortcuts'
 import { useT } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
+import { useSettingsStore } from '../stores/settingsStore'
 import { font, radius, space, weight } from '../styles'
 
 const CLOSE_MS = 100
@@ -25,7 +26,9 @@ type Props = {
 // （閉じる判定は ContextMenu.tsx と同じ document リスナー方式）。
 export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
   const { t } = useT()
-  const groups = shortcutGroups(t)
+  const captureHotkey = useSettingsStore((st) => st.settings.captureHotkey)
+  const clipHotkey = useSettingsStore((st) => st.settings.clipHotkey)
+  const groups = shortcutGroups(t, { capture: captureHotkey, clip: clipHotkey })
   const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null)
   const [closing, setClosing] = useState(false)
@@ -83,9 +86,9 @@ export default function ShortcutsFlyout({ anchorEl, onClose }: Props) {
               </div>
             ))}
           </div>
+          {group.note && <div style={s.hint}>{group.note}</div>}
         </div>
       ))}
-      <div style={s.hint}>{t('shortcuts.hint')}</div>
     </div>
   )
 }
