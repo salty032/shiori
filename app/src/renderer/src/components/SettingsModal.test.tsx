@@ -14,9 +14,7 @@ function props(): ComponentProps<typeof SettingsModal> {
     settings: SETTINGS_DEFAULTS, startup: false, taggerReady: false,
     taggerProgress: null, retagProgress: null, extensionStatus: null,
     onClose: vi.fn(), onToggleStartup: vi.fn(), onUpdateCaptureHotkey: vi.fn(async () => true),
-    onUpdateCaptureNotify: vi.fn(), onUpdateClipHotkey: vi.fn(async () => true), onUpdateClipNotify: vi.fn(),
-    onUpdateLowMemoryMode: vi.fn(), onUpdateShowAiTags: vi.fn(), onUpdateTheme: vi.fn(),
-    onUpdateVideoExportFormat: vi.fn(), onUpdateCaptureResize: vi.fn(), onUpdateLanguage: vi.fn(),
+    onUpdateClipHotkey: vi.fn(async () => true), onUpdateSetting: vi.fn(),
     onTaggerDownload: vi.fn(), onTaggerCancelDownload: vi.fn(), onTaggerDelete: vi.fn(),
     onTaggerRetagAll: vi.fn(), onShowWhatsNew: vi.fn(),
     onShareExport: vi.fn(async () => ({ canceled: true })),
@@ -46,6 +44,19 @@ describe('SettingsModal data tab lifecycle', () => {
     await act(async () => { fireEvent.click(ui.getByText('settings.tab.tag')) })
     await act(async () => { fireEvent.click(ui.getByText('settings.tab.data')) })
     expect(getStorageInfo).toHaveBeenCalledTimes(1)
+  })
+
+  // 設定画面へ渡す保存の口は 1 本（onUpdateSetting）。押した選択肢が、そのキーと値で届くこと。
+  it('基本・データのタブで選んだ値が、そのキーで保存に渡る', async () => {
+    const p = props()
+    const ui = render(<SettingsModal {...p} />)
+    fireEvent.click(ui.getByText('settings.theme.dark'))
+    expect(p.onUpdateSetting).toHaveBeenLastCalledWith('theme', 'dark')
+    await act(async () => { fireEvent.click(ui.getByText('settings.tab.data')) })
+    fireEvent.click(ui.getByText('settings.captureResize.fhd'))
+    expect(p.onUpdateSetting).toHaveBeenLastCalledWith('captureResize', 'fhd')
+    fireEvent.click(ui.getByText('settings.videoExportFormat.h264'))
+    expect(p.onUpdateSetting).toHaveBeenLastCalledWith('videoExportFormat', 'h264')
   })
 
   it('共有書き出し中に別タブへ移っても、処理中の状態と完了結果を保持する', async () => {

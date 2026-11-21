@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Settings, StorageInfo, LibraryImportMode } from '../types'
+import type { UpdateSetting } from '../hooks/useSettings'
 import type { ChooseCaptureRootResult } from '../../../shared/types'
 import ConfirmDialog from './ConfirmDialog'
 import ChoiceDialog from './ChoiceDialog'
@@ -16,8 +17,7 @@ type Props = {
   storageLoading: boolean
   storageFailed: boolean
   onStorageChanged: (storage: StorageInfo) => void
-  onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
-  onUpdateCaptureResize: (value: Settings['captureResize']) => void
+  onUpdateSetting: UpdateSetting
   onShareExport: () => Promise<{ canceled: boolean; count?: number; path?: string }>
   onShareImport: (mode: LibraryImportMode) => Promise<{ canceled: boolean; count?: number; errors?: string[] }>
 }
@@ -141,7 +141,7 @@ export default function SettingsDataTab(p: Props) {
               {([['source', t('settings.captureResize.source')], ['fhd', t('settings.captureResize.fhd')], ['hd', t('settings.captureResize.hd')], ['screen', t('settings.captureResize.screen')]] as const).map(([value, label]) => {
                 const active = p.settings.captureResize === value
                 return (
-                  <button key={value} onClick={() => p.onUpdateCaptureResize(value)} data-current={active ? 'true' : undefined}
+                  <button key={value} onClick={() => p.onUpdateSetting('captureResize', value)} data-current={active ? 'true' : undefined}
                     style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
                     {label}
                   </button>
@@ -194,7 +194,7 @@ export default function SettingsDataTab(p: Props) {
               {([['original', t('settings.videoExportFormat.original')], ['h264', t('settings.videoExportFormat.h264')]] as const).map(([value, label]) => {
                 const active = p.settings.videoExportFormat === value
                 return (
-                  <button key={value} onClick={() => p.onUpdateVideoExportFormat(value)} data-current={active ? 'true' : undefined}
+                  <button key={value} onClick={() => p.onUpdateSetting('videoExportFormat', value)} data-current={active ? 'true' : undefined}
                     style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
                     {label}
                   </button>

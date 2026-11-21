@@ -540,7 +540,7 @@ export default function App() {
           setupCompleted={completedSetupSteps(setupGuide)}
           onShowSetup={() => setShowSetupGuide(true)}
           thumbnailSize={settings.settings.thumbnailSize}
-          onThumbnailSize={settings.updateThumbnailSize}
+          onThumbnailSize={(v) => settings.updateSetting('thumbnailSize', v)}
           viewMode={viewMode}
           onViewMode={setViewMode}
           onDeleteTag={confirmDeleteTagGlobally}
@@ -747,15 +747,8 @@ export default function App() {
             onClose={() => settings.setShowSettings(false)}
             onToggleStartup={settings.toggleStartup}
             onUpdateCaptureHotkey={settings.updateCaptureHotkey}
-            onUpdateCaptureNotify={settings.updateCaptureNotify}
             onUpdateClipHotkey={settings.updateClipHotkey}
-            onUpdateClipNotify={settings.updateClipNotify}
-            onUpdateLowMemoryMode={settings.updateLowMemoryMode}
-            onUpdateShowAiTags={settings.updateShowAiTags}
-            onUpdateTheme={settings.updateTheme}
-            onUpdateVideoExportFormat={settings.updateVideoExportFormat}
-            onUpdateCaptureResize={settings.updateCaptureResize}
-            onUpdateLanguage={settings.updateLanguage}
+            onUpdateSetting={settings.updateSetting}
             onTaggerDownload={tagger.handleTaggerDownload}
             onTaggerCancelDownload={tagger.handleTaggerCancelDownload}
             onTaggerDelete={confirmTaggerDelete}

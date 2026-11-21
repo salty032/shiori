@@ -4,6 +4,11 @@ import { useSettingsStore } from '../stores/settingsStore'
 import type { ShowToast } from './useToast'
 import { t } from '../i18n'
 
+// 設定を 1 つ保存する口。設定画面へはこれ 1 本だけを渡す（キーごとの包みを作らない）。
+// 以前はキーごとに包みを 11 個作り、App → 設定画面の props → テストと 4 か所を繋いでいて、
+// 1 か所繋ぎ忘れるとその設定だけ保存されなかった。ホットキーだけは登録の成否で決まるので別の口。
+export type UpdateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => void
+
 // 設定の「真実」は settingsStore（zustand）に一元化されている（C-4）。ここはそのストアを
 // 購読し、起動状態・拡張ステータスなど settings.json 非永続の UI 状態を合わせて App 向けの
 // インターフェースに組み立てる薄いラッパー。
@@ -73,17 +78,9 @@ export function useSettings(showToast?: ShowToast) {
     extensionStatus,
     toggleStartup,
     quitAndInstallUpdate: () => window.api.updaterQuitAndInstall(),
-    updateThumbnailSize: (v: number) => update('thumbnailSize', v, showToast),
+    // 書き込めなければその値だけ戻して知らせる（settingsStore の update）。
+    updateSetting: ((key, value) => { void update(key, value, showToast) }) as UpdateSetting,
     updateCaptureHotkey: applyCaptureHotkey,
-    updateCaptureNotify: (v: boolean) => update('captureNotify', v, showToast),
     updateClipHotkey: applyClipHotkey,
-    // 録画完了の通知もキャプチャと同じ保存の仕方（書き込めなければスイッチを戻して知らせる）。
-    updateClipNotify: (v: boolean) => update('clipNotify', v, showToast),
-    updateLowMemoryMode: (v: boolean) => update('lowMemoryMode', v, showToast),
-    updateShowAiTags: (v: boolean) => update('showAiTags', v, showToast),
-    updateTheme: (v: Settings['theme']) => update('theme', v, showToast),
-    updateLanguage: (v: Settings['language']) => update('language', v, showToast),
-    updateVideoExportFormat: (v: Settings['videoExportFormat']) => update('videoExportFormat', v, showToast),
-    updateCaptureResize: (v: Settings['captureResize']) => update('captureResize', v, showToast),
   }
 }

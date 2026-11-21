@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Settings, ExtensionTimecode, StorageInfo, LibraryImportMode } from '../types'
+import type { UpdateSetting } from '../hooks/useSettings'
 import { space } from '../styles'
 import { XIcon } from './Icon'
 import SettingsDataTab from './SettingsDataTab'
@@ -24,15 +25,8 @@ type Props = {
   onClose: () => void
   onToggleStartup: () => void
   onUpdateCaptureHotkey: (hotkey: string) => Promise<boolean>
-  onUpdateCaptureNotify: (enabled: boolean) => void
   onUpdateClipHotkey: (hotkey: string) => Promise<boolean>
-  onUpdateClipNotify: (enabled: boolean) => void
-  onUpdateLowMemoryMode: (enabled: boolean) => void
-  onUpdateShowAiTags: (enabled: boolean) => void
-  onUpdateTheme: (theme: Settings['theme']) => void
-  onUpdateVideoExportFormat: (value: Settings['videoExportFormat']) => void
-  onUpdateCaptureResize: (value: Settings['captureResize']) => void
-  onUpdateLanguage: (language: Settings['language']) => void
+  onUpdateSetting: UpdateSetting
   onTaggerDownload: () => void
   onTaggerCancelDownload: () => void
   onTaggerDelete: () => void
@@ -163,7 +157,7 @@ export default function SettingsModal(p: Props) {
                       {([['system', t('settings.theme.system')], ['dark', t('settings.theme.dark')], ['light', t('settings.theme.light')]] as const).map(([value, label]) => {
                         const active = p.settings.theme === value
                         return (
-                          <button key={value} onClick={() => p.onUpdateTheme(value)} data-current={active ? 'true' : undefined}
+                          <button key={value} onClick={() => p.onUpdateSetting('theme', value)} data-current={active ? 'true' : undefined}
                             style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
                             {label}
                           </button>
@@ -177,7 +171,7 @@ export default function SettingsModal(p: Props) {
                       {([['ja', '日本語'], ['en', 'English']] as const).map(([value, label]) => {
                         const active = p.settings.language === value
                         return (
-                          <button key={value} onClick={() => p.onUpdateLanguage(value)} data-current={active ? 'true' : undefined}
+                          <button key={value} onClick={() => p.onUpdateSetting('language', value)} data-current={active ? 'true' : undefined}
                             style={{ ...s.sizeBtn, background: active ? 'var(--bg-surface-hover)' : 'transparent', color: active ? 'var(--accent-text)' : 'var(--text-secondary)', borderColor: active ? 'var(--accent)' : 'var(--border-default)' }}>
                             {label}
                           </button>
@@ -197,7 +191,7 @@ export default function SettingsModal(p: Props) {
                       <span style={s.label}>{t('settings.lowMemoryMode')}</span>
                       <span style={s.hint}>{t('settings.lowMemoryModeHint')}</span>
                     </div>
-                    <ToggleSwitch checked={p.settings.lowMemoryMode ?? false} onChange={p.onUpdateLowMemoryMode} />
+                    <ToggleSwitch checked={p.settings.lowMemoryMode ?? false} onChange={(v) => p.onUpdateSetting('lowMemoryMode', v)} />
                   </div>
                 </div>
                 <div style={s.group}>
@@ -248,11 +242,11 @@ export default function SettingsModal(p: Props) {
                   <div style={s.section}>{t('settings.notifications')}</div>
                   <div style={s.toggleRow}>
                     <span style={s.label}>{t('settings.notifyOnCapture')}</span>
-                    <ToggleSwitch checked={p.settings.captureNotify ?? true} onChange={p.onUpdateCaptureNotify} />
+                    <ToggleSwitch checked={p.settings.captureNotify ?? true} onChange={(v) => p.onUpdateSetting('captureNotify', v)} />
                   </div>
                   <div style={s.toggleRow}>
                     <span style={s.label}>{t('clip.notifyOnFinish')}</span>
-                    <ToggleSwitch checked={p.settings.clipNotify ?? true} onChange={p.onUpdateClipNotify} />
+                    <ToggleSwitch checked={p.settings.clipNotify ?? true} onChange={(v) => p.onUpdateSetting('clipNotify', v)} />
                   </div>
                 </div>
               </>
@@ -313,7 +307,7 @@ export default function SettingsModal(p: Props) {
                       <span style={s.label}>{t('settings.showAiTags')}</span>
                       <span style={s.hint}>{t('settings.showAiTagsHint')}</span>
                     </div>
-                    <ToggleSwitch checked={p.settings.showAiTags ?? false} onChange={p.onUpdateShowAiTags} />
+                    <ToggleSwitch checked={p.settings.showAiTags ?? false} onChange={(v) => p.onUpdateSetting('showAiTags', v)} />
                   </div>
                 </div>
               </>
@@ -327,8 +321,7 @@ export default function SettingsModal(p: Props) {
               storageLoading={storageLoading}
               storageFailed={storageFailed}
               onStorageChanged={setStorage}
-              onUpdateVideoExportFormat={p.onUpdateVideoExportFormat}
-              onUpdateCaptureResize={p.onUpdateCaptureResize}
+              onUpdateSetting={p.onUpdateSetting}
               onShareExport={p.onShareExport}
               onShareImport={p.onShareImport}
             />
