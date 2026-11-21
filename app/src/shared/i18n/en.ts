@@ -556,6 +556,8 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.autoTaggingDownloadHint': 'The model (about 360 MB) is downloaded once, the first time.',
   'settings.taggerReady': 'Ready',
   'settings.deleteModel': 'Delete model',
+  'settings.retag': 'Tagging existing images',
+  'settings.model': 'Model',
   'settings.retagHint': 'Tags every existing image that has no tags yet.',
   'settings.retagButton': 'Tag existing images…',
   'settings.downloadModel': 'Download model',

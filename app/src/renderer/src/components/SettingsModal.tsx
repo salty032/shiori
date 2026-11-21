@@ -266,8 +266,7 @@ export default function SettingsModal(p: Props) {
                       <button style={{ ...s.quietBtn, marginLeft: 'auto' }} onClick={p.onTaggerDelete} title={t('settings.deleteModel')}>{t('action.delete')}</button>
                     )}
                   </div>
-                  {/* ダウンロードが要る話は、まだダウンロードしていないときだけ出す。済んだ後は実際の容量が状態の行に出る。 */}
-                  <div style={s.hint}>{t('settings.autoTaggingHint')}{!p.taggerReady && t('settings.autoTaggingDownloadHint')}</div>
+                  <div style={s.hint}>{t('settings.autoTaggingHint')}</div>
                   {p.taggerReady ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: space.x8 }}>
                       {p.retagProgress ? (
@@ -278,8 +277,12 @@ export default function SettingsModal(p: Props) {
                           <span style={s.progressLabel}>{p.retagProgress.current}/{p.retagProgress.total}</span>
                         </div>
                       ) : (
+                        // ボタンのある行は、ほかのタブと同じく左に名前と説明を置く（説明だけだと何の行か読めない）。
                         <div style={s.actionRow}>
-                          <div style={s.hint}>{t('settings.retagHint')}</div>
+                          <div style={{ ...s.cardText, flex: 1 }}>
+                            <span style={s.label}>{t('settings.retag')}</span>
+                            <span style={s.hint}>{t('settings.retagHint')}</span>
+                          </div>
                           <button style={s.addBtn} onClick={p.onTaggerRetagAll}>
                             {t('settings.retagButton')}
                           </button>
@@ -295,7 +298,12 @@ export default function SettingsModal(p: Props) {
                       <button style={s.cancelBtn} onClick={p.onTaggerCancelDownload}>{t('action.stop')}</button>
                     </div>
                   ) : (
-                    <div style={{ ...s.actionRow, justifyContent: 'flex-end' }}>
+                    // ダウンロードが要る話は、まだダウンロードしていないこの行にだけ出す。済んだ後は実際の容量が状態の行に出る。
+                    <div style={s.actionRow}>
+                      <div style={{ ...s.cardText, flex: 1 }}>
+                        <span style={s.label}>{t('settings.model')}</span>
+                        <span style={s.hint}>{t('settings.autoTaggingDownloadHint')}</span>
+                      </div>
                       <button style={s.addBtn} onClick={p.onTaggerDownload}>
                         {t('settings.downloadModel')}
                       </button>

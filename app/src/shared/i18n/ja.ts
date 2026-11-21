@@ -633,6 +633,8 @@ export const ja = {
   'settings.autoTaggingDownloadHint': '初回だけモデル（約360MB）のダウンロードが必要です。',
   'settings.taggerReady': '準備完了',
   'settings.deleteModel': 'モデルを削除',
+  'settings.retag': '既存画像のタグ付け',
+  'settings.model': 'モデル',
   'settings.retagHint': 'AIタグが付いていない既存画像をまとめて処理します。',
   'settings.retagButton': '既存画像にタグ付け...',
   'settings.downloadModel': 'モデルをダウンロード',
