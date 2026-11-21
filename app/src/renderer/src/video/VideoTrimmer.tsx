@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import type { ImageRow } from '../types'
 import { trimmerStyles as s } from './trimmerStyles'
 import { isEditingTarget, mediaUrl } from '../utils'
-import { FRAME_EPS, addPendingStep, findFrameIdx, frameSeekTarget } from './frameTable'
+import { FRAME_EPS, addPendingStep, estimatedStepTarget, findFrameIdx } from './frameTable'
+import { frameSeekSec, stepFramePos } from './frameStep'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
 import { vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle, MuteIcon } from './videoControls'
@@ -88,7 +89,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [framePts, setFramePts] = useState<number[]>([])
   // 1 コマずつの長さ（録画ファイル側の実測）。**シーク先を出すためだけに持つ。**
-  // pts だけで中央を狙うと、抜けをまたぐ場所で別の絵に着く（frameSeekTarget を参照）。
+  // pts だけで中央を狙うと、抜けをまたぐ場所で別の絵に着く（frameTable.ts の frameSeekTarget を参照）。
   const [frameDurs, setFrameDurs] = useState<number[] | undefined>(undefined)
   const [ptsLoading, setPtsLoading] = useState(true)
   const [ptsError, setPtsError] = useState(false)
@@ -297,15 +298,21 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
     void v.play()
   }
 
+  // 表の idx 行の絵を映し、再生位置の線をその行へ置く（コマ送り 3 種の共通の後半）。
+  function showRow(idx: number): void {
+    const v = videoRef.current
+    if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = seekSecOf(idx); displayedSecRef.current = framePts[idx] }
+    playRowRef.current = idx
+    updatePos(framePts[idx])
+  }
+
+  // 開始・終了を 1 コマずつ動かす。**抜けでは止まらない**（切れる場所は絵のある行だけ。frameStep.ts）。
+  // 開始は終了より 1 行前まで、終了は開始より 1 行後ろまで。
   function stepIn(dir: number): void {
     if (hasTable) {
-      const targetIdx = Math.max(0, Math.min(inIdx + dir, outIdx - 1))
-      const targetSec = framePts[targetIdx]
-      const v = videoRef.current
-      if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = frameSeekSec(targetIdx); displayedSecRef.current = targetSec }
-      playRowRef.current = targetIdx
-      updatePos(targetSec)
-      setInSec(targetSec)
+      const targetIdx = stepFramePos({ idx: inIdx, gap: 0 }, dir, framePts.length, { hi: outIdx - 1 }).idx
+      showRow(targetIdx)
+      setInSec(framePts[targetIdx])
       setInRow(targetIdx)
     } else {
       stepBoundaryRvfc(dir, 'in')
@@ -314,20 +321,20 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
 
   function stepOut(dir: number): void {
     if (hasTable) {
-      const targetIdx = Math.max(inIdx + 1, Math.min(outIdx + dir, framePts.length - 1))
-      const targetSec = framePts[targetIdx]
-      const v = videoRef.current
-      if (v) { v.pause(); seekSeqRef.current += 1; v.currentTime = frameSeekSec(targetIdx); displayedSecRef.current = targetSec }
-      playRowRef.current = targetIdx
-      updatePos(targetSec)
-      setOutSec(targetSec)
+      const targetIdx = stepFramePos({ idx: outIdx, gap: 0 }, dir, framePts.length, { lo: inIdx + 1 }).idx
+      showRow(targetIdx)
+      setOutSec(framePts[targetIdx])
       setOutRow(targetIdx)
     } else {
       stepBoundaryRvfc(dir, 'out')
     }
   }
 
-  // rVFC 自己補正フォールバック（フレームテーブルなし時）
+  // 表が無いときの開始・終了のコマ送り。**ここだけは frameStep.ts を使わない**——開始・終了には
+  // コマの頭の時刻が要る（ffmpeg は開始時刻より前に始まるコマを捨てる）。表が無いとコマの頭は
+  // 分からないので、隣のコマの中へシークし、実際に映ったコマの時刻（rVFC の mediaTime）を取る。
+  // 今の値は前回映ったコマの頭（初めは 0 か動画の終わり）なので、+1.5 / −0.5 コマで隣のコマの中に入る。
+  // ビューアの fps 換算（estimatedStepTarget）は今の値がコマの真ん中にあるときの計算で、ここには合わない。
   function stepBoundaryRvfc(dir: number, kind: 'in' | 'out'): void {
     const v = videoRef.current
     if (!v) return
@@ -408,15 +415,10 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
     }
     if (hasTable) {
       const curIdx = rowAt(playRowRef.current, displayedSecRef.current)
-      const targetIdx = Math.max(0, Math.min(curIdx + dir, framePts.length - 1))
-      const targetSec = framePts[targetIdx]
-      seekSeqRef.current += 1
-      v.currentTime = frameSeekSec(targetIdx)
-      displayedSecRef.current = targetSec
-      playRowRef.current = targetIdx
-      updatePos(targetSec)
+      showRow(stepFramePos({ idx: curIdx, gap: 0 }, dir, framePts.length, {}).idx)
     } else {
-      const target = Math.max(0, Math.min((v.currentTime || 0) + dir * step, dur))
+      // 表が無いときはビューアと同じ fps 換算（今いるコマを数えて、dir 先のコマの真ん中へ）。
+      const target = estimatedStepTarget(v.currentTime || 0, step, dir, dur)
       v.currentTime = target
       updatePos(target)
     }
@@ -497,9 +499,9 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
   // ビューアのコマ送りも同じ狙い方をしている）。
   //
   // **再生ヘッドや IN/OUT の値には使わない**——あちらはコマの開始時刻そのものが正しい。
-  // ここで返すのは「そのコマを映すために video へ渡す時刻」だけ。
-  function frameSeekSec(idx: number): number {
-    return Math.max(0, Math.min(dur, frameSeekTarget(framePts, idx, step, frameDurs)))
+  // ここで返すのは「そのコマを映すために video へ渡す時刻」だけ。計算はビューアと同じ frameSeekSec。
+  function seekSecOf(idx: number): number {
+    return frameSeekSec({ pts: framePts, dur: frameDurs }, idx, step, dur)
   }
 
   // タイムライン上の秒数→PTS スナップ
@@ -523,7 +525,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
     updatePos(sec)
     if (videoRef.current) {
       videoRef.current.currentTime = hasTable
-        ? frameSeekSec(findFrameIdx(framePts, sec))
+        ? seekSecOf(findFrameIdx(framePts, sec))
         : Math.max(0, Math.min(dur, sec))
     }
   }
@@ -550,7 +552,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
       const rect = timelineRef.current.getBoundingClientRect()
       const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width))
       const raw = ratio * dur
-      // 掴んでいる間も、映すのは「そのコマの表示区間の中央」にする（frameSeekSec の注記）。
+      // 掴んでいる間も、映すのは「そのコマの表示区間の中央」にする（seekSecOf の注記）。
       // ドラッグ中こそ絵を見ながら境目を決めているので、1 つ手前が映ると見誤る。
       const idx = hasTable
         ? (kind === 'in'
@@ -564,7 +566,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
         updateInUI(sec)
         updatePos(sec)
         if (videoRef.current) {
-          videoRef.current.currentTime = hasTable ? frameSeekSec(idx) : Math.max(0, Math.min(dur, sec))
+          videoRef.current.currentTime = hasTable ? seekSecOf(idx) : Math.max(0, Math.min(dur, sec))
         }
       } else {
         const sec = hasTable ? framePts[idx] : Math.max(curInSec + step, Math.min(raw, dur))
@@ -572,7 +574,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
         updateOutUI(sec)
         updatePos(sec)
         if (videoRef.current) {
-          videoRef.current.currentTime = hasTable ? frameSeekSec(idx) : Math.max(0, Math.min(dur, sec))
+          videoRef.current.currentTime = hasTable ? seekSecOf(idx) : Math.max(0, Math.min(dur, sec))
         }
       }
     }
@@ -648,7 +650,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
             onTimeUpdate={(e) => {
               // 白い線は「映っているコマの左の境目」に置く（IN/OUT の線と同じく境目を指す）。
               // **video の時刻をそのまま描かない**——コマ送りは絵を確実に映すためにコマの
-              // 真ん中へシークする（frameSeekSec）ので、ここで生の時刻を描くと、±1f で境目に
+              // 真ん中へシークする（seekSecOf）ので、ここで生の時刻を描くと、±1f で境目に
               // 置いた白い線がすぐ真ん中へ動き、IN/OUT の線と半コマずれて見えていた。
               const t = e.currentTarget.currentTime
               updatePos(hasTable ? framePts[findFrameIdx(framePts, t)] : t)

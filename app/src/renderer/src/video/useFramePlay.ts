@@ -19,7 +19,8 @@ import type { ClipFrames } from '../../../shared/api.video'
 import type { ReadoutKind } from './frameReadout'
 import type { PlaybackSpeed } from './videoControls'
 import { FramePrefetcher, PREFETCH_AHEAD, rowsAhead } from './framePrefetch'
-import { FRAME_EPS, frameSeekTarget } from './frameTable'
+import { FRAME_EPS } from './frameTable'
+import { frameSeekSec } from './frameStep'
 
 interface Options {
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -101,7 +102,7 @@ export function useFramePlay({
       const byTable = pts.length > 0
       const dur = framesRef.current?.dur
       const targetOf = byTable
-        ? (row: number): number => frameSeekTarget(pts, row, stepSec, dur)
+        ? (row: number): number => frameSeekSec({ pts, dur }, row, stepSec, isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER)
         : (row: number): number => Math.min((row + 0.5) * stepSec, v.duration)
       if (!prefetcher) prefetcher = new FramePrefetcher(v.currentSrc || v.src, targetOf)
       const total = byTable ? pts.length : Math.max(1, Math.ceil(v.duration / stepSec - FRAME_EPS))

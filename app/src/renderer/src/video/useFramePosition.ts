@@ -5,8 +5,9 @@
 //
 // 決まりは .claude/rules/frames.md「ビューアのコマ送り」。**位置は時刻ではなく表の行で持つ。**
 import { useEffect, useRef, useState } from 'react'
-import { FRAME_EPS, addPendingStep, estimatedStepTarget, findFrameIdx, frameSeekTarget, isClipUnreliable } from './frameTable'
-import { buildGapIndex, frameReadout, walkFrames, type GapIndex, type ReadoutKind } from './frameReadout'
+import { FRAME_EPS, addPendingStep, estimatedStepTarget, findFrameIdx, isClipUnreliable } from './frameTable'
+import { buildGapIndex, frameReadout, type GapIndex, type ReadoutKind } from './frameReadout'
+import { frameSeekSec, stepFramePos, type FramePos } from './frameStep'
 import { useT, type Translate } from '../i18n'
 import { useLatestRef } from '../hooks/useLatestRef'
 import type { ClipFrames } from '../../../shared/api.video'
@@ -200,10 +201,14 @@ export function useFramePosition({
     el.style.color = out.color
   }
 
-  // 実測行と、その間に推定した仮想コマを合わせて delta コマ歩く。
-  // 実体は frameReadout.ts（歩き方だけをテストできるように出してある）。
-  function walkFramesHere(idx: number, gap: number, delta: number, total: number): { idx: number; gap: number } {
-    return walkFrames(idx, gap, delta, total, missingAfter)
+  // 今の位置から delta コマ先。ビューアは抜けでも止まる（frameStep.ts の stepFramePos）。
+  function stepFromHere(delta: number, total: number): FramePos {
+    return stepFramePos({ idx: currentFrameIdx(), gap: gapOffsetRef.current }, delta, total, { missingAfter })
+  }
+
+  // 動画の長さ（シーク先を収める上限）。読み込み前は十分大きい数。
+  function seekLimit(v: HTMLVideoElement): number {
+    return isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
   }
 
   // delta コマ動かす（正で先へ、負で前へ）。
@@ -213,12 +218,10 @@ export function useFramePosition({
     const v = videoRef.current
     if (!v || delta === 0) return
     v.pause()
-    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
-    const pts = framesRef.current?.pts ?? []
-    if (pts.length > 0) {
+    const frames = framesRef.current
+    if (frames && frames.pts.length > 0) {
       const cur = currentFrameIdx()
-      const curGap = gapOffsetRef.current
-      const { idx: next, gap: nextGap } = walkFramesHere(cur, curGap, delta, pts.length)
+      const { idx: next, gap: nextGap } = stepFromHere(delta, frames.pts.length)
       frameIdxRef.current = next
       gapOffsetRef.current = nextGap
       // 端でも表示だけは更新する。「719 / 719」で止まっていれば、壊れているのではなく
@@ -226,7 +229,7 @@ export function useFramePosition({
       updateFrameReadout(next, nextGap)
       if (next === cur) return
       selfSeekRef.current = true
-      v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
+      v.currentTime = frameSeekSec(frames, next, stepSec, seekLimit(v))
       return
     }
     v.currentTime = estimatedStepTarget(v.currentTime, stepSec, delta, v.duration)
@@ -234,12 +237,12 @@ export function useFramePosition({
   }
 
   // 1 コマ進めたとき、どの行の絵が出るか（コマ再生の先読み用）。抜けの中へ進むときは絵が変わらないので
-  // 今の行、端なら今の行。**歩き方は moveFrames と同じ walkFrames を使う**——別に数えると、先読みした
+  // 今の行、端なら今の行。**歩き方は moveFrames と同じ stepFromHere を使う**——別に数えると、先読みした
   // 絵と番号がずれる。
   function peekNextRow(): number {
     const pts = framesRef.current?.pts ?? []
     if (pts.length === 0) return 0
-    return walkFramesHere(currentFrameIdx(), gapOffsetRef.current, 1, pts.length).idx
+    return stepFromHere(1, pts.length).idx
   }
 
   // 1 コマ進む / 戻る。
@@ -264,9 +267,9 @@ export function useFramePosition({
   // 指定コマへ直接移る（タイムシートの行クリック用）。
   function goToFrame(idx: number): void {
     const v = videoRef.current
-    const pts = framesRef.current?.pts ?? []
-    if (!v || pts.length === 0) return
-    const next = Math.max(0, Math.min(idx, pts.length - 1))
+    const frames = framesRef.current
+    if (!v || !frames || frames.pts.length === 0) return
+    const next = Math.max(0, Math.min(idx, frames.pts.length - 1))
     const moved = next !== currentFrameIdx() || gapOffsetRef.current !== 0
     frameIdxRef.current = next
     gapOffsetRef.current = 0
@@ -274,8 +277,7 @@ export function useFramePosition({
     if (!moved) return
     v.pause()
     selfSeekRef.current = true
-    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
-    v.currentTime = Math.max(0, Math.min(frameSeekTarget(pts, next, stepSec, framesRef.current?.dur), limit))
+    v.currentTime = frameSeekSec(frames, next, stepSec, seekLimit(v))
   }
 
   // 止めた位置を、番号のコマが使っている絵へ寄せる（シークバーから指を離したとき）。
@@ -288,8 +290,7 @@ export function useFramePosition({
     const v = videoRef.current
     const frames = framesRef.current
     if (!v || !v.paused || !frames?.sourceBased || frames.pts.length === 0) return
-    const limit = isFinite(v.duration) ? v.duration : Number.MAX_SAFE_INTEGER
-    const target = Math.max(0, Math.min(frameSeekTarget(frames.pts, currentFrameIdx(), stepSec, frames.dur), limit))
+    const target = frameSeekSec(frames, currentFrameIdx(), stepSec, seekLimit(v))
     if (Math.abs(v.currentTime - target) < FRAME_EPS) return
     selfSeekRef.current = true
     v.currentTime = target
