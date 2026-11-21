@@ -23,6 +23,24 @@ import { compareVersions } from './version'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.9.0': {
+    ja: [
+      'ビューアのコマ再生（1 コマ ○秒）で、コマごとの表示時間がそろい、もたつかなくなりました。',
+      'ライブラリのエクスポートに、取り込んだ素材と手で打ったタイムシートも入るようになりました。撮った日付もそのまま移ります。',
+      '「自動」で配信の大きさに縮めて保存する静止画で、細い線や小さい文字がにじみにくくなりました。',
+      '30fps を超える録画には「精度保証外」と出すようにしました。撮り逃しや抜けが多すぎる録画は、ビューアと詳細パネルの両方で「要注意」と出します。',
+      'スマートフォルダと、設定の「コマ送り」の fps の項目をなくしました。',
+      '設定画面をウィンドウに合わせて広げました。ショートカット一覧には、静止画・録画のホットキーとトリミングのキーを載せました。',
+    ],
+    en: [
+      'Frame playback in the viewer (one frame every N seconds) now shows each frame for the same length of time, without stutter.',
+      'Library export now includes imported media and timesheets you entered by hand. The capture dates carry over as they are.',
+      'Still images saved at the stream’s size with “Auto” now blur less on thin lines and small text.',
+      'Recordings above 30fps are now marked “accuracy not guaranteed”. Recordings with too many missed or dropped frames are marked “unreliable” in both the viewer and the detail panel.',
+      'Smart folders and the frame-stepping fps option in Settings have been removed.',
+      'The Settings window now grows with the app window. The shortcut list now includes the still and recording hotkeys and the trimming keys.',
+    ],
+  },
   '1.8.0': {
     ja: [
       'この更新では、ブラウザの拡張機能ページで拡張をもう一度再読み込みしてください。次の更新からは、拡張は Shiori の更新に合わせて自動で入れ替わるので、再読み込みも配信のページの読み直しも要らなくなります。',
