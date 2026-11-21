@@ -7,9 +7,7 @@ import type { ShowToast } from '../hooks/useToast'
 import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
 import { ExternalLinkIcon, PencilIcon } from './Icon'
-import { usePanelResize } from '../hooks/usePanelResize'
-import { useWindowWidth } from '../hooks/useWindowWidth'
-import { DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH, DETAIL_DEFAULT_WIDTH, panelLimits } from '../layout'
+import { useDetailPanelWidth } from '../hooks/useDetailPanelWidth'
 import VideoPlayer from '../video/VideoPlayer'
 import { isMissingSevere, isPrecisionGuaranteed, isReuseSevere } from '../../../shared/frame-severity'
 import { useOverlayOpen } from '../overlaySignal'
@@ -72,15 +70,7 @@ export default function DetailPanel({ selectedIds, single, taggerDoneKey, allTag
   // トリミング等のオーバーレイに覆われている間も再生を止める（overlaySignal の注記を参照）。
   // ここはビューアと違い、ビューアを開かずに詳細パネルから直接トリミングへ入る経路のため。
   const overlayOpen = useOverlayOpen()
-  const windowWidth = useWindowWidth()
-  const { width: panelWidth, handleResizeStart } = usePanelResize({
-    storageKey: 'shiori-detail-width',
-    min: DETAIL_MIN_WIDTH,
-    max: DETAIL_MAX_WIDTH,
-    defaultWidth: DETAIL_DEFAULT_WIDTH,
-    direction: 'left',
-    limit: panelLimits(windowWidth).detail,
-  })
+  const { width: panelWidth, handleResizeStart } = useDetailPanelWidth()
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [titleSaveFailed, setTitleSaveFailed] = useState(false)
