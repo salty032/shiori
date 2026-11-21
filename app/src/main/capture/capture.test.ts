@@ -37,7 +37,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 50, top: 100, width: 800, height: 450 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(1920, 1080, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 161, y: 191, w: 798, h: 448 })
+    expect(result).toEqual({ x: 161, y: 191, w: 798, h: 448, inset: 1 })
   })
 
   it('DPR=1.25', () => {
@@ -45,7 +45,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 50, top: 100, width: 800, height: 450 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(2400, 1350, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 202, y: 240, w: 996, h: 559 })
+    expect(result).toEqual({ x: 202, y: 240, w: 996, h: 559, inset: 2 })
   })
 
   it('DPR=1.5', () => {
@@ -53,7 +53,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 50, top: 100, width: 800, height: 450 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(2880, 1620, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 242, y: 287, w: 1196, h: 671 })
+    expect(result).toEqual({ x: 242, y: 287, w: 1196, h: 671, inset: 2 })
   })
 
   it('DPR=2.0', () => {
@@ -61,7 +61,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 50, top: 100, width: 800, height: 450 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(3840, 2160, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 322, y: 382, w: 1596, h: 896 })
+    expect(result).toEqual({ x: 322, y: 382, w: 1596, h: 896, inset: 2 })
   })
 
   it('縦タブブラウザ（左クロムが大きい）', () => {
@@ -69,7 +69,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 50, top: 100, width: 700, height: 450 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(1920, 1080, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 293, y: 193, w: 698, h: 448 })
+    expect(result).toEqual({ x: 293, y: 193, w: 698, h: 448, inset: 1 })
   })
 
   it('最大化時の DWM phantom 枠（ウィンドウ原点が画面外にはみ出す）', () => {
@@ -77,7 +77,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 100, top: 50, width: 1600, height: 900 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(1920, 1080, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 101, y: 84, w: 1598, h: 898 })
+    expect(result).toEqual({ x: 101, y: 84, w: 1598, h: 898, inset: 1 })
   })
 
   it('フルスクリーンスナップ（動画がビューポートをほぼ埋めていて丸め誤差3px以内）', () => {
@@ -85,7 +85,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 1, top: 1, width: 800, height: 449 })
     setBrowserFullscreen(false)
     const result = computeVideoCrop(1920, 1080, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 200, y: 100, w: 800, h: 450 })
+    expect(result).toEqual({ x: 200, y: 100, w: 800, h: 450, inset: 0 })
   })
 
   it('browserFullscreen フラグ明示時はクロム計算を無視する', () => {
@@ -93,7 +93,7 @@ describe('computeVideoCrop', () => {
     setVideoRect({ left: 10, top: 10, width: 1000, height: 600 })
     setBrowserFullscreen(true)
     const result = computeVideoCrop(1920, 1080, display({ x: 0, y: 0, width: 1920, height: 1080 }))
-    expect(result).toEqual({ x: 10, y: 10, w: 1000, h: 600 })
+    expect(result).toEqual({ x: 10, y: 10, w: 1000, h: 600, inset: 0 })
   })
 
   it('クロップ領域が小さすぎる（幅10px以下）と null', () => {

@@ -8,8 +8,11 @@ import { captureDisplayGdi } from './gdi-capture'
 import { t } from '../system/i18n'
 import { loadSettings } from '../system/settings'
 import type { CaptureResize } from '../../shared/types'
+import { unscaleBilinear, UNSCALE_MAX_RESIDUAL } from './unscale'
 
-export type CropRect = { x: number; y: number; w: number; h: number }
+// inset は表示された動画の縁から削った画素数（上下左右とも同じ。全画面なら 0）。
+// 静止画を配信の大きさへ逆算で戻すとき、撮った絵が引き伸ばされた絵のどこから始まるかに使う。
+export type CropRect = { x: number; y: number; w: number; h: number; inset: number }
 
 // ブラウザのハードウェアアクセラレーションが有効なままだとキャプチャ映像部分が
 // 真っ黒になる（README にも注意書きあり）。新規ユーザーが気付かず「保存しました」と
@@ -175,9 +178,9 @@ export function setSourceVideoSize(size: { width: number; height: number } | nul
 // 静止画を保存するときの高さの上限。null は「縮めない」。
 //
 // 'source'（既定）は配信の映像より大きくは保存しない。4K 画面で 1080p の配信を全画面に
-// すると切り出した絵は高さ 2160 になるが、増えたぶんはブラウザが引き伸ばした水増しで、
-// ここを削っても本物の細かさは 1 ドットも減らない。4K 配信なら sourceHeight が 2160 なので
-// そのまま残る。
+// すると切り出した絵は高さ 2160 になるが、増えたぶんはブラウザが引き伸ばした水増し。
+// ただし**普通に縮めるだけでは元の絵に戻らない**ので、配信の大きさへは逆算で戻す
+// （shrinkCapture）。4K 配信なら sourceHeight が 2160 なのでそのまま残る。
 //
 // 'fhd'/'hd' を選んでいるときも配信の実寸と小さい方を採る。上限より元が小さいのに
 // その上限まで引き延ばして保存する意味は無い。
@@ -193,6 +196,40 @@ export function resolveCaptureHeightLimit(
   if (sourceHeight == null || sourceHeight <= 0) return byMode
   return byMode == null ? sourceHeight : Math.min(byMode, sourceHeight)
 }
+
+// 配信の大きさへ戻すときは逆算する（unscale.ts）。普通に縮めると、ブラウザの引き伸ばしと
+// 合わせて画素を 2 回混ぜることになり、小さい文字や細い線がにじむ。
+// **戻せたと確かめられたときだけ使う。** 引き伸ばし直して撮った絵と合わなければ（枠のずれ・
+// 黒帯入り・想定と違う引き伸ばし方）、今までどおり縮める。どちらになったかはログに出す。
+async function shrinkCapture(cropped: NativeImage, limit: number, inset: number): Promise<NativeImage> {
+  const fallback = (): NativeImage => cropped.resize({ height: limit, quality: 'best' })
+  const source = sourceVideoSize
+  if (!source || source.height !== limit) return fallback()
+  const { width: cw, height: ch } = cropped.getSize()
+  // 黒帯が入っている（表示の縦横比が配信と違う）なら戻せない。
+  const shownAspect = (cw + 2 * inset) / (ch + 2 * inset)
+  if (Math.abs(shownAspect / (source.width / source.height) - 1) > UNSCALE_ASPECT_TOLERANCE) {
+    console.log(`[capture-unscale] skipped: aspect ${cw}x${ch} (inset ${inset}) vs source ${source.width}x${source.height}`)
+    return fallback()
+  }
+  const started = Date.now()
+  try {
+    const result = await unscaleBilinear(cropped.toBitmap(), cw, ch, source.width, source.height, inset)
+    const ms = Date.now() - started
+    if (result && result.residual <= UNSCALE_MAX_RESIDUAL) {
+      console.log(`[capture-unscale] ok ${cw}x${ch} -> ${source.width}x${source.height} inset=${inset} residual=${result.residual.toFixed(2)} ${ms}ms`)
+      return nativeImage.createFromBitmap(result.bitmap, { width: source.width, height: source.height })
+    }
+    console.log(`[capture-unscale] fallback ${cw}x${ch} -> ${source.width}x${source.height} inset=${inset} residual=${result ? result.residual.toFixed(2) : 'unsolvable'} ${ms}ms`)
+  } catch (err) {
+    console.warn('[capture-unscale] failed', err)
+  }
+  return fallback()
+}
+
+// 表示の縦横比と配信の縦横比の違いをどこまで許すか。縁を削った分と丸めで 0.5% 以内に収まる。
+// 黒帯が入ると数% 以上ずれる。
+const UNSCALE_ASPECT_TOLERANCE = 0.01
 
 export function canCaptureVideo(): boolean {
   return browserWindow !== null &&
@@ -268,7 +305,7 @@ export function computeVideoCrop(
   const h = Math.min(cropY + cropH - insetPx, frameH) - y
 
   if (w <= 10 || h <= 10) return null
-  return { x, y, w, h }
+  return { x, y, w, h, inset: insetPx }
 }
 
 async function resolveDisplay(): Promise<{ id: number; left: number; top: number } | null> {
@@ -430,10 +467,10 @@ async function captureScreen(): Promise<string> {
         // **縮める前の画素数は記録しない。** 一度は残していたが、あれは「画面上で何ピクセル
         // あったか」で、4K の画面で 1080p の配信を見ていれば 2160 になる——引き伸ばされた
         // 結果の数で、中身は最初から 1080 ぶんしかない。詳細に「元 3840 × 2160」と出すと、
-        // 何も失われていないのに半分に削られたように読める（2026-08-30 の判断）。
+        // 半分に削られたように読める（2026-08-30 の判断）。
         // 本当に粗くなるのは 1080p / 720p を自分で選んだときだけで、それは全体にかけた設定。
         const output = limit != null && cropped.getSize().height > limit
-          ? cropped.resize({ height: limit, quality: 'best' })
+          ? await shrinkCapture(cropped, limit, crop.inset)
           : cropped
         // 有効なクロップが確定してから保存先サブフォルダを作る。前面/動画未検出/クロップ不正で
         // 中断したときに空の年月フォルダだけが残らないよう、pre-capture・各判定の後に置く。
