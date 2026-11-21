@@ -184,7 +184,7 @@ export const en: Record<keyof typeof ja, string> = {
   'shortcuts.prevNext': 'Previous / next image',
   'shortcuts.toggleMute': 'Mute / unmute',
   'shortcuts.viewerVolume': 'Volume up / down by {percent}%',
-  'shortcuts.toggleZoom': 'Toggle zoom',
+  'shortcuts.toggleZoom': 'Toggle zoom (images)',
   'shortcuts.zoomInOutReset': 'Zoom in / out / reset',
   'shortcuts.toggleDetails': 'Show or hide the details panel',
   'shortcuts.deleteCurrent': 'Delete the current image',

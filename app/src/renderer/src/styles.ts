@@ -144,6 +144,9 @@ export const LABEL_HEIGHT = 22
 export const THUMB_BORDER = 2
 export const THUMB_CHROME = LABEL_HEIGHT + THUMB_BORDER * 2
 
+// 撮ったばかりのサムネに付ける NEW バッジ。消えるときも同じ見た目のまま動きだけ足す（thumbNewBadgeExit）。
+const thumbNewBadge: CSSProperties = { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: weight.strong, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' }
+
 export const s: Record<string, CSSProperties> = {
   updateBanner: { background: 'rgba(var(--success-rgb), 0.14)', borderBottom: '1px solid rgba(var(--success-rgb), var(--edge-soft))', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: font.base, color: 'var(--success)', flexShrink: 0 },
   updateBtn: { padding: '6px 14px', background: 'rgba(var(--success-rgb), 0.22)', border: '1px solid rgba(var(--success-rgb), var(--edge-base))', borderRadius: radius.md, color: 'var(--success)', cursor: 'pointer', fontSize: font.sm, fontWeight: weight.medium, whiteSpace: 'nowrap' as const },
@@ -233,8 +236,8 @@ export const s: Record<string, CSSProperties> = {
   thumbNewExit: { boxShadow: '0 0 0 2px rgba(var(--success-rgb), 0)', transition: 'border-color 0.9s ease, box-shadow 0.9s ease' },
   // バッジ自体は彩度の高い緑グラデーション地に固定文字色で、どちらのテーマでも
   // そのまま視認できるため意図的にテーマ非依存（var化しない）。
-  thumbNewBadge: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: weight.strong, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)' },
-  thumbNewBadgeExit: { position: 'absolute', top: 6, left: 6, zIndex: 4, color: '#04130d', fontSize: font.xs, fontWeight: weight.strong, letterSpacing: 0.5, background: 'linear-gradient(135deg, #6ef0bd, #36c98f)', padding: '2px 7px', borderRadius: radius.sm, pointerEvents: 'none', boxShadow: '0 2px 8px rgba(54,201,143,0.45)', animation: 'shioriNewBadgeOut 0.9s ease forwards' },
+  thumbNewBadge,
+  thumbNewBadgeExit: { ...thumbNewBadge, animation: 'shioriNewBadgeOut 0.9s ease forwards' },
   // 「選択されていないのに、次のキー操作の起点になっている 1 枚」の目印（呼び出し側で
   // focused && !selected の時だけ重ねる）。矢印キーでの移動は選択とフォーカスが常に同じ
   // セルを指すため、選択ハイライトと二重表示すると常時点灯してうるさくなる。

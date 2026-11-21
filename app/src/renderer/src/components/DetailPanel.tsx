@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ImageRow, ImageTagSource } from '../types'
-import { siteName, formatTime, formatFps, mediaUrl, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
+import { siteName, formatTime, formatFps, thumbSrc, normalizeTag, tagSuggestions, fetchBulkTagFrequency, addTagToImages, removeTagFromImages } from '../utils'
 import { color, control, font, radius, s as commonStyles, space, weight } from '../styles'
 import TagEditor from './TagEditor'
 import type { ShowToast } from '../hooks/useToast'
@@ -8,6 +8,7 @@ import TagSuggestInput from './TagSuggestInput'
 import ContextMenu from './ContextMenu'
 import { ExternalLinkIcon, PencilIcon } from './Icon'
 import { useDetailPanelWidth } from '../hooks/useDetailPanelWidth'
+import { useFullImageSrc } from '../hooks/useFullImageSrc'
 import VideoPlayer from '../video/VideoPlayer'
 import { isMissingSevere, isPrecisionGuaranteed, isReuseSevere } from '../../../shared/frame-severity'
 import { useOverlayOpen } from '../overlaySignal'
@@ -140,19 +141,8 @@ export default function DetailPanel({ selectedIds, single, taggerDoneKey, allTag
   const [bulkTagCtxMenu, setBulkTagCtxMenu] = useState<{ x: number; y: number; tag: string } | null>(null)
   // まずサムネ（軽量）を表示し、原本のデコードが終わったら差し替える（R-7）。矢印キーで
   // 選択を連続移動したときにフル解像度デコード待ちでパネル反映が遅れるのを防ぐ。
-  const [fullImageSrc, setFullImageSrc] = useState<string | null>(null)
-
-  const singleId = single?.id
   const singleIsVideo = single?.media_type === 'video'
-  useEffect(() => {
-    if (singleId == null || singleIsVideo) return
-    setFullImageSrc(null)
-    let canceled = false
-    const preload = new Image()
-    preload.onload = () => { if (!canceled) setFullImageSrc(mediaUrl(singleId)) }
-    preload.src = mediaUrl(singleId)
-    return () => { canceled = true }
-  }, [singleId, singleIsVideo])
+  const fullImageSrc = useFullImageSrc(single?.id, singleIsVideo)
 
   const bulkSuggestions = useMemo(() => {
     return tagSuggestions(bulkTagInput, allTags, (tag) => bulkTagMap.get(tag)?.coverage !== 'all')

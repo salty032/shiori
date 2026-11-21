@@ -198,7 +198,7 @@ export const ja = {
   'shortcuts.prevNext': '前 / 次の画像へ',
   'shortcuts.toggleMute': '音を消す / 戻す',
   'shortcuts.viewerVolume': '音量を{percent}%上げる / 下げる',
-  'shortcuts.toggleZoom': 'ズームの切り替え',
+  'shortcuts.toggleZoom': 'ズームの切り替え（画像）',
   'shortcuts.zoomInOutReset': 'ズームイン / アウト / リセット',
   'shortcuts.toggleDetails': '詳細パネルの表示切り替え',
   'shortcuts.deleteCurrent': '表示中の画像を削除',

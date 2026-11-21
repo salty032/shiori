@@ -8,6 +8,7 @@ import { useOverlayOpen } from '../overlaySignal'
 import { useT } from '../i18n'
 import type { Timesheet } from '../hooks/useTimesheet'
 import { useLatestRef } from '../hooks/useLatestRef'
+import { useFullImageSrc } from '../hooks/useFullImageSrc'
 import { MODAL_CLOSE_MS, modalPanelAnimation } from '../motion'
 import { VOLUME_STEP } from '../video/volumeStep'
 
@@ -41,6 +42,14 @@ type Props = {
 // 画像の全画面ビューア。ズーム・パン・閉じるアニメ・フィルムストリップは
 // すべてビューア内部の状態。開閉位置（index）だけは選択・キャプチャ追従のため親が持つ。
 // タグ編集等の詳細情報は DetailPanel（隣に常時表示、ビューアには覆われない）が担う（P1）。
+// 枠 frameW × frameH に素材 mediaW × mediaH を contain で収めたときの、描画される大きさ。
+// ズームの位置の範囲と、クリックが素材の上か余白かの判定が同じこれを使う。
+function containedSize(frameW: number, frameH: number, mediaW: number, mediaH: number): { w: number; h: number } {
+  return mediaW / mediaH > frameW / frameH
+    ? { w: frameW, h: frameW * mediaH / mediaW }
+    : { w: frameH * mediaW / mediaH, h: frameH }
+}
+
 export default function Viewer({ images, index, setIndex, total, onToggleDetailPanel, timesheet }: Props) {
   const { t } = useT()
   // トリミング等のオーバーレイに覆われている間は再生を止める（overlaySignal の注記を参照）。
@@ -53,7 +62,7 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
   const videoPlayerRef = useRef<VideoPlayerHandle>(null)
   // まずサムネを表示し、原本のデコードが終わったら差し替える（DetailPanel の R-7 と同じ方針）。
   // 矢印キーで連続移動したときにフル解像度デコード待ちで白フラッシュするのを防ぐ。
-  const [fullSrc, setFullSrc] = useState<string | null>(null)
+  const fullSrc = useFullImageSrc(images[index]?.id, images[index]?.media_type === 'video')
 
   // 画像が切り替わったらズーム・パンをリセット
   useEffect(() => {
@@ -68,23 +77,12 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
     return () => timesheet.bindPlayer(null)
   })
 
+  // 前後1枚は表示には使わないが、先読みしてブラウザキャッシュに載せておく
+  // （次に進んだときの読み込み待ちを短くする）。今の 1 枚は useFullImageSrc が読む。
   useEffect(() => {
-    const current = images[index]
-    if (!current) return
-    setFullSrc(null)
-    let canceled = false
-    // 動画は <img> で読めず捨てられるだけなので、先読みは画像に限る（fullSrc も画像でしか使わない）。
-    if (current.media_type !== 'video') {
-      const preload = new Image()
-      preload.onload = () => { if (!canceled) setFullSrc(mediaUrl(current.id)) }
-      preload.src = mediaUrl(current.id)
-    }
-    // 前後1枚は表示には使わないが、先読みしてブラウザキャッシュに載せておく
-    // （次に進んだときの preload.onload までの待ちを短くする）。
     for (const n of [images[index - 1], images[index + 1]]) {
       if (n && n.media_type !== 'video') new Image().src = mediaUrl(n.id)
     }
-    return () => { canceled = true }
   }, [images, index])
 
   function close(): void {
@@ -186,18 +184,28 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
   // +/-/0: ホイールズームと同じ倍率係数(1.25/0.8)で、画像の描画矩形中心を基準にズームする
   // （マウスカーソル基準のホイールズーム（onWheelNative）と違い、キーボード操作にはカーソル位置の意味がないため）。
   function zoomByKeyboard(factor: number): void {
-    const nextZoom = Math.max(1, Math.min(8, zoom * factor))
-    if (nextZoom === zoom) return
+    const rect = mediaEl()?.getBoundingClientRect()
+    const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+    stepZoom(factor, centerX, centerY)
+  }
+
+  // 倍率を変え、画面上の点 (clientX, clientY) が動かないよう位置を補正する。1 以下なら元の表示へ戻す。
+  // **ホイール・キー・ダブルクリックの 3 つがこれを通る**（以前は 3 か所に同じ手順を書いていた）。
+  function zoomAt(nextZoom: number, clientX: number, clientY: number): void {
     if (nextZoom <= 1) {
       setZoom(1)
       setPan({ x: 0, y: 0 })
       return
     }
-    const rect = mediaEl()?.getBoundingClientRect()
-    const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
-    const centerY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
-    setPan(clampPan(panForZoomAt(centerX, centerY, nextZoom, zoom, pan), nextZoom))
+    setPan(clampPan(panForZoomAt(clientX, clientY, nextZoom, zoom, pan), nextZoom))
     setZoom(nextZoom)
+  }
+
+  // 今の倍率に factor を掛けた倍率へ（1〜8 倍の範囲）。ホイールとキー（+/-）が使う。
+  function stepZoom(factor: number, clientX: number, clientY: number): void {
+    const nextZoom = Math.max(1, Math.min(8, zoom * factor))
+    if (nextZoom !== zoom) zoomAt(nextZoom, clientX, clientY)
   }
 
   // カーソル直下の画像上の点を動かさずにズームするための pan 補正。
@@ -239,10 +247,9 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
     const frameH = rect.height / domScale
     const { w: naturalW, h: naturalH } = mediaNatural(el)
     if (!naturalW || !naturalH || frameW <= 0 || frameH <= 0) return rawPan
-    const frameRatio = frameW / frameH
-    const mediaRatio = naturalW / naturalH
-    const containW = (mediaRatio > frameRatio ? frameW : frameH * mediaRatio) * targetZoom
-    const containH = (mediaRatio > frameRatio ? frameW / mediaRatio : frameH) * targetZoom
+    const contained = containedSize(frameW, frameH, naturalW, naturalH)
+    const containW = contained.w * targetZoom
+    const containH = contained.h * targetZoom
     const maxX = Math.max(0, (containW - frameW) / 2)
     const maxY = Math.max(0, (containH - frameH) / 2)
     return {
@@ -252,7 +259,7 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
   }
 
   // 位置の計算は表示中の素材の寸法を読むので、回した時点の最新を使う。
-  const panMathRef = useLatestRef({ clampPan, panForZoomAt })
+  const zoomRef = useLatestRef({ stepZoom })
   // React 17+ はホイールイベントをルートに passive: true で登録するため、onWheel prop 内の
   // preventDefault は無効（console に intervention 警告が出るだけで効果がない）。
   // ズームには scroll 連鎖の阻止が必須なので、ref に対して passive: false で自前登録する。
@@ -261,30 +268,15 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
     if (!el) return
     const onWheelNative = (e: WheelEvent): void => {
       e.preventDefault()
-      const factor = e.deltaY < 0 ? 1.25 : 0.8
-      const nextZoom = Math.max(1, Math.min(8, zoom * factor))
-      if (nextZoom === zoom) return
-      if (nextZoom <= 1) {
-        setZoom(1)
-        setPan({ x: 0, y: 0 })
-        return
-      }
-      const { clampPan, panForZoomAt } = panMathRef.current
-      setPan(clampPan(panForZoomAt(e.clientX, e.clientY, nextZoom, zoom, pan), nextZoom))
-      setZoom(nextZoom)
+      zoomRef.current.stepZoom(e.deltaY < 0 ? 1.25 : 0.8, e.clientX, e.clientY)
     }
     el.addEventListener('wheel', onWheelNative, { passive: false })
     return () => el.removeEventListener('wheel', onWheelNative)
-  }, [zoom, pan, images, index, panMathRef])
+  }, [zoomRef])
 
+  // 拡大中なら元へ戻し、そうでなければ押した点を中心に 2 倍にする。
   function toggleZoomAt(clientX: number, clientY: number): void {
-    if (zoom > 1) {
-      setZoom(1)
-      setPan({ x: 0, y: 0 })
-      return
-    }
-    setPan(clampPan(panForZoomAt(clientX, clientY, 2, 1, { x: 0, y: 0 }), 2))
-    setZoom(2)
+    zoomAt(zoom > 1 ? 1 : 2, clientX, clientY)
   }
 
   // S7-20: ネイティブ dblclick は「連続クリック列（click streak）」の中では最初の1回
@@ -353,10 +345,7 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
   function isInsideContainedMedia(el: HTMLElement, clientX: number, clientY: number, mediaWidth: number, mediaHeight: number): boolean {
     if (mediaWidth <= 0 || mediaHeight <= 0) return true
     const rect = el.getBoundingClientRect()
-    const frameRatio = rect.width / rect.height
-    const mediaRatio = mediaWidth / mediaHeight
-    const drawnWidth = mediaRatio > frameRatio ? rect.width : rect.height * mediaRatio
-    const drawnHeight = mediaRatio > frameRatio ? rect.width / mediaRatio : rect.height
+    const { w: drawnWidth, h: drawnHeight } = containedSize(rect.width, rect.height, mediaWidth, mediaHeight)
     const left = rect.left + (rect.width - drawnWidth) / 2
     const top = rect.top + (rect.height - drawnHeight) / 2
     return clientX >= left && clientX <= left + drawnWidth && clientY >= top && clientY <= top + drawnHeight
@@ -427,19 +416,23 @@ export default function Viewer({ images, index, setIndex, total, onToggleDetailP
             autoPlay pauseWhen={overlayOpen} fps={img.fps ?? undefined} clipFps={img.fps} showRateLoop preloadFrameTable clipSource={img.source} onVideoClick={handleVideoClick}
             onFramesReady={timesheet.onFramesReady} onFrameIndex={timesheet.onFrameIndex} />
         ) : (
-          <img
-            ref={imgRef}
-            src={fullSrc ?? thumbSrc(img)}
-            style={{
-              ...s.viewerImg,
-              transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
-              cursor: zoom > 1 ? 'grab' : 'default',
-            }}
-            onPointerDown={handleImagePointerDown}
-            onClick={handleImageClick}
-            alt=""
-            draggable={false}
-          />
+          // 拡大した絵は枠で切り取る（動画の clipMedia と同じ）。切り取らないと、拡大した画像だけが
+          // 枠の外の余白にまではみ出して見えていた。
+          <div style={{ ...s.viewerMediaFrame, overflow: zoom > 1 ? 'hidden' : undefined }}>
+            <img
+              ref={imgRef}
+              src={fullSrc ?? thumbSrc(img)}
+              style={{
+                ...s.viewerImg,
+                transform: zoom > 1 ? `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` : undefined,
+                cursor: zoom > 1 ? 'grab' : 'default',
+              }}
+              onPointerDown={handleImagePointerDown}
+              onClick={handleImageClick}
+              alt=""
+              draggable={false}
+            />
+          </div>
         )}
       </div>
       {zoom > 1 && (
