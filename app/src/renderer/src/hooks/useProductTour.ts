@@ -2,9 +2,9 @@
 //
 // **説明の「次へ」では進まない段が混ざっている。** 選択・ビューアの開閉・表示切替は、
 // アプリ側の実状態が変わったときだけ次へ送る（読み飛ばしただけで「やった」ことにしない）。
-// 段の番号と進む条件は下の useEffect が全部で、ProductTour.tsx は表示だけを持つ。
+// 段の並びと表示は ProductTour.tsx（段は id で指す）、実状態で進む条件は下の useEffect。
 import { useCallback, useEffect, useState } from 'react'
-import type { ProductTourStep } from '../components/ProductTour'
+import { FIRST_TOUR_STEP, nextTourStep, type ProductTourStep } from '../components/ProductTour'
 import type { ImageRow } from '../types'
 import type { ShowToast } from './useToast'
 import type { ViewMode } from '../components/Toolbar'
@@ -33,7 +33,7 @@ export function useProductTour({
 
   const startProductTour = useCallback((): void => {
     resetRef.current()
-    setProductTourStep(0)
+    setProductTourStep(FIRST_TOUR_STEP)
   }, [resetRef])
 
   // 初めて自分でキャプチャできた直後が、実画面の使い方を試す最も自然なタイミング。
@@ -53,20 +53,19 @@ export function useProductTour({
   // 実操作ガイドは説明の「次へ」では進めない。選択・ビューア開閉・表示切替という
   // アプリ側の実状態が変わったときだけ次の操作へ進む。
   useEffect(() => {
-    if (productTourStep === 0 && selectedCount > 0) setProductTourStep(1)
-    if (productTourStep === 1 && viewerIdx !== null) setProductTourStep(2)
-    if (productTourStep === 2 && viewerIdx === null) setProductTourStep(3)
-    if (productTourStep === 4 && viewMode === 'timeline') setProductTourStep(5)
+    const done =
+      (productTourStep === 'select' && selectedCount > 0) ||
+      (productTourStep === 'open' && viewerIdx !== null) ||
+      (productTourStep === 'viewer' && viewerIdx === null) ||
+      (productTourStep === 'timeline' && viewMode === 'timeline')
+    if (done) setProductTourStep(nextTourStep(productTourStep))
   }, [productTourStep, selectedCount, viewerIdx, viewMode])
 
   const advanceProductTour = useCallback((): void => {
     if (productTourStep === null) return
-    if (productTourStep >= 5) {
-      setProductTourStep(null)
-      showToast(t('tour.completed'), 'success')
-      return
-    }
-    setProductTourStep((productTourStep + 1) as ProductTourStep)
+    const next = nextTourStep(productTourStep)
+    setProductTourStep(next)
+    if (next === null) showToast(t('tour.completed'), 'success')
   }, [productTourStep, showToast])
 
   return { productTourStep, startProductTour, advanceProductTour, exitProductTour: () => setProductTourStep(null) }

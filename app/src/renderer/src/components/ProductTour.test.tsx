@@ -16,7 +16,7 @@ describe('ProductTour', () => {
 
   it('後から描画されたメモ欄のクリックでも進み、続くfocusでは二重に進まない', () => {
     const onAdvance = vi.fn()
-    render(<ProductTour step={3} onAdvance={onAdvance} onExit={() => {}} />)
+    render(<ProductTour step="memo" onAdvance={onAdvance} onExit={() => {}} />)
 
     const memo = document.createElement('textarea')
     memo.dataset.tour = 'memo-input'

@@ -2,7 +2,35 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 import { control, font, radius, space, weight } from '../styles'
 import { useT, type MessageKey } from '../i18n'
 
-export type ProductTourStep = 0 | 1 | 2 | 3 | 4 | 5
+// 案内の段。**段は番号ではなく id で指す**（進む条件は useProductTour.ts、表示はここ）。以前は 0〜5 の
+// 番号を両方のファイルに直書きしていて、段を足す・並べ替えると片方だけずれ、別の段の説明が出たり
+// 操作しても進まなくなったりした。並びはこの配列の順だけが決める。
+//   event: 'interact' … 対象の欄を触ったら次へ（それ以外の段は useProductTour が実状態を見て進める）
+//   waiting           … 進む操作を待っている間に添える一言
+//   skippable         … 「この段を飛ばす」を出す
+const TOUR_STEPS = [
+  { id: 'select', selector: '[data-img-id]', title: 'tour.selectTitle', body: 'tour.selectBody' },
+  { id: 'open', selector: '[data-selected="true"]', title: 'tour.openTitle', body: 'tour.openBody' },
+  { id: 'viewer', selector: '[data-tour="viewer-close"]', title: 'tour.viewerTitle', body: 'tour.viewerBody', waiting: 'tour.viewerWaiting' },
+  { id: 'memo', selector: '[data-tour="memo-input"]', title: 'tour.memoTitle', body: 'tour.memoBody', event: 'interact', skippable: true },
+  { id: 'timeline', selector: '[data-tour="timeline-toggle"]', title: 'tour.timelineTitle', body: 'tour.timelineBody' },
+  { id: 'search', selector: '[data-tour="search-input"]', title: 'tour.searchTitle', body: 'tour.searchBody', event: 'interact', skippable: true },
+] as const satisfies readonly {
+  id: string; selector: string; title: MessageKey; body: MessageKey
+  event?: 'interact'; waiting?: MessageKey; skippable?: true
+}[]
+
+export type ProductTourStep = (typeof TOUR_STEPS)[number]['id']
+
+export const FIRST_TOUR_STEP: ProductTourStep = TOUR_STEPS[0].id
+
+// 次の段。最後の段なら null。
+export function nextTourStep(step: ProductTourStep): ProductTourStep | null {
+  const i = TOUR_STEPS.findIndex((d) => d.id === step)
+  return TOUR_STEPS[i + 1]?.id ?? null
+}
+
+type StepDefinition = (typeof TOUR_STEPS)[number] & { event?: 'interact'; waiting?: MessageKey; skippable?: true }
 
 type Props = {
   step: ProductTourStep
@@ -10,19 +38,11 @@ type Props = {
   onExit: () => void
 }
 
-const STEPS: { selector: string; title: MessageKey; body: MessageKey; event?: 'interact' }[] = [
-  { selector: '[data-img-id]', title: 'tour.selectTitle', body: 'tour.selectBody' },
-  { selector: '[data-selected="true"]', title: 'tour.openTitle', body: 'tour.openBody' },
-  { selector: '[data-tour="viewer-close"]', title: 'tour.viewerTitle', body: 'tour.viewerBody' },
-  { selector: '[data-tour="memo-input"]', title: 'tour.memoTitle', body: 'tour.memoBody', event: 'interact' },
-  { selector: '[data-tour="timeline-toggle"]', title: 'tour.timelineTitle', body: 'tour.timelineBody' },
-  { selector: '[data-tour="search-input"]', title: 'tour.searchTitle', body: 'tour.searchBody', event: 'interact' },
-]
-
 export default function ProductTour({ step, onAdvance, onExit }: Props) {
   const { t } = useT()
   const [rect, setRect] = useState<DOMRect | null>(null)
-  const definition = STEPS[step]
+  const index = TOUR_STEPS.findIndex((d) => d.id === step)
+  const definition: StepDefinition = TOUR_STEPS[index]
 
   useLayoutEffect(() => {
     let frame = 0
@@ -65,13 +85,13 @@ export default function ProductTour({ step, onAdvance, onExit }: Props) {
     <div style={s.host}>
       {rect && <div style={{ ...s.highlight, left: rect.left - 5, top: rect.top - 5, width: rect.width + 10, height: rect.height + 10 }} />}
       <div style={s.card}>
-        <div style={s.progress}>{t('tour.progress', { current: step + 1, total: STEPS.length })}</div>
+        <div style={s.progress}>{t('tour.progress', { current: index + 1, total: TOUR_STEPS.length })}</div>
         <div style={s.title}>{t(definition.title)}</div>
         <div style={s.body}>{t(definition.body)}</div>
         <div style={s.actions}>
           <button style={s.exit} onClick={onExit}>{t('tour.exit')}</button>
-          {step === 2 && <span style={s.waiting}>{t('tour.viewerWaiting')}</span>}
-          {(step === 3 || step === 5) && <button style={s.next} onClick={onAdvance}>{t('tour.skipStep')}</button>}
+          {definition.waiting && <span style={s.waiting}>{t(definition.waiting)}</span>}
+          {definition.skippable && <button style={s.next} onClick={onAdvance}>{t('tour.skipStep')}</button>}
         </div>
       </div>
     </div>
