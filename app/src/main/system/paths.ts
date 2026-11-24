@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { mkdir, realpath, stat } from 'fs/promises'
 import { realpathSync } from 'fs'
 import { randomUUID } from 'crypto'
-import { basename, extname, isAbsolute, join, parse, resolve } from 'path'
+import { basename, dirname, extname, isAbsolute, join, parse, resolve } from 'path'
 import { loadSettings } from './settings'
 import { isChildPath } from './child-path'
 import { MEDIA_EXTS } from './media-exts'
@@ -86,12 +86,17 @@ export function thumbPathFor(originalPath: string, ext = '.jpg'): string {
 // **許可ベースを広げすぎないための判定。** 保存先の配下は「IPC から開いてよい場所」に
 // なるので、ドライブ直下や userData の上位を選ばれると、その下の何もかもが対象になる。
 // 選んだ人に悪意が無くても、境界としては意味を失う。
-export function captureRootProblem(dir: string): 'not-absolute' | 'filesystem-root' | 'contains-app-data' | null {
+export function captureRootProblem(dir: string): 'not-absolute' | 'filesystem-root' | 'contains-app-data' | 'inside-install-dir' | null {
   if (typeof dir !== 'string' || !dir.trim() || !isAbsolute(dir)) return 'not-absolute'
   const target = resolve(dir)
   if (target === parse(target).root) return 'filesystem-root'
   const userData = resolve(app.getPath('userData'))
   if (target === userData || isChildPath(target, userData)) return 'contains-app-data'
+  // NSIS updates replace the whole installation directory. Keep captures outside that tree.
+  if (app.isPackaged) {
+    const installDir = resolve(dirname(process.execPath))
+    if (target === installDir || isChildPath(installDir, target)) return 'inside-install-dir'
+  }
   return null
 }
 

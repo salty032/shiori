@@ -652,7 +652,7 @@ export const ja = {
   'settings.captureMoveConflict': '移動先に同じ名前のファイルがあるため、何も移していません（{path}）。そのファイルを別の場所へ移すか、空のフォルダを選んでください。',
   // 選べない場所（ドライブ直下・Shiori の設定が入っているフォルダの上位）。理由まで出す
   // ——「変更できません」だけだと、壊れているのか選び方が悪いのか分からない。
-  'settings.captureRootInvalid': 'この場所は保存先にできません。ドライブの直下や、Shiori のデータが入っているフォルダを含む場所は選べません。',
+  'settings.captureRootInvalid': 'この場所はキャプチャと録画の保存場所にできません。ドライブの直下や、Shiori のデータが入っているフォルダ、Shiori のインストール先は選べません。',
   'settings.captureRootUnwritable': 'この場所に書き込めませんでした。別のフォルダを選ぶか、ドライブがつながっているか確認してください。',
   'settings.storageHint': 'キャプチャと録画の保存先です。変更すると、これまでの分も移します（移す前に件数と容量を確認します）。',
   'settings.usage': '使用量',

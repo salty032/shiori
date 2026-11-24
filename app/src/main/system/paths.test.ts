@@ -1,9 +1,9 @@
 import { vi, describe, expect, it, afterEach } from 'vitest'
-import { join, resolve } from 'path'
+import { dirname, join, resolve } from 'path'
 
-const { MOCK_USER_DATA } = vi.hoisted(() => ({ MOCK_USER_DATA: '/mock/userData' }))
+const { MOCK_USER_DATA, state } = vi.hoisted(() => ({ MOCK_USER_DATA: '/mock/userData', state: { packaged: false } }))
 
-vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue(MOCK_USER_DATA) } }))
+vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue(MOCK_USER_DATA), get isPackaged() { return state.packaged } } }))
 
 // 保存先は設定から来る。既定（captureRoot=null）で始め、テストごとに差し替える。
 const { settings } = vi.hoisted(() => ({
@@ -77,8 +77,20 @@ describe('resolveCapturePath', () => {
 })
 
 describe('captureRootProblem', () => {
+  afterEach(() => {
+    state.packaged = false
+  })
+
   it('userData そのものを保存先に選べない', () => {
     expect(captureRootProblem(resolve(MOCK_USER_DATA))).toBe('contains-app-data')
+  })
+
+  it('パッケージ版のインストール先とその配下を保存先に選べない', () => {
+    state.packaged = true
+    const installDir = dirname(process.execPath)
+    expect(captureRootProblem(installDir)).toBe('inside-install-dir')
+    expect(captureRootProblem(join(installDir, 'captures'))).toBe('inside-install-dir')
+    expect(captureRootProblem(join(dirname(installDir), 'captures'))).toBeNull()
   })
 })
 

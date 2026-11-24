@@ -573,7 +573,7 @@ export const en: Record<keyof typeof ja, string> = {
   'settings.captureMoving': 'Moving... {current} / {total}',
   'settings.captureMoveFailed': 'Nothing was changed because the move could not finish. Check free space on the destination and that the drive is connected.',
   'settings.captureMoveConflict': 'Nothing was moved because a file of the same name is already in the destination ({path}). Move that file elsewhere, or choose an empty folder.',
-  'settings.captureRootInvalid': 'This folder cannot be used. A drive root, or a location that contains Shiori’s own data, cannot be chosen.',
+  'settings.captureRootInvalid': 'This folder cannot be used to save captures and recordings. A drive root, a folder containing Shiori’s data, or Shiori’s installation folder cannot be chosen.',
   'settings.captureRootUnwritable': 'Shiori could not write here. Choose another folder, or check that the drive is connected.',
   'settings.storageHint': 'Where captures and recordings are saved. Changing it also moves what you already have (Shiori shows how many files and how much space first).',
   'settings.usage': 'Disk usage',

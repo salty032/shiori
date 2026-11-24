@@ -22,6 +22,7 @@
     "ext:lint": "npx --yes web-ext@10 lint --source-dir=../extension",
     "ext:sign": "npx --yes web-ext@10 sign --source-dir=../extension --artifacts-dir=../web-ext-artifacts --channel=unlisted",
     "package": "npm run icons && npm run third-party-licenses && npm run verify && electron-vite build && electron-builder --win --x64",
+    "preview:update-warning": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/preview-update-warning.ps1",
     "release": "npm run icons && npm run third-party-licenses && npm run verify && electron-vite build && electron-builder --win --x64 --publish always",
     "demo-manifest": "node scripts/build-demo-manifest.mjs",
     "web:dev": "npm run demo-manifest && vite --config vite.web.config.ts",
@@ -96,6 +97,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "artifactName": "Shiori-Setup-${version}.exe",
