@@ -158,15 +158,15 @@ export function registerImageHandlers(): void {
       // H.264 で頼まれたのに変換できず、元の形式のまま置いた本数。
       // **黙って webm を置くと「mp4 で出したつもり」のまま気づけない。** 画面に出す。
       let notConverted = 0
-      const copyOne = async (id: number): Promise<boolean> => {
+      const copyOne = async (id: number): Promise<{ ok: boolean; reason?: string }> => {
         const image = getImage(id)
-        if (!image) return false
+        if (!image) return { ok: false, reason: 'record not found' }
         const src = await resolveRealCapturePath(image.filepath)
-        if (!src) return false
+        if (!src) return { ok: false, reason: 'capture path unavailable' }
         try {
           await stat(src)
         } catch {
-          return false
+          return { ok: false, reason: 'source file missing' }
         }
         const baseTitle = sanitizeFilename(image.title || basename(src, extname(src)))
         const datePart = formatDateForFilename(image.captured_at)
@@ -194,11 +194,11 @@ export function registerImageHandlers(): void {
                 { width: image.width, height: image.height, fps: image.fps },
                 () => imagesExport.canceled
               )
-              return true
+              return { ok: true }
             } catch (err) {
               try { await unlink(outPath) } catch {}
               // 中止で落ちたときは「失敗」として数えない（この後ループも抜ける）。
-              if (imagesExport.canceled) return false
+              if (imagesExport.canceled) return { ok: false }
               console.warn(`[images:export] h264 transcode failed id=${id}`, err)
               notConverted++
             }
@@ -207,22 +207,28 @@ export function registerImageHandlers(): void {
 
         try {
           await copyFile(src, await nameWith(srcExt))
-          return true
+          return { ok: true }
         } catch (err) {
           console.warn(`[images:export] copy failed id=${id}`, err)
-          return false
+          return { ok: false, reason: 'copy failed' }
         }
       }
       let count = 0
+      let skipped = 0
       const total = ids.length
       sendToRenderer(CH.exportProgress, { current: 0, total })
       const shouldSend = createProgressThrottle(total)
       for (let i = 0; i < ids.length; i++) {
         if (imagesExport.canceled) break
-        if (await copyOne(ids[i])) count++
+        const result = await copyOne(ids[i])
+        if (result.ok) count++
+        else if (result.reason) {
+          skipped++
+          console.warn(`[images:export] skipped id=${ids[i]}: ${result.reason}`)
+        }
         if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
       }
-      return { canceled: imagesExport.canceled, count, truncated, notConverted }
+      return { canceled: imagesExport.canceled, count, skipped, truncated, notConverted }
     })
   })
 

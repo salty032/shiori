@@ -17,6 +17,10 @@ export interface UseExportSelectedOptions {
 
 export function useExportSelected({ getDefaultIds, showToast }: UseExportSelectedOptions) {
   return async function exportSelected(ids: number[] = getDefaultIds()): Promise<void> {
+    if (ids.length === 0) {
+      showToast(t('toast.exportNothingSelected'), 'warning')
+      return
+    }
     // export:progress チャンネル・中止ボタンは images/share の1系統しかないため、共有書き出しが
     // 進行中に選択エクスポートを始めると進捗・中止が混線する（B-6）。片方が完了するまで待たせる。
     if (useExportStore.getState().exportKind !== null) {
@@ -38,8 +42,12 @@ export function useExportSelected({ getDefaultIds, showToast }: UseExportSelecte
         const notConvertedMsg = notConverted > 0
           ? t('toast.exportNotConvertedSuffix', { count: String(notConverted) })
           : ''
-        const warn = result.truncated || notConverted > 0
-        showToast(tp('toast.exported', result.count) + truncatedMsg + notConvertedMsg, warn ? 'warning' : 'success')
+        const skipped = result.skipped ?? 0
+        const skippedMsg = skipped > 0
+          ? t('toast.exportSkippedSuffix', { count: String(skipped) })
+          : ''
+        const warn = result.truncated || notConverted > 0 || skipped > 0
+        showToast(tp('toast.exported', result.count) + skippedMsg + truncatedMsg + notConvertedMsg, warn ? 'warning' : 'success')
       }
     } catch (err) {
       console.error('[export] failed', err)

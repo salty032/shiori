@@ -23,6 +23,14 @@ import { compareVersions } from './version'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.9.1': {
+    ja: [
+      '画像を選ばずにエクスポートを始めたときは、保存先を選ぶ前に案内するようにしました。元ファイルを利用できず書き出せない画像がある場合は、その枚数も表示します。',
+    ],
+    en: [
+      'If you start an export without selecting images, Shiori now prompts you before asking for a destination. It also shows how many images could not be exported when their source files are unavailable.',
+    ],
+  },
   '1.9.0': {
     ja: [
       'ビューアのコマ再生（1 コマ ○秒）で、コマごとの表示時間がそろい、もたつかなくなりました。',
