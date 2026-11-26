@@ -21,6 +21,7 @@ vi.mock('../browser/ws-server', () => ({
       void Promise.resolve().then(() => extensionListener?.({
         type: 'timecode',
         requestId: m.requestId,
+        focused: true,
         title: 'テスト',
         currentTime: 12,
         url: 'https://example.test/watch',
@@ -61,7 +62,8 @@ vi.mock('../capture/capture', () => ({
   canCaptureVideo: vi.fn(() => true),
   getBrowserWindowRect: vi.fn(() => ({ left: 0, top: 0, width: 800, height: 600 })),
   setBrowserWindowPos: vi.fn(),
-  setVideoRect: vi.fn()
+  setVideoRect: vi.fn(),
+  setBrowserFullscreen: vi.fn()
 }))
 
 let lowMemoryMode = false

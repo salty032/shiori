@@ -10,32 +10,62 @@ export type CaptureTimecode = {
   videoSize: { width: number; height: number } | null
 }
 
+export type TimecodeReply = Extract<ExtensionMessage, { type: 'timecode' }>
+
 type Subscribe = (handler: (msg: ExtensionMessage) => void) => () => void
 
-// 複数の拡張クライアントが応答した場合はフォーカス中のものを優先する。
-// フォーカス応答が無い場合だけ、最初の非フォーカス応答をタイムアウト時に採用する。
-export function waitForPreferredTimecode(
+// 前面でないタブの返事しか来ていないとき、前面のタブの返事をあと何 ms 待つか。
+//
+// **静止画と録画で同じ待ち方を使う。** 以前は静止画が前面の返事を時間切れ（900ms）まで待ち、録画は
+// 最初の返事を待たずに使っていた。モニター 2 枚で別のアプリを触りながら撮ると前面の返事は来ないので、
+// 静止画は毎回 0.9 秒待ってから撮り（流れている動画なら押した瞬間より後のコマになる）、録画は動画の
+// タブが複数あると別のタブの位置・作品名を拾いえた。
+// 前面のタブも前面でないタブも同じ要求に同じ手順で返すので、届く差は小さい（[timecode] のログで見る）。
+export const UNFOCUSED_GRACE_MS = 100
+
+// 前面のタブの返事はすぐ使う。前面でない返事しか来なければ、最初の返事から UNFOCUSED_GRACE_MS 待って
+// それを使う。何も来なければ timeoutMs で null。
+export function waitForPreferredReply(
   requestId: string,
   timeoutMs: number,
-  subscribe: Subscribe
-): Promise<CaptureTimecode | null> {
+  subscribe: Subscribe,
+  graceMs = UNFOCUSED_GRACE_MS,
+): Promise<TimecodeReply | null> {
+  const startedAt = Date.now()
   return new Promise((resolve) => {
-    let fallback: CaptureTimecode | null = null
+    let fallback: TimecodeReply | null = null
+    let fallbackAt = 0
+    let graceTimer: ReturnType<typeof setTimeout> | null = null
     let settled = false
     let off = (): void => {}
-    const finish = (value: CaptureTimecode | null): void => {
+    const finish = (value: TimecodeReply | null, why: string): void => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (graceTimer) clearTimeout(graceTimer)
       off()
+      const firstUnfocused = fallback ? `, first unfocused at ${fallbackAt - startedAt}ms` : ''
+      console.log(`[timecode] ${why} after ${Date.now() - startedAt}ms${firstUnfocused}`)
       resolve(value)
     }
-    const timer = setTimeout(() => finish(fallback), timeoutMs)
+    const timer = setTimeout(() => finish(fallback, fallback ? 'unfocused reply (timeout)' : 'no reply'), timeoutMs)
     off = subscribe((msg) => {
       if (msg.type !== 'timecode' || msg.requestId !== requestId) return
-      const value = { title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null, videoSize: msg.videoSize }
-      if (msg.focused) finish(value)
-      else fallback ??= value
+      if (msg.focused) { finish(msg, 'focused reply'); return }
+      if (fallback) return
+      fallback = msg
+      fallbackAt = Date.now()
+      graceTimer = setTimeout(() => finish(fallback, 'unfocused reply'), graceMs)
     })
   })
+}
+
+// 静止画用。返事のうち撮影に使う項目だけを返す。
+export async function waitForPreferredTimecode(
+  requestId: string,
+  timeoutMs: number,
+  subscribe: Subscribe,
+): Promise<CaptureTimecode | null> {
+  const msg = await waitForPreferredReply(requestId, timeoutMs, subscribe)
+  return msg ? { title: msg.title, currentTime: msg.currentTime, url: msg.url ?? null, videoSize: msg.videoSize } : null
 }

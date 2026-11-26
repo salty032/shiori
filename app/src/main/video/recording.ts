@@ -3,7 +3,7 @@
 import { desktopCapturer } from 'electron'
 import { displayAtWindowCenter } from '../capture/window-display'
 import { broadcastMessage, onExtensionMessage, type ExtensionMessage } from '../browser/ws-server'
-import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRect } from '../capture/capture'
+import { canCaptureVideo, getBrowserWindowRect, setBrowserWindowPos, setVideoRect, setBrowserFullscreen } from '../capture/capture'
 import { loadSettings } from '../system/settings'
 import { captureRootReachable } from '../system/paths'
 import { isMainWindowFocused } from '../system/windows'
@@ -11,6 +11,7 @@ import { getRecorderWindow, createRecorderWindow, destroyRecorderWindow, setPend
 import { startFrameFeed, stopFrameFeed, waitForSteadyFrames } from './frame-feed'
 import { setTrayRecording } from '../system/tray'
 import { getLastTimecode, getLastTimecodeAt, setLastTimecode } from '../browser/timecode'
+import { waitForPreferredReply } from '../browser/timecode-request'
 import { sendWatchingNotice } from '../browser/browser-notice'
 import type { PrepareData, StartData } from '../../shared/recorder-api'
 import { t } from '../system/i18n'
@@ -69,28 +70,17 @@ export function getRecordingMeta(): RecordingMeta | null {
 
 type TimecodeMsg = Extract<ExtensionMessage, { type: 'timecode' }>
 
+// どのタブを録るかは静止画と同じ選び方（timecode-request.ts の waitForPreferredReply）。最初の返事を
+// そのまま使っていた頃は、動画のタブが複数あると前面でないタブの位置・作品名を拾いえた。
 async function requestRecordingTarget(): Promise<TimecodeMsg | null> {
   const requestId = `${Date.now()}-${Math.random()}`
-  return new Promise((resolve) => {
-    let done = false
-    const finish = (value: TimecodeMsg | null): void => {
-      if (done) return
-      done = true
-      clearTimeout(timer)
-      off()
-      resolve(value)
-    }
-    const off = onExtensionMessage((msg) => {
-      if (msg.type === 'timecode' && msg.requestId === requestId) {
-        finish(msg)
-      }
-    })
-    broadcastMessage({ type: 'request-timecode', requestId, immediate: true })
-    // 録画は immediate=true で UI 非表示の描画待ちが不要なため即応答が返る。
-    // 取りこぼし保険として短め(700ms)で打ち切る。スクショ側(900ms)より短いのはこの差による。
-    const timer = setTimeout(() => { console.warn('[clip] request-timecode timeout'); finish(null) }, 700)
-  })
+  const reply = waitForPreferredReply(requestId, RECORDING_TARGET_TIMEOUT_MS, onExtensionMessage)
+  broadcastMessage({ type: 'request-timecode', requestId, immediate: true })
+  return reply
 }
+// 録画は immediate=true で UI 非表示の描画待ちが不要なため即応答が返る。
+// 取りこぼし保険として短めで打ち切る。スクショ側(900ms)より短いのはこの差による。
+const RECORDING_TARGET_TIMEOUT_MS = 700
 
 // 直近の録画対象ディスプレイのリフレッシュレート（Hz）。取得フレームレートの上限に使う。
 // getDesktopSourceId が解決したディスプレイをそのまま覚える（録画対象と別の画面の Hz で
@@ -319,6 +309,7 @@ export async function startRecording(): Promise<void> {
       setLastTimecode({ title: target.title, currentTime: target.currentTime, url: target.url ?? null })
       setBrowserWindowPos(target.windowLeft, target.windowTop, target.windowWidth, target.windowHeight, target.innerWidth, target.innerHeight)
       setVideoRect(target.videoRect)
+      setBrowserFullscreen(target.fullscreen)
     }
 
     // V-4: target がタイムアウト（拡張無応答）で null のとき、以前の browserWindow/videoRect
