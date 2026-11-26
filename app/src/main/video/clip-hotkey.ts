@@ -1,29 +1,17 @@
-// 録画クリップ開始/停止用のグローバルホットキー登録。
-import { globalShortcut } from 'electron'
+// 録画クリップ開始/停止用のグローバルホットキー登録。登録・変更の実装は静止画と共通（hotkey-slot.ts）。
 import { t } from '../system/i18n'
+import { createHotkeySlot } from '../system/hotkey-slot'
 
-let currentClipHotkey = 'Alt+D'
+const clipHotkey = createHotkeySlot({
+  logTag: 'clip',
+  initialHotkey: 'Alt+D',
+  failedMessage: (hotkey) => t('error.clipHotkeyRegisterFailed', { hotkey }),
+})
 
-export function registerClipHotkey(hotkey: string, onToggle: () => void, onError?: (message: string) => void): boolean {
-  const ok = globalShortcut.register(hotkey, onToggle)
-  if (!ok) {
-    console.warn(`[clip] hotkey ${hotkey} registration failed`)
-    onError?.(t('error.clipHotkeyRegisterFailed', { hotkey }))
-  } else {
-    currentClipHotkey = hotkey
-    console.log(`[clip] hotkey registered: ${hotkey}`)
-  }
-  return ok
+export function registerClipHotkey(hotkey: string, onToggle: () => void, onRegisterError?: (message: string) => void): boolean {
+  return clipHotkey.register(hotkey, onToggle, onRegisterError)
 }
 
-function unregisterClipHotkey(): void {
-  globalShortcut.unregister(currentClipHotkey)
-}
-
-export function changeClipHotkey(newHotkey: string, onToggle: () => void, onError?: (message: string) => void): boolean {
-  const previousHotkey = currentClipHotkey
-  unregisterClipHotkey()
-  const ok = registerClipHotkey(newHotkey, onToggle, onError)
-  if (!ok) registerClipHotkey(previousHotkey, onToggle)
-  return ok
+export function changeClipHotkey(newHotkey: string, onRegisterError?: (message: string) => void): boolean {
+  return clipHotkey.change(newHotkey, onRegisterError)
 }

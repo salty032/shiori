@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs'
 import { broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInUse } from './browser/ws-server'
 import { WS_PORTS } from '../shared/wire-limits'
 import {
-  registerHotkey, changeHotkey, onCaptureDone, setSourceVideoSize,
+  registerHotkey, changeHotkey, onCaptureFailure, onCaptureDone, setSourceVideoSize,
   setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
   runPreCaptureGuards, SilentCaptureAbort
 } from './capture/capture'
@@ -385,6 +385,9 @@ export function bootstrap(): void {
       // ここに来るのは候補を全部試して駄目だったときだけ（1 つ塞がっただけなら自動で隣へ移る）。
       sendNoticeWhenRendererReady('error', t('notice.portInUse', { ports: WS_PORTS.join(', ') }))
     })
+    // ホットキーで撮って失敗した知らせは毎回出す。登録の失敗（下）とは別の口——同じ口だと、登録失敗の
+    // 重複を抑える仕組みに撮影の失敗まで抑えられる。設定でキーを変えた後も同じ所へ出る。
+    onCaptureFailure((message) => sendAppFailureNotice('error', message))
     // ホットキーを登録できなかった知らせはアプリに出す（起動時・アプリに戻ったときに起きることで、
     // 拡張が繋がる前のこともある。ブラウザにだけ送ると黙って消えていた）。
     captureHotkeyFailure.result(registerHotkey(loadSettings().captureHotkey, captureHotkeyFailure.onError))

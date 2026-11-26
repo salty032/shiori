@@ -2,7 +2,7 @@
 import { app, session, globalShortcut } from 'electron'
 import { loadSettings, saveSettings } from '../system/settings'
 import { sendAppFailureNotice } from '../browser/browser-notice'
-import { handleTrusted, onMainWindowFocus } from '../system/windows'
+import { handleTrusted, onMainWindowFocus, sendNotice } from '../system/windows'
 import { normalizeCaptureHotkey } from '../browser/hotkey'
 import { VIDEO_CH } from '../../shared/api.video'
 import { addPreCaptureGuard, addBrowserTargetUpdateGuard, SilentCaptureAbort } from '../capture/capture'
@@ -20,7 +20,8 @@ export function registerVideoIpc(): void {
   handleTrusted(VIDEO_CH.clipSetHotkey, (_event, hotkey: string) => {
     const normalized = normalizeCaptureHotkey(hotkey)
     if (!normalized) return false
-    const ok = changeClipHotkey(normalized, handleClipHotkey)
+    // 静止画の変更（bootstrap.ts）と同じく、登録できなかったこと・元のキーへ戻せなかったことを出す。
+    const ok = changeClipHotkey(normalized, (m) => sendNotice('error', m))
     if (ok) saveSettings({ ...loadSettings(), clipHotkey: normalized })
     return ok
   })

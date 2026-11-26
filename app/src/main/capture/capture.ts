@@ -1,4 +1,4 @@
-import { globalShortcut, nativeImage, screen as electronScreen, desktopCapturer, type Display, type NativeImage } from 'electron'
+import { nativeImage, screen as electronScreen, desktopCapturer, type Display, type NativeImage } from 'electron'
 import { displayAtWindowCenter } from './window-display'
 import screenshot from 'screenshot-desktop'
 import { writeFile } from 'fs/promises'
@@ -6,6 +6,7 @@ import { join } from 'path'
 import { ensureCaptureSubDir, captureRootReachable, captureFileName } from '../system/paths'
 import { captureDisplayGdi } from './gdi-capture'
 import { t } from '../system/i18n'
+import { createHotkeySlot } from '../system/hotkey-slot'
 import { loadSettings } from '../system/settings'
 import type { CaptureResize } from '../../shared/types'
 import { unscaleBilinear, UNSCALE_MAX_RESIDUAL } from './unscale'
@@ -52,7 +53,6 @@ export class SilentCaptureAbort extends Error {}
 // 原因が保存先だと分からないと、同じことを何度も繰り返すことになる。
 export class CaptureRootUnavailable extends Error {}
 
-let currentHotkey = 'Alt+S'
 let isCapturing = false
 /** 静止画を撮っている最中か（拡張の読み込み直しを待たせるため。extension-bridge.ts）。 */
 export function isCaptureInProgress(): boolean {
@@ -493,42 +493,39 @@ async function captureScreen(): Promise<string> {
   }
 }
 
-export function registerHotkey(hotkey: string, onError?: (message: string) => void): boolean {
-  const ok = globalShortcut.register(hotkey, () => {
-    captureScreen().catch((err) => {
-      // 通知不要な中断（連打による再入・Shioriフォーカス中・録画中ガードでの中断等）は無視。
-      // preCaptureHook が既に具体的な警告（動画未検出）を送信済みのケースもここに含まれる。
-      if (err instanceof SilentCaptureAbort) return
-      if (err instanceof CaptureRootUnavailable) {
-        console.warn('[capture] capture root unreachable')
-        onError?.(t('error.captureRootUnavailable'))
-        return
-      }
-      console.error('[capture] failed', err)
-      onError?.(t('error.captureFailed'))
-    })
+// ホットキーで撮って失敗したときの知らせ先（bootstrap.ts が渡す）。**登録の失敗とは別の口。**
+// 登録の失敗は直るまで 1 回だけにするが、撮影の失敗は毎回出す。起動時に登録したキーでも、
+// 設定で変えた後のキーでも同じ所へ出す。
+let captureFailureHook: ((message: string) => void) | null = null
+export function onCaptureFailure(fn: (message: string) => void): void {
+  captureFailureHook = fn
+}
+
+function captureByHotkey(): void {
+  captureScreen().catch((err) => {
+    // 通知不要な中断（連打による再入・Shioriフォーカス中・録画中ガードでの中断等）は無視。
+    // preCaptureHook が既に具体的な警告（動画未検出）を送信済みのケースもここに含まれる。
+    if (err instanceof SilentCaptureAbort) return
+    if (err instanceof CaptureRootUnavailable) {
+      console.warn('[capture] capture root unreachable')
+      captureFailureHook?.(t('error.captureRootUnavailable'))
+      return
+    }
+    console.error('[capture] failed', err)
+    captureFailureHook?.(t('error.captureFailed'))
   })
-  if (!ok) {
-    console.warn(`[capture] hotkey ${hotkey} registration failed`)
-    onError?.(t('error.hotkeyRegisterFailed', { hotkey }))
-  } else {
-    currentHotkey = hotkey
-    console.log(`[capture] hotkey registered: ${hotkey}`)
-  }
-  return ok
 }
 
-function unregisterHotkey(): void {
-  globalShortcut.unregister(currentHotkey)
+const captureHotkey = createHotkeySlot({
+  logTag: 'capture',
+  initialHotkey: 'Alt+S',
+  failedMessage: (hotkey) => t('error.hotkeyRegisterFailed', { hotkey }),
+})
+
+export function registerHotkey(hotkey: string, onRegisterError?: (message: string) => void): boolean {
+  return captureHotkey.register(hotkey, captureByHotkey, onRegisterError)
 }
 
-export function changeHotkey(newHotkey: string, onError?: (message: string) => void): boolean {
-  const previousHotkey = currentHotkey
-  unregisterHotkey()
-  const ok = registerHotkey(newHotkey, onError)
-  // 巻き戻し（旧キー再登録）が失敗した場合も、呼び出し元の onError で気付けるようにする。
-  // onError を渡さないと registerHotkey は console.warn のみでホットキーが完全に失われても
-  // 呼び出し元・ユーザーのどちらにも伝わらない。
-  if (!ok) registerHotkey(previousHotkey, onError)
-  return ok
+export function changeHotkey(newHotkey: string, onRegisterError?: (message: string) => void): boolean {
+  return captureHotkey.change(newHotkey, onRegisterError)
 }

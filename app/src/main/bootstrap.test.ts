@@ -111,6 +111,7 @@ vi.mock('./capture/capture', () => ({
   canCaptureVideo: vi.fn(() => true), setBlackFrameHook: vi.fn(), runPreCaptureGuards: vi.fn(),
   changeHotkey: m.changeHotkey,
   registerHotkey: vi.fn(() => true),
+  onCaptureFailure: vi.fn(),
   SilentCaptureAbort: class extends Error {}
 }))
 vi.mock('./capture/captured-media', () => m.stub())
