@@ -4,6 +4,7 @@ import { trimmerStyles as s } from './trimmerStyles'
 import { isEditingTarget, mediaUrl } from '../utils'
 import { FRAME_EPS, addPendingStep, estimatedStepTarget, findFrameIdx } from './frameTable'
 import { frameSeekSec, stepFramePos } from './frameStep'
+import { boundaryRow, inRowWithin, outRowWithin, snapToFrameStart, trimEndSec } from './trimBounds'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { XIcon } from '../components/Icon'
 import { vcBtnStyle, vcTimeLabelStyle, PlayPauseIcon, VolumeControl, vcBarStyle, MuteIcon } from './videoControls'
@@ -106,11 +107,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
   const [inRow, setInRow] = useState(-1)
   const [outRow, setOutRow] = useState(-1)
   const playRowRef = useRef(-1)  // 再生位置の行（同じ理由）
-  // 覚えている行が今の時刻と食い違っていれば（ドラッグ・クリック等で時刻だけ動いた）時刻から引く。
-  function rowAt(row: number, sec: number): number {
-    if (row >= 0 && row < framePts.length && Math.abs(framePts[row] - sec) <= FRAME_EPS) return row
-    return findFrameIdx(framePts, sec)
-  }
+  const rowAt = (row: number, sec: number): number => boundaryRow(framePts, row, sec)
   const inIdx = hasTable ? rowAt(inRow, inSec) : -1
   const outIdx = hasTable ? rowAt(outRow, outSec) : -1
 
@@ -197,15 +194,10 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
     if (vcTimeLabelRef.current) vcTimeLabelRef.current.textContent = `${fmtTime(t)} / ${fmtTime(dur)}`
   }
 
-  // OUT に選んだフレームの「終わり」の時刻。OUT はそのフレームを含むので、帯やマーカーは
-  // ここまで塗る必要がある。開始時刻で描くと、末尾のフレームを選んでも 1 コマ分だけ
-  // 右端に届かない。
-  // 次の行ではなく「次に時刻が進む行」を取る（findFrameIdx は同じ時刻の並びの最後を返す）。
-  // 撮り逃しの行を OUT にしたとき次の行を取ると、映っている絵の手前で切れてしまう。
+  // OUT に選んだフレームの「終わり」の時刻（trimBounds.ts）。OUT はそのフレームを含むので、帯やマーカーも
+  // ここまで塗る。開始時刻で描くと、末尾のフレームを選んでも 1 コマ分だけ右端に届かない。
   function exportOutOf(outS: number): number {
-    if (!hasTable) return outS
-    const idx = findFrameIdx(framePts, outS)
-    return idx + 1 < framePts.length ? framePts[idx + 1] : dur
+    return hasTable ? trimEndSec(framePts, dur, outS) : outS
   }
 
   function updateSelRangeUI(inS: number, outS: number): void {
@@ -366,7 +358,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
   function setCurrentAsIn(): void {
     withFrame(null, (t) => {
       if (hasTable) {
-        const idx = Math.max(0, Math.min(rowAt(playRowRef.current, t), outIdx - 1))
+        const idx = inRowWithin(rowAt(playRowRef.current, t), outIdx)
         setInSec(framePts[idx])
         setInRow(idx)
       } else {
@@ -378,7 +370,7 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
   function setCurrentAsOut(): void {
     withFrame(null, (t) => {
       if (hasTable) {
-        const idx = Math.max(inIdx + 1, Math.min(rowAt(playRowRef.current, t), framePts.length - 1))
+        const idx = outRowWithin(rowAt(playRowRef.current, t), inIdx, framePts.length)
         setOutSec(framePts[idx])
         setOutRow(idx)
       } else {
@@ -504,16 +496,9 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
     return frameSeekSec({ pts: framePts, dur: frameDurs }, idx, step, dur)
   }
 
-  // タイムライン上の秒数→PTS スナップ
+  // タイムライン上の秒数→近い方のコマの頭（trimBounds.ts）
   function snapToPts(sec: number): number {
-    if (!hasTable) return sec
-    const idx = findFrameIdx(framePts, sec)
-    if (idx + 1 < framePts.length) {
-      const prev = framePts[idx]
-      const next = framePts[idx + 1]
-      return (sec - prev <= next - sec) ? prev : next
-    }
-    return framePts[idx]
+    return hasTable ? snapToFrameStart(framePts, sec) : sec
   }
 
   function handleTimelineClick(e: React.MouseEvent<HTMLDivElement>): void {
@@ -556,8 +541,8 @@ export default function VideoTrimmer({ image, onClose, onTrimmed }: Props) {
       // ドラッグ中こそ絵を見ながら境目を決めているので、1 つ手前が映ると見誤る。
       const idx = hasTable
         ? (kind === 'in'
-            ? Math.max(0, Math.min(findFrameIdx(framePts, snapToPts(raw)), curOutIdx - 1))
-            : Math.max(curInIdx + 1, Math.min(findFrameIdx(framePts, snapToPts(raw)), framePts.length - 1)))
+            ? inRowWithin(findFrameIdx(framePts, snapToPts(raw)), curOutIdx)
+            : outRowWithin(findFrameIdx(framePts, snapToPts(raw)), curInIdx, framePts.length))
         : -1
       if (hasTable) { dragRow = idx; playRowRef.current = idx }
       if (kind === 'in') {
