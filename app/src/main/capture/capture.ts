@@ -7,6 +7,7 @@ import { ensureCaptureSubDir, captureRootReachable, captureFileName } from '../s
 import { captureDisplayGdi } from './gdi-capture'
 import { t } from '../system/i18n'
 import { createHotkeySlot } from '../system/hotkey-slot'
+import { isVideoCovered } from './occlusion'
 import { loadSettings } from '../system/settings'
 import type { CaptureResize } from '../../shared/types'
 import { unscaleBilinear, UNSCALE_MAX_RESIDUAL } from './unscale'
@@ -306,6 +307,20 @@ export function computeVideoCrop(
 
   if (w <= 10 || h <= 10) return null
   return { x, y, w, h, inset: insetPx }
+}
+
+// 動画の上に別のウィンドウが重なっているか（occlusion.ts）。調べられなければ null（呼び出し側は撮る）。
+// 動画の位置は切り出しと同じ計算（computeVideoCrop）を倍率 1 で呼んで DIP で出す——別に書くと、
+// 切り出す位置と調べる位置が食い違う。
+export function isBrowserVideoCovered(): boolean | null {
+  if (!browserWindow || !videoRect) return null
+  const d = displayAtWindowCenter(browserWindow)
+  const crop = computeVideoCrop(d.bounds.width, d.bounds.height, d)
+  if (!crop) return null
+  return isVideoCovered(
+    { x: d.bounds.x + crop.x, y: d.bounds.y + crop.y, width: crop.w, height: crop.h },
+    { x: browserWindow.left, y: browserWindow.top, width: browserWindow.width, height: browserWindow.height },
+  )
 }
 
 async function resolveDisplay(): Promise<{ id: number; left: number; top: number } | null> {

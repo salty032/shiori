@@ -108,7 +108,7 @@ vi.mock('./browser/extension-bridge', () => ({
 }))
 vi.mock('./capture/capture', () => ({
   onCaptureDone: vi.fn(), setSourceVideoSize: vi.fn(), setPreCaptureHook: vi.fn(), setPostCaptureHook: vi.fn(),
-  canCaptureVideo: vi.fn(() => true), setBlackFrameHook: vi.fn(), runPreCaptureGuards: vi.fn(),
+  canCaptureVideo: vi.fn(() => true), isBrowserVideoCovered: vi.fn(() => false), setBlackFrameHook: vi.fn(), runPreCaptureGuards: vi.fn(),
   changeHotkey: m.changeHotkey,
   registerHotkey: vi.fn(() => true),
   onCaptureFailure: vi.fn(),

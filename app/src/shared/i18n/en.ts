@@ -123,6 +123,7 @@ export const en: Record<keyof typeof ja, string> = {
   // ── Capture ──────────────────────────────────────────────────
   'notice.captureTargetNotFound':
     'Nothing to capture. Open a video page on a supported site and check that the browser extension is enabled.',
+  'notice.captureCovered': 'Not captured because another window is covering the video',
   'notice.captureBlackScreen':
     'The captured frame came out black. Turn off hardware acceleration in your browser settings.',
   'notice.captureSaveFailed': 'Could not save the capture',

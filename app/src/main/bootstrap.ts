@@ -5,7 +5,7 @@ import { broadcastMessage, onExtensionMessage, setAllowedExtensionIds, onPortInU
 import { WS_PORTS } from '../shared/wire-limits'
 import {
   registerHotkey, changeHotkey, onCaptureFailure, onCaptureDone, setSourceVideoSize,
-  setPreCaptureHook, setPostCaptureHook, canCaptureVideo, setBlackFrameHook,
+  setPreCaptureHook, setPostCaptureHook, canCaptureVideo, isBrowserVideoCovered, setBlackFrameHook,
   runPreCaptureGuards, SilentCaptureAbort
 } from './capture/capture'
 import { databasePath, consumeDbBackupFailure } from './db/db-schema'
@@ -235,6 +235,12 @@ export function bootstrap(): void {
       if (!tc || !hasCaptureTimecode || !canCaptureVideo()) {
         sendWatchingNotice('warning', t('notice.captureTargetNotFound'))
         throw new SilentCaptureAbort('No active browser video target')
+      }
+      // ブラウザが別のウィンドウに隠れていても拡張は返事をするので、そのまま撮ると上のウィンドウが写る
+      // （ホットキーの誤作動で起きていた）。調べられないとき（null）は今までどおり撮る。
+      if (isBrowserVideoCovered() === true) {
+        sendWatchingNotice('warning', t('notice.captureCovered'))
+        throw new SilentCaptureAbort('Browser video is covered by another window')
       }
       return tc
     })
