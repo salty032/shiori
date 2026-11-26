@@ -1,5 +1,7 @@
-LangString SHIORI_CAPTURE_ROOT_IN_INSTALL_DIR 1033 "Your capture folder is inside the app's installation folder. Updating may delete captures stored there. Change the save location in Settings > Data, then try the update again."
-LangString SHIORI_CAPTURE_ROOT_IN_INSTALL_DIR 1041 "キャプチャと録画の保存場所が、Shiori のインストール先の中にあります。このまま更新すると、保存場所内のキャプチャや録画が削除されるおそれがあります。設定 > データ で保存場所を変更してから、もう一度更新してください。"
+; 文言はアプリの画面と同じ言葉で書く（保存先・「移動する」は ja.ts の dialog.moveCaptures.*、データは settings.tab.data）。
+; 「保存先がインストール先の中にある」とは言い切らない。移動を断って古い素材だけ残っている人は、保存先がもう外にある。
+LangString SHIORI_CAPTURE_ROOT_IN_INSTALL_DIR 1033 "Captures or recordings are stored in Shiori's installation folder. Updating now would delete them, so the update was stopped.$\r$\n$\r$\nIn Settings > Data, change the save location to a different folder. When you change it, choose $\"Move$\" to move the captures and recordings in the installation folder to the new location too. Then try the update again."
+LangString SHIORI_CAPTURE_ROOT_IN_INSTALL_DIR 1041 "Shiori のインストール先に、キャプチャや録画が入っています。このまま更新すると消えてしまうため、更新を中止しました。$\r$\n$\r$\n設定 > データ で、保存先を別のフォルダに変更してください。変更するときに『移動する』を選ぶと、インストール先のキャプチャや録画も新しい保存先へ移ります。そのあと、もう一度更新してください。"
 
 ; 更新では、入っている古い版のアンインストーラがインストール先を丸ごと消す（electron-builder の
 ; uninstaller.nsh。ゴミ箱を通らない）。古い版の動きは新しい版から変えられないので、消される前に
