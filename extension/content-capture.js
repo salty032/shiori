@@ -490,6 +490,12 @@ function showArmingOverlay(text) {
   st.setProperty('position', 'fixed', 'important')
   st.setProperty('left', `${Math.round(cx)}px`, 'important')
   st.setProperty('top', `${Math.round(cy)}px`, 'important')
+  // 全画面では動画の親要素に置くので、プレーヤーの全面レイヤー用の CSS に引き伸ばされないよう通知と同じく固定する
+  // （content-notice.js。Prime Video 全画面で通知が画面全体に引き伸ばされて消えた）。
+  st.setProperty('right', 'auto', 'important')
+  st.setProperty('bottom', 'auto', 'important')
+  st.setProperty('width', 'auto', 'important')
+  st.setProperty('height', 'auto', 'important')
   st.setProperty('transform', 'translate(-50%, -50%)', 'important')
   st.setProperty('z-index', '2147483647', 'important')
   st.setProperty('pointer-events', 'none', 'important')
