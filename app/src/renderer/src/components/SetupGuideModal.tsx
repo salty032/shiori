@@ -1,19 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ExtensionTimecode } from '../types'
+import { useEffect, useRef } from 'react'
 import type { SetupGuideState } from '../setupGuideState'
 import { control, font, modal as modalStyles, radius, space, weight } from '../styles'
 import { useModal } from '../hooks/useModal'
 import ModalFrame from './ModalFrame'
 import { useT } from '../i18n'
 import { XIcon } from './Icon'
-import { SETUP_STEP_COUNT } from '../setupGuideState'
-
-const EXTENSION_TIMEOUT_MS = 15_000
+import { SETUP_STEP_COUNT, completedSetupSteps } from '../setupGuideState'
+import { useExtensionConnected, type ExtensionStatus } from '../hooks/useExtensionConnected'
 
 type Props = {
   state: SetupGuideState
   captureHotkey: string
-  extensionStatus: { lastSeenAt: number; data: ExtensionTimecode } | null
+  extensionStatus: ExtensionStatus
   canStartTour: boolean
   onStartTour: () => void
   onChange: (patch: Partial<SetupGuideState>) => void
@@ -22,18 +20,16 @@ type Props = {
 
 export default function SetupGuideModal({ state, captureHotkey, extensionStatus, canStartTour, onStartTour, onChange, onClose }: Props) {
   const { t } = useT()
-  const [now, setNow] = useState(() => Date.now())
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   // 閉じたら（どの閉じ方でも）案内を見たことにする。
   const modal = useModal(onClose, { onClosing: () => onChange({ tutorialSeen: true }) })
 
-  const extensionConnected = extensionStatus !== null && now - extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
-  const completed = Number(state.browserPrepared) + Number(state.extensionReady) + Number(state.firstCaptureDone)
+  // 判定は設定画面と共通（useExtensionConnected.ts）。完了数も保存側と同じ数え方（setupGuideState.ts）。
+  const extensionConnected = useExtensionConnected(extensionStatus)
+  const completed = completedSetupSteps(state)
 
   useEffect(() => {
     closeBtnRef.current?.focus()
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
   }, [])
 
   const steps = [

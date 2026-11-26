@@ -12,6 +12,7 @@ import HotkeyField from './HotkeyField'
 import { useT } from '../i18n'
 import { allReleaseNotes, type ReleaseNoteEntry } from '../../../shared/releaseNotes'
 import type { MessageKey } from '../../../shared/i18n'
+import { useExtensionConnected } from '../hooks/useExtensionConnected'
 
 export { s } from './settingsStyles'
 
@@ -64,16 +65,8 @@ export default function SettingsModal(p: Props) {
   // ホットキーの欄（キャプチャ・録画）がキーを待っているか。待っている間は Escape で設定画面を閉じない。
   const [captureKeyWaiting, setCaptureKeyWaiting] = useState(false)
   const [clipKeyWaiting, setClipKeyWaiting] = useState(false)
-  // extensionStatus は最後に受信したイベントのスナップショットなので、拡張を無効化したり
-  // ブラウザを閉じたりしても「受信中」のまま変わらない。モーダル表示中は定期的に
-  // lastSeenAt からの経過時間を見て、タイムコード送信間隔（5秒）の3回分途絶えたら
-  // 「未受信」とみなす。
-  const EXTENSION_TIMEOUT_MS = 15_000
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
+  // 受信が途絶えたら「未受信」に戻す判定は初回の案内と共通（useExtensionConnected.ts）。
+  const extensionConnected = useExtensionConnected(p.extensionStatus)
   // 自動アップデートが適用されたかをいつでも確認できるよう、情報タブにバージョンを表示する
   const [appVersion, setAppVersion] = useState<string | null>(null)
   useEffect(() => {
@@ -91,7 +84,6 @@ export default function SettingsModal(p: Props) {
     window.api.getWsPort().then(setWsPort).catch(() => setWsPort(null))
   }, [])
   const wsPortUnavailable = wsPort === null
-  const extensionConnected = p.extensionStatus !== null && now - p.extensionStatus.lastSeenAt <= EXTENSION_TIMEOUT_MS
   // 拡張の更新案内は起動直後のOS通知1回だけで見逃しやすいため、受信中の拡張バージョンが
   // バンドル済み最新版と食い違っていれば設定画面にもバッジで出す（UX-9）。
   const extensionVersionMismatch = extensionConnected && p.extensionStatus?.data.versionMismatch === true
