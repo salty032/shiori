@@ -380,9 +380,8 @@ function showStepReadout(video) {
   droppedSteps = 0
 
   let host = document.getElementById('shiori-step-readout')
-  // フルスクリーン時に body 直下が隠されるサイト（niconico 等）向けの置き場所は通知と同じ。
-  const fsVideo = document.fullscreenElement ? document.fullscreenElement.querySelector('video') : null
-  const root = (fsVideo?.parentElement) || document.fullscreenElement || document.documentElement
+  // フルスクリーン時に body 直下が隠されるサイト（niconico 等）向けの置き場所は通知と同じ（content-notice.js）。
+  const root = shioriOverlayRoot()
   if (!host) {
     host = document.createElement('div')
     host.id = 'shiori-step-readout'

@@ -2,16 +2,23 @@
 
 let noticeTimer = null
 
+// 映像に重ねる表示（この通知・コマ送りの読み取り content-step.js・録画の準備中 content-capture.js）を置く要素。
+// **3 つとも必ずこれを使う。** フルスクリーン時、サイトによっては body 直下の要素を display:none で隠す CSS がある
+// (niconico 等)。動画の親要素内なら隠されないので、フルスクリーン時はそちらに追加する。
+// 準備中の表示だけが全画面の要素そのものに置いていて、niconico の全画面で出ていなかった（2026-11-26 本人が確認）。
+// 準備中は「消えたら録れている」合図なので、出ないと録画がいつ始まったか分からない。
+function shioriOverlayRoot() {
+  const fsVideo = document.fullscreenElement ? document.fullscreenElement.querySelector('video') : null
+  return (fsVideo?.parentElement) || document.fullscreenElement || document.documentElement
+}
+
 // pending: 続きの通知で書き換える予定の通知（録画の「撮り逃しを確認中」）。次の通知が来るまで
 // 消さない。短く消すと、結果が出る前に一度消えてまた出る。来なかったときのために上限は置く。
 const PENDING_NOTICE_MAX_MS = 15000
 let noticePending = false
 function showShioriNotice(level, message, pending = false) {
   let host = document.getElementById('shiori-browser-notice')
-  // フルスクリーン時、サイトによっては body 直下の要素を display:none で隠す CSS がある
-  // (niconico 等)。動画の親要素内なら隠されないので、フルスクリーン時はそちらに追加する。
-  const fsVideo = document.fullscreenElement ? document.fullscreenElement.querySelector('video') : null
-  const noticeRoot = (fsVideo?.parentElement) || document.fullscreenElement || document.documentElement
+  const noticeRoot = shioriOverlayRoot()
   if (!host) {
     host = document.createElement('div')
     host.id = 'shiori-browser-notice'

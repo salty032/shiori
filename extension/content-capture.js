@@ -482,7 +482,8 @@ function showArmingOverlay(text) {
   // 映像が見つからないときは画面中央へ。出さないより出した方がよい（押したことは伝わる）。
   const cx = rect && rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2
   const cy = rect && rect.height > 0 ? rect.top + rect.height / 2 : window.innerHeight / 2
-  const root = (document.fullscreenElement) || document.documentElement
+  // 置き場所は通知・コマ送りの読み取りと同じ（content-notice.js の shioriOverlayRoot）。
+  const root = shioriOverlayRoot()
   const host = document.createElement('div')
   host.id = 'shiori-clip-arming'
   const st = host.style
