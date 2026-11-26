@@ -50,6 +50,7 @@ import { consumeRestoreMarker } from './db/db-maintenance'
 import { openDatabaseOrRecover, backupDateLabel } from './db/db-startup'
 import { registerShutdownGuard } from './system/shutdown'
 import { startDiagLogIfEnabled } from './system/diag-log'
+import { notifyUntilFixed } from './system/notify-until-fixed'
 
 // renderer への送信は mainWindow の初回描画前だと無言で消えるため、読み込み後に送る
 // （whenRendererReady。ウィンドウがまだ無ければ作ったときまで預かる）。
@@ -123,17 +124,13 @@ export function bootstrap(): void {
   // ケースでは立てない。post-capture を空打ちせず、screenshot 直後の早期復帰と揃える
   let preCaptureSent = false
 
-  // 前回の再取得試行も失敗していた場合は通知を抑止する。他アプリがホットキーを握っている間、
-  // Shiori ⇔ ブラウザを行き来してウィンドウをフォーカスするたびに（focus イベント経由で
-  // この関数が呼ばれる）同じ「登録できませんでした」エラーが視聴中ページへ繰り返し表示されるのを防ぐ。
-  let reclaimNotifiedFailure = false
+  // 他アプリがホットキーを握っている間、ウィンドウをフォーカスするたびに取り直す（focus イベント経由で
+  // reclaimHotkeysIfFree が呼ばれる）。「登録できませんでした」は起動時と取り直しを通して、直るまで 1 回だけ。
+  const captureHotkeyFailure = notifyUntilFixed((m) => sendAppFailureNotice('error', m))
   function reclaimHotkeysIfFree(): void {
     const st = loadSettings()
     if (globalShortcut.isRegistered(st.captureHotkey)) return
-    const ok = registerHotkey(st.captureHotkey, (m) => {
-      if (!reclaimNotifiedFailure) sendAppFailureNotice('error', m)
-    })
-    reclaimNotifiedFailure = !ok
+    captureHotkeyFailure.result(registerHotkey(st.captureHotkey, captureHotkeyFailure.onError))
   }
 
   app.whenReady().then(async () => {
@@ -390,9 +387,7 @@ export function bootstrap(): void {
     })
     // ホットキーを登録できなかった知らせはアプリに出す（起動時・アプリに戻ったときに起きることで、
     // 拡張が繋がる前のこともある。ブラウザにだけ送ると黙って消えていた）。
-    registerHotkey(loadSettings().captureHotkey, (message) => {
-      sendAppFailureNotice('error', message)
-    })
+    captureHotkeyFailure.result(registerHotkey(loadSettings().captureHotkey, captureHotkeyFailure.onError))
 
     initAutoUpdater(getMainWindow)
     handleTrusted(CH.updaterGetDownloaded, () => downloadedUpdateVersion())

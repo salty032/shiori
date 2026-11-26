@@ -12,6 +12,7 @@ import { registerRecorderIpc } from './recorder-ipc'
 import { registerClipHotkey, changeClipHotkey } from './clip-hotkey'
 import { registerSupplyBench } from './supply-bench'
 import { finishRecordingState, handleClipHotkey, isRecordingInProgress } from './recording'
+import { notifyUntilFixed } from '../system/notify-until-fixed'
 
 export function registerVideoIpc(): void {
   registerVideoHandlers()
@@ -57,14 +58,10 @@ export function startVideo(): void {
   // （録画対象の画面は準備中に、ここで決めた位置から選ぶ）。
   addBrowserTargetUpdateGuard(() => isRecordingInProgress())
 
-  registerClipHotkey(
-    loadSettings().clipHotkey,
-    handleClipHotkey,
-    // 登録できなかった知らせはアプリに出す（bootstrap.ts の静止画のホットキーと同じ理由）。
-    (message) => {
-      sendAppFailureNotice('error', message)
-    }
-  )
+  // 登録できなかった知らせはアプリに出す（bootstrap.ts の静止画のホットキーと同じ理由）。
+  // 起動時と下の取り直しを通して、直るまで 1 回だけ（取り直しのたびに出すと二重に出た）。
+  const clipHotkeyFailure = notifyUntilFixed((m) => sendAppFailureNotice('error', m))
+  clipHotkeyFailure.result(registerClipHotkey(loadSettings().clipHotkey, handleClipHotkey, clipHotkeyFailure.onError))
   // 閉じたらメモリを空ける設定では作り置かない（録画のたびに作って捨てる。recording.ts）。
   if (!loadSettings().lowMemoryMode) createRecorderWindow(finishRecordingState)
 
@@ -77,9 +74,7 @@ export function startVideo(): void {
   onMainWindowFocus(() => {
     const st = loadSettings()
     if (!globalShortcut.isRegistered(st.clipHotkey)) {
-      registerClipHotkey(st.clipHotkey, handleClipHotkey, (m) => {
-        sendAppFailureNotice('error', m)
-      })
+      clipHotkeyFailure.result(registerClipHotkey(st.clipHotkey, handleClipHotkey, clipHotkeyFailure.onError))
     }
   })
 }
