@@ -23,6 +23,14 @@ import { compareVersions } from './version'
 // 1.1.3 に録画もタイムシートも無く、コマ送りのキーまで変わっている。いちばん大きい変更が
 // 1 行も無いお知らせになりかけた。**書く前に前回のタグとの差分を見ること。**
 export const RELEASE_NOTES: Record<string, Record<Lang, string[]>> = {
+  '1.9.3': {
+    ja: [
+      'インストール先に入っていたキャプチャや録画が、更新のときに消えてしまう不具合がありました。ご迷惑をおかけし、申し訳ありません。インストール先にキャプチャや録画があるときは、更新の前に止めて、移すよう案内するようにしました。',
+    ],
+    en: [
+      'There was a bug where captures and recordings inside Shiori’s installation folder were deleted during updates. We apologize for the trouble. If captures or recordings are found in the installation folder, Shiori now stops before updating and asks you to move them.',
+    ],
+  },
   '1.9.2': {
     ja: [
       'キャプチャや録画の保存先を Shiori のインストール先にしていると、更新時にデータが削除されるおそれがあるため、保存先を変更するまで更新を止めるようにしました。',
