@@ -21,8 +21,8 @@ export function buildCoreApi(): ShioriApi {
     listAllTags: (includeAi) =>
       ipcRenderer.invoke(CH.imagesListAllTags, includeAi),
 
-    exportImages: (imageIds) =>
-      ipcRenderer.invoke(CH.imagesExport, imageIds),
+    exportImages: (imageIds, options) =>
+      ipcRenderer.invoke(CH.imagesExport, imageIds, options),
 
     imagesExportCancel: () => ipcRenderer.invoke(CH.imagesExportCancel),
     imagesRepairThumbs: () => ipcRenderer.invoke(CH.imagesRepairThumbs),

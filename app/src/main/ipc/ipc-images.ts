@@ -1,6 +1,6 @@
 // 画像一覧・件数・エクスポート・取得・タイトル/メモ更新・サムネ一括生成・削除の IPC ハンドラ。
 import { showOpenDialogOver } from '../system/dialogs'
-import { access, stat, copyFile, unlink } from 'fs/promises'
+import { access, copyFile, unlink } from 'fs/promises'
 import { basename, extname } from 'path'
 import { handleTrusted, sendToRenderer } from '../system/windows'
 import {
@@ -18,10 +18,11 @@ import {
   sanitizeFilename, formatDateForFilename, formatTimecodeForFilename, uniqueExportPath,
   uniqueImageIds,
 } from './ipc-validation'
-import { CH } from '../../shared/api'
+import { CH, type ExportImagesResult } from '../../shared/api'
 import { MAX_BULK_IDS, MAX_MEMO_LENGTH } from '../../shared/constants'
-import type { DeleteImageResult } from '../../shared/types'
+import type { DeleteImageResult, ImageRow } from '../../shared/types'
 import { resolveRealCapturePath, thumbPathFor } from '../system/paths'
+import { fileExists } from '../system/file-exists'
 import { createImageThumb } from '../capture/image-thumb'
 import { createProgressThrottle } from '../system/progress-throttle'
 import { exclusiveTask } from '../system/exclusive-task'
@@ -137,14 +138,34 @@ export function registerImageHandlers(): void {
   handleTrusted(CH.imagesListSites, () => listSites())
   handleTrusted(CH.imagesListAllTags, (_event, includeAi: unknown) => listAllTags(includeAi === true))
 
-  handleTrusted(CH.imagesExport, async (_event, imageIds: number[]) => {
+  handleTrusted(CH.imagesExport, async (_event, imageIds: number[], options?: unknown): Promise<ExportImagesResult> => {
+    const skipMissing = typeof options === 'object' && options !== null && (options as { skipMissing?: unknown }).skipMissing === true
     // renderer 側（exportStore の exportKind ガード）だけだと、拡張機能の別ウィンドウや
     // 復旧不能な状態からの二重呼び出しを防げない。「やめて」がモジュール単一なので、
     // 並行実行されると片方の中止操作がもう片方も止め、進捗表示も混線する（R-5）。
-    return imagesExport.run('export', { canceled: true }, async () => {
+    return imagesExport.run('export', { canceled: true }, async (): Promise<ExportImagesResult> => {
       const uniqueIds = uniqueImageIds(imageIds)
       const truncated = uniqueIds.length > MAX_EXPORT_IDS
       const ids = uniqueIds.slice(0, MAX_EXPORT_IDS)
+
+      // **書き出しを途中で欠けさせない。** 元ファイルは書く前に全部確かめ、無いものがあれば
+      // 何も書かずに返して画面で聞く（残りを書き出すかは利用者が決める）。全部失敗にしないのは、
+      // どの画像の元ファイルが無いかを示す表示が無く、選び直して抜け出す手段が無いから。
+      const ready: { image: ImageRow; src: string }[] = []
+      let missing = 0
+      for (const id of ids) {
+        const image = getImage(id)
+        const src = image ? await resolveRealCapturePath(image.filepath) : null
+        if (!image || !src || !(await fileExists(src))) {
+          missing++
+          console.warn(`[images:export] source unavailable id=${id}`)
+          continue
+        }
+        ready.push({ image, src })
+      }
+      if (missing > 0 && (ready.length === 0 || !skipMissing)) {
+        return { canceled: false, missing, exportable: ready.length }
+      }
 
       const { canceled, filePaths } = await showOpenDialogOver({ title: t('dialog.exportFolder'), properties: ['openDirectory'] })
       if (canceled || !filePaths[0]) return { canceled: true }
@@ -158,16 +179,10 @@ export function registerImageHandlers(): void {
       // H.264 で頼まれたのに変換できず、元の形式のまま置いた本数。
       // **黙って webm を置くと「mp4 で出したつもり」のまま気づけない。** 画面に出す。
       let notConverted = 0
-      const copyOne = async (id: number): Promise<{ ok: boolean; reason?: string }> => {
-        const image = getImage(id)
-        if (!image) return { ok: false, reason: 'record not found' }
-        const src = await resolveRealCapturePath(image.filepath)
-        if (!src) return { ok: false, reason: 'capture path unavailable' }
-        try {
-          await stat(src)
-        } catch {
-          return { ok: false, reason: 'source file missing' }
-        }
+      // 書き出し先に置いたファイル。保存に失敗したら全部消して「何も書き出していない」に戻す。
+      const written: string[] = []
+      const copyOne = async ({ image, src }: { image: ImageRow; src: string }): Promise<'ok' | 'canceled' | 'write-failed'> => {
+        const id = image.id
         const baseTitle = sanitizeFilename(image.title || basename(src, extname(src)))
         const datePart = formatDateForFilename(image.captured_at)
         const timePart = formatTimecodeForFilename(image.current_time)
@@ -194,41 +209,49 @@ export function registerImageHandlers(): void {
                 { width: image.width, height: image.height, fps: image.fps },
                 () => imagesExport.canceled
               )
-              return { ok: true }
+              written.push(outPath)
+              return 'ok'
             } catch (err) {
               try { await unlink(outPath) } catch {}
               // 中止で落ちたときは「失敗」として数えない（この後ループも抜ける）。
-              if (imagesExport.canceled) return { ok: false }
+              if (imagesExport.canceled) return 'canceled'
               console.warn(`[images:export] h264 transcode failed id=${id}`, err)
               notConverted++
             }
           }
         }
 
+        const outPath = await nameWith(srcExt)
         try {
-          await copyFile(src, await nameWith(srcExt))
-          return { ok: true }
+          await copyFile(src, outPath)
+          written.push(outPath)
+          return 'ok'
         } catch (err) {
           console.warn(`[images:export] copy failed id=${id}`, err)
-          return { ok: false, reason: 'copy failed' }
+          try { await unlink(outPath) } catch {}
+          return 'write-failed'
         }
       }
       let count = 0
-      let skipped = 0
-      const total = ids.length
+      const total = ready.length
       sendToRenderer(CH.exportProgress, { current: 0, total })
       const shouldSend = createProgressThrottle(total)
-      for (let i = 0; i < ids.length; i++) {
+      for (let i = 0; i < ready.length; i++) {
         if (imagesExport.canceled) break
-        const result = await copyOne(ids[i])
-        if (result.ok) count++
-        else if (result.reason) {
-          skipped++
-          console.warn(`[images:export] skipped id=${ids[i]}: ${result.reason}`)
+        const result = await copyOne(ready[i])
+        if (result === 'write-failed') {
+          // 途中まで書いた分を残すと、どこまで入ったか分からない半端なフォルダになる。
+          for (const path of written) {
+            try { await unlink(path) } catch (err) { console.warn('[images:export] rollback failed', path, err) }
+          }
+          sendToRenderer(CH.exportProgress, { current: total, total })
+          return { canceled: false, writeFailed: true }
         }
+        if (result === 'ok') count++
         if (shouldSend(i + 1)) sendToRenderer(CH.exportProgress, { current: i + 1, total })
       }
-      return { canceled: imagesExport.canceled, count, skipped, truncated, notConverted }
+      if (imagesExport.canceled) return { canceled: true, count }
+      return { canceled: false, count, truncated, notConverted }
     })
   })
 

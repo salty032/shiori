@@ -724,7 +724,7 @@ export function useSelection({
   // ids を明示すれば selectedIds を無視してその画像だけ書き出す。ビューア表示中の
   // DetailPanel の「エクスポート」はビューアの現在画像を対象にするため、呼び出し元（App.tsx）が
   // ids を渡す（P1）。書き出し自体は選択の仕組みとは独立している（排他と結果の通知だけ）。
-  const exportSelected = useExportSelected({ getDefaultIds: () => [...selectedIds], showToast })
+  const exportSelected = useExportSelected({ getDefaultIds: () => [...selectedIds], showToast, setConfirmDialog })
 
   return { selectedIds, setSelectedIds, pendingIds, selBox, focusedIndex, handleGridMouseDown, selectIndex, openIndex, clearSelection, deleteSelected, deleteViewerImage, exportSelected, preserveSelectionOnce, selfDragRef }
 }

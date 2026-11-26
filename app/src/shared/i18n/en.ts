@@ -43,6 +43,8 @@ export const en: Record<keyof typeof ja, string> = {
     'This copies the files, so it can take several minutes. The destination needs twice the space while it runs.\n\n' +
     'If you stop it or it fails, the save location and your records stay as they were.',
   'dialog.moveCaptures.proceed': 'Move',
+  'dialog.exportMissing.message': '{missing} of the selected images can’t be exported because their original files are missing. Export the other {rest}?',
+  'dialog.exportMissing.proceed': 'Export',
   'dialog.importFolder': 'Choose a folder to import',
   'dialog.importLibrary.title': 'Import library',
   'dialog.importLibrary.message': 'Choose how to import.',
@@ -230,7 +232,8 @@ export const en: Record<keyof typeof ja, string> = {
   'toast.exported.one': 'Exported {count} image',
   'toast.exported.other': 'Exported {count} images',
   'toast.exportTruncatedSuffix': ' (some were left out because of the limit)',
-  'toast.exportSkippedSuffix': ' ({count} skipped because the source file was unavailable)',
+  'toast.exportAllMissing': 'None of the selected images can be exported because their original files are missing',
+  'toast.exportWriteFailed': 'Nothing was exported because the files could not be saved to the destination',
   'toast.exportNotConvertedSuffix': ' ({count} of them could not be converted to H.264 and were written as recorded)',
   'toast.exportFailed': 'Export failed. Check the destination folder and the files.',
   'toast.startupToggleFailed': 'Could not change the start-on-login setting',

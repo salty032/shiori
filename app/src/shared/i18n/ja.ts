@@ -31,6 +31,9 @@ export const ja = {
     'ファイルをコピーするため、件数によっては数分かかります。移動中は移動先に一時的に 2 倍の空きが必要です。\n\n' +
     '途中で止めたり失敗したりしても、保存先も記録も元のままです。',
   'dialog.moveCaptures.proceed': '移動する',
+  // 書き出しを途中で欠けさせないため、元ファイルの無い画像があれば書く前に聞く（ipc-images.ts）。
+  'dialog.exportMissing.message': '{missing}枚は元ファイルが無いので書き出せません。残りの{rest}枚を書き出しますか？',
+  'dialog.exportMissing.proceed': '書き出す',
   'dialog.importFolder': 'インポートするフォルダを選択',
   // 同じエクスポートを、PC を移したときは自分のものとして、人からもらったときは受け取ったものとして読む。
   // **勝手に決めずに聞く**（インポートはめったにしないので、毎回聞いても手間にならない）。
@@ -244,7 +247,8 @@ export const ja = {
   'toast.exported.one': '{count}枚をエクスポートしました',
   'toast.exported.other': '{count}枚をエクスポートしました',
   'toast.exportTruncatedSuffix': '（上限のため一部は対象外です）',
-  'toast.exportSkippedSuffix': '（{count}枚は元ファイルを利用できずスキップしました）',
+  'toast.exportAllMissing': '選んだ画像はどれも元ファイルが無いので、書き出せません',
+  'toast.exportWriteFailed': '書き出し先に保存できなかったので、何も書き出していません',
   'toast.exportNotConvertedSuffix': '（うち{count}本はH.264に変換できず、録画したままの形式で書き出しました）',
   'toast.exportFailed': 'エクスポートに失敗しました。保存先やファイルの状態を確認してください。',
   'toast.startupToggleFailed': '自動起動の設定に失敗しました',

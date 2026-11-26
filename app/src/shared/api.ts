@@ -16,13 +16,24 @@ export type FramesVerifiedColumn =
   | 'anime_missing_frames'
 export type FramesVerified = { id: number } & { [K in FramesVerifiedColumn]-?: NonNullable<ImageRow[K]> | null }
 
+// 選択の書き出し（exportImages）の結果。**途中で欠けた書き出しを残さない**（ipc-images.ts）。
+export type ExportImagesResult =
+  // フォルダ選択の取り消し（count なし）か、中止ボタン（count あり＝そこまで書いた）。
+  | { canceled: true; count?: number }
+  // 元ファイルの無い画像があり、何も書いていない。exportable > 0 なら残りを書き出すか画面で聞く。
+  | { canceled: false; missing: number; exportable: number }
+  // 書き出し先に保存できず、書いた分も消した。
+  | { canceled: false; writeFailed: true }
+  | { canceled: false; count: number; truncated: boolean; notConverted: number }
+
 export interface ShioriApi {
   listImages: (req: ImageListRequest) => Promise<ImageRow[]>
   countImages: (query: ImageQuery) => Promise<number>
   listAllImages: (query: ImageQuery) => Promise<ImageRow[]>
   listSites: () => Promise<string[]>
   listAllTags: (includeAi?: boolean) => Promise<TagWithCount[]>
-  exportImages: (imageIds: number[]) => Promise<{ canceled: boolean; count?: number; skipped?: number; truncated?: boolean; notConverted?: number }>
+  // skipMissing: 元ファイルの無い画像を除いて書き出す（missing が返ったあと、画面で利用者が選んだとき）。
+  exportImages: (imageIds: number[], options?: { skipMissing?: boolean }) => Promise<ExportImagesResult>
   // 進行中の imagesExport を中断する（数百枚規模のコピーが分単位になりうるため）。
   // count が届いている exportImages の戻り値と canceled: true の組み合わせで
   // 「途中まで書き出し済み」を判別する（フォルダ選択自体のキャンセルは count なし）。
